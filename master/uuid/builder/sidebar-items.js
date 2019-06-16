@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Builder","A builder struct for creating a [`Uuid`]"]]});

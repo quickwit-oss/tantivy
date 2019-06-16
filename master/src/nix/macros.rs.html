@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/macros.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>macros.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/macros.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>macros.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../nix/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -262,187 +262,26 @@
 <span id="262">262</span>
 <span id="263">263</span>
 <span id="264">264</span>
-<span id="265">265</span>
-<span id="266">266</span>
-<span id="267">267</span>
-<span id="268">268</span>
-<span id="269">269</span>
-<span id="270">270</span>
-<span id="271">271</span>
-<span id="272">272</span>
-<span id="273">273</span>
-<span id="274">274</span>
-<span id="275">275</span>
-<span id="276">276</span>
-<span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
-<span id="285">285</span>
-<span id="286">286</span>
-<span id="287">287</span>
-<span id="288">288</span>
-<span id="289">289</span>
-<span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
-<span id="327">327</span>
-<span id="328">328</span>
-<span id="329">329</span>
-<span id="330">330</span>
-<span id="331">331</span>
-<span id="332">332</span>
-<span id="333">333</span>
-<span id="334">334</span>
-<span id="335">335</span>
-<span id="336">336</span>
-<span id="337">337</span>
-<span id="338">338</span>
-<span id="339">339</span>
-<span id="340">340</span>
-<span id="341">341</span>
-<span id="342">342</span>
-<span id="343">343</span>
-<span id="344">344</span>
-<span id="345">345</span>
-<span id="346">346</span>
-<span id="347">347</span>
-<span id="348">348</span>
-<span id="349">349</span>
-<span id="350">350</span>
-<span id="351">351</span>
-<span id="352">352</span>
-<span id="353">353</span>
-<span id="354">354</span>
-<span id="355">355</span>
-<span id="356">356</span>
-<span id="357">357</span>
-<span id="358">358</span>
-<span id="359">359</span>
-<span id="360">360</span>
-<span id="361">361</span>
-<span id="362">362</span>
-<span id="363">363</span>
-<span id="364">364</span>
-<span id="365">365</span>
-<span id="366">366</span>
-<span id="367">367</span>
-<span id="368">368</span>
-<span id="369">369</span>
-<span id="370">370</span>
-<span id="371">371</span>
-<span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
-<span id="407">407</span>
-<span id="408">408</span>
-<span id="409">409</span>
-<span id="410">410</span>
-<span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-</pre><pre class="rust ">
-<span class="doccomment">/// The `libc_bitflags!` macro helps with a common use case of defining bitflags with values from</span>
-<span class="doccomment">/// the libc crate. It is used the same way as the `bitflags!` macro, except that only the name of</span>
-<span class="doccomment">/// the flag value has to be given.</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">/// The `libc_bitflags!` macro helps with a common use case of defining a public bitflags type</span>
+<span class="doccomment">/// with values from the libc crate. It is used the same way as the `bitflags!` macro, except</span>
+<span class="doccomment">/// that only the name of the flag value has to be given.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The `libc` crate must be in scope with the name `libc`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// libc_bitflags!{</span>
-<span class="doccomment">///     pub flags ProtFlags: libc::c_int {</span>
-<span class="doccomment">///         PROT_NONE,</span>
-<span class="doccomment">///         PROT_READ,</span>
-<span class="doccomment">///         PROT_WRITE,</span>
-<span class="doccomment">///         PROT_EXEC,</span>
+<span class="doccomment">///     pub struct ProtFlags: libc::c_int {</span>
+<span class="doccomment">///         PROT_NONE;</span>
+<span class="doccomment">///         PROT_READ;</span>
+<span class="doccomment">///         /// PROT_WRITE enables write protect</span>
+<span class="doccomment">///         PROT_WRITE;</span>
+<span class="doccomment">///         PROT_EXEC;</span>
 <span class="doccomment">///         #[cfg(any(target_os = &quot;linux&quot;, target_os = &quot;android&quot;))]</span>
-<span class="doccomment">///         PROT_GROWSDOWN,</span>
+<span class="doccomment">///         PROT_GROWSDOWN;</span>
 <span class="doccomment">///         #[cfg(any(target_os = &quot;linux&quot;, target_os = &quot;android&quot;))]</span>
-<span class="doccomment">///         PROT_GROWSUP,</span>
+<span class="doccomment">///         PROT_GROWSUP;</span>
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
@@ -453,215 +292,35 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// libc_bitflags!{</span>
-<span class="doccomment">///     pub flags SaFlags: libc::c_ulong {</span>
-<span class="doccomment">///         SA_NOCLDSTOP as libc::c_ulong,</span>
-<span class="doccomment">///         SA_NOCLDWAIT,</span>
-<span class="doccomment">///         SA_NODEFER as libc::c_ulong,</span>
-<span class="doccomment">///         SA_ONSTACK,</span>
-<span class="doccomment">///         SA_RESETHAND as libc::c_ulong,</span>
-<span class="doccomment">///         SA_RESTART as libc::c_ulong,</span>
-<span class="doccomment">///         SA_SIGINFO,</span>
+<span class="doccomment">///     pub struct SaFlags: libc::c_ulong {</span>
+<span class="doccomment">///         SA_NOCLDSTOP as libc::c_ulong;</span>
+<span class="doccomment">///         SA_NOCLDWAIT;</span>
+<span class="doccomment">///         SA_NODEFER as libc::c_ulong;</span>
+<span class="doccomment">///         SA_ONSTACK;</span>
+<span class="doccomment">///         SA_RESETHAND as libc::c_ulong;</span>
+<span class="doccomment">///         SA_RESTART as libc::c_ulong;</span>
+<span class="doccomment">///         SA_SIGINFO;</span>
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">libc_bitflags</span> {
-    <span class="comment">// (non-pub) Exit rule.</span>
-    (@<span class="ident">call_bitflags</span>
-        {
-            <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>,
-            <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span>,
-            <span class="ident">attrs</span>: [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>],
-            <span class="ident">flags</span>: [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>],
+    (
+        $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">outer</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span>
+        <span class="kw">pub</span> <span class="kw">struct</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span> {
+            $(
+                $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">ident</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>]</span>)<span class="op">*</span>
+                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">Flag</span>:<span class="ident">ident</span> $(<span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">cast</span>:<span class="ident">ty</span>)<span class="kw-2">*</span>;
+            )<span class="op">+</span>
         }
     ) <span class="op">=&gt;</span> {
         <span class="macro">bitflags</span><span class="macro">!</span> {
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>)<span class="op">*</span>
-            <span class="ident">flags</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span> {
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-            }
-        }
-    };
-
-    <span class="comment">// (pub) Exit rule.</span>
-    (@<span class="ident">call_bitflags</span>
-        {
-            <span class="kw">pub</span>,
-            <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>,
-            <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span>,
-            <span class="ident">attrs</span>: [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>],
-            <span class="ident">flags</span>: [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>],
-        }
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">bitflags</span><span class="macro">!</span> {
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>)<span class="op">*</span>
+            $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">outer</span>]</span>)<span class="op">*</span>
             <span class="kw">pub</span> <span class="kw">struct</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span> {
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
+                $(
+                    $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>]</span>)<span class="op">*</span>
+                    <span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">Flag</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">Flag</span> $(<span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">cast</span>)<span class="kw-2">*</span>;
+                )<span class="op">+</span>
             }
-        }
-    };
-
-    <span class="comment">// (non-pub) Done accumulating.</span>
-    (@<span class="ident">accumulate_flags</span>
-        {
-            <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>,
-            <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span>,
-            <span class="ident">attrs</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>:<span class="ident">tt</span>,
-        },
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>;
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">call_bitflags</span>
-            {
-                <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>,
-                <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>,
-                <span class="ident">attrs</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>,
-                <span class="ident">flags</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>,
-            }
-        }
-    };
-
-    <span class="comment">// (pub) Done accumulating.</span>
-    (@<span class="ident">accumulate_flags</span>
-        {
-            <span class="kw">pub</span>,
-            <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>,
-            <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span>,
-            <span class="ident">attrs</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>:<span class="ident">tt</span>,
-        },
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>;
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">call_bitflags</span>
-            {
-                <span class="kw">pub</span>,
-                <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>,
-                <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>,
-                <span class="ident">attrs</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>,
-                <span class="ident">flags</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>,
-            }
-        }
-    };
-
-    <span class="comment">// Munch an attr.</span>
-    (@<span class="ident">accumulate_flags</span>
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
-        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
-        <span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>:<span class="ident">tt</span>)<span class="op">*</span>
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
-            [
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-                <span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>]</span>
-            ];
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>)<span class="op">*</span>
-        }
-    };
-
-    <span class="comment">// Munch last ident if not followed by a comma.</span>
-    (@<span class="ident">accumulate_flags</span>
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
-        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">ident</span>
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
-            [
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-                <span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>;
-            ];
-        }
-    };
-
-    <span class="comment">// Munch last ident and cast it to the given type.</span>
-    (@<span class="ident">accumulate_flags</span>
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
-        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">ident</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
-            [
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-                <span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>;
-            ];
-        }
-    };
-
-    <span class="comment">// Munch an ident; covers terminating comma case.</span>
-    (@<span class="ident">accumulate_flags</span>
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
-        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">ident</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>:<span class="ident">tt</span>)<span class="op">*</span>
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
-            [
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-                <span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>;
-            ];
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>)<span class="op">*</span>
-        }
-    };
-
-    <span class="comment">// Munch an ident and cast it to the given type; covers terminating comma</span>
-    <span class="comment">// case.</span>
-    (@<span class="ident">accumulate_flags</span>
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
-        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">ident</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>:<span class="ident">tt</span>)<span class="op">*</span>
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
-            [
-                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flags</span>)<span class="op">*</span>
-                <span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>;
-            ];
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>)<span class="op">*</span>
-        }
-    };
-
-    <span class="comment">// (non-pub) Entry rule.</span>
-    (
-        $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span>
-        <span class="ident">flags</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span> {
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">vals</span>:<span class="ident">tt</span>)<span class="op">*</span>
-        }
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            {
-                <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>,
-                <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>,
-                <span class="ident">attrs</span>: [$(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>]</span>)<span class="kw-2">*</span>],
-            },
-            [];
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">vals</span>)<span class="op">*</span>
-        }
-    };
-
-    <span class="comment">// (pub) Entry rule.</span>
-    (
-        $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span>
-        <span class="kw">pub</span> <span class="ident">flags</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>:<span class="ident">ident</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>:<span class="ident">ty</span> {
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">vals</span>:<span class="ident">tt</span>)<span class="op">*</span>
-        }
-    ) <span class="op">=&gt;</span> {
-        <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-            @<span class="ident">accumulate_flags</span>
-            {
-                <span class="kw">pub</span>,
-                <span class="ident">name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span>,
-                <span class="kw">type</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>,
-                <span class="ident">attrs</span>: [$(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>]</span>)<span class="kw-2">*</span>],
-            },
-            [];
-            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">vals</span>)<span class="op">*</span>
         }
     };
 }
@@ -696,7 +355,7 @@
         }
     ) <span class="op">=&gt;</span> {
         $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>)<span class="op">*</span>
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>)]</span>
         <span class="kw">enum</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span> {
             $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">entries</span>)<span class="op">*</span>
         }
@@ -712,7 +371,7 @@
         }
     ) <span class="op">=&gt;</span> {
         $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attrs</span>)<span class="op">*</span>
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">Ord</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>)]</span>
         <span class="kw">pub</span> <span class="kw">enum</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">BitFlags</span> {
             $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">entries</span>)<span class="op">*</span>
         }
@@ -806,6 +465,23 @@
         }
     };
 
+    <span class="comment">// Munch an ident and cast it to the given type; covers terminating comma.</span>
+    (@<span class="ident">accumulate_entries</span>
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>:<span class="ident">tt</span>,
+        [$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">entries</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>];
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">entry</span>:<span class="ident">ident</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>:<span class="ident">tt</span>)<span class="op">*</span>
+    ) <span class="op">=&gt;</span> {
+        <span class="macro">libc_enum</span><span class="macro">!</span> {
+            @<span class="ident">accumulate_entries</span>
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">prefix</span>,
+            [
+                $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">entries</span>)<span class="op">*</span>
+                <span class="macro-nonterminal">$</span><span class="macro-nonterminal">entry</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">entry</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>,
+            ];
+            $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tail</span>)<span class="op">*</span>
+        }
+    };
+
     <span class="comment">// (non-pub) Entry rule.</span>
     (
         $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span>
@@ -851,5 +527,5 @@
         <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>)).<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span>
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

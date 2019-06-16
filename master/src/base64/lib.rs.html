@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/base64-0.9.2/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/base64-0.10.1/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../base64/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -178,53 +178,13 @@
 <span id="178">178</span>
 <span id="179">179</span>
 <span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
-<span id="187">187</span>
-<span id="188">188</span>
-<span id="189">189</span>
-<span id="190">190</span>
-<span id="191">191</span>
-<span id="192">192</span>
-<span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
-<span id="196">196</span>
-<span id="197">197</span>
-<span id="198">198</span>
-<span id="199">199</span>
-<span id="200">200</span>
-<span id="201">201</span>
-<span id="202">202</span>
-<span id="203">203</span>
-<span id="204">204</span>
-<span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-<span id="211">211</span>
-<span id="212">212</span>
-<span id="213">213</span>
-<span id="214">214</span>
-<span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! # Configs</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! There isn&#39;t just one type of Base64; that would be too simple. You need to choose a character</span>
-<span class="doccomment">//! set (standard or URL-safe), padding suffix (yes/no), and line wrap (line length, line ending).</span>
+<span class="doccomment">//! set (standard, URL-safe, etc) and padding suffix (yes/no).</span>
 <span class="doccomment">//! The `Config` struct encapsulates this info. There are some common configs included: `STANDARD`,</span>
-<span class="doccomment">//! `MIME`, etc. You can also make your own `Config` if needed.</span>
+<span class="doccomment">//! `URL_SAFE`, etc. You can also make your own `Config` if needed.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The functions that don&#39;t have `config` in the name (e.g. `encode()` and `decode()`) use the</span>
 <span class="doccomment">//! `STANDARD` config .</span>
@@ -246,15 +206,11 @@
 <span class="doccomment">//! | `encode_config_buf`     | Appends to provided `String` | Only if `String` needs to grow |</span>
 <span class="doccomment">//! | `encode_config_slice`   | Writes to provided `&amp;[u8]`   | Never                          |</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! All of the encoding functions that take a `Config` will pad, line wrap, etc, as per the config.</span>
+<span class="doccomment">//! All of the encoding functions that take a `Config` will pad as per the config.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Decoding</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Just as for encoding, there are different decoding functions available.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Note that all decode functions that take a config will allocate a copy of the input if you</span>
-<span class="doccomment">//! specify a config that requires whitespace to be stripped. If you care about speed, don&#39;t use</span>
-<span class="doccomment">//! formats that line wrap and then require whitespace stripping.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! | Function                | Output                        | Allocates                      |</span>
 <span class="doccomment">//! | ----------------------- | ----------------------------- | ------------------------------ |</span>
@@ -266,9 +222,7 @@
 <span class="doccomment">//! Unlike encoding, where all possible input is valid, decoding can fail (see `DecodeError`).</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Input can be invalid because it has invalid characters or invalid padding. (No padding at all is</span>
-<span class="doccomment">//! valid, but excess padding is not.)</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! Whitespace in the input is invalid unless `strip_whitespace` is enabled in the `Config` used.</span>
+<span class="doccomment">//! valid, but excess padding is not.) Whitespace in the input is invalid.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Panics</span>
 <span class="doccomment">//!</span>
@@ -276,19 +230,25 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The `_slice` flavors of encode or decode will panic if the provided output slice is too small,</span>
 
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">cast_lossless</span>))]</span>
 <span class="attribute">#![<span class="ident">deny</span>(
-    <span class="ident">missing_docs</span>, <span class="ident">trivial_casts</span>, <span class="ident">trivial_numeric_casts</span>, <span class="ident">unused_extern_crates</span>, <span class="ident">unused_import_braces</span>,
-    <span class="ident">unused_results</span>, <span class="ident">variant_size_differences</span>, <span class="ident">warnings</span>
+    <span class="ident">missing_docs</span>,
+    <span class="ident">trivial_casts</span>,
+    <span class="ident">trivial_numeric_casts</span>,
+    <span class="ident">unused_extern_crates</span>,
+    <span class="ident">unused_import_braces</span>,
+    <span class="ident">unused_results</span>,
+    <span class="ident">variant_size_differences</span>,
+    <span class="ident">warnings</span>,
+    <span class="ident">unsafe_code</span>
 )]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">byteorder</span>;
 
 <span class="kw">mod</span> <span class="ident">chunked_encoder</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">display</span>;
-<span class="kw">mod</span> <span class="ident">line_wrap</span>;
 <span class="kw">mod</span> <span class="ident">tables</span>;
-
-<span class="kw">use</span> <span class="ident">line_wrap</span>::{<span class="ident">line_wrap</span>, <span class="ident">line_wrap_parameters</span>};
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">write</span>;
 
 <span class="kw">mod</span> <span class="ident">encode</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">encode</span>::{<span class="ident">encode</span>, <span class="ident">encode_config</span>, <span class="ident">encode_config_buf</span>, <span class="ident">encode_config_slice</span>};
@@ -302,57 +262,36 @@
 <span class="doccomment">/// Available encoding character sets</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">CharacterSet</span> {
-    <span class="doccomment">/// The standard character set (uses `+` and `/`)</span>
+    <span class="doccomment">/// The standard character set (uses `+` and `/`).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See [RFC 3548](https://tools.ietf.org/html/rfc3548#section-3).</span>
     <span class="ident">Standard</span>,
-    <span class="doccomment">/// The URL safe character set (uses `-` and `_`)</span>
+    <span class="doccomment">/// The URL safe character set (uses `-` and `_`).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// See [RFC 3548](https://tools.ietf.org/html/rfc3548#section-4).</span>
     <span class="ident">UrlSafe</span>,
-    <span class="doccomment">/// The `crypt(3)` character set (uses `./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`)</span>
+    <span class="doccomment">/// The `crypt(3)` character set (uses `./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Not standardized, but folk wisdom on the net asserts that this alphabet is what crypt uses.</span>
     <span class="ident">Crypt</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">CharacterSet</span> {
-    <span class="kw">fn</span> <span class="ident">encode_table</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">64</span>] {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+    <span class="kw">fn</span> <span class="ident">encode_table</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">64</span>] {
+        <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">CharacterSet</span>::<span class="ident">Standard</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">STANDARD_ENCODE</span>,
             <span class="ident">CharacterSet</span>::<span class="ident">UrlSafe</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">URL_SAFE_ENCODE</span>,
             <span class="ident">CharacterSet</span>::<span class="ident">Crypt</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">CRYPT_ENCODE</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">decode_table</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">256</span>] {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+    <span class="kw">fn</span> <span class="ident">decode_table</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">256</span>] {
+        <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">CharacterSet</span>::<span class="ident">Standard</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">STANDARD_DECODE</span>,
             <span class="ident">CharacterSet</span>::<span class="ident">UrlSafe</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">URL_SAFE_DECODE</span>,
             <span class="ident">CharacterSet</span>::<span class="ident">Crypt</span> <span class="op">=&gt;</span> <span class="ident">tables</span>::<span class="ident">CRYPT_DECODE</span>,
         }
     }
-}
-
-<span class="doccomment">/// Line ending used in optional line wrapping.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LineEnding</span> {
-    <span class="doccomment">/// Unix-style \n</span>
-    <span class="ident">LF</span>,
-    <span class="doccomment">/// Windows-style \r\n</span>
-    <span class="ident">CRLF</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">LineEnding</span> {
-    <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">LineEnding</span>::<span class="ident">LF</span> <span class="op">=&gt;</span> <span class="number">1</span>,
-            <span class="ident">LineEnding</span>::<span class="ident">CRLF</span> <span class="op">=&gt;</span> <span class="number">2</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// Line wrap configuration.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LineWrap</span> {
-    <span class="doccomment">/// Don&#39;t wrap.</span>
-    <span class="ident">NoWrap</span>,
-    <span class="doccomment">/// Wrap lines with the specified length and line ending. The length must be &gt; 0.</span>
-    <span class="ident">Wrap</span>(<span class="ident">usize</span>, <span class="ident">LineEnding</span>),
 }
 
 <span class="doccomment">/// Contains configuration parameters for base64 encoding</span>
@@ -362,33 +301,27 @@
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>,
     <span class="doccomment">/// True to pad output with `=` characters</span>
     <span class="ident">pad</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// Remove whitespace before decoding, at the cost of an allocation. Whitespace is defined</span>
-    <span class="doccomment">/// according to POSIX-locale `isspace`, meaning \n \r \f \t \v and space.</span>
-    <span class="ident">strip_whitespace</span>: <span class="ident">bool</span>,
-    <span class="doccomment">/// ADT signifying whether to linewrap output, and if so by how many characters and with what</span>
-    <span class="doccomment">/// ending</span>
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>,
+    <span class="doccomment">/// True to ignore excess nonzero bits in the last few symbols, otherwise an error is returned.</span>
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Config</span> {
     <span class="doccomment">/// Create a new `Config`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>,
-        <span class="ident">pad</span>: <span class="ident">bool</span>,
-        <span class="ident">strip_whitespace</span>: <span class="ident">bool</span>,
-        <span class="ident">input_line_wrap</span>: <span class="ident">LineWrap</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">Config</span> {
-        <span class="kw">let</span> <span class="ident">line_wrap</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">input_line_wrap</span> {
-            <span class="ident">LineWrap</span>::<span class="ident">Wrap</span>(<span class="number">0</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">input_line_wrap</span>,
-        };
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">char_set</span>: <span class="ident">CharacterSet</span>, <span class="ident">pad</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">Config</span> {
+        <span class="ident">Config</span> { <span class="ident">char_set</span>, <span class="ident">pad</span>, <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span> }
+    }
 
-        <span class="ident">Config</span> {
-            <span class="ident">char_set</span>,
-            <span class="ident">pad</span>,
-            <span class="ident">strip_whitespace</span>,
-            <span class="ident">line_wrap</span>,
-        }
+    <span class="doccomment">/// Sets whether to pad output with `=` characters.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pad</span>(<span class="self">self</span>, <span class="ident">pad</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">Config</span> {
+        <span class="ident">Config</span> { <span class="ident">pad</span>, ..<span class="self">self</span> }
+    }
+
+    <span class="doccomment">/// Sets whether to emit errors for nonzero trailing bits.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is useful when implementing</span>
+    <span class="doccomment">/// [forgiving-base64 decode](https://infra.spec.whatwg.org/#forgiving-base64-decode).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decode_allow_trailing_bits</span>(<span class="self">self</span>, <span class="ident">allow</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">Config</span> {
+        <span class="ident">Config</span> { <span class="ident">decode_allow_trailing_bits</span>: <span class="ident">allow</span>, ..<span class="self">self</span> }
     }
 }
 
@@ -396,48 +329,35 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">STANDARD</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">Standard</span>,
     <span class="ident">pad</span>: <span class="bool-val">true</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">false</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span>,
 };
 
 <span class="doccomment">/// Standard character set without padding.</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">STANDARD_NO_PAD</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">Standard</span>,
     <span class="ident">pad</span>: <span class="bool-val">false</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">false</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
-};
-
-<span class="doccomment">/// As per standards for MIME encoded messages</span>
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MIME</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
-    <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">Standard</span>,
-    <span class="ident">pad</span>: <span class="bool-val">true</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">true</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">Wrap</span>(<span class="number">76</span>, <span class="ident">LineEnding</span>::<span class="ident">CRLF</span>),
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span>,
 };
 
 <span class="doccomment">/// URL-safe character set with padding</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">URL_SAFE</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">UrlSafe</span>,
     <span class="ident">pad</span>: <span class="bool-val">true</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">false</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span>,
 };
 
 <span class="doccomment">/// URL-safe character set without padding</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">URL_SAFE_NO_PAD</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">UrlSafe</span>,
     <span class="ident">pad</span>: <span class="bool-val">false</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">false</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span>,
 };
 
 <span class="doccomment">/// As per `crypt(3)` requirements</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CRYPT</span>: <span class="ident">Config</span> <span class="op">=</span> <span class="ident">Config</span> {
     <span class="ident">char_set</span>: <span class="ident">CharacterSet</span>::<span class="ident">Crypt</span>,
     <span class="ident">pad</span>: <span class="bool-val">false</span>,
-    <span class="ident">strip_whitespace</span>: <span class="bool-val">false</span>,
-    <span class="ident">line_wrap</span>: <span class="ident">LineWrap</span>::<span class="ident">NoWrap</span>,
+    <span class="ident">decode_allow_trailing_bits</span>: <span class="bool-val">false</span>,
 };
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "base64";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "base64";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

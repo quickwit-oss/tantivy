@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.14.2/src/ty.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ty.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.15.36/src/ty.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ty.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../syn/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -815,15 +815,184 @@
 <span id="815">815</span>
 <span id="816">816</span>
 <span id="817">817</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2018 Syn Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
+<span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
+<span id="970">970</span>
+<span id="971">971</span>
+<span id="972">972</span>
+<span id="973">973</span>
+<span id="974">974</span>
+<span id="975">975</span>
+<span id="976">976</span>
+<span id="977">977</span>
+<span id="978">978</span>
+<span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
+<span id="990">990</span>
+<span id="991">991</span>
+<span id="992">992</span>
+<span id="993">993</span>
+<span id="994">994</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">TokenStream</span>;
 <span class="kw">use</span> <span class="ident">punctuated</span>::<span class="ident">Punctuated</span>;
@@ -891,10 +1060,10 @@
         <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">BareFn</span>(<span class="ident">TypeBareFn</span> {
+            <span class="kw">pub</span> <span class="ident">lifetimes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BoundLifetimes</span><span class="op">&gt;</span>,
             <span class="kw">pub</span> <span class="ident">unsafety</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[<span class="kw">unsafe</span>]<span class="op">&gt;</span>,
             <span class="kw">pub</span> <span class="ident">abi</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Abi</span><span class="op">&gt;</span>,
             <span class="kw">pub</span> <span class="ident">fn_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">fn</span>],
-            <span class="kw">pub</span> <span class="ident">lifetimes</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BoundLifetimes</span><span class="op">&gt;</span>,
             <span class="kw">pub</span> <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>,
             <span class="kw">pub</span> <span class="ident">inputs</span>: <span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">BareFnArg</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>,
             <span class="kw">pub</span> <span class="ident">variadic</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[...]<span class="op">&gt;</span>,
@@ -1067,14 +1236,13 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">parsing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">path</span>::<span class="ident">parsing</span>::<span class="ident">qpath</span>;
-    <span class="kw">use</span> <span class="ident">synom</span>::<span class="ident">Synom</span>;
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">Type</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="ident">ambig_ty</span>, <span class="bool-val">true</span>));
+    <span class="kw">use</span> <span class="ident">parse</span>::{<span class="ident">Parse</span>, <span class="ident">ParseStream</span>, <span class="prelude-ty">Result</span>};
+    <span class="kw">use</span> <span class="ident">path</span>;
 
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;type&quot;</span>)
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">Type</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="ident">ambig_ty</span>(<span class="ident">input</span>, <span class="bool-val">true</span>)
         }
     }
 
@@ -1084,249 +1252,419 @@
         <span class="doccomment">/// contain a `+` character.</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// This parser does not allow a `+`, while the default parser does.</span>
-        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">without_plus</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="ident">ambig_ty</span>, <span class="bool-val">false</span>));
-    }
-
-    <span class="macro">named</span><span class="macro">!</span>(<span class="ident">ambig_ty</span>(<span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">Type</span>, <span class="macro">alt</span><span class="macro">!</span>(
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeGroup</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Group</span> }
-        <span class="op">|</span>
-        <span class="comment">// must be before TypeTuple</span>
-        <span class="macro">call</span><span class="macro">!</span>(<span class="ident">TypeParen</span>::<span class="ident">parse</span>, <span class="ident">allow_plus</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Paren</span> }
-        <span class="op">|</span>
-        <span class="comment">// must be before TypePath</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeMacro</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Macro</span> }
-        <span class="op">|</span>
-        <span class="comment">// must be before TypeTraitObject</span>
-        <span class="macro">call</span><span class="macro">!</span>(<span class="ident">TypePath</span>::<span class="ident">parse</span>, <span class="ident">allow_plus</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Path</span> }
-        <span class="op">|</span>
-        <span class="comment">// Don&#39;t try parsing more than one trait bound if we aren&#39;t allowing it.</span>
-        <span class="comment">// must be before TypeTuple</span>
-        <span class="macro">call</span><span class="macro">!</span>(<span class="ident">TypeTraitObject</span>::<span class="ident">parse</span>, <span class="ident">allow_plus</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">TraitObject</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeSlice</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Slice</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeArray</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Array</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypePtr</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Ptr</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeReference</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Reference</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeBareFn</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">BareFn</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeNever</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Never</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeTuple</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Tuple</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeImplTrait</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">ImplTrait</span> }
-        <span class="op">|</span>
-        <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeInfer</span>) <span class="op">=&gt;</span> { <span class="ident">Type</span>::<span class="ident">Infer</span> }
-    ));
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeSlice</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">brackets</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Type</span>)),
-            <span class="op">|</span>(<span class="ident">b</span>, <span class="ident">ty</span>)<span class="op">|</span> <span class="ident">TypeSlice</span> {
-                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ty</span>),
-                <span class="ident">bracket_token</span>: <span class="ident">b</span>,
-            }
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;slice type&quot;</span>)
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">without_plus</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="ident">ambig_ty</span>(<span class="ident">input</span>, <span class="bool-val">false</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeArray</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">brackets</span><span class="macro">!</span>(<span class="macro">do_parse</span><span class="macro">!</span>(
-                <span class="ident">elem</span>: <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Type</span>) <span class="op">&gt;&gt;</span>
-                    <span class="ident">semi</span>: <span class="macro">punct</span><span class="macro">!</span>(;) <span class="op">&gt;&gt;</span>
-                    <span class="ident">len</span>: <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Expr</span>) <span class="op">&gt;&gt;</span>
-                    (<span class="ident">elem</span>, <span class="ident">semi</span>, <span class="ident">len</span>)
-            )),
-            <span class="op">|</span>(<span class="ident">brackets</span>, (<span class="ident">elem</span>, <span class="ident">semi</span>, <span class="ident">len</span>))<span class="op">|</span> {
-                <span class="ident">TypeArray</span> {
+    <span class="kw">fn</span> <span class="ident">ambig_ty</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>, <span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="ident">token</span>::<span class="ident">Group</span>) {
+            <span class="kw">return</span> <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">Group</span>);
+        }
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lifetimes</span> <span class="op">=</span> <span class="prelude-val">None</span>::<span class="op">&lt;</span><span class="ident">BoundLifetimes</span><span class="op">&gt;</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lookahead</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">lookahead1</span>();
+        <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">for</span>]) {
+            <span class="ident">lifetimes</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+            <span class="ident">lookahead</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">lookahead1</span>();
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">Ident</span>)
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">fn</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">unsafe</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">extern</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">super</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="self">self</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="self">Self</span>])
+                <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">crate</span>])
+            {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">lookahead</span>.<span class="ident">error</span>());
+            }
+        }
+
+        <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">token</span>::<span class="ident">Paren</span>) {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="kw">let</span> <span class="ident">paren_token</span> <span class="op">=</span> <span class="macro">parenthesized</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>);
+            <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">is_empty</span>() {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Tuple</span>(<span class="ident">TypeTuple</span> {
+                    <span class="ident">paren_token</span>: <span class="ident">paren_token</span>,
+                    <span class="ident">elems</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
+                }));
+            }
+            <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">peek</span>(<span class="ident">Lifetime</span>) {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Paren</span>(<span class="ident">TypeParen</span> {
+                    <span class="ident">paren_token</span>: <span class="ident">paren_token</span>,
+                    <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>)),
+                }));
+            }
+            <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="question-mark">?</span>]) {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">TypeTraitObject</span> {
+                    <span class="ident">dyn_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">bounds</span>: {
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bounds</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                        <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">TraitBound</span> {
+                            <span class="ident">paren_token</span>: <span class="prelude-val">Some</span>(<span class="ident">paren_token</span>),
+                            ..<span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>
+                        }));
+                        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">plus</span>) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span> {
+                            <span class="ident">bounds</span>.<span class="ident">push_punct</span>(<span class="ident">plus</span>);
+                            <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                        }
+                        <span class="ident">bounds</span>
+                    },
+                }));
+            }
+            <span class="kw">let</span> <span class="ident">first</span>: <span class="ident">Type</span> <span class="op">=</span> <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[,]) {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Tuple</span>(<span class="ident">TypeTuple</span> {
+                    <span class="ident">paren_token</span>: <span class="ident">paren_token</span>,
+                    <span class="ident">elems</span>: {
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">elems</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                        <span class="ident">elems</span>.<span class="ident">push_value</span>(<span class="ident">first</span>);
+                        <span class="ident">elems</span>.<span class="ident">push_punct</span>(<span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                        <span class="kw">let</span> <span class="ident">rest</span>: <span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">Type</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span> <span class="op">=</span>
+                            <span class="ident">content</span>.<span class="ident">parse_terminated</span>(<span class="ident">Parse</span>::<span class="ident">parse</span>)<span class="question-mark">?</span>;
+                        <span class="ident">elems</span>.<span class="ident">extend</span>(<span class="ident">rest</span>);
+                        <span class="ident">elems</span>
+                    },
+                }));
+            }
+            <span class="kw">if</span> <span class="ident">allow_plus</span> <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+                <span class="kw">loop</span> {
+                    <span class="kw">let</span> <span class="ident">first</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">first</span> {
+                        <span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">TypePath</span> { <span class="ident">qself</span>: <span class="prelude-val">None</span>, <span class="ident">path</span> }) <span class="op">=&gt;</span> {
+                            <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">TraitBound</span> {
+                                <span class="ident">paren_token</span>: <span class="prelude-val">Some</span>(<span class="ident">paren_token</span>),
+                                <span class="ident">modifier</span>: <span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
+                                <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
+                                <span class="ident">path</span>: <span class="ident">path</span>,
+                            })
+                        }
+                        <span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">TypeTraitObject</span> {
+                            <span class="ident">dyn_token</span>: <span class="prelude-val">None</span>,
+                            <span class="kw-2">ref</span> <span class="ident">bounds</span>,
+                        }) <span class="op">=&gt;</span> {
+                            <span class="kw">if</span> <span class="ident">bounds</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span> <span class="op">||</span> <span class="ident">bounds</span>.<span class="ident">trailing_punct</span>() {
+                                <span class="kw">break</span>;
+                            }
+                            <span class="kw">match</span> <span class="ident">first</span> {
+                                <span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">TypeTraitObject</span> { <span class="ident">bounds</span>, .. }) <span class="op">=&gt;</span> {
+                                    <span class="kw">match</span> <span class="ident">bounds</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>() {
+                                        <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">trait_bound</span>) <span class="op">=&gt;</span> {
+                                            <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">TraitBound</span> {
+                                                <span class="ident">paren_token</span>: <span class="prelude-val">Some</span>(<span class="ident">paren_token</span>),
+                                                ..<span class="ident">trait_bound</span>
+                                            })
+                                        }
+                                        <span class="ident">other</span> <span class="op">=&gt;</span> <span class="ident">other</span>,
+                                    }
+                                }
+                                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                            }
+                        }
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
+                    };
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">TypeTraitObject</span> {
+                        <span class="ident">dyn_token</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">bounds</span>: {
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bounds</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                            <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">first</span>);
+                            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">plus</span>) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span> {
+                                <span class="ident">bounds</span>.<span class="ident">push_punct</span>(<span class="ident">plus</span>);
+                                <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                            }
+                            <span class="ident">bounds</span>
+                        },
+                    }));
+                }
+            }
+            <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Paren</span>(<span class="ident">TypeParen</span> {
+                <span class="ident">paren_token</span>: <span class="ident">paren_token</span>,
+                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">first</span>),
+            }))
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">fn</span>])
+            <span class="op">||</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">unsafe</span>])
+            <span class="op">||</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">extern</span>]) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek2</span>(<span class="macro">Token</span><span class="macro">!</span>[::])
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bare_fn</span>: <span class="ident">TypeBareFn</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+            <span class="ident">bare_fn</span>.<span class="ident">lifetimes</span> <span class="op">=</span> <span class="ident">lifetimes</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">BareFn</span>(<span class="ident">bare_fn</span>))
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">Ident</span>)
+            <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">super</span>])
+            <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="self">self</span>])
+            <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="self">Self</span>])
+            <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">crate</span>])
+            <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">extern</span>])
+            <span class="op">||</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[::])
+            <span class="op">||</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;</span>])
+        {
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="ident">dyn</span>]) {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trait_object</span>: <span class="ident">TypeTraitObject</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                <span class="kw">if</span> <span class="ident">lifetimes</span>.<span class="ident">is_some</span>() {
+                    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">trait_object</span>.<span class="ident">bounds</span>.<span class="ident">iter_mut</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>() {
+                        <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">trait_bound</span>) <span class="op">=&gt;</span> {
+                            <span class="ident">trait_bound</span>.<span class="ident">lifetimes</span> <span class="op">=</span> <span class="ident">lifetimes</span>;
+                        }
+                        <span class="ident">TypeParamBound</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                    }
+                }
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">trait_object</span>));
+            }
+
+            <span class="kw">let</span> <span class="ident">ty</span>: <span class="ident">TypePath</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="ident">ty</span>.<span class="ident">qself</span>.<span class="ident">is_some</span>() {
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">ty</span>));
+            }
+
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!=</span>]) {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">contains_arguments</span> <span class="op">=</span> <span class="bool-val">false</span>;
+                <span class="kw">for</span> <span class="ident">segment</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">segments</span> {
+                    <span class="kw">match</span> <span class="ident">segment</span>.<span class="ident">arguments</span> {
+                        <span class="ident">PathArguments</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
+                        <span class="ident">PathArguments</span>::<span class="ident">AngleBracketed</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">PathArguments</span>::<span class="ident">Parenthesized</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
+                            <span class="ident">contains_arguments</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                        }
+                    }
+                }
+
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">contains_arguments</span> {
+                    <span class="kw">let</span> <span class="ident">bang_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>] <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                    <span class="kw">let</span> (<span class="ident">delimiter</span>, <span class="ident">tts</span>) <span class="op">=</span> <span class="ident">mac</span>::<span class="ident">parse_delimiter</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Macro</span>(<span class="ident">TypeMacro</span> {
+                        <span class="ident">mac</span>: <span class="ident">Macro</span> {
+                            <span class="ident">path</span>: <span class="ident">ty</span>.<span class="ident">path</span>,
+                            <span class="ident">bang_token</span>: <span class="ident">bang_token</span>,
+                            <span class="ident">delimiter</span>: <span class="ident">delimiter</span>,
+                            <span class="ident">tts</span>: <span class="ident">tts</span>,
+                        },
+                    }));
+                }
+            }
+
+            <span class="kw">if</span> <span class="ident">lifetimes</span>.<span class="ident">is_some</span>() <span class="op">||</span> <span class="ident">allow_plus</span> <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bounds</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">TraitBound</span> {
+                    <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">modifier</span>: <span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
+                    <span class="ident">lifetimes</span>: <span class="ident">lifetimes</span>,
+                    <span class="ident">path</span>: <span class="ident">ty</span>.<span class="ident">path</span>,
+                }));
+                <span class="kw">if</span> <span class="ident">allow_plus</span> {
+                    <span class="kw">while</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+                        <span class="ident">bounds</span>.<span class="ident">push_punct</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                        <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;</span>]) {
+                            <span class="kw">break</span>;
+                        }
+                        <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                    }
+                }
+                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>(<span class="ident">TypeTraitObject</span> {
+                    <span class="ident">dyn_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">bounds</span>: <span class="ident">bounds</span>,
+                }));
+            }
+
+            <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">ty</span>))
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">token</span>::<span class="ident">Bracket</span>) {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="kw">let</span> <span class="ident">bracket_token</span> <span class="op">=</span> <span class="macro">bracketed</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>);
+            <span class="kw">let</span> <span class="ident">elem</span>: <span class="ident">Type</span> <span class="op">=</span> <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="ident">content</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[;]) {
+                <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Array</span>(<span class="ident">TypeArray</span> {
+                    <span class="ident">bracket_token</span>: <span class="ident">bracket_token</span>,
                     <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">elem</span>),
-                    <span class="ident">len</span>: <span class="ident">len</span>,
-                    <span class="ident">bracket_token</span>: <span class="ident">brackets</span>,
-                    <span class="ident">semi_token</span>: <span class="ident">semi</span>,
-                }
+                    <span class="ident">semi_token</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                    <span class="ident">len</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                }))
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">Type</span>::<span class="ident">Slice</span>(<span class="ident">TypeSlice</span> {
+                    <span class="ident">bracket_token</span>: <span class="ident">bracket_token</span>,
+                    <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">elem</span>),
+                }))
             }
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;array type&quot;</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">Ptr</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">&amp;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">Reference</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">=</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">Never</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">impl</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">ImplTrait</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">Infer</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">Lifetime</span>) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">Type</span>::<span class="ident">TraitObject</span>)
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">lookahead</span>.<span class="ident">error</span>())
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypePtr</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">star</span>: <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">*</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">mutability</span>: <span class="macro">alt</span><span class="macro">!</span>(
-                <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">const</span>) <span class="op">=&gt;</span> { <span class="op">|</span><span class="ident">c</span><span class="op">|</span> (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">c</span>)) }
-                <span class="op">|</span>
-                <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw-2">mut</span>) <span class="op">=&gt;</span> { <span class="op">|</span><span class="ident">m</span><span class="op">|</span> (<span class="prelude-val">Some</span>(<span class="ident">m</span>), <span class="prelude-val">None</span>) }
-            ) <span class="op">&gt;&gt;</span>
-            <span class="ident">target</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Type</span>::<span class="ident">without_plus</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypePtr</span> {
-                <span class="ident">const_token</span>: <span class="ident">mutability</span>.<span class="number">1</span>,
-                <span class="ident">star_token</span>: <span class="ident">star</span>,
-                <span class="ident">mutability</span>: <span class="ident">mutability</span>.<span class="number">0</span>,
-                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">target</span>),
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeSlice</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeSlice</span> {
+                <span class="ident">bracket_token</span>: <span class="macro">bracketed</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>),
+                <span class="ident">elem</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
             })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;raw pointer type&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeReference</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">amp</span>: <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">life</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Lifetime</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">mutability</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">keyword</span><span class="macro">!</span>(<span class="kw-2">mut</span>)) <span class="op">&gt;&gt;</span>
-            <span class="comment">// &amp; binds tighter than +, so we don&#39;t allow + here.</span>
-            <span class="ident">target</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Type</span>::<span class="ident">without_plus</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeReference</span> {
-                <span class="ident">lifetime</span>: <span class="ident">life</span>,
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeArray</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeArray</span> {
+                <span class="ident">bracket_token</span>: <span class="macro">bracketed</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>),
+                <span class="ident">elem</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">semi_token</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">len</span>: <span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypePtr</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">star_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>] <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+
+            <span class="kw">let</span> <span class="ident">lookahead</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">lookahead1</span>();
+            <span class="kw">let</span> (<span class="ident">const_token</span>, <span class="ident">mutability</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">const</span>]) {
+                (<span class="prelude-val">Some</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>), <span class="prelude-val">None</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">mut</span>]) {
+                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>))
+            } <span class="kw">else</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">lookahead</span>.<span class="ident">error</span>());
+            };
+
+            <span class="prelude-val">Ok</span>(<span class="ident">TypePtr</span> {
+                <span class="ident">star_token</span>: <span class="ident">star_token</span>,
+                <span class="ident">const_token</span>: <span class="ident">const_token</span>,
                 <span class="ident">mutability</span>: <span class="ident">mutability</span>,
-                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">target</span>),
-                <span class="ident">and_token</span>: <span class="ident">amp</span>,
+                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">input</span>.<span class="ident">call</span>(<span class="ident">Type</span>::<span class="ident">without_plus</span>)<span class="question-mark">?</span>),
             })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;reference type&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeBareFn</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">lifetimes</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">BoundLifetimes</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">unsafety</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">unsafe</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">abi</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Abi</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">fn_</span>: <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">fn</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">parens</span>: <span class="macro">parens</span><span class="macro">!</span>(<span class="macro">do_parse</span><span class="macro">!</span>(
-                <span class="ident">inputs</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Punctuated</span>::<span class="ident">parse_terminated</span>) <span class="op">&gt;&gt;</span>
-                <span class="ident">variadic</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">cond_reduce</span><span class="macro">!</span>(<span class="ident">inputs</span>.<span class="ident">empty_or_trailing</span>(), <span class="macro">punct</span><span class="macro">!</span>(...))) <span class="op">&gt;&gt;</span>
-                (<span class="ident">inputs</span>, <span class="ident">variadic</span>)
-            )) <span class="op">&gt;&gt;</span>
-            <span class="ident">output</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">ReturnType</span>::<span class="ident">without_plus</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeBareFn</span> {
-                <span class="ident">unsafety</span>: <span class="ident">unsafety</span>,
-                <span class="ident">abi</span>: <span class="ident">abi</span>,
-                <span class="ident">lifetimes</span>: <span class="ident">lifetimes</span>,
-                <span class="ident">output</span>: <span class="ident">output</span>,
-                <span class="ident">variadic</span>: (<span class="ident">parens</span>.<span class="number">1</span>).<span class="number">1</span>,
-                <span class="ident">fn_token</span>: <span class="ident">fn_</span>,
-                <span class="ident">paren_token</span>: <span class="ident">parens</span>.<span class="number">0</span>,
-                <span class="ident">inputs</span>: (<span class="ident">parens</span>.<span class="number">1</span>).<span class="number">0</span>,
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeReference</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeReference</span> {
+                <span class="ident">and_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">lifetime</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">mutability</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="comment">// &amp; binds tighter than +, so we don&#39;t allow + here.</span>
+                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">input</span>.<span class="ident">call</span>(<span class="ident">Type</span>::<span class="ident">without_plus</span>)<span class="question-mark">?</span>),
             })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;`fn` type&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeNever</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!</span>),
-            <span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="ident">TypeNever</span> { <span class="ident">bang_token</span>: <span class="ident">b</span> }
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;never type: `!`&quot;</span>)
-        }
-    }
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeInfer</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw">_</span>),
-            <span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="ident">TypeInfer</span> { <span class="ident">underscore_token</span>: <span class="ident">u</span> }
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;inferred type: `_`&quot;</span>)
-        }
-    }
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeTuple</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">data</span>: <span class="macro">parens</span><span class="macro">!</span>(<span class="ident">Punctuated</span>::<span class="ident">parse_terminated</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeTuple</span> {
-                <span class="ident">paren_token</span>: <span class="ident">data</span>.<span class="number">0</span>,
-                <span class="ident">elems</span>: <span class="ident">data</span>.<span class="number">1</span>,
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeBareFn</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">args</span>;
+            <span class="kw">let</span> <span class="ident">allow_variadic</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeBareFn</span> {
+                <span class="ident">lifetimes</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">unsafety</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">abi</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">fn_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">paren_token</span>: <span class="macro">parenthesized</span><span class="macro">!</span>(<span class="ident">args</span> <span class="kw">in</span> <span class="ident">input</span>),
+                <span class="ident">inputs</span>: {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">inputs</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                    <span class="kw">while</span> <span class="op">!</span><span class="ident">args</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">args</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[...]) {
+                        <span class="ident">inputs</span>.<span class="ident">push_value</span>(<span class="ident">args</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                        <span class="kw">if</span> <span class="ident">args</span>.<span class="ident">is_empty</span>() {
+                            <span class="kw">break</span>;
+                        }
+                        <span class="ident">inputs</span>.<span class="ident">push_punct</span>(<span class="ident">args</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                    }
+                    <span class="ident">allow_variadic</span> <span class="op">=</span> <span class="ident">inputs</span>.<span class="ident">empty_or_trailing</span>();
+                    <span class="ident">inputs</span>
+                },
+                <span class="ident">variadic</span>: {
+                    <span class="kw">if</span> <span class="ident">allow_variadic</span> <span class="op">&amp;&amp;</span> <span class="ident">args</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[...]) {
+                        <span class="prelude-val">Some</span>(<span class="ident">args</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>)
+                    } <span class="kw">else</span> {
+                        <span class="prelude-val">None</span>
+                    }
+                },
+                <span class="ident">output</span>: <span class="ident">input</span>.<span class="ident">call</span>(<span class="ident">ReturnType</span>::<span class="ident">without_plus</span>)<span class="question-mark">?</span>,
             })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;tuple type&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeMacro</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Macro</span>), <span class="op">|</span><span class="ident">mac</span><span class="op">|</span> <span class="ident">TypeMacro</span> { <span class="ident">mac</span>: <span class="ident">mac</span> }));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;macro invocation&quot;</span>)
-        }
-    }
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypePath</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">false</span>));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;type path&quot;</span>)
-        }
-    }
-
-    <span class="kw">impl</span> <span class="ident">TypePath</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span>(<span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">qpath</span>: <span class="ident">qpath</span> <span class="op">&gt;&gt;</span>
-            <span class="ident">parenthesized</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">cond_reduce</span><span class="macro">!</span>(
-                <span class="ident">qpath</span>.<span class="number">1</span>.<span class="ident">segments</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">arguments</span>.<span class="ident">is_empty</span>(),
-                <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">ParenthesizedGenericArguments</span>)
-            )) <span class="op">&gt;&gt;</span>
-            <span class="macro">cond</span><span class="macro">!</span>(<span class="ident">allow_plus</span>, <span class="macro">not</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="op">+</span>))) <span class="op">&gt;&gt;</span>
-            ({
-                <span class="kw">let</span> (<span class="ident">qself</span>, <span class="kw-2">mut</span> <span class="ident">path</span>) <span class="op">=</span> <span class="ident">qpath</span>;
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">parenthesized</span>) <span class="op">=</span> <span class="ident">parenthesized</span> {
-                    <span class="kw">let</span> <span class="ident">parenthesized</span> <span class="op">=</span> <span class="ident">PathArguments</span>::<span class="ident">Parenthesized</span>(<span class="ident">parenthesized</span>);
-                    <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">last_mut</span>().<span class="ident">unwrap</span>().<span class="ident">value_mut</span>().<span class="ident">arguments</span> <span class="op">=</span> <span class="ident">parenthesized</span>;
-                }
-                <span class="ident">TypePath</span> { <span class="ident">qself</span>: <span class="ident">qself</span>, <span class="ident">path</span>: <span class="ident">path</span> }
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeNever</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeNever</span> {
+                <span class="ident">bang_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
             })
-        ));
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeInfer</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeInfer</span> {
+                <span class="ident">underscore_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeTuple</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeTuple</span> {
+                <span class="ident">paren_token</span>: <span class="macro">parenthesized</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>),
+                <span class="ident">elems</span>: <span class="ident">content</span>.<span class="ident">parse_terminated</span>(<span class="ident">Type</span>::<span class="ident">parse</span>)<span class="question-mark">?</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeMacro</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeMacro</span> {
+                <span class="ident">mac</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypePath</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> (<span class="ident">qself</span>, <span class="kw-2">mut</span> <span class="ident">path</span>) <span class="op">=</span> <span class="ident">path</span>::<span class="ident">parsing</span>::<span class="ident">qpath</span>(<span class="ident">input</span>, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+
+            <span class="kw">if</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">arguments</span>.<span class="ident">is_empty</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="ident">token</span>::<span class="ident">Paren</span>)
+            {
+                <span class="kw">let</span> <span class="ident">args</span>: <span class="ident">ParenthesizedGenericArguments</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">parenthesized</span> <span class="op">=</span> <span class="ident">PathArguments</span>::<span class="ident">Parenthesized</span>(<span class="ident">args</span>);
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">last_mut</span>().<span class="ident">unwrap</span>().<span class="ident">value_mut</span>().<span class="ident">arguments</span> <span class="op">=</span> <span class="ident">parenthesized</span>;
+            }
+
+            <span class="prelude-val">Ok</span>(<span class="ident">TypePath</span> {
+                <span class="ident">qself</span>: <span class="ident">qself</span>,
+                <span class="ident">path</span>: <span class="ident">path</span>,
+            })
+        }
     }
 
     <span class="kw">impl</span> <span class="ident">ReturnType</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">without_plus</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">false</span>));
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span>(<span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
-            <span class="macro">do_parse</span><span class="macro">!</span>(
-                <span class="ident">arrow</span>: <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-&gt;</span>) <span class="op">&gt;&gt;</span>
-                <span class="ident">ty</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">ambig_ty</span>, <span class="ident">allow_plus</span>) <span class="op">&gt;&gt;</span>
-                (<span class="ident">ReturnType</span>::<span class="ident">Type</span>(<span class="ident">arrow</span>, <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ty</span>)))
-            )
-            <span class="op">|</span>
-            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ReturnType</span>::<span class="ident">Default</span> }
-        ));
-    }
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">without_plus</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="self">Self</span>::<span class="ident">parse</span>(<span class="ident">input</span>, <span class="bool-val">false</span>)
+        }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">ReturnType</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">true</span>));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;return type&quot;</span>)
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>, <span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-&gt;</span>]) {
+                <span class="kw">let</span> <span class="ident">arrow</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">ambig_ty</span>(<span class="ident">input</span>, <span class="ident">allow_plus</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(<span class="ident">ReturnType</span>::<span class="ident">Type</span>(<span class="ident">arrow</span>, <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ty</span>)))
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">ReturnType</span>::<span class="ident">Default</span>)
+            }
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeTraitObject</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">true</span>));
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">ReturnType</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="self">Self</span>::<span class="ident">parse</span>(<span class="ident">input</span>, <span class="bool-val">true</span>)
+        }
+    }
 
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;trait object type&quot;</span>)
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeTraitObject</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="self">Self</span>::<span class="ident">parse</span>(<span class="ident">input</span>, <span class="bool-val">true</span>)
         }
     }
 
@@ -1340,123 +1678,136 @@
     }
 
     <span class="kw">impl</span> <span class="ident">TypeTraitObject</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">without_plus</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">false</span>));
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">without_plus</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="self">Self</span>::<span class="ident">parse</span>(<span class="ident">input</span>, <span class="bool-val">false</span>)
+        }
 
         <span class="comment">// Only allow multiple trait references if allow_plus is true.</span>
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span>(<span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">dyn_token</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">keyword</span><span class="macro">!</span>(<span class="ident">dyn</span>)) <span class="op">&gt;&gt;</span>
-            <span class="ident">bounds</span>: <span class="macro">alt</span><span class="macro">!</span>(
-                <span class="macro">cond_reduce</span><span class="macro">!</span>(<span class="ident">allow_plus</span>, <span class="ident">Punctuated</span>::<span class="ident">parse_terminated_nonempty</span>)
-                <span class="op">|</span>
-                <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">TypeParamBound</span>) <span class="op">=&gt;</span> {<span class="op">|</span><span class="ident">x</span><span class="op">|</span> {
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>, <span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeTraitObject</span> {
+                <span class="ident">dyn_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">bounds</span>: {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bounds</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
-                    <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">x</span>);
+                    <span class="kw">if</span> <span class="ident">allow_plus</span> {
+                        <span class="kw">loop</span> {
+                            <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                            <span class="kw">if</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+                                <span class="kw">break</span>;
+                            }
+                            <span class="ident">bounds</span>.<span class="ident">push_punct</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;</span>]) {
+                                <span class="kw">break</span>;
+                            }
+                        }
+                    } <span class="kw">else</span> {
+                        <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                    }
+                    <span class="comment">// Just lifetimes like `&#39;a + &#39;b` is not a TraitObject.</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">at_least_one_type</span>(<span class="kw-2">&amp;</span><span class="ident">bounds</span>) {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">input</span>.<span class="ident">error</span>(<span class="string">&quot;expected at least one type&quot;</span>));
+                    }
                     <span class="ident">bounds</span>
-                }}
-            ) <span class="op">&gt;&gt;</span>
-            <span class="comment">// Just lifetimes like `&#39;a + &#39;b` is not a TraitObject.</span>
-            <span class="macro">cond_reduce</span><span class="macro">!</span>(<span class="ident">at_least_one_type</span>(<span class="kw-2">&amp;</span><span class="ident">bounds</span>)) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeTraitObject</span> {
-                <span class="ident">dyn_token</span>: <span class="ident">dyn_token</span>,
-                <span class="ident">bounds</span>: <span class="ident">bounds</span>,
+                },
             })
-        ));
-    }
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeImplTrait</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">impl_</span>: <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">impl</span>) <span class="op">&gt;&gt;</span>
-            <span class="comment">// NOTE: rust-lang/rust#34511 includes discussion about whether or</span>
-            <span class="comment">// not + should be allowed in ImplTrait directly without ().</span>
-            <span class="ident">elem</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Punctuated</span>::<span class="ident">parse_terminated_nonempty</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeImplTrait</span> {
-                <span class="ident">impl_token</span>: <span class="ident">impl_</span>,
-                <span class="ident">bounds</span>: <span class="ident">elem</span>,
-            })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;`impl Trait` type&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeGroup</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">data</span>: <span class="macro">grouped</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Type</span>)) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeGroup</span> {
-                <span class="ident">group_token</span>: <span class="ident">data</span>.<span class="number">0</span>,
-                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">data</span>.<span class="number">1</span>),
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeImplTrait</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeImplTrait</span> {
+                <span class="ident">impl_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="comment">// NOTE: rust-lang/rust#34511 includes discussion about whether</span>
+                <span class="comment">// or not + should be allowed in ImplTrait directly without ().</span>
+                <span class="ident">bounds</span>: {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bounds</span> <span class="op">=</span> <span class="ident">Punctuated</span>::<span class="ident">new</span>();
+                    <span class="kw">loop</span> {
+                        <span class="ident">bounds</span>.<span class="ident">push_value</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                        <span class="kw">if</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+                            <span class="kw">break</span>;
+                        }
+                        <span class="ident">bounds</span>.<span class="ident">push_punct</span>(<span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>);
+                    }
+                    <span class="ident">bounds</span>
+                },
             })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;type surrounded by invisible delimiters&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeParen</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">call</span><span class="macro">!</span>(<span class="self">Self</span>::<span class="ident">parse</span>, <span class="bool-val">false</span>));
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeGroup</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">group</span> <span class="op">=</span> <span class="ident">private</span>::<span class="ident">parse_group</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeGroup</span> {
+                <span class="ident">group_token</span>: <span class="ident">group</span>.<span class="ident">token</span>,
+                <span class="ident">elem</span>: <span class="ident">group</span>.<span class="ident">content</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
+        }
+    }
 
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;parenthesized type&quot;</span>)
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">TypeParen</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="self">Self</span>::<span class="ident">parse</span>(<span class="ident">input</span>, <span class="bool-val">false</span>)
         }
     }
 
     <span class="kw">impl</span> <span class="ident">TypeParen</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span>(<span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">data</span>: <span class="macro">parens</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Type</span>)) <span class="op">&gt;&gt;</span>
-            <span class="macro">cond</span><span class="macro">!</span>(<span class="ident">allow_plus</span>, <span class="macro">not</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="op">+</span>))) <span class="op">&gt;&gt;</span>
-            (<span class="ident">TypeParen</span> {
-                <span class="ident">paren_token</span>: <span class="ident">data</span>.<span class="number">0</span>,
-                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">data</span>.<span class="number">1</span>),
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>, <span class="ident">allow_plus</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">content</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">TypeParen</span> {
+                <span class="ident">paren_token</span>: <span class="macro">parenthesized</span><span class="macro">!</span>(<span class="ident">content</span> <span class="kw">in</span> <span class="ident">input</span>),
+                <span class="ident">elem</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ambig_ty</span>(<span class="kw-2">&amp;</span><span class="ident">content</span>, <span class="ident">allow_plus</span>)<span class="question-mark">?</span>),
             })
-        ));
-    }
-
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">BareFnArg</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">name</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">do_parse</span><span class="macro">!</span>(
-                <span class="ident">name</span>: <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">BareFnArgName</span>) <span class="op">&gt;&gt;</span>
-                <span class="macro">not</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(::)) <span class="op">&gt;&gt;</span>
-                <span class="ident">colon</span>: <span class="macro">punct</span><span class="macro">!</span>(:) <span class="op">&gt;&gt;</span>
-                (<span class="ident">name</span>, <span class="ident">colon</span>)
-            )) <span class="op">&gt;&gt;</span>
-            <span class="ident">ty</span>: <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Type</span>) <span class="op">&gt;&gt;</span>
-            (<span class="ident">BareFnArg</span> {
-                <span class="ident">name</span>: <span class="ident">name</span>,
-                <span class="ident">ty</span>: <span class="ident">ty</span>,
-            })
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;function type argument&quot;</span>)
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">BareFnArgName</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
-            <span class="macro">map</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Ident</span>), <span class="ident">BareFnArgName</span>::<span class="ident">Named</span>)
-            <span class="op">|</span>
-            <span class="macro">map</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="kw">_</span>), <span class="ident">BareFnArgName</span>::<span class="ident">Wild</span>)
-        ));
-
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;function argument name&quot;</span>)
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">BareFnArg</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">BareFnArg</span> {
+                <span class="ident">name</span>: {
+                    <span class="kw">if</span> (<span class="ident">input</span>.<span class="ident">peek</span>(<span class="ident">Ident</span>) <span class="op">||</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>]))
+                        <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">input</span>.<span class="ident">peek2</span>(<span class="macro">Token</span><span class="macro">!</span>[::])
+                        <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">peek2</span>(<span class="macro">Token</span><span class="macro">!</span>[:])
+                    {
+                        <span class="kw">let</span> <span class="ident">name</span>: <span class="ident">BareFnArgName</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                        <span class="kw">let</span> <span class="ident">colon</span>: <span class="macro">Token</span><span class="macro">!</span>[:] <span class="op">=</span> <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+                        <span class="prelude-val">Some</span>((<span class="ident">name</span>, <span class="ident">colon</span>))
+                    } <span class="kw">else</span> {
+                        <span class="prelude-val">None</span>
+                    }
+                },
+                <span class="ident">ty</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
         }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">Abi</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
-            <span class="ident">extern_</span>: <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">extern</span>) <span class="op">&gt;&gt;</span>
-            <span class="ident">name</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">LitStr</span>)) <span class="op">&gt;&gt;</span>
-            (<span class="ident">Abi</span> {
-                <span class="ident">extern_token</span>: <span class="ident">extern_</span>,
-                <span class="ident">name</span>: <span class="ident">name</span>,
-            })
-        ));
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">BareFnArgName</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">lookahead</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">lookahead1</span>();
+            <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="ident">Ident</span>) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BareFnArgName</span>::<span class="ident">Named</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BareFnArgName</span>::<span class="ident">Wild</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Err</span>(<span class="ident">lookahead</span>.<span class="ident">error</span>())
+            }
+        }
+    }
 
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;`extern` ABI qualifier&quot;</span>)
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">Abi</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">Abi</span> {
+                <span class="ident">extern_token</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+                <span class="ident">name</span>: <span class="ident">input</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Abi</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">extern</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="prelude-val">Some</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+            }
         }
     }
 }
@@ -1464,8 +1815,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">printing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
     <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">TokenStream</span>;
     <span class="kw">use</span> <span class="ident">quote</span>::<span class="ident">ToTokens</span>;
+
+    <span class="kw">use</span> <span class="ident">print</span>::<span class="ident">TokensOrDefault</span>;
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">TypeSlice</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>) {
@@ -1517,8 +1871,8 @@
                 <span class="self">self</span>.<span class="ident">inputs</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">variadic</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">variadic</span> {
                     <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">inputs</span>.<span class="ident">empty_or_trailing</span>() {
-                        <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">variadic</span>.<span class="number">0</span>[<span class="number">0</span>];
-                        <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">span</span>).<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+                        <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">variadic</span>.<span class="ident">spans</span>[<span class="number">0</span>];
+                        <span class="macro">Token</span><span class="macro">!</span>[,](<span class="ident">span</span>).<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     }
                     <span class="ident">variadic</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                 }
@@ -1543,7 +1897,7 @@
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">TypePath</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>) {
-            <span class="ident">PathTokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">qself</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>).<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
+            <span class="ident">private</span>::<span class="ident">print_path</span>(<span class="ident">tokens</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">qself</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>);
         }
     }
 
@@ -1633,5 +1987,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

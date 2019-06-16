@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.11/src/re_builder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>re_builder.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.1.7/src/re_builder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>re_builder.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../regex/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -344,7 +344,49 @@
 <span id="344">344</span>
 <span id="345">345</span>
 <span id="346">346</span>
-</pre><pre class="rust ">
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -369,6 +411,7 @@
     <span class="kw">pub</span> <span class="ident">swap_greed</span>: <span class="ident">bool</span>,
     <span class="kw">pub</span> <span class="ident">ignore_whitespace</span>: <span class="ident">bool</span>,
     <span class="kw">pub</span> <span class="ident">unicode</span>: <span class="ident">bool</span>,
+    <span class="kw">pub</span> <span class="ident">octal</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">RegexOptions</span> {
@@ -384,6 +427,7 @@
             <span class="ident">swap_greed</span>: <span class="bool-val">false</span>,
             <span class="ident">ignore_whitespace</span>: <span class="bool-val">false</span>,
             <span class="ident">unicode</span>: <span class="bool-val">true</span>,
+            <span class="ident">octal</span>: <span class="bool-val">false</span>,
         }
     }
 }
@@ -451,9 +495,9 @@
     <span class="doccomment">/// anything when `s` is set and matches anything except for new line when</span>
     <span class="doccomment">/// it is not set (the default).</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// N.B. &quot;matches anything&quot; means &quot;any byte&quot; for `regex::bytes::Regex`</span>
-    <span class="doccomment">/// expressions and means &quot;any Unicode scalar value&quot; for `regex::Regex`</span>
-    <span class="doccomment">/// expressions.</span>
+    <span class="doccomment">/// N.B. &quot;matches anything&quot; means &quot;any byte&quot; when Unicode is disabled and</span>
+    <span class="doccomment">/// means &quot;any valid UTF-8 encoding of any Unicode scalar value&quot; when</span>
+    <span class="doccomment">/// Unicode is enabled.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dot_matches_new_line</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">yes</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexBuilder</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">dot_matches_new_line</span> <span class="op">=</span> <span class="ident">yes</span>;
         <span class="self">self</span>
@@ -486,6 +530,26 @@
     <span class="doccomment">/// match ASCII word characters instead of all Unicode word characters.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unicode</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">yes</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexBuilder</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">unicode</span> <span class="op">=</span> <span class="ident">yes</span>;
+        <span class="self">self</span>
+    }
+
+    <span class="doccomment">/// Whether to support octal syntax or not.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Octal syntax is a little-known way of uttering Unicode codepoints in</span>
+    <span class="doccomment">/// a regular expression. For example, `a`, `\x61`, `\u0061` and</span>
+    <span class="doccomment">/// `\141` are all equivalent regular expressions, where the last example</span>
+    <span class="doccomment">/// shows octal syntax.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// While supporting octal syntax isn&#39;t in and of itself a problem, it does</span>
+    <span class="doccomment">/// make good error messages harder. That is, in PCRE based regex engines,</span>
+    <span class="doccomment">/// syntax like `\0` invokes a backreference, which is explicitly</span>
+    <span class="doccomment">/// unsupported in Rust&#39;s regex engine. However, many users expect it to</span>
+    <span class="doccomment">/// be supported. Therefore, when octal support is disabled, the error</span>
+    <span class="doccomment">/// message will explicitly mention that backreferences aren&#39;t supported.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Octal syntax is disabled by default.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">octal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">yes</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexBuilder</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">octal</span> <span class="op">=</span> <span class="ident">yes</span>;
         <span class="self">self</span>
     }
 
@@ -530,7 +594,7 @@
     <span class="doccomment">/// they should impose a limit on the length, in bytes, of the concrete</span>
     <span class="doccomment">/// pattern string. In particular, this is viable since this parser</span>
     <span class="doccomment">/// implementation will limit itself to heap space proportional to the</span>
-    <span class="doccomment">/// lenth of the pattern string.</span>
+    <span class="doccomment">/// length of the pattern string.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that a nest limit of `0` will return a nest limit error for most</span>
     <span class="doccomment">/// patterns but not all. For example, a nest limit of `0` permits `a` but</span>
@@ -630,6 +694,26 @@
         <span class="self">self</span>
     }
 
+    <span class="doccomment">/// Whether to support octal syntax or not.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Octal syntax is a little-known way of uttering Unicode codepoints in</span>
+    <span class="doccomment">/// a regular expression. For example, `a`, `\x61`, `\u0061` and</span>
+    <span class="doccomment">/// `\141` are all equivalent regular expressions, where the last example</span>
+    <span class="doccomment">/// shows octal syntax.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// While supporting octal syntax isn&#39;t in and of itself a problem, it does</span>
+    <span class="doccomment">/// make good error messages harder. That is, in PCRE based regex engines,</span>
+    <span class="doccomment">/// syntax like `\0` invokes a backreference, which is explicitly</span>
+    <span class="doccomment">/// unsupported in Rust&#39;s regex engine. However, many users expect it to</span>
+    <span class="doccomment">/// be supported. Therefore, when octal support is disabled, the error</span>
+    <span class="doccomment">/// message will explicitly mention that backreferences aren&#39;t supported.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Octal syntax is disabled by default.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">octal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">yes</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexSetBuilder</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">octal</span> <span class="op">=</span> <span class="ident">yes</span>;
+        <span class="self">self</span>
+    }
+
     <span class="doccomment">/// Set the approximate size limit of the compiled regular expression.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// This roughly corresponds to the number of bytes occupied by a single</span>
@@ -647,7 +731,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that this is a *per thread* limit. There is no way to set a global</span>
     <span class="doccomment">/// limit. In particular, if a regex is used from multiple threads</span>
-    <span class="doccomment">/// simulanteously, then each thread may use up to the number of bytes</span>
+    <span class="doccomment">/// simultaneously, then each thread may use up to the number of bytes</span>
     <span class="doccomment">/// specified here.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dfa_size_limit</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexSetBuilder</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">dfa_size_limit</span> <span class="op">=</span> <span class="ident">limit</span>;
@@ -671,7 +755,7 @@
     <span class="doccomment">/// they should impose a limit on the length, in bytes, of the concrete</span>
     <span class="doccomment">/// pattern string. In particular, this is viable since this parser</span>
     <span class="doccomment">/// implementation will limit itself to heap space proportional to the</span>
-    <span class="doccomment">/// lenth of the pattern string.</span>
+    <span class="doccomment">/// length of the pattern string.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that a nest limit of `0` will return a nest limit error for most</span>
     <span class="doccomment">/// patterns but not all. For example, a nest limit of `0` permits `a` but</span>
@@ -691,5 +775,5 @@
 
 <span class="macro">define_set_builder</span><span class="macro">!</span>(<span class="ident">set_bytes</span>, <span class="ident">bytes</span>, <span class="bool-val">false</span>);
 <span class="macro">define_set_builder</span><span class="macro">!</span>(<span class="ident">set_unicode</span>, <span class="ident">unicode</span>, <span class="bool-val">true</span>);
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

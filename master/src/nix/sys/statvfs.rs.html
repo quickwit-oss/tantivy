@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/sys/statvfs.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statvfs.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/sys/statvfs.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>statvfs.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../nix/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -159,183 +159,149 @@
 <span id="159">159</span>
 <span id="160">160</span>
 <span id="161">161</span>
-<span id="162">162</span>
-<span id="163">163</span>
-<span id="164">164</span>
-<span id="165">165</span>
-<span id="166">166</span>
-<span id="167">167</span>
-<span id="168">168</span>
-<span id="169">169</span>
-<span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
-<span id="177">177</span>
-<span id="178">178</span>
-<span id="179">179</span>
-</pre><pre class="rust ">
-<span class="doccomment">//! FFI for statvfs functions</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">//! Get filesystem statistics</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! See the `vfs::Statvfs` struct for some rusty wrappers</span>
-
-<span class="kw">use</span> {<span class="ident">Errno</span>, <span class="prelude-ty">Result</span>, <span class="ident">NixPath</span>};
+<span class="doccomment">//! See [the man pages](http://pubs.opengroup.org/onlinepubs/9699919799/functions/fstatvfs.html)</span>
+<span class="doccomment">//! for more details.</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">io</span>::<span class="ident">AsRawFd</span>;
 
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vfs</span> {
-    <span class="doccomment">//! Structs related to the `statvfs` and `fstatvfs` functions</span>
-    <span class="doccomment">//!</span>
-    <span class="doccomment">//! The `Statvfs` struct has some wrappers methods around the `statvfs` and</span>
-    <span class="doccomment">//! `fstatvfs` calls.</span>
+<span class="kw">use</span> <span class="ident">libc</span>::{<span class="self">self</span>, <span class="ident">c_ulong</span>};
 
-    <span class="kw">use</span> <span class="ident">libc</span>::{<span class="ident">c_ulong</span>,<span class="ident">c_int</span>};
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">io</span>::<span class="ident">AsRawFd</span>;
-    <span class="kw">use</span> {<span class="prelude-ty">Result</span>, <span class="ident">NixPath</span>};
+<span class="kw">use</span> {<span class="prelude-ty">Result</span>, <span class="ident">NixPath</span>};
+<span class="kw">use</span> <span class="ident">errno</span>::<span class="ident">Errno</span>;
 
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">statvfs</span>, <span class="ident">fstatvfs</span>};
-
-    <span class="macro">bitflags</span><span class="macro">!</span>(
-        <span class="doccomment">/// Mount Flags</span>
-        <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-        <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FsFlags</span>: <span class="ident">c_ulong</span> {
-            <span class="doccomment">/// Read Only</span>
-            <span class="kw">const</span> <span class="ident">RDONLY</span> <span class="op">=</span> <span class="number">1</span>;
-            <span class="doccomment">/// Do not allow the set-uid bits to have an effect</span>
-            <span class="kw">const</span> <span class="ident">NOSUID</span> <span class="op">=</span> <span class="number">2</span>;
-            <span class="doccomment">/// Do not interpret character or block-special devices</span>
-            <span class="kw">const</span> <span class="ident">NODEV</span>  <span class="op">=</span> <span class="number">4</span>;
-            <span class="doccomment">/// Do not allow execution of binaries on the filesystem</span>
-            <span class="kw">const</span> <span class="ident">NOEXEC</span> <span class="op">=</span> <span class="number">8</span>;
-            <span class="doccomment">/// All IO should be done synchronously</span>
-            <span class="kw">const</span> <span class="ident">SYNCHRONOUS</span>  <span class="op">=</span> <span class="number">16</span>;
-            <span class="doccomment">/// Allow mandatory locks on the filesystem</span>
-            <span class="kw">const</span> <span class="ident">MANDLOCK</span> <span class="op">=</span> <span class="number">64</span>;
-            <span class="kw">const</span> <span class="ident">WRITE</span> <span class="op">=</span> <span class="number">128</span>;
-            <span class="kw">const</span> <span class="ident">APPEND</span> <span class="op">=</span> <span class="number">256</span>;
-            <span class="kw">const</span> <span class="ident">IMMUTABLE</span> <span class="op">=</span> <span class="number">512</span>;
-            <span class="doccomment">/// Do not update access times on files</span>
-            <span class="kw">const</span> <span class="ident">NOATIME</span> <span class="op">=</span> <span class="number">1024</span>;
-            <span class="doccomment">/// Do not update access times on files</span>
-            <span class="kw">const</span> <span class="ident">NODIRATIME</span> <span class="op">=</span> <span class="number">2048</span>;
-            <span class="doccomment">/// Update access time relative to modify/change time</span>
-            <span class="kw">const</span> <span class="ident">RELATIME</span> <span class="op">=</span> <span class="number">4096</span>;
-        }
-    );
-
-    <span class="doccomment">/// The posix statvfs struct</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// http://linux.die.net/man/2/statvfs</span>
+<span class="macro">libc_bitflags</span><span class="macro">!</span>(
+    <span class="doccomment">/// File system mount Flags</span>
     <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>,<span class="ident">Copy</span>,<span class="ident">Clone</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Statvfs</span> {
-        <span class="doccomment">/// Filesystem block size. This is the value that will lead to</span>
-        <span class="doccomment">/// most efficient use of the filesystem</span>
-        <span class="kw">pub</span> <span class="ident">f_bsize</span>: <span class="ident">c_ulong</span>,
-        <span class="doccomment">/// Fragment Size -- actual minimum unit of allocation on this</span>
-        <span class="doccomment">/// filesystem</span>
-        <span class="kw">pub</span> <span class="ident">f_frsize</span>: <span class="ident">c_ulong</span>,
-        <span class="doccomment">/// Total number of blocks on the filesystem</span>
-        <span class="kw">pub</span> <span class="ident">f_blocks</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// Number of unused blocks on the filesystem, including those</span>
-        <span class="doccomment">/// reserved for root</span>
-        <span class="kw">pub</span> <span class="ident">f_bfree</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// Number of blocks available to non-root users</span>
-        <span class="kw">pub</span> <span class="ident">f_bavail</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// Total number of inodes available on the filesystem</span>
-        <span class="kw">pub</span> <span class="ident">f_files</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// Number of inodes available on the filesystem</span>
-        <span class="kw">pub</span> <span class="ident">f_ffree</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// Number of inodes available to non-root users</span>
-        <span class="kw">pub</span> <span class="ident">f_favail</span>: <span class="ident">u64</span>,
-        <span class="doccomment">/// File System ID</span>
-        <span class="kw">pub</span> <span class="ident">f_fsid</span>: <span class="ident">c_ulong</span>,
-        <span class="doccomment">/// Mount Flags</span>
-        <span class="kw">pub</span> <span class="ident">f_flag</span>: <span class="ident">FsFlags</span>,
-        <span class="doccomment">/// Maximum filename length</span>
-        <span class="kw">pub</span> <span class="ident">f_namemax</span>: <span class="ident">c_ulong</span>,
-        <span class="doccomment">/// Reserved extra space, OS-dependent</span>
-        <span class="ident">f_spare</span>: [<span class="ident">c_int</span>; <span class="number">6</span>],
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FsFlags</span>: <span class="ident">c_ulong</span> {
+        <span class="doccomment">/// Read Only</span>
+        <span class="ident">ST_RDONLY</span>;
+        <span class="doccomment">/// Do not allow the set-uid bits to have an effect</span>
+        <span class="ident">ST_NOSUID</span>;
+        <span class="doccomment">/// Do not interpret character or block-special devices</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_NODEV</span>;
+        <span class="doccomment">/// Do not allow execution of binaries on the filesystem</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_NOEXEC</span>;
+        <span class="doccomment">/// All IO should be done synchronously</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_SYNCHRONOUS</span>;
+        <span class="doccomment">/// Allow mandatory locks on the filesystem</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_MANDLOCK</span>;
+        <span class="doccomment">/// Write on file/directory/symlink</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+        <span class="ident">ST_WRITE</span>;
+        <span class="doccomment">/// Append-only file</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+        <span class="ident">ST_APPEND</span>;
+        <span class="doccomment">/// Immutable file</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+        <span class="ident">ST_IMMUTABLE</span>;
+        <span class="doccomment">/// Do not update access times on files</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_NOATIME</span>;
+        <span class="doccomment">/// Do not update access times on files</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">ST_NODIRATIME</span>;
+        <span class="doccomment">/// Update access time relative to modify/change time</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">not</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;musl&quot;</span>))))]</span>
+        <span class="ident">ST_RELATIME</span>;
+    }
+);
+
+<span class="doccomment">/// Wrapper around the POSIX `statvfs` struct</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For more information see the [`statvfs(3)` man pages](http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_statvfs.h.html).</span>
+<span class="comment">// FIXME: Replace with repr(transparent)</span>
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Statvfs</span>(<span class="ident">libc</span>::<span class="ident">statvfs</span>);
+
+<span class="kw">impl</span> <span class="ident">Statvfs</span> {
+    <span class="doccomment">/// get the file system block size</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">block_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">c_ulong</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_bsize</span>
     }
 
-    <span class="kw">impl</span> <span class="ident">Statvfs</span> {
-        <span class="doccomment">/// Create a new `Statvfs` object and fill it with information about</span>
-        <span class="doccomment">/// the mount that contains `path`</span>
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Statvfs</span><span class="op">&gt;</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span> <span class="op">=</span> <span class="ident">Statvfs</span>::<span class="ident">default</span>();
-            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">statvfs</span>(<span class="ident">path</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>);
-            <span class="ident">res</span>.<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">stat</span>)
-        }
-
-        <span class="doccomment">/// Replace information in this struct with information about `path`</span>
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_with_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-            <span class="ident">statvfs</span>(<span class="ident">path</span>, <span class="self">self</span>)
-        }
-
-        <span class="doccomment">/// Create a new `Statvfs` object and fill it with information from fd</span>
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_fd</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRawFd</span><span class="op">&gt;</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Statvfs</span><span class="op">&gt;</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span> <span class="op">=</span> <span class="ident">Statvfs</span>::<span class="ident">default</span>();
-            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">fstatvfs</span>(<span class="ident">fd</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>);
-            <span class="ident">res</span>.<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">stat</span>)
-        }
-
-        <span class="doccomment">/// Replace information in this struct with information about `fd`</span>
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_with_fd</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRawFd</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-            <span class="ident">fstatvfs</span>(<span class="ident">fd</span>, <span class="self">self</span>)
-        }
+    <span class="doccomment">/// Get the fundamental file system block size</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fragment_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">c_ulong</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_frsize</span>
     }
 
-    <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Statvfs</span> {
-        <span class="doccomment">/// Create a statvfs object initialized to all zeros</span>
-        <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-            <span class="ident">Statvfs</span> {
-                <span class="ident">f_bsize</span>: <span class="number">0</span>,
-                <span class="ident">f_frsize</span>: <span class="number">0</span>,
-                <span class="ident">f_blocks</span>: <span class="number">0</span>,
-                <span class="ident">f_bfree</span>: <span class="number">0</span>,
-                <span class="ident">f_bavail</span>: <span class="number">0</span>,
-                <span class="ident">f_files</span>: <span class="number">0</span>,
-                <span class="ident">f_ffree</span>: <span class="number">0</span>,
-                <span class="ident">f_favail</span>: <span class="number">0</span>,
-                <span class="ident">f_fsid</span>: <span class="number">0</span>,
-                <span class="ident">f_flag</span>: <span class="ident">FsFlags</span>::<span class="ident">default</span>(),
-                <span class="ident">f_namemax</span>: <span class="number">0</span>,
-                <span class="ident">f_spare</span>: [<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>],
-            }
-        }
+    <span class="doccomment">/// Get the number of blocks.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Units are in units of `fragment_size()`</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">blocks</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsblkcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_blocks</span>
     }
+
+    <span class="doccomment">/// Get the number of free blocks in the file system</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">blocks_free</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsblkcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_bfree</span>
+    }
+
+    <span class="doccomment">/// Get the number of free blocks for unprivileged users</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">blocks_available</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsblkcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_bavail</span>
+    }
+
+    <span class="doccomment">/// Get the total number of file inodes</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">files</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsfilcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_files</span>
+    }
+
+    <span class="doccomment">/// Get the number of free file inodes</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">files_free</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsfilcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_ffree</span>
+    }
+
+    <span class="doccomment">/// Get the number of free file inodes for unprivileged users</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">files_available</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">fsfilcnt_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_favail</span>
+    }
+
+    <span class="doccomment">/// Get the file system id</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">filesystem_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">c_ulong</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_fsid</span>
+    }
+
+    <span class="doccomment">/// Get the mount flags</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">FsFlags</span> {
+        <span class="ident">FsFlags</span>::<span class="ident">from_bits_truncate</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_flag</span>)
+    }
+
+    <span class="doccomment">/// Get the maximum filename length</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name_max</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">c_ulong</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">f_namemax</span>
+    }
+
 }
 
-<span class="kw">mod</span> <span class="ident">ffi</span> {
-    <span class="kw">use</span> <span class="ident">libc</span>::{<span class="ident">c_char</span>, <span class="ident">c_int</span>};
-    <span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">statvfs</span>::<span class="ident">vfs</span>;
-
-    <span class="kw">extern</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">statvfs</span>(<span class="ident">path</span>: <span class="op">*</span> <span class="kw">const</span> <span class="ident">c_char</span>, <span class="ident">buf</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>) <span class="op">-&gt;</span> <span class="ident">c_int</span>;
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fstatvfs</span>(<span class="ident">fd</span>: <span class="ident">c_int</span>, <span class="ident">buf</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>) <span class="op">-&gt;</span> <span class="ident">c_int</span>;
-    }
-}
-
-<span class="doccomment">/// Fill an existing `Statvfs` object with information about the `path`</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">statvfs</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>, <span class="ident">stat</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+<span class="doccomment">/// Return a `Statvfs` object with information about the `path`</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">statvfs</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Statvfs</span><span class="op">&gt;</span> {
     <span class="kw">unsafe</span> {
         <span class="ident">Errno</span>::<span class="ident">clear</span>();
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
-            <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span> <span class="ident">ffi</span>::<span class="ident">statvfs</span>(<span class="ident">path</span>.<span class="ident">as_ptr</span>(), <span class="ident">stat</span>))
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span>: <span class="ident">Statvfs</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">path</span><span class="op">|</span>
+            <span class="ident">libc</span>::<span class="ident">statvfs</span>(<span class="ident">path</span>.<span class="ident">as_ptr</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>.<span class="number">0</span>)
+        )<span class="question-mark">?</span>;
 
-        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">stat</span>)
     }
 }
 
-<span class="doccomment">/// Fill an existing `Statvfs` object with information about `fd`</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fstatvfs</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRawFd</span><span class="op">&gt;</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>, <span class="ident">stat</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+<span class="doccomment">/// Return a `Statvfs` object with information about `fd`</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fstatvfs</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsRawFd</span><span class="op">&gt;</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Statvfs</span><span class="op">&gt;</span> {
     <span class="kw">unsafe</span> {
         <span class="ident">Errno</span>::<span class="ident">clear</span>();
-        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">ffi</span>::<span class="ident">fstatvfs</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>(), <span class="ident">stat</span>)).<span class="ident">map</span>(<span class="ident">drop</span>)
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span>: <span class="ident">Statvfs</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">libc</span>::<span class="ident">fstatvfs</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>.<span class="number">0</span>)).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">stat</span>)
     }
 }
 
@@ -346,16 +312,14 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">statvfs_call</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span> <span class="op">=</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>::<span class="ident">default</span>();
-        <span class="ident">statvfs</span>(<span class="string">&quot;/&quot;</span>.<span class="ident">as_bytes</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>).<span class="ident">unwrap</span>()
+        <span class="ident">statvfs</span>(<span class="string">&quot;/&quot;</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">fstatvfs_call</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stat</span> <span class="op">=</span> <span class="ident">vfs</span>::<span class="ident">Statvfs</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">root</span> <span class="op">=</span> <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;/&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="ident">fstatvfs</span>(<span class="kw-2">&amp;</span><span class="ident">root</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stat</span>).<span class="ident">unwrap</span>()
+        <span class="ident">fstatvfs</span>(<span class="kw-2">&amp;</span><span class="ident">root</span>).<span class="ident">unwrap</span>();
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

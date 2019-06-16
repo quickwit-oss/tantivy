@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["fstatvfs","Fill an existing `Statvfs` object with information about `fd`"],["statvfs","Fill an existing `Statvfs` object with information about the `path`"]],"mod":[["vfs","Structs related to the `statvfs` and `fstatvfs` functions"]]});
+initSidebarItems({"fn":[["fstatvfs","Return a `Statvfs` object with information about `fd`"],["statvfs","Return a `Statvfs` object with information about the `path`"]],"struct":[["FsFlags","File system mount Flags"],["Statvfs","Wrapper around the POSIX `statvfs` struct"]]});

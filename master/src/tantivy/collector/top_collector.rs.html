@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/collector/top_collector.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>top_collector.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/collector/top_collector.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>top_collector.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -187,195 +187,265 @@
 <span id="187">187</span>
 <span id="188">188</span>
 <span id="189">189</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Collector</span>;
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">export</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
 <span class="kw">use</span> <span class="ident">DocAddress</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
 <span class="kw">use</span> <span class="ident">SegmentReader</span>;
 
-<span class="comment">// Rust heap is a max-heap and we need a min heap.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
-<span class="kw">struct</span> <span class="ident">GlobalScoredDoc</span> {
-    <span class="ident">score</span>: <span class="ident">Score</span>,
-    <span class="ident">doc_address</span>: <span class="ident">DocAddress</span>,
+<span class="doccomment">/// Contains a feature (field, score, etc.) of a document along with the document address.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// It has a custom implementation of `PartialOrd` that reverses the order. This is because the</span>
+<span class="doccomment">/// default Rust heap is a max heap, whereas a min heap is needed.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// WARNING: equality is not what you would expect here.</span>
+<span class="doccomment">/// Two elements are equal if their feature is equal, and regardless of whether `doc`</span>
+<span class="doccomment">/// is equal. This should be perfectly fine for this usage, but let&#39;s make sure this</span>
+<span class="doccomment">/// struct is never public.</span>
+<span class="kw">struct</span> <span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">D</span><span class="op">&gt;</span> {
+    <span class="ident">feature</span>: <span class="ident">T</span>,
+    <span class="ident">doc</span>: <span class="ident">D</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">PartialOrd</span> <span class="kw">for</span> <span class="ident">GlobalScoredDoc</span> {
-    <span class="kw">fn</span> <span class="ident">partial_cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">GlobalScoredDoc</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Ordering</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">PartialOrd</span> <span class="kw">for</span> <span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">D</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">partial_cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Ordering</span><span class="op">&gt;</span> {
         <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">cmp</span>(<span class="ident">other</span>))
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Ord</span> <span class="kw">for</span> <span class="ident">GlobalScoredDoc</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">Ord</span> <span class="kw">for</span> <span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">D</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">GlobalScoredDoc</span>) <span class="op">-&gt;</span> <span class="ident">Ordering</span> {
+    <span class="kw">fn</span> <span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">Ordering</span> {
         <span class="ident">other</span>
-            .<span class="ident">score</span>
-            .<span class="ident">partial_cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">score</span>)
-            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">other</span>.<span class="ident">doc_address</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">doc_address</span>))
+            .<span class="ident">feature</span>
+            .<span class="ident">partial_cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">feature</span>)
+            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">Ordering</span>::<span class="ident">Equal</span>)
     }
 }
 
-<span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">GlobalScoredDoc</span> {
-    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">GlobalScoredDoc</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">D</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">cmp</span>(<span class="ident">other</span>) <span class="op">==</span> <span class="ident">Ordering</span>::<span class="ident">Equal</span>
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">GlobalScoredDoc</span> {}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span>, <span class="ident">D</span><span class="op">&gt;</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">D</span><span class="op">&gt;</span> {}
 
-<span class="doccomment">/// The Top Collector keeps track of the K documents</span>
-<span class="doccomment">/// with the best scores.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The implementation is based on a `BinaryHeap`.</span>
-<span class="doccomment">/// The theorical complexity is `O(n log K)`.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TopCollector</span> {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">TopCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="ident">limit</span>: <span class="ident">usize</span>,
-    <span class="ident">heap</span>: <span class="ident">BinaryHeap</span><span class="op">&lt;</span><span class="ident">GlobalScoredDoc</span><span class="op">&gt;</span>,
-    <span class="ident">segment_id</span>: <span class="ident">u32</span>,
+    <span class="ident">_marker</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">TopCollector</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">TopCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">PartialOrd</span> <span class="op">+</span> <span class="ident">Clone</span>,
+{
     <span class="doccomment">/// Creates a top collector, with a number of documents equal to &quot;limit&quot;.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// The method panics if limit is 0</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_limit</span>(<span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">TopCollector</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_limit</span>(<span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">TopCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">limit</span> <span class="op">&lt;</span> <span class="number">1</span> {
             <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Limit must be strictly greater than 0.&quot;</span>);
         }
         <span class="ident">TopCollector</span> {
             <span class="ident">limit</span>,
-            <span class="ident">heap</span>: <span class="ident">BinaryHeap</span>::<span class="ident">with_capacity</span>(<span class="ident">limit</span>),
-            <span class="ident">segment_id</span>: <span class="number">0</span>,
+            <span class="ident">_marker</span>: <span class="ident">PhantomData</span>,
         }
     }
 
-    <span class="doccomment">/// Returns K best documents sorted in decreasing order.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Calling this method triggers the sort.</span>
-    <span class="doccomment">/// The result of the sort is not cached.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocAddress</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">score_docs</span>()
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">score_doc</span><span class="op">|</span> <span class="ident">score_doc</span>.<span class="number">1</span>)
-            .<span class="ident">collect</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">limit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">limit</span>
     }
 
-    <span class="doccomment">/// Returns K best ScoredDocument sorted in decreasing order.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// Calling this method triggers the sort.</span>
-    <span class="doccomment">/// The result of the sort is not cached.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">score_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Score</span>, <span class="ident">DocAddress</span>)<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scored_docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">GlobalScoredDoc</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">collect</span>();
-        <span class="ident">scored_docs</span>.<span class="ident">sort</span>();
-        <span class="ident">scored_docs</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">merge_fruits</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">children</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">T</span>, <span class="ident">DocAddress</span>)<span class="op">&gt;&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">T</span>, <span class="ident">DocAddress</span>)<span class="op">&gt;&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">limit</span> <span class="op">==</span> <span class="number">0</span> {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Vec</span>::<span class="ident">new</span>());
+        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">BinaryHeap</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">child_fruit</span> <span class="kw">in</span> <span class="ident">children</span> {
+            <span class="kw">for</span> (<span class="ident">feature</span>, <span class="ident">doc</span>) <span class="kw">in</span> <span class="ident">child_fruit</span> {
+                <span class="kw">if</span> <span class="ident">top_collector</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">limit</span> {
+                    <span class="ident">top_collector</span>.<span class="ident">push</span>(<span class="ident">ComparableDoc</span> { <span class="ident">feature</span>, <span class="ident">doc</span> });
+                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">head</span>) <span class="op">=</span> <span class="ident">top_collector</span>.<span class="ident">peek_mut</span>() {
+                    <span class="kw">if</span> <span class="ident">head</span>.<span class="ident">feature</span> <span class="op">&lt;</span> <span class="ident">feature</span> {
+                        <span class="kw-2">*</span><span class="ident">head</span> <span class="op">=</span> <span class="ident">ComparableDoc</span> { <span class="ident">feature</span>, <span class="ident">doc</span> };
+                    }
+                }
+            }
+        }
+        <span class="prelude-val">Ok</span>(<span class="ident">top_collector</span>
+            .<span class="ident">into_sorted_vec</span>()
             .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">GlobalScoredDoc</span> { <span class="ident">score</span>, <span class="ident">doc_address</span> }<span class="op">|</span> (<span class="ident">score</span>, <span class="ident">doc_address</span>))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">cdoc</span><span class="op">|</span> (<span class="ident">cdoc</span>.<span class="ident">feature</span>, <span class="ident">cdoc</span>.<span class="ident">doc</span>))
+            .<span class="ident">collect</span>())
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">for_segment</span><span class="op">&lt;</span><span class="ident">F</span>: <span class="ident">PartialOrd</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">segment_id</span>: <span class="ident">SegmentLocalId</span>,
+        <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TopSegmentCollector</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">TopSegmentCollector</span>::<span class="ident">new</span>(<span class="ident">segment_id</span>, <span class="self">self</span>.<span class="ident">limit</span>))
+    }
+}
+
+<span class="doccomment">/// The Top Collector keeps track of the K documents</span>
+<span class="doccomment">/// sorted by type `T`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The implementation is based on a `BinaryHeap`.</span>
+<span class="doccomment">/// The theorical complexity for collecting the top `K` out of `n` documents</span>
+<span class="doccomment">/// is `O(n log K)`.</span>
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">TopSegmentCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">limit</span>: <span class="ident">usize</span>,
+    <span class="ident">heap</span>: <span class="ident">BinaryHeap</span><span class="op">&lt;</span><span class="ident">ComparableDoc</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">DocId</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">segment_id</span>: <span class="ident">u32</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span><span class="op">&gt;</span> <span class="ident">TopSegmentCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">segment_id</span>: <span class="ident">SegmentLocalId</span>, <span class="ident">limit</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">TopSegmentCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="ident">TopSegmentCollector</span> {
+            <span class="ident">limit</span>,
+            <span class="ident">heap</span>: <span class="ident">BinaryHeap</span>::<span class="ident">with_capacity</span>(<span class="ident">limit</span>),
+            <span class="ident">segment_id</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">PartialOrd</span> <span class="op">+</span> <span class="ident">Clone</span><span class="op">&gt;</span> <span class="ident">TopSegmentCollector</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">harvest</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">T</span>, <span class="ident">DocAddress</span>)<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">segment_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_id</span>;
+        <span class="self">self</span>.<span class="ident">heap</span>
+            .<span class="ident">into_sorted_vec</span>()
+            .<span class="ident">into_iter</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">comparable_doc</span><span class="op">|</span> {
+                (
+                    <span class="ident">comparable_doc</span>.<span class="ident">feature</span>,
+                    <span class="ident">DocAddress</span>(<span class="ident">segment_id</span>, <span class="ident">comparable_doc</span>.<span class="ident">doc</span>),
+                )
+            })
             .<span class="ident">collect</span>()
     }
 
     <span class="doccomment">/// Return true iff at least K documents have gone through</span>
     <span class="doccomment">/// the collector.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">at_capacity</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">at_capacity</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="self">self</span>.<span class="ident">limit</span>
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">TopCollector</span> {
-    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">segment_id</span>: <span class="ident">SegmentLocalId</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">segment_id</span> <span class="op">=</span> <span class="ident">segment_id</span>;
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">score</span>: <span class="ident">Score</span>) {
+    <span class="doccomment">/// Collects a document scored by the given feature</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// It collects documents until it has reached the max capacity. Once it reaches capacity, it</span>
+    <span class="doccomment">/// will compare the lowest scoring item with the given one and keep whichever is greater.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">feature</span>: <span class="ident">T</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">at_capacity</span>() {
             <span class="comment">// It&#39;s ok to unwrap as long as a limit of 0 is forbidden.</span>
-            <span class="kw">let</span> <span class="ident">limit_doc</span>: <span class="ident">GlobalScoredDoc</span> <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">heap</span>
-                .<span class="ident">peek</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;Top collector with size 0 is forbidden&quot;</span>);
-            <span class="kw">if</span> <span class="ident">limit_doc</span>.<span class="ident">score</span> <span class="op">&lt;</span> <span class="ident">score</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mut_head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>
-                    .<span class="ident">peek_mut</span>()
-                    .<span class="ident">expect</span>(<span class="string">&quot;Top collector with size 0 is forbidden&quot;</span>);
-                <span class="ident">mut_head</span>.<span class="ident">score</span> <span class="op">=</span> <span class="ident">score</span>;
-                <span class="ident">mut_head</span>.<span class="ident">doc_address</span> <span class="op">=</span> <span class="ident">DocAddress</span>(<span class="self">self</span>.<span class="ident">segment_id</span>, <span class="ident">doc</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">limit_feature</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">peek</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">head</span><span class="op">|</span> <span class="ident">head</span>.<span class="ident">feature</span>.<span class="ident">clone</span>()) {
+                <span class="kw">if</span> <span class="ident">limit_feature</span> <span class="op">&lt;</span> <span class="ident">feature</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">head</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">peek_mut</span>() {
+                        <span class="ident">head</span>.<span class="ident">feature</span> <span class="op">=</span> <span class="ident">feature</span>;
+                        <span class="ident">head</span>.<span class="ident">doc</span> <span class="op">=</span> <span class="ident">doc</span>;
+                    }
+                }
             }
         } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">wrapped_doc</span> <span class="op">=</span> <span class="ident">GlobalScoredDoc</span> {
-                <span class="ident">score</span>,
-                <span class="ident">doc_address</span>: <span class="ident">DocAddress</span>(<span class="self">self</span>.<span class="ident">segment_id</span>, <span class="ident">doc</span>),
-            };
-            <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">push</span>(<span class="ident">wrapped_doc</span>);
+            <span class="comment">// we have not reached capacity yet, so we can just push the</span>
+            <span class="comment">// element.</span>
+            <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">push</span>(<span class="ident">ComparableDoc</span> { <span class="ident">feature</span>, <span class="ident">doc</span> });
         }
-    }
-
-    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="bool-val">true</span>
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
-    <span class="kw">use</span> <span class="ident">DocId</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">TopCollector</span>, <span class="ident">TopSegmentCollector</span>};
+    <span class="kw">use</span> <span class="ident">DocAddress</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_top_collector_not_at_capacity</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">4</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">TopSegmentCollector</span>::<span class="ident">new</span>(<span class="number">0</span>, <span class="number">4</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">1</span>, <span class="number">0.8</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">3</span>, <span class="number">0.2</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">5</span>, <span class="number">0.3</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">top_collector</span>.<span class="ident">at_capacity</span>());
-        <span class="kw">let</span> <span class="ident">score_docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Score</span>, <span class="ident">DocId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">top_collector</span>
-            .<span class="ident">score_docs</span>()
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">score</span>, <span class="ident">doc_address</span>)<span class="op">|</span> (<span class="ident">score</span>, <span class="ident">doc_address</span>.<span class="ident">doc</span>()))
-            .<span class="ident">collect</span>();
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_docs</span>, <span class="macro">vec</span><span class="macro">!</span>[(<span class="number">0.8</span>, <span class="number">1</span>), (<span class="number">0.3</span>, <span class="number">5</span>), (<span class="number">0.2</span>, <span class="number">3</span>)]);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">top_collector</span>.<span class="ident">harvest</span>(),
+            <span class="macro">vec</span><span class="macro">!</span>[
+                (<span class="number">0.8</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">1</span>)),
+                (<span class="number">0.3</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">5</span>)),
+                (<span class="number">0.2</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">3</span>))
+            ]
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_top_collector_at_capacity</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">4</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">top_collector</span> <span class="op">=</span> <span class="ident">TopSegmentCollector</span>::<span class="ident">new</span>(<span class="number">0</span>, <span class="number">4</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">1</span>, <span class="number">0.8</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">3</span>, <span class="number">0.2</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">5</span>, <span class="number">0.3</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">7</span>, <span class="number">0.9</span>);
         <span class="ident">top_collector</span>.<span class="ident">collect</span>(<span class="number">9</span>, <span class="op">-</span><span class="number">0.2</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">top_collector</span>.<span class="ident">at_capacity</span>());
-        {
-            <span class="kw">let</span> <span class="ident">score_docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Score</span>, <span class="ident">DocId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">top_collector</span>
-                .<span class="ident">score_docs</span>()
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">score</span>, <span class="ident">doc_address</span>)<span class="op">|</span> (<span class="ident">score</span>, <span class="ident">doc_address</span>.<span class="ident">doc</span>()))
-                .<span class="ident">collect</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_docs</span>, <span class="macro">vec</span><span class="macro">!</span>[(<span class="number">0.9</span>, <span class="number">7</span>), (<span class="number">0.8</span>, <span class="number">1</span>), (<span class="number">0.3</span>, <span class="number">5</span>), (<span class="number">0.2</span>, <span class="number">3</span>)]);
-        }
-        {
-            <span class="kw">let</span> <span class="ident">docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">top_collector</span>
-                .<span class="ident">docs</span>()
-                .<span class="ident">into_iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc_address</span><span class="op">|</span> <span class="ident">doc_address</span>.<span class="ident">doc</span>())
-                .<span class="ident">collect</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">docs</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">7</span>, <span class="number">1</span>, <span class="number">5</span>, <span class="number">3</span>]);
-        }
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">top_collector</span>.<span class="ident">harvest</span>(),
+            <span class="macro">vec</span><span class="macro">!</span>[
+                (<span class="number">0.9</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">7</span>)),
+                (<span class="number">0.8</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">1</span>)),
+                (<span class="number">0.3</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">5</span>)),
+                (<span class="number">0.2</span>, <span class="ident">DocAddress</span>(<span class="number">0</span>, <span class="number">3</span>))
+            ]
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_top_0</span>() {
-        <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">0</span>);
+        <span class="kw">let</span> <span class="ident">_collector</span>: <span class="ident">TopCollector</span><span class="op">&lt;</span><span class="ident">Score</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">0</span>);
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

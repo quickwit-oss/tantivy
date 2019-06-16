@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `uniform` mod in crate `rand`."><meta name="keywords" content="rust, rustlang, rust-lang, uniform"><title>rand::distributions::uniform - Rust</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Module uniform</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'><a href='../../index.html'>rand</a>::<wbr><a href='../index.html'>distributions</a></p><script>window.sidebarCurrent = {name: 'uniform', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/rand/distributions/uniform.rs.html#10-1283' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../../index.html'>rand</a>::<wbr><a href='../index.html'>distributions</a>::<wbr><a class="mod" href=''>uniform</a></span></h1><div class='docblock'><p>A distribution uniformly sampling numbers within a given range.</p>
+<p>[<code>Uniform</code>] is the standard distribution to sample uniformly from a range;
+e.g. <code>Uniform::new_inclusive(1, 6)</code> can sample integers from 1 to 6, like a
+standard die. [<code>Rng::gen_range</code>] supports any type supported by
+[<code>Uniform</code>].</p>
+<p>This distribution is provided with support for several primitive types
+(all integer and floating-point types) as well as [<code>std::time::Duration</code>],
+and supports extension to user-defined types via a type-specific <em>back-end</em>
+implementation.</p>
+<p>The types <a href="crate::distributions::uniform::UniformInt"><code>UniformInt</code></a>, <a href="crate::distributions::uniform::UniformFloat"><code>UniformFloat</code></a> and <a href="crate::distributions::uniform::UniformDuration"><code>UniformDuration</code></a> are the
+back-ends supporting sampling from primitive integer and floating-point
+ranges as well as from [<code>std::time::Duration</code>]; these types do not normally
+need to be used directly (unless implementing a derived back-end).</p>
+<h1 id="example-usage" class="section-header"><a href="#example-usage">Example usage</a></h1>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">thread_rng</span>};
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::<span class="ident">Uniform</span>;
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">thread_rng</span>();
+<span class="kw">let</span> <span class="ident">side</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new</span>(<span class="op">-</span><span class="number">10.0</span>, <span class="number">10.0</span>);
+
+<span class="comment">// sample between 1 and 10 points</span>
+<span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="number">1</span>, <span class="number">11</span>) {
+    <span class="comment">// sample a point from the square with sides -10 - 10 in two dimensions</span>
+    <span class="kw">let</span> (<span class="ident">x</span>, <span class="ident">y</span>) <span class="op">=</span> (<span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">side</span>), <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">side</span>));
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Point: {}, {}&quot;</span>, <span class="ident">x</span>, <span class="ident">y</span>);
+}</pre></div>
+<h1 id="extending-uniform-to-support-a-custom-type" class="section-header"><a href="#extending-uniform-to-support-a-custom-type">Extending <code>Uniform</code> to support a custom type</a></h1>
+<p>To extend [<code>Uniform</code>] to support your own types, write a back-end which
+implements the <a href="crate::distributions::uniform::UniformSampler"><code>UniformSampler</code></a> trait, then implement the <a href="crate::distributions::uniform::SampleUniform"><code>SampleUniform</code></a>
+helper trait to &quot;register&quot; your back-end. See the <code>MyF32</code> example below.</p>
+<p>At a minimum, the back-end needs to store any parameters needed for sampling
+(e.g. the target range) and implement <code>new</code>, <code>new_inclusive</code> and <code>sample</code>.
+Those methods should include an assert to check the range is valid (i.e.
+<code>low &lt; high</code>). The example below merely wraps another back-end.</p>
+<p>The <code>new</code>, <code>new_inclusive</code> and <code>sample_single</code> functions use arguments of
+type SampleBorrow<X> in order to support passing in values by reference or
+by value. In the implementation of these functions, you can choose to
+simply use the reference returned by <a href="crate::distributions::uniform::SampleBorrow::borrow"><code>SampleBorrow::borrow</code></a>, or you can choose
+to copy or clone the value, whatever is appropriate for your type.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::<span class="ident">uniform</span>::{<span class="ident">Uniform</span>, <span class="ident">SampleUniform</span>,
+        <span class="ident">UniformSampler</span>, <span class="ident">UniformFloat</span>, <span class="ident">SampleBorrow</span>};
+
+<span class="kw">struct</span> <span class="ident">MyF32</span>(<span class="ident">f32</span>);
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">struct</span> <span class="ident">UniformMyF32</span> {
+    <span class="ident">inner</span>: <span class="ident">UniformFloat</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">UniformSampler</span> <span class="kw">for</span> <span class="ident">UniformMyF32</span> {
+    <span class="kw">type</span> <span class="ident">X</span> <span class="op">=</span> <span class="ident">MyF32</span>;
+    <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">B1</span>, <span class="ident">B2</span><span class="op">&gt;</span>(<span class="ident">low</span>: <span class="ident">B1</span>, <span class="ident">high</span>: <span class="ident">B2</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
+        <span class="kw">where</span> <span class="ident">B1</span>: <span class="ident">SampleBorrow</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">X</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Sized</span>,
+              <span class="ident">B2</span>: <span class="ident">SampleBorrow</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">X</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Sized</span>
+    {
+        <span class="ident">UniformMyF32</span> {
+            <span class="ident">inner</span>: <span class="ident">UniformFloat</span>::<span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">low</span>.<span class="ident">borrow</span>().<span class="number">0</span>, <span class="ident">high</span>.<span class="ident">borrow</span>().<span class="number">0</span>),
+        }
+    }
+    <span class="kw">fn</span> <span class="ident">new_inclusive</span><span class="op">&lt;</span><span class="ident">B1</span>, <span class="ident">B2</span><span class="op">&gt;</span>(<span class="ident">low</span>: <span class="ident">B1</span>, <span class="ident">high</span>: <span class="ident">B2</span>) <span class="op">-&gt;</span> <span class="self">Self</span>
+        <span class="kw">where</span> <span class="ident">B1</span>: <span class="ident">SampleBorrow</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">X</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Sized</span>,
+              <span class="ident">B2</span>: <span class="ident">SampleBorrow</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">X</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Sized</span>
+    {
+        <span class="ident">UniformSampler</span>::<span class="ident">new</span>(<span class="ident">low</span>, <span class="ident">high</span>)
+    }
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">X</span> {
+        <span class="ident">MyF32</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">sample</span>(<span class="ident">rng</span>))
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">SampleUniform</span> <span class="kw">for</span> <span class="ident">MyF32</span> {
+    <span class="kw">type</span> <span class="ident">Sampler</span> <span class="op">=</span> <span class="ident">UniformMyF32</span>;
+}
+
+<span class="kw">let</span> (<span class="ident">low</span>, <span class="ident">high</span>) <span class="op">=</span> (<span class="ident">MyF32</span>(<span class="number">17.0f32</span>), <span class="ident">MyF32</span>(<span class="number">22.0f32</span>));
+<span class="kw">let</span> <span class="ident">uniform</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new</span>(<span class="ident">low</span>, <span class="ident">high</span>);
+<span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">uniform</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">thread_rng</span>());</pre></div>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Uniform.html" title='rand::distributions::uniform::Uniform struct'>Uniform</a></td><td class='docblock-short'><p>Sample values uniformly between two bounds.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.UniformDuration.html" title='rand::distributions::uniform::UniformDuration struct'>UniformDuration</a></td><td class='docblock-short'><p>The back-end implementing [<code>UniformSampler</code>] for <code>Duration</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.UniformFloat.html" title='rand::distributions::uniform::UniformFloat struct'>UniformFloat</a></td><td class='docblock-short'><p>The back-end implementing [<code>UniformSampler</code>] for floating-point types.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.UniformInt.html" title='rand::distributions::uniform::UniformInt struct'>UniformInt</a></td><td class='docblock-short'><p>The back-end implementing [<code>UniformSampler</code>] for integer types.</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.SampleBorrow.html" title='rand::distributions::uniform::SampleBorrow trait'>SampleBorrow</a></td><td class='docblock-short'><p>Helper trait similar to <a href="std::borrow::Borrow"><code>Borrow</code></a> but implemented
+only for SampleUniform and references to SampleUniform in
+order to resolve ambiguity issues.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.SampleUniform.html" title='rand::distributions::uniform::SampleUniform trait'>SampleUniform</a></td><td class='docblock-short'><p>Helper trait for creating objects using the correct implementation of
+[<code>UniformSampler</code>] for the sampling type.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.UniformSampler.html" title='rand::distributions::uniform::UniformSampler trait'>UniformSampler</a></td><td class='docblock-short'><p>Helper trait handling actual uniform sampling.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

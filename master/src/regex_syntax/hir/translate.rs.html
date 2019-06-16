@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.6/src/hir/translate.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>translate.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.6.7/src/hir/translate.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>translate.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../regex_syntax/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2535,7 +2535,116 @@
 <span id="2535">2535</span>
 <span id="2536">2536</span>
 <span id="2537">2537</span>
-</pre><pre class="rust ">
+<span id="2538">2538</span>
+<span id="2539">2539</span>
+<span id="2540">2540</span>
+<span id="2541">2541</span>
+<span id="2542">2542</span>
+<span id="2543">2543</span>
+<span id="2544">2544</span>
+<span id="2545">2545</span>
+<span id="2546">2546</span>
+<span id="2547">2547</span>
+<span id="2548">2548</span>
+<span id="2549">2549</span>
+<span id="2550">2550</span>
+<span id="2551">2551</span>
+<span id="2552">2552</span>
+<span id="2553">2553</span>
+<span id="2554">2554</span>
+<span id="2555">2555</span>
+<span id="2556">2556</span>
+<span id="2557">2557</span>
+<span id="2558">2558</span>
+<span id="2559">2559</span>
+<span id="2560">2560</span>
+<span id="2561">2561</span>
+<span id="2562">2562</span>
+<span id="2563">2563</span>
+<span id="2564">2564</span>
+<span id="2565">2565</span>
+<span id="2566">2566</span>
+<span id="2567">2567</span>
+<span id="2568">2568</span>
+<span id="2569">2569</span>
+<span id="2570">2570</span>
+<span id="2571">2571</span>
+<span id="2572">2572</span>
+<span id="2573">2573</span>
+<span id="2574">2574</span>
+<span id="2575">2575</span>
+<span id="2576">2576</span>
+<span id="2577">2577</span>
+<span id="2578">2578</span>
+<span id="2579">2579</span>
+<span id="2580">2580</span>
+<span id="2581">2581</span>
+<span id="2582">2582</span>
+<span id="2583">2583</span>
+<span id="2584">2584</span>
+<span id="2585">2585</span>
+<span id="2586">2586</span>
+<span id="2587">2587</span>
+<span id="2588">2588</span>
+<span id="2589">2589</span>
+<span id="2590">2590</span>
+<span id="2591">2591</span>
+<span id="2592">2592</span>
+<span id="2593">2593</span>
+<span id="2594">2594</span>
+<span id="2595">2595</span>
+<span id="2596">2596</span>
+<span id="2597">2597</span>
+<span id="2598">2598</span>
+<span id="2599">2599</span>
+<span id="2600">2600</span>
+<span id="2601">2601</span>
+<span id="2602">2602</span>
+<span id="2603">2603</span>
+<span id="2604">2604</span>
+<span id="2605">2605</span>
+<span id="2606">2606</span>
+<span id="2607">2607</span>
+<span id="2608">2608</span>
+<span id="2609">2609</span>
+<span id="2610">2610</span>
+<span id="2611">2611</span>
+<span id="2612">2612</span>
+<span id="2613">2613</span>
+<span id="2614">2614</span>
+<span id="2615">2615</span>
+<span id="2616">2616</span>
+<span id="2617">2617</span>
+<span id="2618">2618</span>
+<span id="2619">2619</span>
+<span id="2620">2620</span>
+<span id="2621">2621</span>
+<span id="2622">2622</span>
+<span id="2623">2623</span>
+<span id="2624">2624</span>
+<span id="2625">2625</span>
+<span id="2626">2626</span>
+<span id="2627">2627</span>
+<span id="2628">2628</span>
+<span id="2629">2629</span>
+<span id="2630">2630</span>
+<span id="2631">2631</span>
+<span id="2632">2632</span>
+<span id="2633">2633</span>
+<span id="2634">2634</span>
+<span id="2635">2635</span>
+<span id="2636">2636</span>
+<span id="2637">2637</span>
+<span id="2638">2638</span>
+<span id="2639">2639</span>
+<span id="2640">2640</span>
+<span id="2641">2641</span>
+<span id="2642">2642</span>
+<span id="2643">2643</span>
+<span id="2644">2644</span>
+<span id="2645">2645</span>
+<span id="2646">2646</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2018 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -2597,10 +2706,10 @@ Defines a translator that converts an `Ast` to an `Hir`.
     <span class="doccomment">/// an expression that will only ever match valid UTF-8 (otherwise, the</span>
     <span class="doccomment">/// translator will return an error).</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// Note that currently, even when invalid UTF-8 is banned, the translator</span>
-    <span class="doccomment">/// will permit a negated ASCII word boundary (i.e., `(?-u:\B)`) even</span>
-    <span class="doccomment">/// though it can actually match at invalid UTF-8 boundaries. This bug</span>
-    <span class="doccomment">/// will be fixed on the next semver release.</span>
+    <span class="doccomment">/// Perhaps surprisingly, when invalid UTF-8 isn&#39;t allowed, a negated ASCII</span>
+    <span class="doccomment">/// word boundary (uttered as `(?-u:\B)` in the concrete syntax) will cause</span>
+    <span class="doccomment">/// the parser to return an error. Namely, a negated ASCII word boundary</span>
+    <span class="doccomment">/// can result in matching positions that aren&#39;t valid UTF-8 boundaries.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allow_invalid_utf8</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">yes</span>: <span class="ident">bool</span>,
@@ -2778,11 +2887,6 @@ Defines a translator that converts an `Ast` to an `Hir`.
     <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Error</span>;
 
     <span class="kw">fn</span> <span class="ident">finish</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Hir</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">trans</span>().<span class="ident">stack</span>.<span class="ident">borrow</span>().<span class="ident">is_empty</span>() {
-            <span class="comment">// This can happen if the Ast given consists of a single set of</span>
-            <span class="comment">// flags. e.g., `(?i)`. /shrug</span>
-            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Hir</span>::<span class="ident">empty</span>());
-        }
         <span class="comment">// ... otherwise, we should have exactly one HIR on the stack.</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">trans</span>().<span class="ident">stack</span>.<span class="ident">borrow</span>().<span class="ident">len</span>(), <span class="number">1</span>);
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_expr</span>())
@@ -2825,15 +2929,25 @@ Defines a translator that converts an `Ast` to an `Hir`.
             }
             <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">set_flags</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">flags</span>);
+                <span class="comment">// Flags in the AST are generally considered directives and</span>
+                <span class="comment">// not actual sub-expressions. However, they can be used in</span>
+                <span class="comment">// the concrete syntax like `((?i))`, and we need some kind of</span>
+                <span class="comment">// indication of an expression there, and Empty is the correct</span>
+                <span class="comment">// choice.</span>
+                <span class="comment">//</span>
+                <span class="comment">// There can also be things like `(?i)+`, but we rule those out</span>
+                <span class="comment">// in the parser. In the future, we might allow them for</span>
+                <span class="comment">// consistency sake.</span>
+                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="ident">Hir</span>::<span class="ident">empty</span>()));
             }
             <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">hir_literal</span>(<span class="ident">x</span>))));
+                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="self">self</span>.<span class="ident">hir_literal</span>(<span class="ident">x</span>)<span class="question-mark">?</span>));
             }
             <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="ident">span</span>) <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">hir_dot</span>(<span class="ident">span</span>))));
+                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="self">self</span>.<span class="ident">hir_dot</span>(<span class="ident">span</span>)<span class="question-mark">?</span>));
             }
             <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">hir_assertion</span>(<span class="ident">x</span>))));
+                <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="self">self</span>.<span class="ident">hir_assertion</span>(<span class="ident">x</span>)<span class="question-mark">?</span>));
             }
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Perl</span>(<span class="kw-2">ref</span> <span class="ident">x</span>)) <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flags</span>().<span class="ident">unicode</span>() {
@@ -2847,7 +2961,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
                 }
             }
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="kw-2">ref</span> <span class="ident">x</span>)) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">cls</span> <span class="op">=</span> <span class="ident">hir</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">hir_unicode_class</span>(<span class="ident">x</span>)));
+                <span class="kw">let</span> <span class="ident">cls</span> <span class="op">=</span> <span class="ident">hir</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="self">self</span>.<span class="ident">hir_unicode_class</span>(<span class="ident">x</span>)<span class="question-mark">?</span>);
                 <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="ident">Hir</span>::<span class="ident">class</span>(<span class="ident">cls</span>)));
             }
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="ident">ast</span>)) <span class="op">=&gt;</span> {
@@ -2862,8 +2976,8 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">Expr</span>(<span class="ident">expr</span>));
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_bytes</span>();
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
-                        <span class="kw-2">&amp;</span><span class="ident">ast</span>.<span class="ident">span</span>, <span class="ident">ast</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls</span>));
+                    <span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
+                        <span class="kw-2">&amp;</span><span class="ident">ast</span>.<span class="ident">span</span>, <span class="ident">ast</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls</span>)<span class="question-mark">?</span>;
                     <span class="kw">if</span> <span class="ident">cls</span>.<span class="ident">iter</span>().<span class="ident">next</span>().<span class="ident">is_none</span>() {
                         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
                             <span class="ident">ast</span>.<span class="ident">span</span>, <span class="ident">ErrorKind</span>::<span class="ident">EmptyClassNotAllowed</span>));
@@ -2940,7 +3054,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassUnicode</span>(<span class="ident">cls</span>));
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_bytes</span>();
-                    <span class="kw">let</span> <span class="ident">byte</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="ident">x</span>));
+                    <span class="kw">let</span> <span class="ident">byte</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="ident">x</span>)<span class="question-mark">?</span>;
                     <span class="ident">cls</span>.<span class="ident">push</span>(<span class="ident">hir</span>::<span class="ident">ClassBytesRange</span>::<span class="ident">new</span>(<span class="ident">byte</span>, <span class="ident">byte</span>));
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassBytes</span>(<span class="ident">cls</span>));
                 }
@@ -2952,8 +3066,8 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassUnicode</span>(<span class="ident">cls</span>));
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_bytes</span>();
-                    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">start</span>));
-                    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">end</span>));
+                    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">start</span>)<span class="question-mark">?</span>;
+                    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">class_literal_byte</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">end</span>)<span class="question-mark">?</span>;
                     <span class="ident">cls</span>.<span class="ident">push</span>(<span class="ident">hir</span>::<span class="ident">ClassBytesRange</span>::<span class="ident">new</span>(<span class="ident">start</span>, <span class="ident">end</span>));
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassBytes</span>(<span class="ident">cls</span>));
                 }
@@ -2971,13 +3085,13 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">s</span>, <span class="ident">e</span>) <span class="kw">in</span> <span class="ident">ascii_class</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">kind</span>) {
                         <span class="ident">cls</span>.<span class="ident">push</span>(<span class="ident">hir</span>::<span class="ident">ClassBytesRange</span>::<span class="ident">new</span>(<span class="ident">s</span> <span class="kw">as</span> <span class="ident">u8</span>, <span class="ident">e</span> <span class="kw">as</span> <span class="ident">u8</span>));
                     }
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
-                        <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">span</span>, <span class="ident">x</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls</span>));
+                    <span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
+                        <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">span</span>, <span class="ident">x</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls</span>)<span class="question-mark">?</span>;
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassBytes</span>(<span class="ident">cls</span>));
                 }
             }
             <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">xcls</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">hir_unicode_class</span>(<span class="ident">x</span>));
+                <span class="kw">let</span> <span class="ident">xcls</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">hir_unicode_class</span>(<span class="ident">x</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_unicode</span>();
                 <span class="ident">cls</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">xcls</span>);
                 <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassUnicode</span>(<span class="ident">cls</span>));
@@ -3005,8 +3119,8 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="self">self</span>.<span class="ident">push</span>(<span class="ident">HirFrame</span>::<span class="ident">ClassUnicode</span>(<span class="ident">cls2</span>));
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls1</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_bytes</span>();
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
-                        <span class="kw-2">&amp;</span><span class="ident">ast</span>.<span class="ident">span</span>, <span class="ident">ast</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls1</span>));
+                    <span class="self">self</span>.<span class="ident">bytes_fold_and_negate</span>(
+                        <span class="kw-2">&amp;</span><span class="ident">ast</span>.<span class="ident">span</span>, <span class="ident">ast</span>.<span class="ident">negated</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cls1</span>)<span class="question-mark">?</span>;
 
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cls2</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>().<span class="ident">unwrap_class_bytes</span>();
                     <span class="ident">cls2</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">cls1</span>);
@@ -3142,7 +3256,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
     }
 
     <span class="kw">fn</span> <span class="ident">hir_literal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">Literal</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Hir</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">ch</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">literal_to_char</span>(<span class="ident">lit</span>)) {
+        <span class="kw">let</span> <span class="ident">ch</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">literal_to_char</span>(<span class="ident">lit</span>)<span class="question-mark">?</span> {
             <span class="ident">byte</span> @ <span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Byte</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Hir</span>::<span class="ident">literal</span>(<span class="ident">byte</span>)),
             <span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="ident">ch</span>) <span class="op">=&gt;</span> <span class="ident">ch</span>,
         };
@@ -3262,13 +3376,10 @@ Defines a translator that converts an `Ast` to an `Hir`.
                     <span class="comment">// It is possible for negated ASCII word boundaries to</span>
                     <span class="comment">// match at invalid UTF-8 boundaries, even when searching</span>
                     <span class="comment">// valid UTF-8.</span>
-                    <span class="comment">//</span>
-                    <span class="comment">// TODO(ag): Enable this error when regex goes to 1.0.</span>
-                    <span class="comment">// Otherwise, it is too steep of a breaking change.</span>
-                    <span class="comment">// if !self.trans().allow_invalid_utf8 {</span>
-                        <span class="comment">// return Err(self.error(</span>
-                            <span class="comment">// asst.span, ErrorKind::InvalidUtf8));</span>
-                    <span class="comment">// }</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">trans</span>().<span class="ident">allow_invalid_utf8</span> {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
+                            <span class="ident">asst</span>.<span class="ident">span</span>, <span class="ident">ErrorKind</span>::<span class="ident">InvalidUtf8</span>));
+                    }
                     <span class="ident">hir</span>::<span class="ident">WordBoundary</span>::<span class="ident">AsciiNegate</span>
                 })
             }
@@ -3453,7 +3564,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
     <span class="doccomment">/// Return a scalar byte value suitable for use as a literal in a byte</span>
     <span class="doccomment">/// character class.</span>
     <span class="kw">fn</span> <span class="ident">class_literal_byte</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">Literal</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">literal_to_char</span>(<span class="ident">ast</span>)) {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">literal_to_char</span>(<span class="ident">ast</span>)<span class="question-mark">?</span> {
             <span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Byte</span>(<span class="ident">byte</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">byte</span>),
             <span class="ident">hir</span>::<span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="ident">ch</span>) <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">ch</span> <span class="op">&lt;=</span> <span class="number">0x7F</span> <span class="kw">as</span> <span class="ident">char</span> {
@@ -3564,8 +3675,8 @@ Defines a translator that converts an `Ast` to an `Hir`.
 <span class="kw">fn</span> <span class="ident">ascii_class</span>(<span class="ident">kind</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">ClassAsciiKind</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] {
     <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">ClassAsciiKind</span>::<span class="kw-2">*</span>;
 
-    <span class="comment">// TODO: Get rid of these consts, which appear necessary for older</span>
-    <span class="comment">// versions of Rust.</span>
+    <span class="comment">// The contortions below with `const` appear necessary for older versions</span>
+    <span class="comment">// of Rust.</span>
     <span class="kw">type</span> <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)];
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">kind</span> {
         <span class="ident">Alnum</span> <span class="op">=&gt;</span> {
@@ -3581,7 +3692,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
             <span class="ident">X</span>
         }
         <span class="ident">Blank</span> <span class="op">=&gt;</span> {
-            <span class="kw">const</span> <span class="ident">X</span>: <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[(<span class="string">&#39; &#39;</span>, <span class="string">&#39;\t&#39;</span>)];
+            <span class="kw">const</span> <span class="ident">X</span>: <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[(<span class="string">&#39;\t&#39;</span>, <span class="string">&#39;\t&#39;</span>), (<span class="string">&#39; &#39;</span>, <span class="string">&#39; &#39;</span>)];
             <span class="ident">X</span>
         }
         <span class="ident">Cntrl</span> <span class="op">=&gt;</span> {
@@ -4049,11 +4160,10 @@ Defines a translator that converts an `Ast` to an `Hir`.
             <span class="ident">t_bytes</span>(<span class="string">r&quot;(?-u)\B&quot;</span>),
             <span class="ident">hir_word</span>(<span class="ident">hir</span>::<span class="ident">WordBoundary</span>::<span class="ident">AsciiNegate</span>));
 
-        <span class="comment">// TODO(ag): Enable this tests when regex goes to 1.0.</span>
-        <span class="comment">// assert_eq!(t_err(r&quot;(?-u)\B&quot;), TestError {</span>
-            <span class="comment">// kind: hir::ErrorKind::InvalidUtf8,</span>
-            <span class="comment">// span: Span::new(Position::new(5, 1, 6), Position::new(7, 1, 8)),</span>
-        <span class="comment">// });</span>
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t_err</span>(<span class="string">r&quot;(?-u)\B&quot;</span>), <span class="ident">TestError</span> {
+            <span class="ident">kind</span>: <span class="ident">hir</span>::<span class="ident">ErrorKind</span>::<span class="ident">InvalidUtf8</span>,
+            <span class="ident">span</span>: <span class="ident">Span</span>::<span class="ident">new</span>(<span class="ident">Position</span>::<span class="ident">new</span>(<span class="number">5</span>, <span class="number">1</span>, <span class="number">6</span>), <span class="ident">Position</span>::<span class="ident">new</span>(<span class="number">7</span>, <span class="number">1</span>, <span class="number">8</span>)),
+        });
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -4089,6 +4199,10 @@ Defines a translator that converts an `Ast` to an `Hir`.
             <span class="ident">hir_group_name</span>(<span class="number">2</span>, <span class="string">&quot;foo&quot;</span>, <span class="ident">hir_lit</span>(<span class="string">&quot;b&quot;</span>)),
             <span class="ident">hir_group</span>(<span class="number">3</span>, <span class="ident">hir_lit</span>(<span class="string">&quot;c&quot;</span>)),
         ]));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">&quot;()&quot;</span>), <span class="ident">hir_group</span>(<span class="number">1</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>()));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">&quot;((?i))&quot;</span>), <span class="ident">hir_group</span>(<span class="number">1</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>()));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">&quot;((?x))&quot;</span>), <span class="ident">hir_group</span>(<span class="number">1</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>()));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">&quot;(((?x)))&quot;</span>), <span class="ident">hir_group</span>(<span class="number">1</span>, <span class="ident">hir_group</span>(<span class="number">2</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>())));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -4141,8 +4255,7 @@ Defines a translator that converts an `Ast` to an `Hir`.
     <span class="kw">fn</span> <span class="ident">escape</span>() {
         <span class="macro">assert_eq</span><span class="macro">!</span>(
             <span class="ident">t</span>(<span class="string">r&quot;\\\.\+\*\?\(\)\|\[\]\{\}\^\$\#&quot;</span>),
-            <span class="ident">hir_lit</span>(<span class="string">r&quot;\.+*?()|[]{}^$#&quot;</span>),
-        );
+            <span class="ident">hir_lit</span>(<span class="string">r&quot;\.+*?()|[]{}^$#&quot;</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -4957,40 +5070,68 @@ Defines a translator that converts an `Ast` to an `Hir`.
         <span class="comment">// Positive examples.</span>
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^^&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^$&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^$&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^foo&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^foo&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^foo|^bar&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo$|bar$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^foo|^bar&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo$|bar$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^(foo|bar)&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(foo|bar)$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^(foo|bar)&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(foo|bar)$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^+&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$+&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^+&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$+&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^++&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$++&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^++&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$++&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(^)+&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;($)+&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(^)+&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;($)+&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^&quot;</span>).<span class="ident">is_anchored_start</span>());
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^&quot;</span>).<span class="ident">is_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|^$&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|^$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|^$&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|^$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;\b^&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$\b&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;\b^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$\b&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^(?m:^)&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:$)$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;^(?m:^)&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:$)$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:^)^&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$(?m:$)&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:^)^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$(?m:$)&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="comment">// Negative examples.</span>
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(?m)^&quot;</span>).<span class="ident">is_anchored_start</span>());
@@ -5002,21 +5143,53 @@ Defines a translator that converts an `Ast` to an `Hir`.
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a^&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$a&quot;</span>).<span class="ident">is_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$a&quot;</span>).<span class="ident">is_line_anchored_start</span>());
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a^&quot;</span>).<span class="ident">is_anchored_start</span>());
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$a&quot;</span>).<span class="ident">is_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a^&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$a&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a^&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$a&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^foo|bar&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;foo|bar$&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^foo|bar&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;foo|bar$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^*&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$*&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^*&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$*&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^*+&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$*+&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^*+&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$*+&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^+*&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$+*&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^+*&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;$+*&quot;</span>).<span class="ident">is_line_anchored_end</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(^)*&quot;</span>).<span class="ident">is_anchored_start</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;($)*&quot;</span>).<span class="ident">is_anchored_end</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(^)*&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;($)*&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">analysis_is_line_anchored</span>() {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)^(foo|bar)&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)(foo|bar)$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)^foo|^bar&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)foo$|bar$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)$&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:^$)|$^&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m:^$)|$^&quot;</span>).<span class="ident">is_line_anchored_end</span>());
+
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|(?m:^$)&quot;</span>).<span class="ident">is_line_anchored_start</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;$^|(?m:^$)&quot;</span>).<span class="ident">is_line_anchored_end</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -5072,6 +5245,51 @@ Defines a translator that converts an `Ast` to an `Hir`.
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;\b&quot;</span>).<span class="ident">is_match_empty</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(?-u)\b&quot;</span>).<span class="ident">is_match_empty</span>());
     }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">analysis_is_literal</span>() {
+        <span class="comment">// Positive examples.</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;a&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;ab&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;abc&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)abc&quot;</span>).<span class="ident">is_literal</span>());
+
+        <span class="comment">// Negative examples.</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a|b&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(a)&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a+&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;foo(a)&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(a)foo&quot;</span>).<span class="ident">is_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;[a]&quot;</span>).<span class="ident">is_literal</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">analysis_is_alternation_literal</span>() {
+        <span class="comment">// Positive examples.</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;a&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;ab&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;abc&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;(?m)abc&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;a|b&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;a|b|c&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo|bar&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">t</span>(<span class="string">r&quot;foo|bar|baz&quot;</span>).<span class="ident">is_alternation_literal</span>());
+
+        <span class="comment">// Negative examples.</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;^&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(a)&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a+&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;foo(a)&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(a)foo&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;[a]&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;[a]|b&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a|[b]&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;(a)|b&quot;</span>).<span class="ident">is_alternation_literal</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">t</span>(<span class="string">r&quot;a|(b)&quot;</span>).<span class="ident">is_alternation_literal</span>());
+    }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

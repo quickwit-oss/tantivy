@@ -1,150 +1,176 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `distributions` mod in crate `rand`."><meta name="keywords" content="rust, rustlang, rust-lang, distributions"><title>rand::distributions - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Module distributions</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'><a href='../index.html'>rand</a></p><script>window.sidebarCurrent = {name: 'distributions', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rand</a>::<wbr><a class="mod" href=''>distributions</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/rand/distributions/mod.rs.html#11-159' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Sampling from random distributions.</p>
-<p>This is a generalization of <code>Rand</code> to allow parameters to control the
-exact properties of the generated values, e.g. the mean and standard
-deviation of a normal distribution. The <code>Sample</code> trait is the most
-general, and allows for generating values that change some state
-internally. The <code>IndependentSample</code> trait is for generating values
-that do not need to record state.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `distributions` mod in crate `rand`."><meta name="keywords" content="rust, rustlang, rust-lang, distributions"><title>rand::distributions - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Module distributions</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'><a href='../index.html'>rand</a></p><script>window.sidebarCurrent = {name: 'distributions', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/rand/distributions/mod.rs.html#10-608' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>rand</a>::<wbr><a class="mod" href=''>distributions</a></span></h1><div class='docblock'><p>Generating random samples from probability distributions.</p>
+<p>This module is the home of the [<code>Distribution</code>] trait and several of its
+implementations. It is the workhorse behind some of the convenient
+functionality of the [<code>Rng</code>] trait, including <a href="Rng::gen"><code>gen</code></a>, <a href="Rng::gen_range"><code>gen_range</code></a> and
+of course <a href="Rng::sample"><code>sample</code></a>.</p>
+<p>Abstractly, a <a href="https://en.wikipedia.org/wiki/Probability_distribution">probability distribution</a> describes the probability of
+occurance of each value in its sample space.</p>
+<p>More concretely, an implementation of <code>Distribution&lt;T&gt;</code> for type <code>X</code> is an
+algorithm for choosing values from the sample space (a subset of <code>T</code>)
+according to the distribution <code>X</code> represents, using an external source of
+randomness (an RNG supplied to the <code>sample</code> function).</p>
+<p>A type <code>X</code> may implement <code>Distribution&lt;T&gt;</code> for multiple types <code>T</code>.
+Any type implementing [<code>Distribution</code>] is stateless (i.e. immutable),
+but it may have internal parameters set at construction time (for example,
+<a href="distributions::Uniform"><code>Uniform</code></a> allows specification of its sample space as a range within <code>T</code>).</p>
+<h1 id="the-standard-distribution" class="section-header"><a href="#the-standard-distribution">The <code>Standard</code> distribution</a></h1>
+<p>The <a href="distributions::Standard"><code>Standard</code></a> distribution is important to mention. This is the
+distribution used by [<code>Rng::gen()</code>] and represents the &quot;default&quot; way to
+produce a random value for many different types, including most primitive
+types, tuples, arrays, and a few derived types. See the documentation of
+<a href="distributions::Standard"><code>Standard</code></a> for more details.</p>
+<p>Implementing <code>Distribution&lt;T&gt;</code> for <a href="distributions::Standard"><code>Standard</code></a> for user types <code>T</code> makes it
+possible to generate type <code>T</code> with [<code>Rng::gen()</code>], and by extension also
+with the [<code>random()</code>] function.</p>
+<h1 id="distribution-to-sample-from-a-uniform-range" class="section-header"><a href="#distribution-to-sample-from-a-uniform-range">Distribution to sample from a <code>Uniform</code> range</a></h1>
+<p>The <a href="distributions::Uniform"><code>Uniform</code></a> distribution is more flexible than <a href="distributions::Standard"><code>Standard</code></a>, but also
+more specialised: it supports fewer target types, but allows the sample
+space to be specified as an arbitrary range within its target type <code>T</code>.
+Both <a href="distributions::Standard"><code>Standard</code></a> and <a href="distributions::Uniform"><code>Uniform</code></a> are in some sense uniform distributions.</p>
+<p>Values may be sampled from this distribution using [<code>Rng::gen_range</code>] or
+by creating a distribution object with <a href="distributions::Uniform::new"><code>Uniform::new</code></a>,
+<a href="distributions::Uniform::new_inclusive"><code>Uniform::new_inclusive</code></a> or <code>From&lt;Range&gt;</code>. When the range limits are not
+known at compile time it is typically faster to reuse an existing
+distribution object than to call [<code>Rng::gen_range</code>].</p>
+<p>User types <code>T</code> may also implement <code>Distribution&lt;T&gt;</code> for <a href="distributions::Uniform"><code>Uniform</code></a>,
+although this is less straightforward than for <a href="distributions::Standard"><code>Standard</code></a> (see the
+documentation in the <a href="distributions::Uniform"><code>uniform</code></a> module. Doing so enables generation of
+values of type <code>T</code> with  [<code>Rng::gen_range</code>].</p>
+<h1 id="other-distributions" class="section-header"><a href="#other-distributions">Other distributions</a></h1>
+<p>There are surprisingly many ways to uniformly generate random floats. A
+range between 0 and 1 is standard, but the exact bounds (open vs closed)
+and accuracy differ. In addition to the <a href="distributions::Standard"><code>Standard</code></a> distribution Rand offers
+<a href="distributions::Open01"><code>Open01</code></a> and <a href="distributions::OpenClosed01"><code>OpenClosed01</code></a>. See &quot;Floating point implementation&quot; section of
+<a href="distributions::Standard"><code>Standard</code></a> documentation for more details.</p>
+<p><a href="distributions::Alphanumeric"><code>Alphanumeric</code></a> is a simple distribution to sample random letters and
+numbers of the <code>char</code> type; in contrast <a href="distributions::Standard"><code>Standard</code></a> may sample any valid
+<code>char</code>.</p>
+<p><a href="distributions::WeightedIndex"><code>WeightedIndex</code></a> can be used to do weighted sampling from a set of items,
+such as from an array.</p>
+<h1 id="non-uniform-probability-distributions" class="section-header"><a href="#non-uniform-probability-distributions">Non-uniform probability distributions</a></h1>
+<p>Rand currently provides the following probability distributions:</p>
+<ul>
+<li>Related to real-valued quantities that grow linearly
+(e.g. errors, offsets):
+<ul>
+<li><a href="distributions::Normal"><code>Normal</code></a> distribution, and <a href="distributions::StandardNormal"><code>StandardNormal</code></a> as a primitive</li>
+<li><a href="distributions::Cauchy"><code>Cauchy</code></a> distribution</li>
+</ul>
+</li>
+<li>Related to Bernoulli trials (yes/no events, with a given probability):
+<ul>
+<li><a href="distributions::Binomial"><code>Binomial</code></a> distribution</li>
+<li><a href="distributions::Bernoulli"><code>Bernoulli</code></a> distribution, similar to [<code>Rng::gen_bool</code>].</li>
+</ul>
+</li>
+<li>Related to positive real-valued quantities that grow exponentially
+(e.g. prices, incomes, populations):
+<ul>
+<li><a href="distributions::LogNormal"><code>LogNormal</code></a> distribution</li>
+</ul>
+</li>
+<li>Related to the occurrence of independent events at a given rate:
+<ul>
+<li><a href="distributions::Pareto"><code>Pareto</code></a> distribution</li>
+<li><a href="distributions::Poisson"><code>Poisson</code></a> distribution</li>
+<li><a href="distributions::Exp"><code>Exp</code></a>onential distribution, and <a href="distributions::Exp1"><code>Exp1</code></a> as a primitive</li>
+<li><a href="distributions::Weibull"><code>Weibull</code></a> distribution</li>
+</ul>
+</li>
+<li>Gamma and derived distributions:
+<ul>
+<li><a href="distributions::Gamma"><code>Gamma</code></a> distribution</li>
+<li><a href="distributions::ChiSquared"><code>ChiSquared</code></a> distribution</li>
+<li><a href="distributions::StudentT"><code>StudentT</code></a> distribution</li>
+<li><a href="distributions::FisherF"><code>FisherF</code></a> distribution</li>
+</ul>
+</li>
+<li>Triangular distribution:
+<ul>
+<li><a href="distributions::Beta"><code>Beta</code></a> distribution</li>
+<li><a href="distributions::Triangular"><code>Triangular</code></a> distribution</li>
+</ul>
+</li>
+<li>Multivariate probability distributions
+<ul>
+<li><a href="distributions::Dirichlet"><code>Dirichlet</code></a> distribution</li>
+<li><a href="distributions::UnitSphereSurface"><code>UnitSphereSurface</code></a> distribution</li>
+<li><a href="distributions::UnitCircle"><code>UnitCircle</code></a> distribution</li>
+</ul>
+</li>
+</ul>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>Sampling from a distribution:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">thread_rng</span>, <span class="ident">Rng</span>};
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::<span class="ident">Exp</span>;
+
+<span class="kw">let</span> <span class="ident">exp</span> <span class="op">=</span> <span class="ident">Exp</span>::<span class="ident">new</span>(<span class="number">2.0</span>);
+<span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">thread_rng</span>().<span class="ident">sample</span>(<span class="ident">exp</span>);
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{} is from an Exp(2) distribution&quot;</span>, <span class="ident">v</span>);</pre></div>
+<p>Implementing the <a href="distributions::Standard"><code>Standard</code></a> distribution for a user type:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">Rng</span>;
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Standard</span>};
+
+<span class="kw">struct</span> <span class="ident">MyF32</span> {
+    <span class="ident">x</span>: <span class="ident">f32</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">MyF32</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Standard</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">MyF32</span> {
+        <span class="ident">MyF32</span> { <span class="ident">x</span>: <span class="ident">rng</span>.<span class="ident">gen</span>() }
+    }
+}</pre></div>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="exponential/index.html"
-                                  title='mod rand::distributions::exponential'>exponential</a></td>
-                           <td class='docblock-short'>
-                                <p>The exponential distribution.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="gamma/index.html"
-                                  title='mod rand::distributions::gamma'>gamma</a></td>
-                           <td class='docblock-short'>
-                                <p>The Gamma and derived distributions.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="normal/index.html"
-                                  title='mod rand::distributions::normal'>normal</a></td>
-                           <td class='docblock-short'>
-                                <p>The normal and derived distributions.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="range/index.html"
-                                  title='mod rand::distributions::range'>range</a></td>
-                           <td class='docblock-short'>
-                                <p>Generating numbers between two others.</p>
-
-                           </td>
-                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ChiSquared.html"
-                                  title='struct rand::distributions::ChiSquared'>ChiSquared</a></td>
-                           <td class='docblock-short'>
-                                <p>The chi-squared distribution <code>χ²(k)</code>, where <code>k</code> is the degrees of
+<table><tr class='module-item'><td><a class="mod" href="uniform/index.html" title='rand::distributions::uniform mod'>uniform</a></td><td class='docblock-short'><p>A distribution uniformly sampling numbers within a given range.</p>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Alphanumeric.html" title='rand::distributions::Alphanumeric struct'>Alphanumeric</a></td><td class='docblock-short'><p>Sample a <code>char</code>, uniformly distributed over ASCII letters and numbers:
+a-z, A-Z and 0-9.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Bernoulli.html" title='rand::distributions::Bernoulli struct'>Bernoulli</a></td><td class='docblock-short'><p>The Bernoulli distribution.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Beta.html" title='rand::distributions::Beta struct'>Beta</a></td><td class='docblock-short'><p>The Beta distribution with shape parameters <code>alpha</code> and <code>beta</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Binomial.html" title='rand::distributions::Binomial struct'>Binomial</a></td><td class='docblock-short'><p>The binomial distribution <code>Binomial(n, p)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Cauchy.html" title='rand::distributions::Cauchy struct'>Cauchy</a></td><td class='docblock-short'><p>The Cauchy distribution <code>Cauchy(median, scale)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.ChiSquared.html" title='rand::distributions::ChiSquared struct'>ChiSquared</a></td><td class='docblock-short'><p>The chi-squared distribution <code>χ²(k)</code>, where <code>k</code> is the degrees of
 freedom.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Exp.html"
-                                  title='struct rand::distributions::Exp'>Exp</a></td>
-                           <td class='docblock-short'>
-                                <p>The exponential distribution <code>Exp(lambda)</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.FisherF.html"
-                                  title='struct rand::distributions::FisherF'>FisherF</a></td>
-                           <td class='docblock-short'>
-                                <p>The Fisher F distribution <code>F(m, n)</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Gamma.html"
-                                  title='struct rand::distributions::Gamma'>Gamma</a></td>
-                           <td class='docblock-short'>
-                                <p>The Gamma distribution <code>Gamma(shape, scale)</code> distribution.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.LogNormal.html"
-                                  title='struct rand::distributions::LogNormal'>LogNormal</a></td>
-                           <td class='docblock-short'>
-                                <p>The log-normal distribution <code>ln N(mean, std_dev**2)</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Normal.html"
-                                  title='struct rand::distributions::Normal'>Normal</a></td>
-                           <td class='docblock-short'>
-                                <p>The normal distribution <code>N(mean, std_dev**2)</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.RandSample.html"
-                                  title='struct rand::distributions::RandSample'>RandSample</a></td>
-                           <td class='docblock-short'>
-                                <p>A wrapper for generating types that implement <code>Rand</code> via the
-<code>Sample</code> &amp; <code>IndependentSample</code> traits.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Range.html"
-                                  title='struct rand::distributions::Range'>Range</a></td>
-                           <td class='docblock-short'>
-                                <p>Sample values uniformly between two bounds.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.StudentT.html"
-                                  title='struct rand::distributions::StudentT'>StudentT</a></td>
-                           <td class='docblock-short'>
-                                <p>The Student t distribution, <code>t(nu)</code>, where <code>nu</code> is the degrees of
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Dirichlet.html" title='rand::distributions::Dirichlet struct'>Dirichlet</a></td><td class='docblock-short'><p>The dirichelet distribution <code>Dirichlet(alpha)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.DistIter.html" title='rand::distributions::DistIter struct'>DistIter</a></td><td class='docblock-short'><p>An iterator that generates random values of <code>T</code> with distribution <code>D</code>,
+using <code>R</code> as the source of randomness.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Exp.html" title='rand::distributions::Exp struct'>Exp</a></td><td class='docblock-short'><p>The exponential distribution <code>Exp(lambda)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Exp1.html" title='rand::distributions::Exp1 struct'>Exp1</a></td><td class='docblock-short'><p>Samples floating-point numbers according to the exponential distribution,
+with rate parameter <code>λ = 1</code>. This is equivalent to <code>Exp::new(1.0)</code> or
+sampling with <code>-rng.gen::&lt;f64&gt;().ln()</code>, but faster.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.FisherF.html" title='rand::distributions::FisherF struct'>FisherF</a></td><td class='docblock-short'><p>The Fisher F distribution <code>F(m, n)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Gamma.html" title='rand::distributions::Gamma struct'>Gamma</a></td><td class='docblock-short'><p>The Gamma distribution <code>Gamma(shape, scale)</code> distribution.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.LogNormal.html" title='rand::distributions::LogNormal struct'>LogNormal</a></td><td class='docblock-short'><p>The log-normal distribution <code>ln N(mean, std_dev**2)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Normal.html" title='rand::distributions::Normal struct'>Normal</a></td><td class='docblock-short'><p>The normal distribution <code>N(mean, std_dev**2)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Open01.html" title='rand::distributions::Open01 struct'>Open01</a></td><td class='docblock-short'><p>A distribution to sample floating point numbers uniformly in the open
+interval <code>(0, 1)</code>, i.e. not including either endpoint.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.OpenClosed01.html" title='rand::distributions::OpenClosed01 struct'>OpenClosed01</a></td><td class='docblock-short'><p>A distribution to sample floating point numbers uniformly in the half-open
+interval <code>(0, 1]</code>, i.e. including 1 but not 0.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Pareto.html" title='rand::distributions::Pareto struct'>Pareto</a></td><td class='docblock-short'><p>Samples floating-point numbers according to the Pareto distribution</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Poisson.html" title='rand::distributions::Poisson struct'>Poisson</a></td><td class='docblock-short'><p>The Poisson distribution <code>Poisson(lambda)</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Standard.html" title='rand::distributions::Standard struct'>Standard</a></td><td class='docblock-short'><p>A generic random value distribution, implemented for many primitive types.
+Usually generates values with a numerically uniform distribution, and with a
+range appropriate to the type.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.StandardNormal.html" title='rand::distributions::StandardNormal struct'>StandardNormal</a></td><td class='docblock-short'><p>Samples floating-point numbers according to the normal distribution
+<code>N(0, 1)</code> (a.k.a. a standard normal, or Gaussian). This is equivalent to
+<code>Normal::new(0.0, 1.0)</code> but faster.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.StudentT.html" title='rand::distributions::StudentT struct'>StudentT</a></td><td class='docblock-short'><p>The Student t distribution, <code>t(nu)</code>, where <code>nu</code> is the degrees of
 freedom.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Weighted.html"
-                                  title='struct rand::distributions::Weighted'>Weighted</a></td>
-                           <td class='docblock-short'>
-                                <p>A value with a particular weight for use with <code>WeightedChoice</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.WeightedChoice.html"
-                                  title='struct rand::distributions::WeightedChoice'>WeightedChoice</a></td>
-                           <td class='docblock-short'>
-                                <p>A distribution that selects from a finite collection of weighted items.</p>
-
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.IndependentSample.html"
-                                  title='trait rand::distributions::IndependentSample'>IndependentSample</a></td>
-                           <td class='docblock-short'>
-                                <p><code>Sample</code>s that do not require keeping track of state.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Sample.html"
-                                  title='trait rand::distributions::Sample'>Sample</a></td>
-                           <td class='docblock-short'>
-                                <p>Types that can be used to create a random instance of <code>Support</code>.</p>
-
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rand";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Triangular.html" title='rand::distributions::Triangular struct'>Triangular</a></td><td class='docblock-short'><p>The triangular distribution.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Uniform.html" title='rand::distributions::Uniform struct'>Uniform</a></td><td class='docblock-short'><p>Sample values uniformly between two bounds.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.UnitCircle.html" title='rand::distributions::UnitCircle struct'>UnitCircle</a></td><td class='docblock-short'><p>Samples uniformly from the edge of the unit circle in two dimensions.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.UnitSphereSurface.html" title='rand::distributions::UnitSphereSurface struct'>UnitSphereSurface</a></td><td class='docblock-short'><p>Samples uniformly from the surface of the unit sphere in three dimensions.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Weibull.html" title='rand::distributions::Weibull struct'>Weibull</a></td><td class='docblock-short'><p>Samples floating-point numbers according to the Weibull distribution</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Weighted.html" title='rand::distributions::Weighted struct'>Weighted</a></td><td class='docblock-short'><span class="stab deprecated">Deprecated</span><p>A value with a particular weight for use with <code>WeightedChoice</code>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.WeightedChoice.html" title='rand::distributions::WeightedChoice struct'>WeightedChoice</a></td><td class='docblock-short'><span class="stab deprecated">Deprecated</span><p>A distribution that selects from a finite collection of weighted items.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.WeightedIndex.html" title='rand::distributions::WeightedIndex struct'>WeightedIndex</a></td><td class='docblock-short'><p>A distribution using weighted sampling to pick a discretely selected
+item.</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.WeightedError.html" title='rand::distributions::WeightedError enum'>WeightedError</a></td><td class='docblock-short'><p>Error type returned from <code>WeightedIndex::new</code>.</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.Distribution.html" title='rand::distributions::Distribution trait'>Distribution</a></td><td class='docblock-short'><p>Types (distributions) that can be used to create a random instance of <code>T</code>.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rand";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

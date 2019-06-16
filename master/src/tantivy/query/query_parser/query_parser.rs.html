@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/query_parser/query_parser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>query_parser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/query_parser/query_parser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>query_parser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -623,20 +623,249 @@
 <span id="623">623</span>
 <span id="624">624</span>
 <span id="625">625</span>
-</pre><pre class="rust ">
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">logical_ast</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">query_grammar</span>::<span class="ident">parse_to_ast</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">user_input_ast</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">combine</span>::<span class="ident">Parser</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">occur</span>::<span class="ident">compose_occur</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">query_parser</span>::<span class="ident">logical_ast</span>::<span class="ident">LogicalAST</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">EmptyQuery</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Occur</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">PhraseQuery</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">RangeQuery</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">FieldType</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">num</span>::<span class="ident">ParseIntError</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Bound</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
 
@@ -665,11 +894,44 @@
     <span class="doccomment">/// The tokenizer for the given field is unknown</span>
     <span class="doccomment">/// The two argument strings are the name of the field, the name of the tokenizer</span>
     <span class="ident">UnknownTokenizer</span>(<span class="ident">String</span>, <span class="ident">String</span>),
+    <span class="doccomment">/// The query contains a range query with a phrase as one of the bounds.</span>
+    <span class="doccomment">/// Only terms can be used as bounds.</span>
+    <span class="ident">RangeMustNotHavePhrase</span>,
+    <span class="doccomment">/// The format for the date field is not RFC 3339 compliant.</span>
+    <span class="ident">DateFormatError</span>(<span class="ident">chrono</span>::<span class="ident">ParseError</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ParseIntError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">QueryParserError</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">ParseIntError</span>) <span class="op">-&gt;</span> <span class="ident">QueryParserError</span> {
         <span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(<span class="ident">err</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">chrono</span>::<span class="ident">ParseError</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">QueryParserError</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">err</span>: <span class="ident">chrono</span>::<span class="ident">ParseError</span>) <span class="op">-&gt;</span> <span class="ident">QueryParserError</span> {
+        <span class="ident">QueryParserError</span>::<span class="ident">DateFormatError</span>(<span class="ident">err</span>)
+    }
+}
+
+<span class="doccomment">/// Recursively remove empty clause from the AST</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Returns `None` iff the `logical_ast` ended up being empty.</span>
+<span class="kw">fn</span> <span class="ident">trim_ast</span>(<span class="ident">logical_ast</span>: <span class="ident">LogicalAST</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LogicalAST</span><span class="op">&gt;</span> {
+    <span class="kw">match</span> <span class="ident">logical_ast</span> {
+        <span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">children</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">trimmed_children</span> <span class="op">=</span> <span class="ident">children</span>
+                .<span class="ident">into_iter</span>()
+                .<span class="ident">flat_map</span>(<span class="op">|</span>(<span class="ident">occur</span>, <span class="ident">child</span>)<span class="op">|</span> {
+                    <span class="ident">trim_ast</span>(<span class="ident">child</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">trimmed_child</span><span class="op">|</span> (<span class="ident">occur</span>, <span class="ident">trimmed_child</span>))
+                })
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+            <span class="kw">if</span> <span class="ident">trimmed_children</span>.<span class="ident">is_empty</span>() {
+                <span class="prelude-val">None</span>
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">trimmed_children</span>))
+            }
+        }
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">logical_ast</span>),
     }
 }
 
@@ -692,8 +954,17 @@
 <span class="doccomment">///   by relevance : The user typically just scans through the first few</span>
 <span class="doccomment">///   documents in order of decreasing relevance and will stop when the documents</span>
 <span class="doccomment">///   are not relevant anymore.</span>
-<span class="doccomment">///   Making it possible to make this behavior customizable is tracked in</span>
-<span class="doccomment">///   [issue #27](https://github.com/fulmicoton/tantivy/issues/27).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is interpreted</span>
+<span class="doccomment">/// as `(a AND b) OR c`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * In addition to the boolean operators, the `-`, `+` can help define. These operators</span>
+<span class="doccomment">///   are sufficient to axpress all queries using boolean operators. For instance `x AND y OR z` can</span>
+<span class="doccomment">///   be written (`(+x +y) z`). In addition, these operators can help define &quot;required optional&quot;</span>
+<span class="doccomment">///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// * negative terms: By prepending a term by a `-`, a term can be excluded</span>
 <span class="doccomment">///   from the search. This is useful for disambiguating a query.</span>
@@ -701,6 +972,21 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// * must terms: By prepending a term by a `+`, a term can be made required for the search.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.</span>
+<span class="doccomment">///   e.g., `title:&quot;Barack Obama&quot;` will only find documents that have &quot;barack&quot; immediately followed</span>
+<span class="doccomment">///   by &quot;obama&quot;.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * range terms: Range searches can be done by specifying the start and end bound. These can be</span>
+<span class="doccomment">///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains</span>
+<span class="doccomment">///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).</span>
+<span class="doccomment">///   Inclusive bounds are `[]`, exclusive are `{}`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * date values: The query parser supports rfc3339 formatted dates. For example &quot;2002-10-02T15:00:00.05Z&quot;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// *  all docs query: A plain `*` will match all documents in the index.</span>
+<span class="doccomment">///</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">QueryParser</span> {
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
     <span class="ident">default_fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span>,
@@ -760,8 +1046,9 @@
 
     <span class="doccomment">/// Parse the user query into an AST.</span>
     <span class="kw">fn</span> <span class="ident">parse_query_to_logical_ast</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">query</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">LogicalAST</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> (<span class="ident">user_input_ast</span>, <span class="ident">_remaining</span>) <span class="op">=</span>
-            <span class="ident">parse_to_ast</span>(<span class="ident">query</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">QueryParserError</span>::<span class="ident">SyntaxError</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> (<span class="ident">user_input_ast</span>, <span class="ident">_remaining</span>) <span class="op">=</span> <span class="ident">parse_to_ast</span>()
+            .<span class="ident">parse</span>(<span class="ident">query</span>)
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">QueryParserError</span>::<span class="ident">SyntaxError</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">compute_logical_ast</span>(<span class="ident">user_input_ast</span>)
     }
 
@@ -781,11 +1068,12 @@
         }
         <span class="prelude-val">Ok</span>(<span class="ident">ast</span>)
     }
-    <span class="kw">fn</span> <span class="ident">compute_logical_ast_for_leaf</span>(
+
+    <span class="kw">fn</span> <span class="ident">compute_terms_for_string</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
         <span class="ident">phrase</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LogicalLiteral</span><span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">Term</span>)<span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>();
         <span class="kw">if</span> <span class="op">!</span><span class="ident">field_type</span>.<span class="ident">is_indexed</span>() {
@@ -796,41 +1084,47 @@
             <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">i64</span>::<span class="ident">from_str</span>(<span class="ident">phrase</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_i64</span>(<span class="ident">field</span>, <span class="ident">val</span>);
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>)))
+                <span class="prelude-val">Ok</span>(<span class="macro">vec</span><span class="macro">!</span>[(<span class="number">0</span>, <span class="ident">term</span>)])
             }
+            <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">chrono</span>::<span class="ident">DateTime</span>::<span class="ident">parse_from_rfc3339</span>(<span class="ident">phrase</span>) {
+                <span class="prelude-val">Ok</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="macro">vec</span><span class="macro">!</span>[(
+                    <span class="number">0</span>,
+                    <span class="ident">Term</span>::<span class="ident">from_field_date</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">with_timezone</span>(<span class="kw-2">&amp;</span><span class="ident">chrono</span>::<span class="ident">Utc</span>)),
+                )]),
+                <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">DateFormatError</span>(<span class="ident">e</span>)),
+            },
             <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">from_str</span>(<span class="ident">phrase</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_u64</span>(<span class="ident">field</span>, <span class="ident">val</span>);
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>)))
+                <span class="prelude-val">Ok</span>(<span class="macro">vec</span><span class="macro">!</span>[(<span class="number">0</span>, <span class="ident">term</span>)])
             }
             <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">str_options</span>) <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">option</span>) <span class="op">=</span> <span class="ident">str_options</span>.<span class="ident">get_indexing_options</span>() {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="ident">option</span>.<span class="ident">tokenizer</span>()).<span class="ident">ok_or_else</span>(
-                        <span class="op">||</span> {
-                            <span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(
-                                <span class="ident">field_entry</span>.<span class="ident">name</span>().<span class="ident">to_string</span>(),
-                                <span class="ident">option</span>.<span class="ident">tokenizer</span>().<span class="ident">to_string</span>(),
-                            )
-                        },
-                    )<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokenizer</span> <span class="op">=</span>
+                        <span class="self">self</span>.<span class="ident">tokenizer_manager</span>
+                            .<span class="ident">get</span>(<span class="ident">option</span>.<span class="ident">tokenizer</span>())
+                            .<span class="ident">ok_or_else</span>(<span class="op">||</span> {
+                                <span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(
+                                    <span class="ident">field_entry</span>.<span class="ident">name</span>().<span class="ident">to_string</span>(),
+                                    <span class="ident">option</span>.<span class="ident">tokenizer</span>().<span class="ident">to_string</span>(),
+                                )
+                            })<span class="question-mark">?</span>;
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">Term</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token_stream</span> <span class="op">=</span> <span class="ident">tokenizer</span>.<span class="ident">token_stream</span>(<span class="ident">phrase</span>);
                     <span class="ident">token_stream</span>.<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">token</span><span class="op">|</span> {
                         <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">token</span>.<span class="ident">text</span>);
-                        <span class="ident">terms</span>.<span class="ident">push</span>(<span class="ident">term</span>);
+                        <span class="ident">terms</span>.<span class="ident">push</span>((<span class="ident">token</span>.<span class="ident">position</span>, <span class="ident">term</span>));
                     });
                     <span class="kw">if</span> <span class="ident">terms</span>.<span class="ident">is_empty</span>() {
-                        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+                        <span class="prelude-val">Ok</span>(<span class="macro">vec</span><span class="macro">!</span>[])
                     } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">terms</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
-                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(
-                            <span class="ident">terms</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>(),
-                        )))
+                        <span class="prelude-val">Ok</span>(<span class="ident">terms</span>)
                     } <span class="kw">else</span> {
                         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
                         <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>();
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">index_record_option</span>) <span class="op">=</span> <span class="ident">field_type</span>.<span class="ident">get_index_record_option</span>() {
                             <span class="kw">if</span> <span class="ident">index_record_option</span>.<span class="ident">has_positions</span>() {
-                                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>)))
+                                <span class="prelude-val">Ok</span>(<span class="ident">terms</span>)
                             } <span class="kw">else</span> {
                                 <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
                                 <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotHavePositionsIndexed</span>(
@@ -849,14 +1143,24 @@
                     ))
                 }
             }
-            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">field</span>, <span class="ident">phrase</span>);
-                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>)))
-            }
+            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="macro">vec</span><span class="macro">!</span>[(<span class="number">0</span>, <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">field</span>, <span class="ident">phrase</span>))]),
             <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
                 <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(<span class="ident">field_name</span>))
             }
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">compute_logical_ast_for_leaf</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">phrase</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">LogicalLiteral</span><span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">terms</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_terms_for_string</span>(<span class="ident">field</span>, <span class="ident">phrase</span>)<span class="question-mark">?</span>;
+        <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">terms</span>[..] {
+            [] <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+            [(<span class="kw">_</span>, <span class="ident">term</span>)] <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>.<span class="ident">clone</span>()))),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>.<span class="ident">clone</span>()))),
         }
     }
 
@@ -865,6 +1169,41 @@
             <span class="ident">Occur</span>::<span class="ident">Must</span>
         } <span class="kw">else</span> {
             <span class="ident">Occur</span>::<span class="ident">Should</span>
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">resolve_bound</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">bound</span>: <span class="kw-2">&amp;</span><span class="ident">UserInputBound</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">bound</span>.<span class="ident">term_str</span>() <span class="op">==</span> <span class="string">&quot;*&quot;</span> {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Bound</span>::<span class="ident">Unbounded</span>);
+        }
+        <span class="kw">let</span> <span class="ident">terms</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_terms_for_string</span>(<span class="ident">field</span>, <span class="ident">bound</span>.<span class="ident">term_str</span>())<span class="question-mark">?</span>;
+        <span class="kw">if</span> <span class="ident">terms</span>.<span class="ident">len</span>() <span class="op">!=</span> <span class="number">1</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">RangeMustNotHavePhrase</span>);
+        }
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">term</span>) <span class="op">=</span> <span class="ident">terms</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">bound</span> {
+            <span class="ident">UserInputBound</span>::<span class="ident">Inclusive</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Bound</span>::<span class="ident">Included</span>(<span class="ident">term</span>)),
+            <span class="ident">UserInputBound</span>::<span class="ident">Exclusive</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="ident">term</span>)),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">resolved_fields</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">given_field</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Cow</span><span class="op">&lt;</span>[<span class="ident">Field</span>]<span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">given_field</span> {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">default_fields</span>.<span class="ident">is_empty</span>() {
+                    <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">NoDefaultFieldDeclared</span>)
+                } <span class="kw">else</span> {
+                    <span class="prelude-val">Ok</span>(<span class="ident">Cow</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">default_fields</span>[..]))
+                }
+            }
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">field</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Cow</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="self">self</span>.<span class="ident">resolve_field_name</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">field</span>)<span class="question-mark">?</span>])),
         }
     }
 
@@ -877,21 +1216,30 @@
                 <span class="kw">let</span> <span class="ident">default_occur</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">default_occur</span>();
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logical_sub_queries</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Occur</span>, <span class="ident">LogicalAST</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
                 <span class="kw">for</span> <span class="ident">sub_query</span> <span class="kw">in</span> <span class="ident">sub_queries</span> {
-                    <span class="kw">let</span> (<span class="ident">occur</span>, <span class="ident">sub_ast</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_logical_ast_with_occur</span>(<span class="kw-2">*</span><span class="ident">sub_query</span>)<span class="question-mark">?</span>;
+                    <span class="kw">let</span> (<span class="ident">occur</span>, <span class="ident">sub_ast</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_logical_ast_with_occur</span>(<span class="ident">sub_query</span>)<span class="question-mark">?</span>;
                     <span class="kw">let</span> <span class="ident">new_occur</span> <span class="op">=</span> <span class="ident">compose_occur</span>(<span class="ident">default_occur</span>, <span class="ident">occur</span>);
                     <span class="ident">logical_sub_queries</span>.<span class="ident">push</span>((<span class="ident">new_occur</span>, <span class="ident">sub_ast</span>));
                 }
                 <span class="prelude-val">Ok</span>((<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">logical_sub_queries</span>)))
             }
-            <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="ident">subquery</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> (<span class="ident">occur</span>, <span class="ident">logical_sub_queries</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_logical_ast_with_occur</span>(<span class="kw-2">*</span><span class="ident">subquery</span>)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>((<span class="ident">compose_occur</span>(<span class="ident">Occur</span>::<span class="ident">MustNot</span>, <span class="ident">occur</span>), <span class="ident">logical_sub_queries</span>))
+            <span class="ident">UserInputAST</span>::<span class="ident">Unary</span>(<span class="ident">left_occur</span>, <span class="ident">subquery</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> (<span class="ident">right_occur</span>, <span class="ident">logical_sub_queries</span>) <span class="op">=</span>
+                    <span class="self">self</span>.<span class="ident">compute_logical_ast_with_occur</span>(<span class="kw-2">*</span><span class="ident">subquery</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>((<span class="ident">compose_occur</span>(<span class="ident">left_occur</span>, <span class="ident">right_occur</span>), <span class="ident">logical_sub_queries</span>))
             }
-            <span class="ident">UserInputAST</span>::<span class="ident">Must</span>(<span class="ident">subquery</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> (<span class="ident">occur</span>, <span class="ident">logical_sub_queries</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_logical_ast_with_occur</span>(<span class="kw-2">*</span><span class="ident">subquery</span>)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>((<span class="ident">compose_occur</span>(<span class="ident">Occur</span>::<span class="ident">Must</span>, <span class="ident">occur</span>), <span class="ident">logical_sub_queries</span>))
+            <span class="ident">UserInputAST</span>::<span class="ident">Leaf</span>(<span class="ident">leaf</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">result_ast</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">compute_logical_ast_from_leaf</span>(<span class="kw-2">*</span><span class="ident">leaf</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>((<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">result_ast</span>))
             }
-            <span class="ident">UserInputAST</span>::<span class="ident">Leaf</span>(<span class="ident">literal</span>) <span class="op">=&gt;</span> {
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">compute_logical_ast_from_leaf</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">leaf</span>: <span class="ident">UserInputLeaf</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">LogicalAST</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="ident">leaf</span> {
+            <span class="ident">UserInputLeaf</span>::<span class="ident">Literal</span>(<span class="ident">literal</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">term_phrases</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Field</span>, <span class="ident">String</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">literal</span>.<span class="ident">field_name</span> {
                     <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">field_name</span>) <span class="op">=&gt;</span> {
                         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">resolve_field_name</span>(<span class="ident">field_name</span>)<span class="question-mark">?</span>;
@@ -914,36 +1262,44 @@
                         <span class="ident">asts</span>.<span class="ident">push</span>(<span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ast</span>)));
                     }
                 }
-                <span class="kw">let</span> <span class="ident">result_ast</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">asts</span>.<span class="ident">is_empty</span>() {
-                    <span class="comment">// this should never happen</span>
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">SyntaxError</span>);
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">asts</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
-                    <span class="ident">asts</span>[<span class="number">0</span>].<span class="ident">clone</span>()
+                <span class="kw">let</span> <span class="ident">result_ast</span>: <span class="ident">LogicalAST</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">asts</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+                    <span class="ident">asts</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>()
                 } <span class="kw">else</span> {
                     <span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">asts</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">ast</span><span class="op">|</span> (<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">ast</span>)).<span class="ident">collect</span>())
                 };
-                <span class="prelude-val">Ok</span>((<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">result_ast</span>))
+                <span class="prelude-val">Ok</span>(<span class="ident">result_ast</span>)
             }
-        }
-    }
-}
-
-<span class="doccomment">/// Compose two occur values.</span>
-<span class="kw">fn</span> <span class="ident">compose_occur</span>(<span class="ident">left</span>: <span class="ident">Occur</span>, <span class="ident">right</span>: <span class="ident">Occur</span>) <span class="op">-&gt;</span> <span class="ident">Occur</span> {
-    <span class="kw">match</span> <span class="ident">left</span> {
-        <span class="ident">Occur</span>::<span class="ident">Should</span> <span class="op">=&gt;</span> <span class="ident">right</span>,
-        <span class="ident">Occur</span>::<span class="ident">Must</span> <span class="op">=&gt;</span> {
-            <span class="kw">if</span> <span class="ident">right</span> <span class="op">==</span> <span class="ident">Occur</span>::<span class="ident">MustNot</span> {
-                <span class="ident">Occur</span>::<span class="ident">MustNot</span>
-            } <span class="kw">else</span> {
-                <span class="ident">Occur</span>::<span class="ident">Must</span>
-            }
-        }
-        <span class="ident">Occur</span>::<span class="ident">MustNot</span> <span class="op">=&gt;</span> {
-            <span class="kw">if</span> <span class="ident">right</span> <span class="op">==</span> <span class="ident">Occur</span>::<span class="ident">MustNot</span> {
-                <span class="ident">Occur</span>::<span class="ident">Must</span>
-            } <span class="kw">else</span> {
-                <span class="ident">Occur</span>::<span class="ident">MustNot</span>
+            <span class="ident">UserInputLeaf</span>::<span class="ident">All</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">All</span>))),
+            <span class="ident">UserInputLeaf</span>::<span class="ident">Range</span> {
+                <span class="ident">field</span>,
+                <span class="ident">lower</span>,
+                <span class="ident">upper</span>,
+            } <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">resolved_fields</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">clauses</span> <span class="op">=</span> <span class="ident">fields</span>
+                    .<span class="ident">iter</span>()
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">field</span><span class="op">|</span> {
+                        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
+                        <span class="kw">let</span> <span class="ident">value_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>().<span class="ident">value_type</span>();
+                        <span class="prelude-val">Ok</span>(<span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Range</span> {
+                            <span class="ident">field</span>,
+                            <span class="ident">value_type</span>,
+                            <span class="ident">lower</span>: <span class="self">self</span>.<span class="ident">resolve_bound</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">lower</span>)<span class="question-mark">?</span>,
+                            <span class="ident">upper</span>: <span class="self">self</span>.<span class="ident">resolve_bound</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">upper</span>)<span class="question-mark">?</span>,
+                        })))
+                    })
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">QueryParserError</span><span class="op">&gt;&gt;</span>()<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">result_ast</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">clauses</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+                    <span class="ident">clauses</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>()
+                } <span class="kw">else</span> {
+                    <span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(
+                        <span class="ident">clauses</span>
+                            .<span class="ident">into_iter</span>()
+                            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">clause</span><span class="op">|</span> (<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">clause</span>))
+                            .<span class="ident">collect</span>(),
+                    )
+                };
+                <span class="prelude-val">Ok</span>(<span class="ident">result_ast</span>)
             }
         }
     }
@@ -952,20 +1308,38 @@
 <span class="kw">fn</span> <span class="ident">convert_literal_to_query</span>(<span class="ident">logical_literal</span>: <span class="ident">LogicalLiteral</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">logical_literal</span> {
         <span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>) <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>)),
-        <span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>) <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseQuery</span>::<span class="ident">new</span>(<span class="ident">terms</span>)),
+        <span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">term_with_offsets</span>) <span class="op">=&gt;</span> {
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseQuery</span>::<span class="ident">new_with_offset</span>(<span class="ident">term_with_offsets</span>))
+        }
+        <span class="ident">LogicalLiteral</span>::<span class="ident">Range</span> {
+            <span class="ident">field</span>,
+            <span class="ident">value_type</span>,
+            <span class="ident">lower</span>,
+            <span class="ident">upper</span>,
+        } <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RangeQuery</span>::<span class="ident">new_term_bounds</span>(
+            <span class="ident">field</span>, <span class="ident">value_type</span>, <span class="kw-2">&amp;</span><span class="ident">lower</span>, <span class="kw-2">&amp;</span><span class="ident">upper</span>,
+        )),
+        <span class="ident">LogicalLiteral</span>::<span class="ident">All</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AllQuery</span>),
     }
 }
 
 <span class="kw">fn</span> <span class="ident">convert_to_query</span>(<span class="ident">logical_ast</span>: <span class="ident">LogicalAST</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> {
-    <span class="kw">match</span> <span class="ident">logical_ast</span> {
-        <span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">clause</span>) <span class="op">=&gt;</span> {
-            <span class="kw">let</span> <span class="ident">occur_subqueries</span> <span class="op">=</span> <span class="ident">clause</span>
+    <span class="kw">match</span> <span class="ident">trim_ast</span>(<span class="ident">logical_ast</span>) {
+        <span class="prelude-val">Some</span>(<span class="ident">LogicalAST</span>::<span class="ident">Clause</span>(<span class="ident">trimmed_clause</span>)) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">occur_subqueries</span> <span class="op">=</span> <span class="ident">trimmed_clause</span>
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">occur</span>, <span class="ident">subquery</span>)<span class="op">|</span> (<span class="ident">occur</span>, <span class="ident">convert_to_query</span>(<span class="ident">subquery</span>)))
                 .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(
+                <span class="op">!</span><span class="ident">occur_subqueries</span>.<span class="ident">is_empty</span>(),
+                <span class="string">&quot;Should not be empty after trimming&quot;</span>
+            );
             <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">BooleanQuery</span>::<span class="ident">from</span>(<span class="ident">occur_subqueries</span>))
         }
-        <span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">logical_literal</span>) <span class="op">=&gt;</span> <span class="ident">convert_literal_to_query</span>(<span class="kw-2">*</span><span class="ident">logical_literal</span>),
+        <span class="prelude-val">Some</span>(<span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">trimmed_logical_literal</span>)) <span class="op">=&gt;</span> {
+            <span class="ident">convert_literal_to_query</span>(<span class="kw-2">*</span><span class="ident">trimmed_logical_literal</span>)
+        }
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyQuery</span>),
     }
 }
 
@@ -977,24 +1351,37 @@
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IndexRecordOption</span>, <span class="ident">TextFieldIndexing</span>, <span class="ident">TextOptions</span>};
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STORED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
-    <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
-    <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Schema</span>, <span class="ident">Term</span>, <span class="ident">INDEXED</span>, <span class="ident">STORED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="ident">LowerCaser</span>, <span class="ident">SimpleTokenizer</span>, <span class="ident">StopWordFilter</span>, <span class="ident">Tokenizer</span>, <span class="ident">TokenizerManager</span>};
     <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="kw">fn</span> <span class="ident">make_query_parser</span>() <span class="op">-&gt;</span> <span class="ident">QueryParser</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
+        <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
+            .<span class="ident">set_tokenizer</span>(<span class="string">&quot;en_with_stop_words&quot;</span>)
+            .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>);
+        <span class="kw">let</span> <span class="ident">text_options</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>()
+            .<span class="ident">set_indexing_options</span>(<span class="ident">text_field_indexing</span>)
+            .<span class="ident">set_stored</span>();
         <span class="kw">let</span> <span class="ident">title</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
-        <span class="ident">schema_builder</span>.<span class="ident">add_i64_field</span>(<span class="string">&quot;signed&quot;</span>, <span class="ident">INT_INDEXED</span>);
-        <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;unsigned&quot;</span>, <span class="ident">INT_INDEXED</span>);
+        <span class="ident">schema_builder</span>.<span class="ident">add_i64_field</span>(<span class="string">&quot;signed&quot;</span>, <span class="ident">INDEXED</span>);
+        <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;unsigned&quot;</span>, <span class="ident">INDEXED</span>);
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;notindexed_text&quot;</span>, <span class="ident">STORED</span>);
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;notindexed_u64&quot;</span>, <span class="ident">STORED</span>);
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;notindexed_i64&quot;</span>, <span class="ident">STORED</span>);
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;nottokenized&quot;</span>, <span class="ident">STRING</span>);
+        <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;with_stop_words&quot;</span>, <span class="ident">text_options</span>);
+        <span class="ident">schema_builder</span>.<span class="ident">add_date_field</span>(<span class="string">&quot;date&quot;</span>, <span class="ident">INDEXED</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">default_fields</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>, <span class="ident">text</span>];
         <span class="kw">let</span> <span class="ident">tokenizer_manager</span> <span class="op">=</span> <span class="ident">TokenizerManager</span>::<span class="ident">default</span>();
+        <span class="ident">tokenizer_manager</span>.<span class="ident">register</span>(
+            <span class="string">&quot;en_with_stop_words&quot;</span>,
+            <span class="ident">SimpleTokenizer</span>
+                .<span class="ident">filter</span>(<span class="ident">LowerCaser</span>)
+                .<span class="ident">filter</span>(<span class="ident">StopWordFilter</span>::<span class="ident">remove</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;the&quot;</span>.<span class="ident">to_string</span>()])),
+        );
         <span class="ident">QueryParser</span>::<span class="ident">new</span>(<span class="ident">schema</span>, <span class="ident">default_fields</span>, <span class="ident">tokenizer_manager</span>)
     }
 
@@ -1063,30 +1450,34 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_parse_query_empty</span>() {
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(<span class="string">&quot;&quot;</span>, <span class="string">&quot;&lt;emptyclause&gt;&quot;</span>, <span class="bool-val">false</span>);
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(<span class="string">&quot; &quot;</span>, <span class="string">&quot;&lt;emptyclause&gt;&quot;</span>, <span class="bool-val">false</span>);
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="kw">let</span> <span class="ident">query_result</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;&quot;</span>);
+        <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_result</span>.<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">query</span>), <span class="string">&quot;EmptyQuery&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_parse_query_ints</span>() {
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:2324&quot;</span>).<span class="ident">is_ok</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;22\&quot;&quot;</span>).<span class="ident">is_ok</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;-2234\&quot;&quot;</span>).<span class="ident">is_ok</span>());
-        <span class="macro">assert</span><span class="macro">!</span>(
-            <span class="ident">query_parser</span>
-                .<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;-9999999999999\&quot;&quot;</span>)
-                .<span class="ident">is_ok</span>()
-        );
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>
+            .<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;-9999999999999\&quot;&quot;</span>)
+            .<span class="ident">is_ok</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;a\&quot;&quot;</span>).<span class="ident">is_err</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;2a\&quot;&quot;</span>).<span class="ident">is_err</span>());
-        <span class="macro">assert</span><span class="macro">!</span>(
-            <span class="ident">query_parser</span>
-                .<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;18446744073709551615\&quot;&quot;</span>)
-                .<span class="ident">is_err</span>()
-        );
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>
+            .<span class="ident">parse_query</span>(<span class="string">&quot;signed:\&quot;18446744073709551615\&quot;&quot;</span>)
+            .<span class="ident">is_err</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;2\&quot;&quot;</span>).<span class="ident">is_ok</span>());
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;-2\&quot;&quot;</span>).<span class="ident">is_err</span>());
-        <span class="macro">assert</span><span class="macro">!</span>(
-            <span class="ident">query_parser</span>
-                .<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;18446744073709551615\&quot;&quot;</span>)
-                .<span class="ident">is_ok</span>()
-        );
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>
+            .<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;18446744073709551615\&quot;&quot;</span>)
+            .<span class="ident">is_ok</span>());
         <span class="ident">test_parse_query_to_logical_ast_helper</span>(
             <span class="string">&quot;unsigned:2324&quot;</span>,
             <span class="string">&quot;Term([0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 9, 20])&quot;</span>,
@@ -1133,10 +1524,42 @@
         );
         <span class="ident">test_parse_query_to_logical_ast_helper</span>(
             <span class="string">&quot;title:\&quot;a b\&quot;&quot;</span>,
-            <span class="string">&quot;\&quot;[Term([0, 0, 0, 0, 97]), \
-             Term([0, 0, 0, 0, 98])]\&quot;&quot;</span>,
+            <span class="string">&quot;\&quot;[(0, Term([0, 0, 0, 0, 97])), \
+             (1, Term([0, 0, 0, 0, 98]))]\&quot;&quot;</span>,
             <span class="bool-val">false</span>,
         );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(
+            <span class="string">&quot;title:[a TO b]&quot;</span>,
+            <span class="string">&quot;(Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98])))&quot;</span>,
+            <span class="bool-val">false</span>,
+        );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(
+            <span class="string">&quot;[a TO b]&quot;</span>,
+            <span class="string">&quot;((Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98]))) \
+             (Included(Term([0, 0, 0, 1, 97])) TO \
+             Included(Term([0, 0, 0, 1, 98]))))&quot;</span>,
+            <span class="bool-val">false</span>,
+        );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(
+            <span class="string">&quot;title:{titi TO toto}&quot;</span>,
+            <span class="string">&quot;(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO \
+             Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))&quot;</span>,
+            <span class="bool-val">false</span>,
+        );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(
+            <span class="string">&quot;title:{* TO toto}&quot;</span>,
+            <span class="string">&quot;(Unbounded TO \
+             Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))&quot;</span>,
+            <span class="bool-val">false</span>,
+        );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(
+            <span class="string">&quot;title:{titi TO *}&quot;</span>,
+            <span class="string">&quot;(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO Unbounded)&quot;</span>,
+            <span class="bool-val">false</span>,
+        );
+        <span class="ident">test_parse_query_to_logical_ast_helper</span>(<span class="string">&quot;*&quot;</span>, <span class="string">&quot;*&quot;</span>, <span class="bool-val">false</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1159,7 +1582,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_unknown_tokenizer</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
             .<span class="ident">set_tokenizer</span>(<span class="string">&quot;nonexistingtokenizer&quot;</span>)
             .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
@@ -1177,7 +1600,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_no_positions</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
             .<span class="ident">set_tokenizer</span>(<span class="string">&quot;customtokenizer&quot;</span>)
             .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
@@ -1207,6 +1630,25 @@
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:18b&quot;</span>),
             <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(<span class="kw">_</span>))
         );
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_expected_date</span>() {
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="macro">assert_matches</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;date:18a&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">DateFormatError</span>(<span class="kw">_</span>))
+        );
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>
+            .<span class="ident">parse_query</span>(<span class="string">&quot;date:\&quot;1985-04-12T23:20:50.52Z\&quot;&quot;</span>)
+            .<span class="ident">is_ok</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_not_empty_but_no_tokens</span>() {
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot; !, &quot;</span>).<span class="ident">is_ok</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;with_stop_words:the&quot;</span>).<span class="ident">is_ok</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1243,11 +1685,11 @@
         );
         <span class="ident">test_parse_query_to_logical_ast_helper</span>(
             <span class="string">&quot;title:\&quot;a b\&quot;&quot;</span>,
-            <span class="string">&quot;\&quot;[Term([0, 0, 0, 0, 97]), \
-             Term([0, 0, 0, 0, 98])]\&quot;&quot;</span>,
+            <span class="string">&quot;\&quot;[(0, Term([0, 0, 0, 0, 97])), \
+             (1, Term([0, 0, 0, 0, 98]))]\&quot;&quot;</span>,
             <span class="bool-val">true</span>,
         );
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "tantivy";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "tantivy";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>

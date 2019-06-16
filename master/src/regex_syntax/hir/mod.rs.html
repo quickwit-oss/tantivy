@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.6/src/hir/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.6.7/src/hir/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../regex_syntax/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2053,7 +2053,144 @@
 <span id="2053">2053</span>
 <span id="2054">2054</span>
 <span id="2055">2055</span>
-</pre><pre class="rust ">
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
+<span id="2068">2068</span>
+<span id="2069">2069</span>
+<span id="2070">2070</span>
+<span id="2071">2071</span>
+<span id="2072">2072</span>
+<span id="2073">2073</span>
+<span id="2074">2074</span>
+<span id="2075">2075</span>
+<span id="2076">2076</span>
+<span id="2077">2077</span>
+<span id="2078">2078</span>
+<span id="2079">2079</span>
+<span id="2080">2080</span>
+<span id="2081">2081</span>
+<span id="2082">2082</span>
+<span id="2083">2083</span>
+<span id="2084">2084</span>
+<span id="2085">2085</span>
+<span id="2086">2086</span>
+<span id="2087">2087</span>
+<span id="2088">2088</span>
+<span id="2089">2089</span>
+<span id="2090">2090</span>
+<span id="2091">2091</span>
+<span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
+<span id="2096">2096</span>
+<span id="2097">2097</span>
+<span id="2098">2098</span>
+<span id="2099">2099</span>
+<span id="2100">2100</span>
+<span id="2101">2101</span>
+<span id="2102">2102</span>
+<span id="2103">2103</span>
+<span id="2104">2104</span>
+<span id="2105">2105</span>
+<span id="2106">2106</span>
+<span id="2107">2107</span>
+<span id="2108">2108</span>
+<span id="2109">2109</span>
+<span id="2110">2110</span>
+<span id="2111">2111</span>
+<span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
+<span id="2115">2115</span>
+<span id="2116">2116</span>
+<span id="2117">2117</span>
+<span id="2118">2118</span>
+<span id="2119">2119</span>
+<span id="2120">2120</span>
+<span id="2121">2121</span>
+<span id="2122">2122</span>
+<span id="2123">2123</span>
+<span id="2124">2124</span>
+<span id="2125">2125</span>
+<span id="2126">2126</span>
+<span id="2127">2127</span>
+<span id="2128">2128</span>
+<span id="2129">2129</span>
+<span id="2130">2130</span>
+<span id="2131">2131</span>
+<span id="2132">2132</span>
+<span id="2133">2133</span>
+<span id="2134">2134</span>
+<span id="2135">2135</span>
+<span id="2136">2136</span>
+<span id="2137">2137</span>
+<span id="2138">2138</span>
+<span id="2139">2139</span>
+<span id="2140">2140</span>
+<span id="2141">2141</span>
+<span id="2142">2142</span>
+<span id="2143">2143</span>
+<span id="2144">2144</span>
+<span id="2145">2145</span>
+<span id="2146">2146</span>
+<span id="2147">2147</span>
+<span id="2148">2148</span>
+<span id="2149">2149</span>
+<span id="2150">2150</span>
+<span id="2151">2151</span>
+<span id="2152">2152</span>
+<span id="2153">2153</span>
+<span id="2154">2154</span>
+<span id="2155">2155</span>
+<span id="2156">2156</span>
+<span id="2157">2157</span>
+<span id="2158">2158</span>
+<span id="2159">2159</span>
+<span id="2160">2160</span>
+<span id="2161">2161</span>
+<span id="2162">2162</span>
+<span id="2163">2163</span>
+<span id="2164">2164</span>
+<span id="2165">2165</span>
+<span id="2166">2166</span>
+<span id="2167">2167</span>
+<span id="2168">2168</span>
+<span id="2169">2169</span>
+<span id="2170">2170</span>
+<span id="2171">2171</span>
+<span id="2172">2172</span>
+<span id="2173">2173</span>
+<span id="2174">2174</span>
+<span id="2175">2175</span>
+<span id="2176">2176</span>
+<span id="2177">2177</span>
+<span id="2178">2178</span>
+<span id="2179">2179</span>
+<span id="2180">2180</span>
+<span id="2181">2181</span>
+<span id="2182">2182</span>
+<span id="2183">2183</span>
+<span id="2184">2184</span>
+<span id="2185">2185</span>
+<span id="2186">2186</span>
+<span id="2187">2187</span>
+<span id="2188">2188</span>
+<span id="2189">2189</span>
+<span id="2190">2190</span>
+<span id="2191">2191</span>
+<span id="2192">2192</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2018 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -2278,9 +2415,13 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">true</span>);
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">true</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">true</span>);
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Empty</span>,
             <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2302,9 +2443,13 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">true</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">true</span>);
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="ident">lit</span>),
             <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2318,9 +2463,13 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">false</span>);
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Class</span>(<span class="ident">class</span>),
             <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2334,16 +2483,28 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">true</span>);
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">false</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Anchor</span>::<span class="ident">StartText</span> <span class="op">=</span> <span class="ident">anchor</span> {
             <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">true</span>);
+            <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">true</span>);
             <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">true</span>);
         }
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Anchor</span>::<span class="ident">EndText</span> <span class="op">=</span> <span class="ident">anchor</span> {
             <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">true</span>);
+            <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">true</span>);
             <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">true</span>);
+        }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Anchor</span>::<span class="ident">StartLine</span> <span class="op">=</span> <span class="ident">anchor</span> {
+            <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">true</span>);
+        }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Anchor</span>::<span class="ident">EndLine</span> <span class="op">=</span> <span class="ident">anchor</span> {
+            <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">true</span>);
         }
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(<span class="ident">anchor</span>),
@@ -2358,8 +2519,12 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">false</span>);
         <span class="comment">// A negated word boundary matches the empty string, but a normal</span>
         <span class="comment">// word boundary does not!</span>
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">word_boundary</span>.<span class="ident">is_negated</span>());
@@ -2386,9 +2551,17 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(
             <span class="op">!</span><span class="ident">rep</span>.<span class="ident">is_match_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_anchored_end</span>()
         );
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(
+            <span class="op">!</span><span class="ident">rep</span>.<span class="ident">is_match_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_anchored_start</span>()
+        );
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(
+            <span class="op">!</span><span class="ident">rep</span>.<span class="ident">is_match_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_anchored_end</span>()
+        );
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_any_anchored_start</span>());
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_any_anchored_end</span>());
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">rep</span>.<span class="ident">is_match_empty</span>() <span class="op">||</span> <span class="ident">rep</span>.<span class="ident">hir</span>.<span class="ident">is_match_empty</span>());
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">false</span>);
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Repetition</span>(<span class="ident">rep</span>),
             <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2402,9 +2575,13 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_all_assertions</span>());
         <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_anchored_start</span>());
         <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_anchored_end</span>());
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_line_anchored_start</span>());
+        <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_line_anchored_end</span>());
         <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_any_anchored_start</span>());
         <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_any_anchored_end</span>());
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">group</span>.<span class="ident">hir</span>.<span class="ident">is_match_empty</span>());
+        <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+        <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">false</span>);
         <span class="ident">Hir</span> {
             <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Group</span>(<span class="ident">group</span>),
             <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2417,7 +2594,7 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">concat</span>(<span class="kw-2">mut</span> <span class="ident">exprs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Hir</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Hir</span> {
         <span class="kw">match</span> <span class="ident">exprs</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Hir</span>::<span class="ident">empty</span>(),
-            <span class="number">1</span> <span class="op">=&gt;</span> <span class="ident">exprs</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
+            <span class="number">1</span> <span class="op">=&gt;</span> { <span class="ident">exprs</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>() }
             <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">HirInfo</span>::<span class="ident">new</span>();
                 <span class="ident">info</span>.<span class="ident">set_always_utf8</span>(<span class="bool-val">true</span>);
@@ -2425,6 +2602,8 @@ Defines a high-level intermediate representation for regular expressions.
                 <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
                 <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
                 <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">true</span>);
+                <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">true</span>);
+                <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">true</span>);
 
                 <span class="comment">// Some attributes require analyzing all sub-expressions.</span>
                 <span class="kw">for</span> <span class="ident">e</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">exprs</span> {
@@ -2446,6 +2625,14 @@ Defines a high-level intermediate representation for regular expressions.
 
                     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_match_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_match_empty</span>();
                     <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">x</span>);
+
+                    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_literal</span>() <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_literal</span>();
+                    <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="ident">x</span>);
+
+                    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span>
+                        <span class="ident">info</span>.<span class="ident">is_alternation_literal</span>()
+                        <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_alternation_literal</span>();
+                    <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="ident">x</span>);
                 }
                 <span class="comment">// Anchored attributes require something slightly more</span>
                 <span class="comment">// sophisticated. Normally, WLOG, to determine whether an</span>
@@ -2474,6 +2661,24 @@ Defines a high-level intermediate representation for regular expressions.
                         .<span class="ident">any</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
                             <span class="ident">e</span>.<span class="ident">is_anchored_end</span>()
                         }));
+                <span class="comment">// Repeat the process for line anchors.</span>
+                <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(
+                    <span class="ident">exprs</span>.<span class="ident">iter</span>()
+                        .<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+                            <span class="ident">e</span>.<span class="ident">is_line_anchored_start</span>() <span class="op">||</span> <span class="ident">e</span>.<span class="ident">is_all_assertions</span>()
+                        })
+                        .<span class="ident">any</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+                            <span class="ident">e</span>.<span class="ident">is_line_anchored_start</span>()
+                        }));
+                <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(
+                    <span class="ident">exprs</span>.<span class="ident">iter</span>()
+                        .<span class="ident">rev</span>()
+                        .<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+                            <span class="ident">e</span>.<span class="ident">is_line_anchored_end</span>() <span class="op">||</span> <span class="ident">e</span>.<span class="ident">is_all_assertions</span>()
+                        })
+                        .<span class="ident">any</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
+                            <span class="ident">e</span>.<span class="ident">is_line_anchored_end</span>()
+                        }));
                 <span class="ident">Hir</span> {
                     <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Concat</span>(<span class="ident">exprs</span>),
                     <span class="ident">info</span>: <span class="ident">info</span>,
@@ -2495,9 +2700,13 @@ Defines a high-level intermediate representation for regular expressions.
                 <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
                 <span class="ident">info</span>.<span class="ident">set_anchored_start</span>(<span class="bool-val">true</span>);
                 <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="bool-val">true</span>);
+                <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="bool-val">true</span>);
+                <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="bool-val">true</span>);
                 <span class="ident">info</span>.<span class="ident">set_any_anchored_start</span>(<span class="bool-val">false</span>);
                 <span class="ident">info</span>.<span class="ident">set_any_anchored_end</span>(<span class="bool-val">false</span>);
                 <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="bool-val">false</span>);
+                <span class="ident">info</span>.<span class="ident">set_literal</span>(<span class="bool-val">false</span>);
+                <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="bool-val">true</span>);
 
                 <span class="comment">// Some attributes require analyzing all sub-expressions.</span>
                 <span class="kw">for</span> <span class="ident">e</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">exprs</span> {
@@ -2513,6 +2722,14 @@ Defines a high-level intermediate representation for regular expressions.
                     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_anchored_end</span>() <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_anchored_end</span>();
                     <span class="ident">info</span>.<span class="ident">set_anchored_end</span>(<span class="ident">x</span>);
 
+                    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_line_anchored_start</span>()
+                        <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_line_anchored_start</span>();
+                    <span class="ident">info</span>.<span class="ident">set_line_anchored_start</span>(<span class="ident">x</span>);
+
+                    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_line_anchored_end</span>()
+                        <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_line_anchored_end</span>();
+                    <span class="ident">info</span>.<span class="ident">set_line_anchored_end</span>(<span class="ident">x</span>);
+
                     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span>
                         <span class="ident">info</span>.<span class="ident">is_any_anchored_start</span>()
                         <span class="op">||</span> <span class="ident">e</span>.<span class="ident">is_any_anchored_start</span>();
@@ -2525,6 +2742,11 @@ Defines a high-level intermediate representation for regular expressions.
 
                     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">info</span>.<span class="ident">is_match_empty</span>() <span class="op">||</span> <span class="ident">e</span>.<span class="ident">is_match_empty</span>();
                     <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">x</span>);
+
+                    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span>
+                        <span class="ident">info</span>.<span class="ident">is_alternation_literal</span>()
+                        <span class="op">&amp;&amp;</span> <span class="ident">e</span>.<span class="ident">is_literal</span>();
+                    <span class="ident">info</span>.<span class="ident">set_alternation_literal</span>(<span class="ident">x</span>);
                 }
                 <span class="ident">Hir</span> {
                     <span class="ident">kind</span>: <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="ident">exprs</span>),
@@ -2607,6 +2829,32 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_anchored_end</span>()
     }
 
+    <span class="doccomment">/// Return true if and only if this HIR is required to match from the</span>
+    <span class="doccomment">/// beginning of text or the beginning of a line. This includes expressions</span>
+    <span class="doccomment">/// like `^foo`, `(?m)^foo`, `^(foo|bar)`, `^(foo|bar)`, `(?m)^foo|^bar`</span>
+    <span class="doccomment">/// but not `^foo|bar` or `(?m)^foo|bar`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that if `is_anchored_start` is `true`, then</span>
+    <span class="doccomment">/// `is_line_anchored_start` will also be `true`. The reverse implication</span>
+    <span class="doccomment">/// is not true. For example, `(?m)^foo` is line anchored, but not</span>
+    <span class="doccomment">/// `is_anchored_start`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_line_anchored_start</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_line_anchored_start</span>()
+    }
+
+    <span class="doccomment">/// Return true if and only if this HIR is required to match at the</span>
+    <span class="doccomment">/// end of text or the end of a line. This includes expressions like</span>
+    <span class="doccomment">/// `foo$`, `(?m)foo$`, `(foo|bar)$`, `(?m)(foo|bar)$`, `foo$|bar$`,</span>
+    <span class="doccomment">/// `(?m)(foo|bar)$`, but not `foo$|bar` or `(?m)foo$|bar`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that if `is_anchored_end` is `true`, then</span>
+    <span class="doccomment">/// `is_line_anchored_end` will also be `true`. The reverse implication</span>
+    <span class="doccomment">/// is not true. For example, `(?m)foo$` is line anchored, but not</span>
+    <span class="doccomment">/// `is_anchored_end`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_line_anchored_end</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_line_anchored_end</span>()
+    }
+
     <span class="doccomment">/// Return true if and only if this HIR contains any sub-expression that</span>
     <span class="doccomment">/// is required to match at the beginning of text. Specifically, this</span>
     <span class="doccomment">/// returns true if the `^` symbol (when multiline mode is disabled) or the</span>
@@ -2630,6 +2878,28 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="doccomment">/// but not `a`, `a+` or `\b`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_match_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_match_empty</span>()
+    }
+
+    <span class="doccomment">/// Return true if and only if this HIR is a simple literal. This is only</span>
+    <span class="doccomment">/// true when this HIR expression is either itself a `Literal` or a</span>
+    <span class="doccomment">/// concatenation of only `Literal`s.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, `f` and `foo` are literals, but `f+`, `(foo)`, `foo()`</span>
+    <span class="doccomment">/// are not (even though that contain sub-expressions that are literals).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_literal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_literal</span>()
+    }
+
+    <span class="doccomment">/// Return true if and only if this HIR is either a simple literal or an</span>
+    <span class="doccomment">/// alternation of simple literals. This is only</span>
+    <span class="doccomment">/// true when this HIR expression is either itself a `Literal` or a</span>
+    <span class="doccomment">/// concatenation of only `Literal`s or an alternation of only `Literal`s.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// For example, `f`, `foo`, `a|b|c`, and `foo|bar|baz` are alternaiton</span>
+    <span class="doccomment">/// literals, but `f+`, `(foo)`, `foo()`</span>
+    <span class="doccomment">/// are not (even though that contain sub-expressions that are literals).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_alternation_literal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">info</span>.<span class="ident">is_alternation_literal</span>()
     }
 }
 
@@ -3355,7 +3625,7 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="doccomment">///</span>
     <span class="doccomment">/// If more attributes need to be added, it is OK to increase the size of</span>
     <span class="doccomment">/// this as appropriate.</span>
-    <span class="ident">bools</span>: <span class="ident">u8</span>,
+    <span class="ident">bools</span>: <span class="ident">u16</span>,
 }
 
 <span class="comment">// A simple macro for defining bitfield accessors/mutators.</span>
@@ -3386,9 +3656,13 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">1</span>, <span class="ident">is_all_assertions</span>, <span class="ident">set_all_assertions</span>);
     <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">2</span>, <span class="ident">is_anchored_start</span>, <span class="ident">set_anchored_start</span>);
     <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">3</span>, <span class="ident">is_anchored_end</span>, <span class="ident">set_anchored_end</span>);
-    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">4</span>, <span class="ident">is_any_anchored_start</span>, <span class="ident">set_any_anchored_start</span>);
-    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">5</span>, <span class="ident">is_any_anchored_end</span>, <span class="ident">set_any_anchored_end</span>);
-    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">6</span>, <span class="ident">is_match_empty</span>, <span class="ident">set_match_empty</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">4</span>, <span class="ident">is_line_anchored_start</span>, <span class="ident">set_line_anchored_start</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">5</span>, <span class="ident">is_line_anchored_end</span>, <span class="ident">set_line_anchored_end</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">6</span>, <span class="ident">is_any_anchored_start</span>, <span class="ident">set_any_anchored_start</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">7</span>, <span class="ident">is_any_anchored_end</span>, <span class="ident">set_any_anchored_end</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">8</span>, <span class="ident">is_match_empty</span>, <span class="ident">set_match_empty</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">9</span>, <span class="ident">is_literal</span>, <span class="ident">set_literal</span>);
+    <span class="macro">define_bool</span><span class="macro">!</span>(<span class="number">10</span>, <span class="ident">is_alternation_literal</span>, <span class="ident">set_alternation_literal</span>);
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -4109,5 +4383,5 @@ Defines a high-level intermediate representation for regular expressions.
             .<span class="ident">unwrap</span>();
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

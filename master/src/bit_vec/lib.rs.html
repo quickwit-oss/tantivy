@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bit-vec-0.4.4/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bit-vec-0.5.1/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../bit_vec/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2109,7 +2109,35 @@
 <span id="2109">2109</span>
 <span id="2110">2110</span>
 <span id="2111">2111</span>
-</pre><pre class="rust ">
+<span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
+<span id="2115">2115</span>
+<span id="2116">2116</span>
+<span id="2117">2117</span>
+<span id="2118">2118</span>
+<span id="2119">2119</span>
+<span id="2120">2120</span>
+<span id="2121">2121</span>
+<span id="2122">2122</span>
+<span id="2123">2123</span>
+<span id="2124">2124</span>
+<span id="2125">2125</span>
+<span id="2126">2126</span>
+<span id="2127">2127</span>
+<span id="2128">2128</span>
+<span id="2129">2129</span>
+<span id="2130">2130</span>
+<span id="2131">2131</span>
+<span id="2132">2132</span>
+<span id="2133">2133</span>
+<span id="2134">2134</span>
+<span id="2135">2135</span>
+<span id="2136">2136</span>
+<span id="2137">2137</span>
+<span id="2138">2138</span>
+<span id="2139">2139</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2012-2014 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -2195,23 +2223,39 @@
 <span class="doccomment">//! assert_eq!(num_primes, 1_229);</span>
 <span class="doccomment">//! ```</span>
 
+<span class="attribute">#![<span class="ident">no_std</span>]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>), <span class="ident">feature</span>(<span class="ident">alloc</span>))]</span>
+
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>), <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">test</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::{<span class="ident">Chain</span>, <span class="ident">Enumerate</span>, <span class="ident">Repeat</span>, <span class="ident">Skip</span>, <span class="ident">Take</span>, <span class="ident">repeat</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">FromIterator</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">u8</span>, <span class="ident">usize</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">std</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">vec</span>::<span class="ident">Vec</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">alloc</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>))]</span>
+<span class="kw">use</span> <span class="ident">alloc</span>::<span class="ident">prelude</span>::<span class="ident">Vec</span>;
+
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">cmp</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">hash</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">iter</span>::<span class="ident">FromIterator</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">slice</span>;
+<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">u8</span>, <span class="ident">usize</span>};
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">iter</span>::<span class="ident">repeat</span>;
 
 <span class="kw">type</span> <span class="ident">MutBlocks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">B</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">slice</span>::<span class="ident">IterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">B</span><span class="op">&gt;</span>;
-<span class="kw">type</span> <span class="ident">MatchWords</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">B</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Chain</span><span class="op">&lt;</span><span class="ident">Enumerate</span><span class="op">&lt;</span><span class="ident">Blocks</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">B</span><span class="op">&gt;&gt;</span>, <span class="ident">Skip</span><span class="op">&lt;</span><span class="ident">Take</span><span class="op">&lt;</span><span class="ident">Enumerate</span><span class="op">&lt;</span><span class="ident">Repeat</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
+<span class="comment">//type MatchWords&lt;&#39;a, B&gt; = Chain&lt;Enumerate&lt;Blocks&lt;&#39;a, B&gt;&gt;, Skip&lt;Take&lt;Enumerate&lt;Repeat&lt;B&gt;&gt;&gt;&gt;&gt;;</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ops</span>::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Abstracts over a pile of bits (basically unsigned primitives)</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">BitBlock</span>:
@@ -2245,12 +2289,12 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">bit_block_impl</span> {
-    ($((<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>: <span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>: <span class="ident">expr</span>)),<span class="kw-2">*</span>) <span class="op">=&gt;</span> ($(
+    ($((<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>: <span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>: <span class="ident">expr</span>)),<span class="kw-2">*</span>) <span class="op">=&gt;</span> ($(
         <span class="kw">impl</span> <span class="ident">BitBlock</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">bits</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span> }
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">from_byte</span>(<span class="ident">byte</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="self">Self</span> { <span class="ident">byte</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> }
+            <span class="kw">fn</span> <span class="ident">from_byte</span>(<span class="ident">byte</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="self">Self</span> { <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>::<span class="ident">from</span>(<span class="ident">byte</span>) }
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">count_ones</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">count_ones</span>() <span class="kw">as</span> <span class="ident">usize</span> }
             <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -2266,14 +2310,14 @@
     (<span class="ident">u16</span>, <span class="number">16</span>),
     (<span class="ident">u32</span>, <span class="number">32</span>),
     (<span class="ident">u64</span>, <span class="number">64</span>),
-    (<span class="ident">usize</span>, <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>() <span class="op">*</span> <span class="number">8</span>)
+    (<span class="ident">usize</span>, <span class="ident">core</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>() <span class="op">*</span> <span class="number">8</span>)
 }
 
 
 <span class="kw">fn</span> <span class="ident">reverse_bits</span>(<span class="ident">byte</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">u8</span>::<span class="ident">bits</span>() {
-        <span class="ident">result</span> <span class="op">=</span> <span class="ident">result</span> <span class="op">|</span> ((<span class="ident">byte</span> <span class="op">&gt;&gt;</span> <span class="ident">i</span>) <span class="op">&amp;</span> <span class="number">1</span>) <span class="op">&lt;&lt;</span> (<span class="ident">u8</span>::<span class="ident">bits</span>() <span class="op">-</span> <span class="number">1</span> <span class="op">-</span> <span class="ident">i</span>);
+        <span class="ident">result</span> <span class="op">|=</span> ((<span class="ident">byte</span> <span class="op">&gt;&gt;</span> <span class="ident">i</span>) <span class="op">&amp;</span> <span class="number">1</span>) <span class="op">&lt;&lt;</span> (<span class="ident">u8</span>::<span class="ident">bits</span>() <span class="op">-</span> <span class="number">1</span> <span class="op">-</span> <span class="ident">i</span>);
     }
     <span class="ident">result</span>
 }
@@ -2388,7 +2432,7 @@
         <span class="kw">let</span> <span class="ident">nblocks</span> <span class="op">=</span> <span class="ident">blocks_for_bits</span>::<span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>(<span class="ident">nbits</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bit_vec</span> <span class="op">=</span> <span class="ident">BitVec</span> {
             <span class="ident">storage</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="kw">if</span> <span class="ident">bit</span> { <span class="op">!</span><span class="ident">B</span>::<span class="ident">zero</span>() } <span class="kw">else</span> { <span class="ident">B</span>::<span class="ident">zero</span>() }; <span class="ident">nblocks</span>],
-            <span class="ident">nbits</span>: <span class="ident">nbits</span>
+            <span class="ident">nbits</span>,
         };
         <span class="ident">bit_vec</span>.<span class="ident">fix_last_block</span>();
         <span class="ident">bit_vec</span>
@@ -2435,8 +2479,8 @@
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">complete_words</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">accumulator</span> <span class="op">=</span> <span class="ident">B</span>::<span class="ident">zero</span>();
             <span class="kw">for</span> <span class="ident">idx</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">B</span>::<span class="ident">bytes</span>() {
-                <span class="ident">accumulator</span> <span class="op">=</span> <span class="ident">accumulator</span> <span class="op">|</span>
-                    (<span class="ident">B</span>::<span class="ident">from_byte</span>(<span class="ident">reverse_bits</span>(<span class="ident">bytes</span>[<span class="ident">i</span> <span class="op">*</span> <span class="ident">B</span>::<span class="ident">bytes</span>() <span class="op">+</span> <span class="ident">idx</span>])) <span class="op">&lt;&lt;</span> (<span class="ident">idx</span> <span class="op">*</span> <span class="number">8</span>))
+                <span class="ident">accumulator</span> <span class="op">|=</span>
+                    <span class="ident">B</span>::<span class="ident">from_byte</span>(<span class="ident">reverse_bits</span>(<span class="ident">bytes</span>[<span class="ident">i</span> <span class="op">*</span> <span class="ident">B</span>::<span class="ident">bytes</span>() <span class="op">+</span> <span class="ident">idx</span>])) <span class="op">&lt;&lt;</span> (<span class="ident">idx</span> <span class="op">*</span> <span class="number">8</span>)
             }
             <span class="ident">bit_vec</span>.<span class="ident">storage</span>.<span class="ident">push</span>(<span class="ident">accumulator</span>);
         }
@@ -2444,8 +2488,8 @@
         <span class="kw">if</span> <span class="ident">extra_bytes</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_word</span> <span class="op">=</span> <span class="ident">B</span>::<span class="ident">zero</span>();
             <span class="kw">for</span> (<span class="ident">i</span>, <span class="kw-2">&amp;</span><span class="ident">byte</span>) <span class="kw">in</span> <span class="ident">bytes</span>[<span class="ident">complete_words</span> <span class="op">*</span> <span class="ident">B</span>::<span class="ident">bytes</span>()..].<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-                <span class="ident">last_word</span> <span class="op">=</span> <span class="ident">last_word</span> <span class="op">|</span>
-                    (<span class="ident">B</span>::<span class="ident">from_byte</span>(<span class="ident">reverse_bits</span>(<span class="ident">byte</span>)) <span class="op">&lt;&lt;</span> (<span class="ident">i</span> <span class="op">*</span> <span class="number">8</span>));
+                <span class="ident">last_word</span> <span class="op">|=</span>
+                    <span class="ident">B</span>::<span class="ident">from_byte</span>(<span class="ident">reverse_bits</span>(<span class="ident">byte</span>)) <span class="op">&lt;&lt;</span> (<span class="ident">i</span> <span class="op">*</span> <span class="number">8</span>);
             }
             <span class="ident">bit_vec</span>.<span class="ident">storage</span>.<span class="ident">push</span>(<span class="ident">last_word</span>);
         }
@@ -3203,6 +3247,16 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clear</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">for</span> <span class="ident">w</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">storage</span> { <span class="kw-2">*</span><span class="ident">w</span> <span class="op">=</span> <span class="ident">B</span>::<span class="ident">zero</span>(); }
     }
+
+    <span class="doccomment">/// Shrinks the capacity of the underlying storage as much as</span>
+    <span class="doccomment">/// possible.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// It will drop down as close as possible to the length but the</span>
+    <span class="doccomment">/// allocator may still inform the underlying storage that there</span>
+    <span class="doccomment">/// is space for a few more elements/bits.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shrink_to_fit</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">storage</span>.<span class="ident">shrink_to_fit</span>();
+    }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">BitBlock</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">BitVec</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> {
@@ -3270,6 +3324,7 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">BitBlock</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">BitVec</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">for</span> <span class="ident">bit</span> <span class="kw">in</span> <span class="self">self</span> {
@@ -3420,6 +3475,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BitVec</span>, <span class="ident">Iter</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">vec</span>::<span class="ident">Vec</span>;
 
     <span class="comment">// This is stupid, but I want to differentiate from a &quot;random&quot; 32</span>
     <span class="kw">const</span> <span class="ident">U32_BITS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span>;
@@ -4221,5 +4277,5 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span> <span class="kw">mod</span> <span class="ident">bench</span>;
 
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "bit_vec";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "bit_vec";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

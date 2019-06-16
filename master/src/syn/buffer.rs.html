@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.14.2/src/buffer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>buffer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.15.36/src/buffer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>buffer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../syn/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -364,249 +364,34 @@
 <span id="364">364</span>
 <span id="365">365</span>
 <span id="366">366</span>
-<span id="367">367</span>
-<span id="368">368</span>
-<span id="369">369</span>
-<span id="370">370</span>
-<span id="371">371</span>
-<span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
-<span id="377">377</span>
-<span id="378">378</span>
-<span id="379">379</span>
-<span id="380">380</span>
-<span id="381">381</span>
-<span id="382">382</span>
-<span id="383">383</span>
-<span id="384">384</span>
-<span id="385">385</span>
-<span id="386">386</span>
-<span id="387">387</span>
-<span id="388">388</span>
-<span id="389">389</span>
-<span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
-<span id="397">397</span>
-<span id="398">398</span>
-<span id="399">399</span>
-<span id="400">400</span>
-<span id="401">401</span>
-<span id="402">402</span>
-<span id="403">403</span>
-<span id="404">404</span>
-<span id="405">405</span>
-<span id="406">406</span>
-<span id="407">407</span>
-<span id="408">408</span>
-<span id="409">409</span>
-<span id="410">410</span>
-<span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
-<span id="437">437</span>
-<span id="438">438</span>
-<span id="439">439</span>
-<span id="440">440</span>
-<span id="441">441</span>
-<span id="442">442</span>
-<span id="443">443</span>
-<span id="444">444</span>
-<span id="445">445</span>
-<span id="446">446</span>
-<span id="447">447</span>
-<span id="448">448</span>
-<span id="449">449</span>
-<span id="450">450</span>
-<span id="451">451</span>
-<span id="452">452</span>
-<span id="453">453</span>
-<span id="454">454</span>
-<span id="455">455</span>
-<span id="456">456</span>
-<span id="457">457</span>
-<span id="458">458</span>
-<span id="459">459</span>
-<span id="460">460</span>
-<span id="461">461</span>
-<span id="462">462</span>
-<span id="463">463</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2018 Syn Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A stably addressed token buffer supporting efficient traversal based on a</span>
 <span class="doccomment">//! cheaply copyable cursor.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! The [`Synom`] trait is implemented for syntax tree types that can be parsed</span>
-<span class="doccomment">//! from one of these token cursors.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! [`Synom`]: ../synom/trait.Synom.html</span>
-<span class="doccomment">//!</span>
 <span class="doccomment">//! *This module is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! # Example</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! This example shows a basic token parser for parsing a token stream without</span>
-<span class="doccomment">//! using Syn&#39;s parser combinator macros.</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! ```</span>
-<span class="doccomment">//! #![feature(proc_macro)]</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! extern crate syn;</span>
-<span class="doccomment">//! extern crate proc_macro;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! #[macro_use]</span>
-<span class="doccomment">//! extern crate quote;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! use syn::{token, ExprTuple};</span>
-<span class="doccomment">//! use syn::buffer::{Cursor, TokenBuffer};</span>
-<span class="doccomment">//! use syn::spanned::Spanned;</span>
-<span class="doccomment">//! use syn::synom::Synom;</span>
-<span class="doccomment">//! use proc_macro::{Diagnostic, Span, TokenStream};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! /// A basic token parser for parsing a token stream without using Syn&#39;s</span>
-<span class="doccomment">//! /// parser combinator macros.</span>
-<span class="doccomment">//! pub struct Parser&lt;&#39;a&gt; {</span>
-<span class="doccomment">//!     cursor: Cursor&lt;&#39;a&gt;,</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! impl&lt;&#39;a&gt; Parser&lt;&#39;a&gt; {</span>
-<span class="doccomment">//!     pub fn new(cursor: Cursor&lt;&#39;a&gt;) -&gt; Self {</span>
-<span class="doccomment">//!         Parser { cursor }</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     pub fn current_span(&amp;self) -&gt; Span {</span>
-<span class="doccomment">//!         self.cursor.span().unstable()</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     pub fn parse&lt;T: Synom&gt;(&amp;mut self) -&gt; Result&lt;T, Diagnostic&gt; {</span>
-<span class="doccomment">//!         let (val, rest) = T::parse(self.cursor)</span>
-<span class="doccomment">//!             .map_err(|e| match T::description() {</span>
-<span class="doccomment">//!                 Some(desc) =&gt; {</span>
-<span class="doccomment">//!                     self.current_span().error(format!(&quot;{}: expected {}&quot;, e, desc))</span>
-<span class="doccomment">//!                 }</span>
-<span class="doccomment">//!                 None =&gt; {</span>
-<span class="doccomment">//!                     self.current_span().error(e.to_string())</span>
-<span class="doccomment">//!                 }</span>
-<span class="doccomment">//!             })?;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!         self.cursor = rest;</span>
-<span class="doccomment">//!         Ok(val)</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     pub fn expect_eof(&amp;mut self) -&gt; Result&lt;(), Diagnostic&gt; {</span>
-<span class="doccomment">//!         if !self.cursor.eof() {</span>
-<span class="doccomment">//!             return Err(self.current_span().error(&quot;trailing characters; expected eof&quot;));</span>
-<span class="doccomment">//!         }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!         Ok(())</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! fn eval(input: TokenStream) -&gt; Result&lt;TokenStream, Diagnostic&gt; {</span>
-<span class="doccomment">//!     let buffer = TokenBuffer::new(input);</span>
-<span class="doccomment">//!     let mut parser = Parser::new(buffer.begin());</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     // Parse some syntax tree types out of the input tokens. In this case we</span>
-<span class="doccomment">//!     // expect something like:</span>
-<span class="doccomment">//!     //</span>
-<span class="doccomment">//!     //     (a, b, c) = (1, 2, 3)</span>
-<span class="doccomment">//!     let a = parser.parse::&lt;ExprTuple&gt;()?;</span>
-<span class="doccomment">//!     parser.parse::&lt;token::Eq&gt;()?;</span>
-<span class="doccomment">//!     let b = parser.parse::&lt;ExprTuple&gt;()?;</span>
-<span class="doccomment">//!     parser.expect_eof()?;</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     // Perform some validation and report errors.</span>
-<span class="doccomment">//!     let (a_len, b_len) = (a.elems.len(), b.elems.len());</span>
-<span class="doccomment">//!     if a_len != b_len {</span>
-<span class="doccomment">//!         let diag = b.span().unstable()</span>
-<span class="doccomment">//!             .error(format!(&quot;expected {} element(s), got {}&quot;, a_len, b_len))</span>
-<span class="doccomment">//!             .span_note(a.span().unstable(), &quot;because of this&quot;);</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!         return Err(diag);</span>
-<span class="doccomment">//!     }</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     // Build the output tokens.</span>
-<span class="doccomment">//!     let out = quote! {</span>
-<span class="doccomment">//!         println!(&quot;All good! Received two tuples of size {}&quot;, #a_len);</span>
-<span class="doccomment">//!     };</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//!     Ok(out.into())</span>
-<span class="doccomment">//! }</span>
-<span class="doccomment">//! #</span>
-<span class="doccomment">//! # extern crate proc_macro2;</span>
-<span class="doccomment">//! #</span>
-<span class="doccomment">//! # // This method exists on proc_macro2::Span but is behind the &quot;nightly&quot;</span>
-<span class="doccomment">//! # // feature.</span>
-<span class="doccomment">//! # trait ToUnstableSpan {</span>
-<span class="doccomment">//! #     fn unstable(&amp;self) -&gt; Span;</span>
-<span class="doccomment">//! # }</span>
-<span class="doccomment">//! #</span>
-<span class="doccomment">//! # impl ToUnstableSpan for proc_macro2::Span {</span>
-<span class="doccomment">//! #     fn unstable(&amp;self) -&gt; Span {</span>
-<span class="doccomment">//! #         unimplemented!()</span>
-<span class="doccomment">//! #     }</span>
-<span class="doccomment">//! # }</span>
-<span class="doccomment">//! #</span>
-<span class="doccomment">//! # fn main() {}</span>
-<span class="doccomment">//! ```</span>
 
-<span class="comment">// This module is heavily commented as it contains the only unsafe code in Syn,</span>
-<span class="comment">// and caution should be used when editing it. The public-facing interface is</span>
-<span class="comment">// 100% safe but the implementation is fragile internally.</span>
+<span class="comment">// This module is heavily commented as it contains most of the unsafe code in</span>
+<span class="comment">// Syn, and caution should be used when editing it. The public-facing interface</span>
+<span class="comment">// is 100% safe but the implementation is fragile internally.</span>
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+    <span class="ident">not</span>(<span class="ident">all</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;wasm32&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;unknown&quot;</span>)),
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>
+))]</span>
 <span class="kw">use</span> <span class="ident">proc_macro</span> <span class="kw">as</span> <span class="ident">pm</span>;
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Delimiter</span>, <span class="ident">Ident</span>, <span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">TokenStream</span>};
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Group</span>, <span class="ident">Punct</span>, <span class="ident">TokenTree</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Delimiter</span>, <span class="ident">Group</span>, <span class="ident">Ident</span>, <span class="ident">Literal</span>, <span class="ident">Punct</span>, <span class="ident">Spacing</span>, <span class="ident">Span</span>, <span class="ident">TokenStream</span>, <span class="ident">TokenTree</span>};
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">synom_verbose_trace</span>)]</span>
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>};
+<span class="kw">use</span> <span class="ident">private</span>;
+<span class="kw">use</span> <span class="ident">Lifetime</span>;
 
 <span class="doccomment">/// Internal type which is used instead of `TokenTree` to represent a token tree</span>
 <span class="doccomment">/// within a `TokenBuffer`.</span>
 <span class="kw">enum</span> <span class="ident">Entry</span> {
     <span class="comment">// Mimicking types from proc-macro.</span>
-    <span class="ident">Group</span>(<span class="ident">Span</span>, <span class="ident">Delimiter</span>, <span class="ident">TokenBuffer</span>),
+    <span class="ident">Group</span>(<span class="ident">Group</span>, <span class="ident">TokenBuffer</span>),
     <span class="ident">Ident</span>(<span class="ident">Ident</span>),
     <span class="ident">Punct</span>(<span class="ident">Punct</span>),
     <span class="ident">Literal</span>(<span class="ident">Literal</span>),
@@ -618,10 +403,6 @@
 <span class="doccomment">/// A buffer that can be efficiently traversed multiple times, unlike</span>
 <span class="doccomment">/// `TokenStream` which requires a deep copy in order to traverse more than</span>
 <span class="doccomment">/// once.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// See the [module documentation] for an example of `TokenBuffer` in action.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [module documentation]: index.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// *This type is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TokenBuffer</span> {
@@ -653,7 +434,7 @@
                 <span class="ident">TokenTree</span>::<span class="ident">Group</span>(<span class="ident">g</span>) <span class="op">=&gt;</span> {
                     <span class="comment">// Record the index of the interesting entry, and store an</span>
                     <span class="comment">// `End(null)` there temporarially.</span>
-                    <span class="ident">seqs</span>.<span class="ident">push</span>((<span class="ident">entries</span>.<span class="ident">len</span>(), <span class="ident">g</span>.<span class="ident">span</span>(), <span class="ident">g</span>.<span class="ident">delimiter</span>(), <span class="ident">g</span>.<span class="ident">stream</span>().<span class="ident">clone</span>()));
+                    <span class="ident">seqs</span>.<span class="ident">push</span>((<span class="ident">entries</span>.<span class="ident">len</span>(), <span class="ident">g</span>));
                     <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">End</span>(<span class="ident">ptr</span>::<span class="ident">null</span>()));
                 }
             }
@@ -667,7 +448,7 @@
         <span class="comment">// constant address after this point, as we are going to store a raw</span>
         <span class="comment">// pointer into it.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">entries</span> <span class="op">=</span> <span class="ident">entries</span>.<span class="ident">into_boxed_slice</span>();
-        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">span</span>, <span class="ident">delim</span>, <span class="ident">seq_stream</span>) <span class="kw">in</span> <span class="ident">seqs</span> {
+        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">group</span>) <span class="kw">in</span> <span class="ident">seqs</span> {
             <span class="comment">// We know that this index refers to one of the temporary</span>
             <span class="comment">// `End(null)` entries, and we know that the last entry is</span>
             <span class="comment">// `End(up)`, so the next index is also valid.</span>
@@ -675,8 +456,8 @@
 
             <span class="comment">// The end entry stored at the end of this Entry::Group should</span>
             <span class="comment">// point to the Entry which follows the Group in the list.</span>
-            <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">inner_new</span>(<span class="ident">seq_stream</span>, <span class="ident">seq_up</span>);
-            <span class="ident">entries</span>[<span class="ident">idx</span>] <span class="op">=</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">span</span>, <span class="ident">delim</span>, <span class="ident">inner</span>);
+            <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">inner_new</span>(<span class="ident">group</span>.<span class="ident">stream</span>(), <span class="ident">seq_up</span>);
+            <span class="ident">entries</span>[<span class="ident">idx</span>] <span class="op">=</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">group</span>, <span class="ident">inner</span>);
         }
 
         <span class="ident">TokenBuffer</span> { <span class="ident">data</span>: <span class="ident">entries</span> }
@@ -687,7 +468,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// *This method is available if Syn is built with both the `&quot;parsing&quot;` and</span>
     <span class="doccomment">/// `&quot;proc-macro&quot;` features.*</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+        <span class="ident">not</span>(<span class="ident">all</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;wasm32&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;unknown&quot;</span>)),
+        <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>
+    ))]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">stream</span>: <span class="ident">pm</span>::<span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="ident">TokenBuffer</span> {
         <span class="self">Self</span>::<span class="ident">new2</span>(<span class="ident">stream</span>.<span class="ident">into</span>())
     }
@@ -717,20 +501,16 @@
 <span class="doccomment">/// Two cursors are equal if they have the same location in the same input</span>
 <span class="doccomment">/// stream, and have the same scope.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// See the [module documentation] for an example of a `Cursor` in action.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// [module documentation]: index.html</span>
-<span class="doccomment">///</span>
 <span class="doccomment">/// *This type is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// The current entry which the `Cursor` is pointing at.</span>
+    <span class="comment">// The current entry which the `Cursor` is pointing at.</span>
     <span class="ident">ptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Entry</span>,
-    <span class="doccomment">/// This is the only `Entry::End(..)` object which this cursor is allowed to</span>
-    <span class="doccomment">/// point at. All other `End` objects are skipped over in `Cursor::create`.</span>
+    <span class="comment">// This is the only `Entry::End(..)` object which this cursor is allowed to</span>
+    <span class="comment">// point at. All other `End` objects are skipped over in `Cursor::create`.</span>
     <span class="ident">scope</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Entry</span>,
-    <span class="doccomment">/// This uses the &amp;&#39;a reference which guarantees that these pointers are</span>
-    <span class="doccomment">/// still valid.</span>
+    <span class="comment">// Cursor is covariant in &#39;a. This field ensures that our pointers are still</span>
+    <span class="comment">// valid.</span>
     <span class="ident">marker</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Entry</span><span class="op">&gt;</span>,
 }
 
@@ -795,12 +575,14 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// WARNING: This mutates its argument.</span>
     <span class="kw">fn</span> <span class="ident">ignore_none</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw">_</span>, <span class="ident">Delimiter</span>::<span class="prelude-val">None</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="comment">// NOTE: We call `Cursor::create` here to make sure that situations</span>
-            <span class="comment">// where we should immediately exit the span after entering it are</span>
-            <span class="comment">// handled correctly.</span>
-            <span class="kw">unsafe</span> {
-                <span class="kw-2">*</span><span class="self">self</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">create</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>.<span class="ident">data</span>[<span class="number">0</span>], <span class="self">self</span>.<span class="ident">scope</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
+            <span class="kw">if</span> <span class="ident">group</span>.<span class="ident">delimiter</span>() <span class="op">==</span> <span class="ident">Delimiter</span>::<span class="prelude-val">None</span> {
+                <span class="comment">// NOTE: We call `Cursor::create` here to make sure that</span>
+                <span class="comment">// situations where we should immediately exit the span after</span>
+                <span class="comment">// entering it are handled correctly.</span>
+                <span class="kw">unsafe</span> {
+                    <span class="kw-2">*</span><span class="self">self</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">create</span>(<span class="kw-2">&amp;</span><span class="ident">buf</span>.<span class="ident">data</span>[<span class="number">0</span>], <span class="self">self</span>.<span class="ident">scope</span>);
+                }
             }
         }
     }
@@ -823,9 +605,9 @@
             <span class="self">self</span>.<span class="ident">ignore_none</span>();
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">span</span>, <span class="ident">group_delim</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="kw">if</span> <span class="ident">group_delim</span> <span class="op">==</span> <span class="ident">delim</span> {
-                <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">buf</span>.<span class="ident">begin</span>(), <span class="ident">span</span>, <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() }));
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
+            <span class="kw">if</span> <span class="ident">group</span>.<span class="ident">delimiter</span>() <span class="op">==</span> <span class="ident">delim</span> {
+                <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">buf</span>.<span class="ident">begin</span>(), <span class="ident">group</span>.<span class="ident">span</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() }));
             }
         }
 
@@ -847,7 +629,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">punct</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Punct</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">op</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
+            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="kw">if</span> <span class="ident">op</span>.<span class="ident">as_char</span>() <span class="op">!=</span> <span class="string">&#39;\&#39;&#39;</span> <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>((<span class="ident">op</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() }))
+            }
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
@@ -858,6 +642,28 @@
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">lit</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// If the cursor is pointing at a `Lifetime`, returns it along with a</span>
+    <span class="doccomment">/// cursor pointing at the next `TokenTree`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lifetime</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Lifetime</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">ignore_none</span>();
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
+            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="kw">if</span> <span class="ident">op</span>.<span class="ident">as_char</span>() <span class="op">==</span> <span class="string">&#39;\&#39;&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">op</span>.<span class="ident">spacing</span>() <span class="op">==</span> <span class="ident">Spacing</span>::<span class="ident">Joint</span> <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() };
+                <span class="kw">match</span> <span class="ident">next</span>.<span class="ident">ident</span>() {
+                    <span class="prelude-val">Some</span>((<span class="ident">ident</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> {
+                        <span class="kw">let</span> <span class="ident">lifetime</span> <span class="op">=</span> <span class="ident">Lifetime</span> {
+                            <span class="ident">apostrophe</span>: <span class="ident">op</span>.<span class="ident">span</span>(),
+                            <span class="ident">ident</span>: <span class="ident">ident</span>,
+                        };
+                        <span class="prelude-val">Some</span>((<span class="ident">lifetime</span>, <span class="ident">rest</span>))
+                    }
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                }
+            }
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
@@ -883,12 +689,7 @@
     <span class="doccomment">/// will return a `Group(None, ..)` if the cursor is looking at one.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">token_tree</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">TokenTree</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">tree</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">span</span>, <span class="ident">delim</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">begin</span>().<span class="ident">token_stream</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">g</span> <span class="op">=</span> <span class="ident">Group</span>::<span class="ident">new</span>(<span class="ident">delim</span>, <span class="ident">stream</span>);
-                <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
-                <span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>)
-            }
+            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">group</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> <span class="ident">lit</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
             <span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">ident</span>) <span class="op">=&gt;</span> <span class="ident">ident</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
             <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="op">=&gt;</span> <span class="ident">op</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
@@ -904,7 +705,7 @@
     <span class="doccomment">/// cursor points to eof.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">span</span>, ..) <span class="op">=&gt;</span> <span class="ident">span</span>,
+            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">group</span>.<span class="ident">span</span>(),
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">l</span>.<span class="ident">span</span>(),
             <span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">span</span>(),
             <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">o</span>) <span class="op">=&gt;</span> <span class="ident">o</span>.<span class="ident">span</span>(),
@@ -913,17 +714,22 @@
     }
 }
 
-<span class="comment">// We do a custom implementation for `Debug` as the default implementation is</span>
-<span class="comment">// pretty useless.</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">synom_verbose_trace</span>)]</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="comment">// Print what the cursor is currently looking at.</span>
-        <span class="comment">// This will look like Cursor(&quot;some remaining tokens here&quot;)</span>
-        <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Cursor&quot;</span>)
-            .<span class="ident">field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">token_stream</span>().<span class="ident">to_string</span>())
-            .<span class="ident">finish</span>()
+<span class="kw">impl</span> <span class="ident">private</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open_span_of_group</span>(<span class="ident">cursor</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">cursor</span>.<span class="ident">entry</span>() {
+            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">group</span>.<span class="ident">span_open</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">cursor</span>.<span class="ident">span</span>(),
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">close_span_of_group</span>(<span class="ident">cursor</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">cursor</span>.<span class="ident">entry</span>() {
+            <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">group</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">group</span>.<span class="ident">span_close</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">cursor</span>.<span class="ident">span</span>(),
+        }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

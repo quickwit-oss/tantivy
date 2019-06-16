@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.11/src/exec.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>exec.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.1.7/src/exec.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>exec.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../regex/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1350,7 +1350,122 @@
 <span id="1350">1350</span>
 <span id="1351">1351</span>
 <span id="1352">1352</span>
-</pre><pre class="rust ">
+<span id="1353">1353</span>
+<span id="1354">1354</span>
+<span id="1355">1355</span>
+<span id="1356">1356</span>
+<span id="1357">1357</span>
+<span id="1358">1358</span>
+<span id="1359">1359</span>
+<span id="1360">1360</span>
+<span id="1361">1361</span>
+<span id="1362">1362</span>
+<span id="1363">1363</span>
+<span id="1364">1364</span>
+<span id="1365">1365</span>
+<span id="1366">1366</span>
+<span id="1367">1367</span>
+<span id="1368">1368</span>
+<span id="1369">1369</span>
+<span id="1370">1370</span>
+<span id="1371">1371</span>
+<span id="1372">1372</span>
+<span id="1373">1373</span>
+<span id="1374">1374</span>
+<span id="1375">1375</span>
+<span id="1376">1376</span>
+<span id="1377">1377</span>
+<span id="1378">1378</span>
+<span id="1379">1379</span>
+<span id="1380">1380</span>
+<span id="1381">1381</span>
+<span id="1382">1382</span>
+<span id="1383">1383</span>
+<span id="1384">1384</span>
+<span id="1385">1385</span>
+<span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
+<span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
+<span id="1392">1392</span>
+<span id="1393">1393</span>
+<span id="1394">1394</span>
+<span id="1395">1395</span>
+<span id="1396">1396</span>
+<span id="1397">1397</span>
+<span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
+<span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
+<span id="1452">1452</span>
+<span id="1453">1453</span>
+<span id="1454">1454</span>
+<span id="1455">1455</span>
+<span id="1456">1456</span>
+<span id="1457">1457</span>
+<span id="1458">1458</span>
+<span id="1459">1459</span>
+<span id="1460">1460</span>
+<span id="1461">1461</span>
+<span id="1462">1462</span>
+<span id="1463">1463</span>
+<span id="1464">1464</span>
+<span id="1465">1465</span>
+<span id="1466">1466</span>
+<span id="1467">1467</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -1363,9 +1478,9 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">AhoCorasick</span>, <span class="ident">AhoCorasickBuilder</span>, <span class="ident">MatchKind</span>};
 <span class="kw">use</span> <span class="ident">thread_local</span>::<span class="ident">CachedThreadLocal</span>;
 <span class="kw">use</span> <span class="ident">syntax</span>::<span class="ident">ParserBuilder</span>;
 <span class="kw">use</span> <span class="ident">syntax</span>::<span class="ident">hir</span>::<span class="ident">Hir</span>;
@@ -1382,7 +1497,7 @@
 <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">RegexOptions</span>;
 <span class="kw">use</span> <span class="ident">re_bytes</span>;
 <span class="kw">use</span> <span class="ident">re_set</span>;
-<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="ident">RegularExpression</span>, <span class="ident">Slot</span>, <span class="ident">Locations</span>, <span class="ident">as_slots</span>};
+<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="ident">RegularExpression</span>, <span class="ident">Slot</span>, <span class="ident">Locations</span>};
 <span class="kw">use</span> <span class="ident">re_unicode</span>;
 <span class="kw">use</span> <span class="ident">utf8</span>::<span class="ident">next_utf8</span>;
 
@@ -1439,6 +1554,16 @@
     <span class="doccomment">/// Prefix literals are stored on the `Program`, since they are used inside</span>
     <span class="doccomment">/// the matching engines.</span>
     <span class="ident">suffixes</span>: <span class="ident">LiteralSearcher</span>,
+    <span class="doccomment">/// An Aho-Corasick automaton with leftmost-first match semantics.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is only set when the entire regex is a simple unanchored</span>
+    <span class="doccomment">/// alternation of literals. We could probably use it more circumstances,</span>
+    <span class="doccomment">/// but this is already hacky enough in this architecture.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// N.B. We use u32 as a state ID representation under the assumption that</span>
+    <span class="doccomment">/// if we were to exhaust the ID space, we probably would have long</span>
+    <span class="doccomment">/// surpassed the compilation size limit.</span>
+    <span class="ident">ac</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">AhoCorasick</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;&gt;</span>,
     <span class="doccomment">/// match_type encodes as much upfront knowledge about how we&#39;re going to</span>
     <span class="doccomment">/// execute a search as possible.</span>
     <span class="ident">match_type</span>: <span class="ident">MatchType</span>,
@@ -1571,11 +1696,7 @@
         <span class="kw">for</span> <span class="ident">pat</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">options</span>.<span class="ident">pats</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parser</span> <span class="op">=</span>
                 <span class="ident">ParserBuilder</span>::<span class="ident">new</span>()
-                    <span class="comment">// TODO(burntsushi): Disable octal in regex 1.0. Nobody</span>
-                    <span class="comment">// uses it, and we&#39;ll get better error messages when</span>
-                    <span class="comment">// someone tries to use a backreference. Provide a new</span>
-                    <span class="comment">// opt-in toggle for it though.</span>
-                    .<span class="ident">octal</span>(<span class="bool-val">true</span>)
+                    .<span class="ident">octal</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">octal</span>)
                     .<span class="ident">case_insensitive</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">case_insensitive</span>)
                     .<span class="ident">multi_line</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">multi_line</span>)
                     .<span class="ident">dot_matches_new_line</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">dot_matches_new_line</span>)
@@ -1585,7 +1706,9 @@
                     .<span class="ident">allow_invalid_utf8</span>(<span class="op">!</span><span class="self">self</span>.<span class="ident">only_utf8</span>)
                     .<span class="ident">nest_limit</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">nest_limit</span>)
                     .<span class="ident">build</span>();
-            <span class="kw">let</span> <span class="ident">expr</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">parser</span>.<span class="ident">parse</span>(<span class="ident">pat</span>));
+            <span class="kw">let</span> <span class="ident">expr</span> <span class="op">=</span> <span class="ident">parser</span>
+                .<span class="ident">parse</span>(<span class="ident">pat</span>)
+                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">Syntax</span>(<span class="ident">e</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
             <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">bytes</span> <span class="op">||</span> <span class="op">!</span><span class="ident">expr</span>.<span class="ident">is_always_utf8</span>();
 
             <span class="kw">if</span> <span class="op">!</span><span class="ident">expr</span>.<span class="ident">is_anchored_start</span>() <span class="op">&amp;&amp;</span> <span class="ident">expr</span>.<span class="ident">is_any_anchored_start</span>() {
@@ -1642,30 +1765,31 @@
                 <span class="ident">dfa</span>: <span class="ident">Program</span>::<span class="ident">new</span>(),
                 <span class="ident">dfa_reverse</span>: <span class="ident">Program</span>::<span class="ident">new</span>(),
                 <span class="ident">suffixes</span>: <span class="ident">LiteralSearcher</span>::<span class="ident">empty</span>(),
+                <span class="ident">ac</span>: <span class="prelude-val">None</span>,
                 <span class="ident">match_type</span>: <span class="ident">MatchType</span>::<span class="ident">Nothing</span>,
             });
             <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Exec</span> { <span class="ident">ro</span>: <span class="ident">ro</span>, <span class="ident">cache</span>: <span class="ident">CachedThreadLocal</span>::<span class="ident">new</span>() });
         }
-        <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nfa</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
+        <span class="kw">let</span> <span class="ident">parsed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">parse</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nfa</span> <span class="op">=</span>
             <span class="ident">Compiler</span>::<span class="ident">new</span>()
                      .<span class="ident">size_limit</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">size_limit</span>)
                      .<span class="ident">bytes</span>(<span class="self">self</span>.<span class="ident">bytes</span> <span class="op">||</span> <span class="ident">parsed</span>.<span class="ident">bytes</span>)
                      .<span class="ident">only_utf8</span>(<span class="self">self</span>.<span class="ident">only_utf8</span>)
-                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dfa</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
+                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dfa</span> <span class="op">=</span>
             <span class="ident">Compiler</span>::<span class="ident">new</span>()
                      .<span class="ident">size_limit</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">size_limit</span>)
                      .<span class="ident">dfa</span>(<span class="bool-val">true</span>)
                      .<span class="ident">only_utf8</span>(<span class="self">self</span>.<span class="ident">only_utf8</span>)
-                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>));
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dfa_reverse</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
+                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dfa_reverse</span> <span class="op">=</span>
             <span class="ident">Compiler</span>::<span class="ident">new</span>()
                      .<span class="ident">size_limit</span>(<span class="self">self</span>.<span class="ident">options</span>.<span class="ident">size_limit</span>)
                      .<span class="ident">dfa</span>(<span class="bool-val">true</span>)
                      .<span class="ident">only_utf8</span>(<span class="self">self</span>.<span class="ident">only_utf8</span>)
                      .<span class="ident">reverse</span>(<span class="bool-val">true</span>)
-                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>));
+                     .<span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">prefixes</span> <span class="op">=</span> <span class="ident">parsed</span>.<span class="ident">prefixes</span>.<span class="ident">unambiguous_prefixes</span>();
         <span class="kw">let</span> <span class="ident">suffixes</span> <span class="op">=</span> <span class="ident">parsed</span>.<span class="ident">suffixes</span>.<span class="ident">unambiguous_suffixes</span>();
@@ -1674,12 +1798,32 @@
         <span class="ident">dfa</span>.<span class="ident">dfa_size_limit</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">dfa_size_limit</span>;
         <span class="ident">dfa_reverse</span>.<span class="ident">dfa_size_limit</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">dfa_size_limit</span>;
 
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ac</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+        <span class="kw">if</span> <span class="ident">parsed</span>.<span class="ident">exprs</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">lits</span>) <span class="op">=</span> <span class="ident">alternation_literals</span>(<span class="kw-2">&amp;</span><span class="ident">parsed</span>.<span class="ident">exprs</span>[<span class="number">0</span>]) {
+                <span class="comment">// If we have a small number of literals, then let Teddy</span>
+                <span class="comment">// handle things (see literal/mod.rs).</span>
+                <span class="kw">if</span> <span class="ident">lits</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">32</span> {
+                    <span class="kw">let</span> <span class="ident">fsm</span> <span class="op">=</span> <span class="ident">AhoCorasickBuilder</span>::<span class="ident">new</span>()
+                        .<span class="ident">match_kind</span>(<span class="ident">MatchKind</span>::<span class="ident">LeftmostFirst</span>)
+                        .<span class="ident">auto_configure</span>(<span class="kw-2">&amp;</span><span class="ident">lits</span>)
+                        <span class="comment">// We always want this to reduce size, regardless of</span>
+                        <span class="comment">// what auto-configure does.</span>
+                        .<span class="ident">byte_classes</span>(<span class="bool-val">true</span>)
+                        .<span class="ident">build_with_size</span>::<span class="op">&lt;</span><span class="ident">u32</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">lits</span>)
+                        .<span class="ident">expect</span>(<span class="string">&quot;AC automaton too big&quot;</span>);
+                    <span class="ident">ac</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">fsm</span>);
+                }
+            }
+        }
+
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ro</span> <span class="op">=</span> <span class="ident">ExecReadOnly</span> {
             <span class="ident">res</span>: <span class="self">self</span>.<span class="ident">options</span>.<span class="ident">pats</span>,
             <span class="ident">nfa</span>: <span class="ident">nfa</span>,
             <span class="ident">dfa</span>: <span class="ident">dfa</span>,
             <span class="ident">dfa_reverse</span>: <span class="ident">dfa_reverse</span>,
             <span class="ident">suffixes</span>: <span class="ident">LiteralSearcher</span>::<span class="ident">suffixes</span>(<span class="ident">suffixes</span>),
+            <span class="ident">ac</span>: <span class="ident">ac</span>,
             <span class="ident">match_type</span>: <span class="ident">MatchType</span>::<span class="ident">Nothing</span>,
         };
         <span class="ident">ro</span>.<span class="ident">match_type</span> <span class="op">=</span> <span class="ident">ro</span>.<span class="ident">choose_match_type</span>(<span class="self">self</span>.<span class="ident">match_type</span>);
@@ -1714,13 +1858,13 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span> <span class="comment">// reduces constant overhead</span>
-    <span class="kw">fn</span> <span class="ident">read_captures_at</span>(
+    <span class="kw">fn</span> <span class="ident">captures_read_at</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Locations</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">read_captures_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>.<span class="ident">as_bytes</span>(), <span class="ident">start</span>)
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">captures_read_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>.<span class="ident">as_bytes</span>(), <span class="ident">start</span>)
     }
 }
 
@@ -1883,13 +2027,13 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that the first two slots always correspond to the start and end</span>
     <span class="doccomment">/// locations of the overall match.</span>
-    <span class="kw">fn</span> <span class="ident">read_captures_at</span>(
+    <span class="kw">fn</span> <span class="ident">captures_read_at</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Locations</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">slots</span> <span class="op">=</span> <span class="ident">as_slots</span>(<span class="ident">locs</span>);
+        <span class="kw">let</span> <span class="ident">slots</span> <span class="op">=</span> <span class="ident">locs</span>.<span class="ident">as_slots</span>();
         <span class="kw">for</span> <span class="ident">slot</span> <span class="kw">in</span> <span class="ident">slots</span>.<span class="ident">iter_mut</span>() {
             <span class="kw-2">*</span><span class="ident">slot</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         }
@@ -1912,7 +2056,8 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">match_type</span> {
             <span class="ident">MatchType</span>::<span class="ident">Literal</span>(<span class="ident">ty</span>) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">find_literals</span>(<span class="ident">ty</span>, <span class="ident">text</span>, <span class="ident">start</span>).<span class="ident">and_then</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> {
-                    <span class="self">self</span>.<span class="ident">captures_nfa_with_match</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
+                    <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(
+                        <span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
                 })
             }
             <span class="ident">MatchType</span>::<span class="ident">Dfa</span> <span class="op">=&gt;</span> {
@@ -1921,17 +2066,21 @@
                 } <span class="kw">else</span> {
                     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">find_dfa_forward</span>(<span class="ident">text</span>, <span class="ident">start</span>) {
                         <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Match</span>((<span class="ident">s</span>, <span class="ident">e</span>)) <span class="op">=&gt;</span> {
-                            <span class="self">self</span>.<span class="ident">captures_nfa_with_match</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
+                            <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(
+                                <span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
                         }
                         <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">NoMatch</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
-                        <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Quit</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">captures_nfa</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>),
+                        <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Quit</span> <span class="op">=&gt;</span> {
+                            <span class="self">self</span>.<span class="ident">captures_nfa</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+                        }
                     }
                 }
             }
             <span class="ident">MatchType</span>::<span class="ident">DfaAnchoredReverse</span> <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">find_dfa_anchored_reverse</span>(<span class="ident">text</span>, <span class="ident">start</span>) {
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Match</span>((<span class="ident">s</span>, <span class="ident">e</span>)) <span class="op">=&gt;</span> {
-                        <span class="self">self</span>.<span class="ident">captures_nfa_with_match</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
+                        <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(
+                            <span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
                     }
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">NoMatch</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Quit</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">captures_nfa</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>),
@@ -1940,14 +2089,15 @@
             <span class="ident">MatchType</span>::<span class="ident">DfaSuffix</span> <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">find_dfa_reverse_suffix</span>(<span class="ident">text</span>, <span class="ident">start</span>) {
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Match</span>((<span class="ident">s</span>, <span class="ident">e</span>)) <span class="op">=&gt;</span> {
-                        <span class="self">self</span>.<span class="ident">captures_nfa_with_match</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
+                        <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(
+                            <span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>)
                     }
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">NoMatch</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
                     <span class="ident">dfa</span>::<span class="prelude-ty">Result</span>::<span class="ident">Quit</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">captures_nfa</span>(<span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>),
                 }
             }
             <span class="ident">MatchType</span>::<span class="ident">Nfa</span>(<span class="ident">ty</span>) <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(<span class="ident">ty</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+                <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(<span class="ident">ty</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">text</span>.<span class="ident">len</span>())
             }
             <span class="ident">MatchType</span>::<span class="ident">Nothing</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">MatchType</span>::<span class="ident">DfaMany</span> <span class="op">=&gt;</span> {
@@ -1987,6 +2137,11 @@
                 <span class="kw">let</span> <span class="ident">lits</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">suffixes</span>;
                 <span class="ident">lits</span>.<span class="ident">find_end</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">start</span>..])
                     .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> (<span class="ident">start</span> <span class="op">+</span> <span class="ident">s</span>, <span class="ident">start</span> <span class="op">+</span> <span class="ident">e</span>))
+            }
+            <span class="ident">AhoCorasick</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">ac</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()
+                    .<span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">start</span>..])
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> (<span class="ident">start</span> <span class="op">+</span> <span class="ident">m</span>.<span class="ident">start</span>(), <span class="ident">start</span> <span class="op">+</span> <span class="ident">m</span>.<span class="ident">end</span>()))
             }
         }
     }
@@ -2100,12 +2255,13 @@
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">lcs</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">1</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">original_start</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">start</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_literal</span> <span class="op">=</span> <span class="ident">start</span>;
         <span class="kw">while</span> <span class="ident">end</span> <span class="op">&lt;=</span> <span class="ident">text</span>.<span class="ident">len</span>() {
-            <span class="ident">start</span> <span class="op">=</span> <span class="ident">end</span>;
-            <span class="ident">end</span> <span class="op">+=</span> <span class="kw">match</span> <span class="ident">lcs</span>.<span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">end</span>..]) {
+            <span class="ident">last_literal</span> <span class="op">+=</span> <span class="kw">match</span> <span class="ident">lcs</span>.<span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="ident">text</span>[<span class="ident">last_literal</span>..]) {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">NoMatch</span>(<span class="ident">text</span>.<span class="ident">len</span>())),
-                <span class="prelude-val">Some</span>(<span class="ident">start</span>) <span class="op">=&gt;</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">lcs</span>.<span class="ident">len</span>(),
+                <span class="prelude-val">Some</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> <span class="ident">i</span>,
             };
+            <span class="ident">end</span> <span class="op">=</span> <span class="ident">last_literal</span> <span class="op">+</span> <span class="ident">lcs</span>.<span class="ident">len</span>();
             <span class="kw">match</span> <span class="ident">dfa</span>::<span class="ident">Fsm</span>::<span class="ident">reverse</span>(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">dfa_reverse</span>,
                 <span class="self">self</span>.<span class="ident">cache</span>,
@@ -2114,8 +2270,12 @@
                 <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>,
             ) {
                 <span class="ident">Match</span>(<span class="number">0</span>) <span class="op">|</span> <span class="ident">NoMatch</span>(<span class="number">0</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-                <span class="ident">Match</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Match</span>((<span class="ident">s</span> <span class="op">+</span> <span class="ident">start</span>, <span class="ident">end</span>))),
-                <span class="ident">NoMatch</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">continue</span>,
+                <span class="ident">Match</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Match</span>((<span class="ident">start</span> <span class="op">+</span> <span class="ident">i</span>, <span class="ident">end</span>))),
+                <span class="ident">NoMatch</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">start</span> <span class="op">+=</span> <span class="ident">i</span>;
+                    <span class="ident">last_literal</span> <span class="op">+=</span> <span class="number">1</span>;
+                    <span class="kw">continue</span>;
+                }
                 <span class="ident">Quit</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Quit</span>),
             };
         }
@@ -2180,7 +2340,7 @@
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [], <span class="bool-val">true</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+        <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [], <span class="bool-val">true</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">text</span>.<span class="ident">len</span>())
     }
 
     <span class="doccomment">/// Finds the shortest match using an NFA.</span>
@@ -2196,7 +2356,15 @@
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">slots</span> <span class="op">=</span> [<span class="prelude-val">None</span>, <span class="prelude-val">None</span>];
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slots</span>, <span class="bool-val">true</span>, <span class="ident">text</span>, <span class="ident">start</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(
+            <span class="ident">ty</span>,
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>],
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slots</span>,
+            <span class="bool-val">true</span>,
+            <span class="ident">text</span>,
+            <span class="ident">start</span>,
+            <span class="ident">text</span>.<span class="ident">len</span>()
+        ) {
             <span class="ident">slots</span>[<span class="number">1</span>]
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
@@ -2211,7 +2379,15 @@
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">slots</span> <span class="op">=</span> [<span class="prelude-val">None</span>, <span class="prelude-val">None</span>];
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slots</span>, <span class="bool-val">false</span>, <span class="ident">text</span>, <span class="ident">start</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(
+            <span class="ident">ty</span>,
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>],
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slots</span>,
+            <span class="bool-val">false</span>,
+            <span class="ident">text</span>,
+            <span class="ident">start</span>,
+            <span class="ident">text</span>.<span class="ident">len</span>()
+        ) {
             <span class="kw">match</span> (<span class="ident">slots</span>[<span class="number">0</span>], <span class="ident">slots</span>[<span class="number">1</span>]) {
                 (<span class="prelude-val">Some</span>(<span class="ident">s</span>), <span class="prelude-val">Some</span>(<span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
@@ -2219,26 +2395,6 @@
         } <span class="kw">else</span> {
             <span class="prelude-val">None</span>
         }
-    }
-
-    <span class="doccomment">/// Like find_nfa, but fills in captures and restricts the search space</span>
-    <span class="doccomment">/// using previously found match information.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// `slots` should have length equal to `2 * nfa.captures.len()`.</span>
-    <span class="kw">fn</span> <span class="ident">captures_nfa_with_match</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Slot</span>],
-        <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-        <span class="ident">match_start</span>: <span class="ident">usize</span>,
-        <span class="ident">match_end</span>: <span class="ident">usize</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
-        <span class="comment">// We can&#39;t use match_end directly, because we may need to examine one</span>
-        <span class="comment">// &quot;character&quot; after the end of a match for lookahead operators. We</span>
-        <span class="comment">// need to move two characters beyond the end, since some look-around</span>
-        <span class="comment">// operations may falsely assume a premature end of text otherwise.</span>
-        <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(
-            <span class="ident">next_utf8</span>(<span class="ident">text</span>, <span class="ident">next_utf8</span>(<span class="ident">text</span>, <span class="ident">match_end</span>)), <span class="ident">text</span>.<span class="ident">len</span>());
-        <span class="self">self</span>.<span class="ident">captures_nfa</span>(<span class="ident">slots</span>, <span class="kw-2">&amp;</span><span class="ident">text</span>[..<span class="ident">e</span>], <span class="ident">match_start</span>)
     }
 
     <span class="doccomment">/// Like find_nfa, but fills in captures.</span>
@@ -2250,7 +2406,8 @@
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(<span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+        <span class="self">self</span>.<span class="ident">captures_nfa_type</span>(
+            <span class="ident">MatchNfaType</span>::<span class="ident">Auto</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">text</span>.<span class="ident">len</span>())
     }
 
     <span class="doccomment">/// Like captures_nfa, but allows specification of type of NFA engine.</span>
@@ -2260,8 +2417,9 @@
         <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Slot</span>],
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
+        <span class="ident">end</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="ident">slots</span>, <span class="bool-val">false</span>, <span class="ident">text</span>, <span class="ident">start</span>) {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="bool-val">false</span>], <span class="ident">slots</span>, <span class="bool-val">false</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">end</span>) {
             <span class="kw">match</span> (<span class="ident">slots</span>[<span class="number">0</span>], <span class="ident">slots</span>[<span class="number">1</span>]) {
                 (<span class="prelude-val">Some</span>(<span class="ident">s</span>), <span class="prelude-val">Some</span>(<span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">s</span>, <span class="ident">e</span>)),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
@@ -2279,6 +2437,7 @@
         <span class="ident">quit_after_match</span>: <span class="ident">bool</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
+        <span class="ident">end</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">MatchNfaType</span>::<span class="kw-2">*</span>;
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Auto</span> <span class="op">=</span> <span class="ident">ty</span> {
@@ -2290,10 +2449,10 @@
         }
         <span class="kw">match</span> <span class="ident">ty</span> {
             <span class="ident">Auto</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
-            <span class="ident">Backtrack</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">exec_backtrack</span>(<span class="ident">matches</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>),
+            <span class="ident">Backtrack</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">exec_backtrack</span>(<span class="ident">matches</span>, <span class="ident">slots</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">end</span>),
             <span class="ident">PikeVM</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">exec_pikevm</span>(
-                    <span class="ident">matches</span>, <span class="ident">slots</span>, <span class="ident">quit_after_match</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+                    <span class="ident">matches</span>, <span class="ident">slots</span>, <span class="ident">quit_after_match</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">end</span>)
             }
         }
     }
@@ -2306,6 +2465,7 @@
         <span class="ident">quit_after_match</span>: <span class="ident">bool</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
+        <span class="ident">end</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>.<span class="ident">uses_bytes</span>() {
             <span class="ident">pikevm</span>::<span class="ident">Fsm</span>::<span class="ident">exec</span>(
@@ -2315,7 +2475,8 @@
                 <span class="ident">slots</span>,
                 <span class="ident">quit_after_match</span>,
                 <span class="ident">ByteInput</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>.<span class="ident">only_utf8</span>),
-                <span class="ident">start</span>)
+                <span class="ident">start</span>,
+                <span class="ident">end</span>)
         } <span class="kw">else</span> {
             <span class="ident">pikevm</span>::<span class="ident">Fsm</span>::<span class="ident">exec</span>(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>,
@@ -2324,7 +2485,8 @@
                 <span class="ident">slots</span>,
                 <span class="ident">quit_after_match</span>,
                 <span class="ident">CharInput</span>::<span class="ident">new</span>(<span class="ident">text</span>),
-                <span class="ident">start</span>)
+                <span class="ident">start</span>,
+                <span class="ident">end</span>)
         }
     }
 
@@ -2335,6 +2497,7 @@
         <span class="ident">slots</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Slot</span>],
         <span class="ident">text</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">start</span>: <span class="ident">usize</span>,
+        <span class="ident">end</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>.<span class="ident">uses_bytes</span>() {
             <span class="ident">backtrack</span>::<span class="ident">Bounded</span>::<span class="ident">exec</span>(
@@ -2343,7 +2506,8 @@
                 <span class="ident">matches</span>,
                 <span class="ident">slots</span>,
                 <span class="ident">ByteInput</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>.<span class="ident">only_utf8</span>),
-                <span class="ident">start</span>)
+                <span class="ident">start</span>,
+                <span class="ident">end</span>)
         } <span class="kw">else</span> {
             <span class="ident">backtrack</span>::<span class="ident">Bounded</span>::<span class="ident">exec</span>(
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>.<span class="ident">nfa</span>,
@@ -2351,7 +2515,8 @@
                 <span class="ident">matches</span>,
                 <span class="ident">slots</span>,
                 <span class="ident">CharInput</span>::<span class="ident">new</span>(<span class="ident">text</span>),
-                <span class="ident">start</span>)
+                <span class="ident">start</span>,
+                <span class="ident">end</span>)
         }
     }
 
@@ -2395,11 +2560,15 @@
                             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [],
                             <span class="bool-val">false</span>,
                             <span class="ident">text</span>,
-                            <span class="ident">start</span>)
+                            <span class="ident">start</span>,
+                            <span class="ident">text</span>.<span class="ident">len</span>())
                     }
                 }
             }
-            <span class="ident">Nfa</span>(<span class="ident">ty</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">exec_nfa</span>(<span class="ident">ty</span>, <span class="ident">matches</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [], <span class="bool-val">false</span>, <span class="ident">text</span>, <span class="ident">start</span>),
+            <span class="ident">Nfa</span>(<span class="ident">ty</span>) <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">exec_nfa</span>(
+                    <span class="ident">ty</span>, <span class="ident">matches</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [], <span class="bool-val">false</span>, <span class="ident">text</span>, <span class="ident">start</span>, <span class="ident">text</span>.<span class="ident">len</span>())
+            }
             <span class="ident">Nothing</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
@@ -2431,7 +2600,9 @@
     <span class="doccomment">/// Get a searcher that isn&#39;t Sync.</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span> <span class="comment">// reduces constant overhead</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">searcher</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ExecNoSync</span> {
-        <span class="kw">let</span> <span class="ident">create</span> <span class="op">=</span> <span class="op">||</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">ProgramCacheInner</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>)));
+        <span class="kw">let</span> <span class="ident">create</span> <span class="op">=</span> <span class="op">||</span> {
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">ProgramCacheInner</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>)))
+        };
         <span class="ident">ExecNoSync</span> {
             <span class="ident">ro</span>: <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ro</span>, <span class="comment">// a clone is too expensive here! (and not needed)</span>
             <span class="ident">cache</span>: <span class="self">self</span>.<span class="ident">cache</span>.<span class="ident">get_or</span>(<span class="ident">create</span>),
@@ -2513,6 +2684,9 @@
         <span class="comment">// aren&#39;t anchored. We would then only search for all of them when at</span>
         <span class="comment">// the beginning of the input and use the subset in all other cases.</span>
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">res</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ac</span>.<span class="ident">is_some</span>() {
+                <span class="kw">return</span> <span class="ident">Literal</span>(<span class="ident">MatchLiteralType</span>::<span class="ident">AhoCorasick</span>);
+            }
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">nfa</span>.<span class="ident">prefixes</span>.<span class="ident">complete</span>() {
                 <span class="kw">return</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">nfa</span>.<span class="ident">is_anchored_start</span> {
                     <span class="ident">Literal</span>(<span class="ident">MatchLiteralType</span>::<span class="ident">AnchoredStart</span>)
@@ -2604,6 +2778,9 @@
     <span class="ident">AnchoredStart</span>,
     <span class="doccomment">/// Match literals only at the end of text.</span>
     <span class="ident">AnchoredEnd</span>,
+    <span class="doccomment">/// Use an Aho-Corasick automaton. This requires `ac` to be Some on</span>
+    <span class="doccomment">/// ExecReadOnly.</span>
+    <span class="ident">AhoCorasick</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
@@ -2626,7 +2803,7 @@
 <span class="doccomment">/// available to a particular program.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">ProgramCache</span> <span class="op">=</span> <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">ProgramCacheInner</span><span class="op">&gt;</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ProgramCacheInner</span> {
     <span class="kw">pub</span> <span class="ident">pikevm</span>: <span class="ident">pikevm</span>::<span class="ident">Cache</span>,
     <span class="kw">pub</span> <span class="ident">backtrack</span>: <span class="ident">backtrack</span>::<span class="ident">Cache</span>,
@@ -2643,6 +2820,59 @@
             <span class="ident">dfa_reverse</span>: <span class="ident">dfa</span>::<span class="ident">Cache</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">ro</span>.<span class="ident">dfa_reverse</span>),
         }
     }
+}
+
+<span class="doccomment">/// Alternation literals checks if the given HIR is a simple alternation of</span>
+<span class="doccomment">/// literals, and if so, returns them. Otherwise, this returns None.</span>
+<span class="kw">fn</span> <span class="ident">alternation_literals</span>(<span class="ident">expr</span>: <span class="kw-2">&amp;</span><span class="ident">Hir</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">use</span> <span class="ident">syntax</span>::<span class="ident">hir</span>::{<span class="ident">HirKind</span>, <span class="ident">Literal</span>};
+
+    <span class="comment">// This is pretty hacky, but basically, if `is_alternation_literal` is</span>
+    <span class="comment">// true, then we can make several assumptions about the structure of our</span>
+    <span class="comment">// HIR. This is what justifies the `unreachable!` statements below.</span>
+    <span class="comment">//</span>
+    <span class="comment">// This code should be refactored once we overhaul this crate&#39;s</span>
+    <span class="comment">// optimization pipeline, because this is a terribly inflexible way to go</span>
+    <span class="comment">// about things.</span>
+
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">expr</span>.<span class="ident">is_alternation_literal</span>() {
+        <span class="kw">return</span> <span class="prelude-val">None</span>;
+    }
+    <span class="kw">let</span> <span class="ident">alts</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">expr</span>.<span class="ident">kind</span>() {
+        <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="kw-2">ref</span> <span class="ident">alts</span>) <span class="op">=&gt;</span> <span class="ident">alts</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>, <span class="comment">// one literal isn&#39;t worth it</span>
+    };
+
+    <span class="kw">let</span> <span class="ident">extendlit</span> <span class="op">=</span> <span class="op">|</span><span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">Literal</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">|</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">lit</span> {
+            <span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="ident">c</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">4</span>];
+                <span class="ident">dst</span>.<span class="ident">extend_from_slice</span>(<span class="ident">c</span>.<span class="ident">encode_utf8</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>).<span class="ident">as_bytes</span>());
+            }
+            <span class="ident">Literal</span>::<span class="ident">Byte</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> {
+                <span class="ident">dst</span>.<span class="ident">push</span>(<span class="ident">b</span>);
+            }
+        }
+    };
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lits</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+    <span class="kw">for</span> <span class="ident">alt</span> <span class="kw">in</span> <span class="ident">alts</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lit</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">alt</span>.<span class="ident">kind</span>() {
+            <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">extendlit</span>(<span class="ident">x</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">lit</span>),
+            <span class="ident">HirKind</span>::<span class="ident">Concat</span>(<span class="kw-2">ref</span> <span class="ident">exprs</span>) <span class="op">=&gt;</span> {
+                <span class="kw">for</span> <span class="ident">e</span> <span class="kw">in</span> <span class="ident">exprs</span> {
+                    <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">e</span>.<span class="ident">kind</span>() {
+                        <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">extendlit</span>(<span class="ident">x</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">lit</span>),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;expected literal, got {:?}&quot;</span>, <span class="ident">e</span>),
+                    }
+                }
+            }
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;expected literal or concat, got {:?}&quot;</span>, <span class="ident">alt</span>),
+        }
+        <span class="ident">lits</span>.<span class="ident">push</span>(<span class="ident">lit</span>);
+    }
+    <span class="prelude-val">Some</span>(<span class="ident">lits</span>)
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
@@ -2703,5 +2933,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

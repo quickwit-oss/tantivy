@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.66/src/de/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.92/src/de/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../serde/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2321,15 +2321,229 @@
 <span id="2321">2321</span>
 <span id="2322">2322</span>
 <span id="2323">2323</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2017 Serde Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+<span id="2324">2324</span>
+<span id="2325">2325</span>
+<span id="2326">2326</span>
+<span id="2327">2327</span>
+<span id="2328">2328</span>
+<span id="2329">2329</span>
+<span id="2330">2330</span>
+<span id="2331">2331</span>
+<span id="2332">2332</span>
+<span id="2333">2333</span>
+<span id="2334">2334</span>
+<span id="2335">2335</span>
+<span id="2336">2336</span>
+<span id="2337">2337</span>
+<span id="2338">2338</span>
+<span id="2339">2339</span>
+<span id="2340">2340</span>
+<span id="2341">2341</span>
+<span id="2342">2342</span>
+<span id="2343">2343</span>
+<span id="2344">2344</span>
+<span id="2345">2345</span>
+<span id="2346">2346</span>
+<span id="2347">2347</span>
+<span id="2348">2348</span>
+<span id="2349">2349</span>
+<span id="2350">2350</span>
+<span id="2351">2351</span>
+<span id="2352">2352</span>
+<span id="2353">2353</span>
+<span id="2354">2354</span>
+<span id="2355">2355</span>
+<span id="2356">2356</span>
+<span id="2357">2357</span>
+<span id="2358">2358</span>
+<span id="2359">2359</span>
+<span id="2360">2360</span>
+<span id="2361">2361</span>
+<span id="2362">2362</span>
+<span id="2363">2363</span>
+<span id="2364">2364</span>
+<span id="2365">2365</span>
+<span id="2366">2366</span>
+<span id="2367">2367</span>
+<span id="2368">2368</span>
+<span id="2369">2369</span>
+<span id="2370">2370</span>
+<span id="2371">2371</span>
+<span id="2372">2372</span>
+<span id="2373">2373</span>
+<span id="2374">2374</span>
+<span id="2375">2375</span>
+<span id="2376">2376</span>
+<span id="2377">2377</span>
+<span id="2378">2378</span>
+<span id="2379">2379</span>
+<span id="2380">2380</span>
+<span id="2381">2381</span>
+<span id="2382">2382</span>
+<span id="2383">2383</span>
+<span id="2384">2384</span>
+<span id="2385">2385</span>
+<span id="2386">2386</span>
+<span id="2387">2387</span>
+<span id="2388">2388</span>
+<span id="2389">2389</span>
+<span id="2390">2390</span>
+<span id="2391">2391</span>
+<span id="2392">2392</span>
+<span id="2393">2393</span>
+<span id="2394">2394</span>
+<span id="2395">2395</span>
+<span id="2396">2396</span>
+<span id="2397">2397</span>
+<span id="2398">2398</span>
+<span id="2399">2399</span>
+<span id="2400">2400</span>
+<span id="2401">2401</span>
+<span id="2402">2402</span>
+<span id="2403">2403</span>
+<span id="2404">2404</span>
+<span id="2405">2405</span>
+<span id="2406">2406</span>
+<span id="2407">2407</span>
+<span id="2408">2408</span>
+<span id="2409">2409</span>
+<span id="2410">2410</span>
+<span id="2411">2411</span>
+<span id="2412">2412</span>
+<span id="2413">2413</span>
+<span id="2414">2414</span>
+<span id="2415">2415</span>
+<span id="2416">2416</span>
+<span id="2417">2417</span>
+<span id="2418">2418</span>
+<span id="2419">2419</span>
+<span id="2420">2420</span>
+<span id="2421">2421</span>
+<span id="2422">2422</span>
+<span id="2423">2423</span>
+<span id="2424">2424</span>
+<span id="2425">2425</span>
+<span id="2426">2426</span>
+<span id="2427">2427</span>
+<span id="2428">2428</span>
+<span id="2429">2429</span>
+<span id="2430">2430</span>
+<span id="2431">2431</span>
+<span id="2432">2432</span>
+<span id="2433">2433</span>
+<span id="2434">2434</span>
+<span id="2435">2435</span>
+<span id="2436">2436</span>
+<span id="2437">2437</span>
+<span id="2438">2438</span>
+<span id="2439">2439</span>
+<span id="2440">2440</span>
+<span id="2441">2441</span>
+<span id="2442">2442</span>
+<span id="2443">2443</span>
+<span id="2444">2444</span>
+<span id="2445">2445</span>
+<span id="2446">2446</span>
+<span id="2447">2447</span>
+<span id="2448">2448</span>
+<span id="2449">2449</span>
+<span id="2450">2450</span>
+<span id="2451">2451</span>
+<span id="2452">2452</span>
+<span id="2453">2453</span>
+<span id="2454">2454</span>
+<span id="2455">2455</span>
+<span id="2456">2456</span>
+<span id="2457">2457</span>
+<span id="2458">2458</span>
+<span id="2459">2459</span>
+<span id="2460">2460</span>
+<span id="2461">2461</span>
+<span id="2462">2462</span>
+<span id="2463">2463</span>
+<span id="2464">2464</span>
+<span id="2465">2465</span>
+<span id="2466">2466</span>
+<span id="2467">2467</span>
+<span id="2468">2468</span>
+<span id="2469">2469</span>
+<span id="2470">2470</span>
+<span id="2471">2471</span>
+<span id="2472">2472</span>
+<span id="2473">2473</span>
+<span id="2474">2474</span>
+<span id="2475">2475</span>
+<span id="2476">2476</span>
+<span id="2477">2477</span>
+<span id="2478">2478</span>
+<span id="2479">2479</span>
+<span id="2480">2480</span>
+<span id="2481">2481</span>
+<span id="2482">2482</span>
+<span id="2483">2483</span>
+<span id="2484">2484</span>
+<span id="2485">2485</span>
+<span id="2486">2486</span>
+<span id="2487">2487</span>
+<span id="2488">2488</span>
+<span id="2489">2489</span>
+<span id="2490">2490</span>
+<span id="2491">2491</span>
+<span id="2492">2492</span>
+<span id="2493">2493</span>
+<span id="2494">2494</span>
+<span id="2495">2495</span>
+<span id="2496">2496</span>
+<span id="2497">2497</span>
+<span id="2498">2498</span>
+<span id="2499">2499</span>
+<span id="2500">2500</span>
+<span id="2501">2501</span>
+<span id="2502">2502</span>
+<span id="2503">2503</span>
+<span id="2504">2504</span>
+<span id="2505">2505</span>
+<span id="2506">2506</span>
+<span id="2507">2507</span>
+<span id="2508">2508</span>
+<span id="2509">2509</span>
+<span id="2510">2510</span>
+<span id="2511">2511</span>
+<span id="2512">2512</span>
+<span id="2513">2513</span>
+<span id="2514">2514</span>
+<span id="2515">2515</span>
+<span id="2516">2516</span>
+<span id="2517">2517</span>
+<span id="2518">2518</span>
+<span id="2519">2519</span>
+<span id="2520">2520</span>
+<span id="2521">2521</span>
+<span id="2522">2522</span>
+<span id="2523">2523</span>
+<span id="2524">2524</span>
+<span id="2525">2525</span>
+<span id="2526">2526</span>
+<span id="2527">2527</span>
+<span id="2528">2528</span>
+<span id="2529">2529</span>
+<span id="2530">2530</span>
+<span id="2531">2531</span>
+<span id="2532">2532</span>
+<span id="2533">2533</span>
+<span id="2534">2534</span>
+<span id="2535">2535</span>
+<span id="2536">2536</span>
+<span id="2537">2537</span>
+<span id="2538">2538</span>
+<span id="2539">2539</span>
+<span id="2540">2540</span>
+<span id="2541">2541</span>
+<span id="2542">2542</span>
+<span id="2543">2543</span>
+<span id="2544">2544</span>
+<span id="2545">2545</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">lib</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident">de</span>::{
@@ -2910,6 +3124,9 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">de_boxed_c_str</span>))]</span>
 <span class="macro">forwarded_impl</span><span class="macro">!</span>((), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">CStr</span><span class="op">&gt;</span>, <span class="ident">CString</span>::<span class="ident">into_boxed_c_str</span>);
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">core_reverse</span>)]</span>
+<span class="macro">forwarded_impl</span><span class="macro">!</span>((<span class="ident">T</span>), <span class="ident">Reverse</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Reverse</span>);
+
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
 <span class="kw">struct</span> <span class="ident">OptionVisitor</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -3020,7 +3237,6 @@
     (
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ident</span> <span class="op">&lt;</span> <span class="ident">T</span> $(: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tbound1</span>:<span class="ident">ident</span> $(<span class="op">+</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tbound2</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>)<span class="op">*</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">typaram</span>:<span class="ident">ident</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">bound1</span>:<span class="ident">ident</span> $(<span class="op">+</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">bound2</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>)<span class="op">*</span> <span class="op">&gt;</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">access</span>:<span class="ident">ident</span>,
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ctor</span>:<span class="ident">expr</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">clear</span>:<span class="ident">expr</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">with_capacity</span>:<span class="ident">expr</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">reserve</span>:<span class="ident">expr</span>,
@@ -3117,7 +3333,6 @@
 <span class="macro">seq_impl</span><span class="macro">!</span>(
     <span class="ident">BinaryHeap</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Ord</span><span class="op">&gt;</span>,
     <span class="ident">seq</span>,
-    <span class="ident">BinaryHeap</span>::<span class="ident">new</span>(),
     <span class="ident">BinaryHeap</span>::<span class="ident">clear</span>,
     <span class="ident">BinaryHeap</span>::<span class="ident">with_capacity</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>())),
     <span class="ident">BinaryHeap</span>::<span class="ident">reserve</span>,
@@ -3127,7 +3342,6 @@
 <span class="macro">seq_impl</span><span class="macro">!</span>(
     <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Eq</span> <span class="op">+</span> <span class="ident">Ord</span><span class="op">&gt;</span>,
     <span class="ident">seq</span>,
-    <span class="ident">BTreeSet</span>::<span class="ident">new</span>(),
     <span class="ident">BTreeSet</span>::<span class="ident">clear</span>,
     <span class="ident">BTreeSet</span>::<span class="ident">new</span>(),
     <span class="ident">nop_reserve</span>,
@@ -3137,7 +3351,6 @@
 <span class="macro">seq_impl</span><span class="macro">!</span>(
     <span class="ident">LinkedList</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
     <span class="ident">seq</span>,
-    <span class="ident">LinkedList</span>::<span class="ident">new</span>(),
     <span class="ident">LinkedList</span>::<span class="ident">clear</span>,
     <span class="ident">LinkedList</span>::<span class="ident">new</span>(),
     <span class="ident">nop_reserve</span>,
@@ -3148,7 +3361,6 @@
 <span class="macro">seq_impl</span><span class="macro">!</span>(
     <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Eq</span> <span class="op">+</span> <span class="ident">Hash</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span> <span class="op">+</span> <span class="ident">Default</span><span class="op">&gt;</span>,
     <span class="ident">seq</span>,
-    <span class="ident">HashSet</span>::<span class="ident">with_hasher</span>(<span class="ident">S</span>::<span class="ident">default</span>()),
     <span class="ident">HashSet</span>::<span class="ident">clear</span>,
     <span class="ident">HashSet</span>::<span class="ident">with_capacity_and_hasher</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>()), <span class="ident">S</span>::<span class="ident">default</span>()),
     <span class="ident">HashSet</span>::<span class="ident">reserve</span>,
@@ -3156,25 +3368,106 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
 <span class="macro">seq_impl</span><span class="macro">!</span>(
-    <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-    <span class="ident">seq</span>,
-    <span class="ident">Vec</span>::<span class="ident">new</span>(),
-    <span class="ident">Vec</span>::<span class="ident">clear</span>,
-    <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>())),
-    <span class="ident">Vec</span>::<span class="ident">reserve</span>,
-    <span class="ident">Vec</span>::<span class="ident">push</span>
-);
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
-<span class="macro">seq_impl</span><span class="macro">!</span>(
     <span class="ident">VecDeque</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
     <span class="ident">seq</span>,
-    <span class="ident">VecDeque</span>::<span class="ident">new</span>(),
     <span class="ident">VecDeque</span>::<span class="ident">clear</span>,
     <span class="ident">VecDeque</span>::<span class="ident">with_capacity</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>())),
     <span class="ident">VecDeque</span>::<span class="ident">reserve</span>,
     <span class="ident">VecDeque</span>::<span class="ident">push_back</span>
 );
+
+<span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+{
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">struct</span> <span class="ident">VecVisitor</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+            <span class="ident">marker</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+        }
+
+        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">VecVisitor</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
+
+            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+                <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;a sequence&quot;</span>)
+            }
+
+            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>()));
+
+                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
+                    <span class="ident">values</span>.<span class="ident">push</span>(<span class="ident">value</span>);
+                }
+
+                <span class="prelude-val">Ok</span>(<span class="ident">values</span>)
+            }
+        }
+
+        <span class="kw">let</span> <span class="ident">visitor</span> <span class="op">=</span> <span class="ident">VecVisitor</span> {
+            <span class="ident">marker</span>: <span class="ident">PhantomData</span>,
+        };
+        <span class="ident">deserializer</span>.<span class="ident">deserialize_seq</span>(<span class="ident">visitor</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">deserialize_in_place</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>, <span class="ident">place</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">struct</span> <span class="ident">VecInPlaceVisitor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+
+        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">VecInPlaceVisitor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> ();
+
+            <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+                <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;a sequence&quot;</span>)
+            }
+
+            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            {
+                <span class="kw">let</span> <span class="ident">hint</span> <span class="op">=</span> <span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">seq</span>.<span class="ident">size_hint</span>());
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">additional</span>) <span class="op">=</span> <span class="ident">hint</span>.<span class="ident">checked_sub</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">len</span>()) {
+                    <span class="self">self</span>.<span class="number">0</span>.<span class="ident">reserve</span>(<span class="ident">additional</span>);
+                }
+
+                <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="number">0</span>.<span class="ident">len</span>() {
+                    <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> {
+                        <span class="kw">let</span> <span class="ident">next_place</span> <span class="op">=</span> <span class="ident">InPlaceSeed</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>[<span class="ident">i</span>]);
+                        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element_seed</span>(<span class="ident">next_place</span>))
+                    };
+                    <span class="kw">if</span> <span class="ident">next</span>.<span class="ident">is_none</span>() {
+                        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">truncate</span>(<span class="ident">i</span>);
+                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+                    }
+                }
+
+                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
+                    <span class="self">self</span>.<span class="number">0</span>.<span class="ident">push</span>(<span class="ident">value</span>);
+                }
+
+                <span class="prelude-val">Ok</span>(())
+            }
+        }
+
+        <span class="ident">deserializer</span>.<span class="ident">deserialize_seq</span>(<span class="ident">VecInPlaceVisitor</span>(<span class="ident">place</span>))
+    }
+}
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
@@ -3218,7 +3511,7 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">array_impls</span> {
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">len</span>:<span class="ident">expr</span> <span class="op">=&gt;</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">tt</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>)<span class="op">+</span>))<span class="op">+</span>) <span class="op">=&gt;</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">len</span>:<span class="ident">expr</span> <span class="op">=&gt;</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">tt</span>)<span class="op">+</span>))<span class="op">+</span>) <span class="op">=&gt;</span> {
         $(
             <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ArrayVisitor</span><span class="op">&lt;</span>[<span class="ident">T</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">len</span>]<span class="op">&gt;</span>
             <span class="kw">where</span>
@@ -3235,14 +3528,12 @@
                 <span class="kw">where</span>
                     <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
                 {
-                    $(
-                        <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
+                    <span class="prelude-val">Ok</span>([$(
+                        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
                             <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">val</span>,
                             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>, <span class="kw-2">&amp;</span><span class="self">self</span>)),
-                        };
-                    )<span class="op">+</span>
-
-                    <span class="prelude-val">Ok</span>([$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>),<span class="op">+</span>])
+                        }
+                    ),<span class="op">+</span>])
                 }
             }
 
@@ -3298,38 +3589,38 @@
 }
 
 <span class="macro">array_impls</span><span class="macro">!</span> {
-    <span class="number">1</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span>)
-    <span class="number">2</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span>)
-    <span class="number">3</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span>)
-    <span class="number">4</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span>)
-    <span class="number">5</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span>)
-    <span class="number">6</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span>)
-    <span class="number">7</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span>)
-    <span class="number">8</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span>)
-    <span class="number">9</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span>)
-    <span class="number">10</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span>)
-    <span class="number">11</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span>)
-    <span class="number">12</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span>)
-    <span class="number">13</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span>)
-    <span class="number">14</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span>)
-    <span class="number">15</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span>)
-    <span class="number">16</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span>)
-    <span class="number">17</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span>)
-    <span class="number">18</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span>)
-    <span class="number">19</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span>)
-    <span class="number">20</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span>)
-    <span class="number">21</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span>)
-    <span class="number">22</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span>)
-    <span class="number">23</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span>)
-    <span class="number">24</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span>)
-    <span class="number">25</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span>)
-    <span class="number">26</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span>)
-    <span class="number">27</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span>)
-    <span class="number">28</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span> <span class="number">27</span> <span class="ident">ab</span>)
-    <span class="number">29</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span> <span class="number">27</span> <span class="ident">ab</span> <span class="number">28</span> <span class="ident">ac</span>)
-    <span class="number">30</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span> <span class="number">27</span> <span class="ident">ab</span> <span class="number">28</span> <span class="ident">ac</span> <span class="number">29</span> <span class="ident">ad</span>)
-    <span class="number">31</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span> <span class="number">27</span> <span class="ident">ab</span> <span class="number">28</span> <span class="ident">ac</span> <span class="number">29</span> <span class="ident">ad</span> <span class="number">30</span> <span class="ident">ae</span>)
-    <span class="number">32</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="ident">a</span> <span class="number">1</span> <span class="ident">b</span> <span class="number">2</span> <span class="ident">c</span> <span class="number">3</span> <span class="ident">d</span> <span class="number">4</span> <span class="ident">e</span> <span class="number">5</span> <span class="ident">f</span> <span class="number">6</span> <span class="ident">g</span> <span class="number">7</span> <span class="ident">h</span> <span class="number">8</span> <span class="ident">i</span> <span class="number">9</span> <span class="ident">j</span> <span class="number">10</span> <span class="ident">k</span> <span class="number">11</span> <span class="ident">l</span> <span class="number">12</span> <span class="ident">m</span> <span class="number">13</span> <span class="ident">n</span> <span class="number">14</span> <span class="ident">o</span> <span class="number">15</span> <span class="ident">p</span> <span class="number">16</span> <span class="ident">q</span> <span class="number">17</span> <span class="ident">r</span> <span class="number">18</span> <span class="ident">s</span> <span class="number">19</span> <span class="ident">t</span> <span class="number">20</span> <span class="ident">u</span> <span class="number">21</span> <span class="ident">v</span> <span class="number">22</span> <span class="ident">w</span> <span class="number">23</span> <span class="ident">x</span> <span class="number">24</span> <span class="ident">y</span> <span class="number">25</span> <span class="ident">z</span> <span class="number">26</span> <span class="ident">aa</span> <span class="number">27</span> <span class="ident">ab</span> <span class="number">28</span> <span class="ident">ac</span> <span class="number">29</span> <span class="ident">ad</span> <span class="number">30</span> <span class="ident">ae</span> <span class="number">31</span> <span class="ident">af</span>)
+    <span class="number">1</span> <span class="op">=&gt;</span> (<span class="number">0</span>)
+    <span class="number">2</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span>)
+    <span class="number">3</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span>)
+    <span class="number">4</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span>)
+    <span class="number">5</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span>)
+    <span class="number">6</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span>)
+    <span class="number">7</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span>)
+    <span class="number">8</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span>)
+    <span class="number">9</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span>)
+    <span class="number">10</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span>)
+    <span class="number">11</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span>)
+    <span class="number">12</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span>)
+    <span class="number">13</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span>)
+    <span class="number">14</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span>)
+    <span class="number">15</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span>)
+    <span class="number">16</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span>)
+    <span class="number">17</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span>)
+    <span class="number">18</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span>)
+    <span class="number">19</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span>)
+    <span class="number">20</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span>)
+    <span class="number">21</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span>)
+    <span class="number">22</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span>)
+    <span class="number">23</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span>)
+    <span class="number">24</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span>)
+    <span class="number">25</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span>)
+    <span class="number">26</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span>)
+    <span class="number">27</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span>)
+    <span class="number">28</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span> <span class="number">27</span>)
+    <span class="number">29</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span> <span class="number">27</span> <span class="number">28</span>)
+    <span class="number">30</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span> <span class="number">27</span> <span class="number">28</span> <span class="number">29</span>)
+    <span class="number">31</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span> <span class="number">27</span> <span class="number">28</span> <span class="number">29</span> <span class="number">30</span>)
+    <span class="number">32</span> <span class="op">=&gt;</span> (<span class="number">0</span> <span class="number">1</span> <span class="number">2</span> <span class="number">3</span> <span class="number">4</span> <span class="number">5</span> <span class="number">6</span> <span class="number">7</span> <span class="number">8</span> <span class="number">9</span> <span class="number">10</span> <span class="number">11</span> <span class="number">12</span> <span class="number">13</span> <span class="number">14</span> <span class="number">15</span> <span class="number">16</span> <span class="number">17</span> <span class="number">18</span> <span class="number">19</span> <span class="number">20</span> <span class="number">21</span> <span class="number">22</span> <span class="number">23</span> <span class="number">24</span> <span class="number">25</span> <span class="number">26</span> <span class="number">27</span> <span class="number">28</span> <span class="number">29</span> <span class="number">30</span> <span class="number">31</span>)
 }
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
@@ -3437,7 +3728,6 @@
     (
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ident</span> <span class="op">&lt;</span> <span class="ident">K</span> $(: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">kbound1</span>:<span class="ident">ident</span> $(<span class="op">+</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">kbound2</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>)<span class="kw-2">*</span>, <span class="ident">V</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">typaram</span>:<span class="ident">ident</span> : <span class="macro-nonterminal">$</span><span class="macro-nonterminal">bound1</span>:<span class="ident">ident</span> $(<span class="op">+</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">bound2</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>)<span class="op">*</span> <span class="op">&gt;</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">access</span>:<span class="ident">ident</span>,
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ctor</span>:<span class="ident">expr</span>,
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">with_capacity</span>:<span class="ident">expr</span>
     ) <span class="op">=&gt;</span> {
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">K</span>, <span class="ident">V</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">typaram</span>)<span class="kw-2">*</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">typaram</span>)<span class="kw-2">*</span><span class="op">&gt;</span>
@@ -3492,14 +3782,12 @@
 <span class="macro">map_impl</span><span class="macro">!</span>(
     <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">K</span>: <span class="ident">Ord</span>, <span class="ident">V</span><span class="op">&gt;</span>,
     <span class="ident">map</span>,
-    <span class="ident">BTreeMap</span>::<span class="ident">new</span>(),
     <span class="ident">BTreeMap</span>::<span class="ident">new</span>());
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="macro">map_impl</span><span class="macro">!</span>(
     <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>: <span class="ident">Eq</span> <span class="op">+</span> <span class="ident">Hash</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span> <span class="op">+</span> <span class="ident">Default</span><span class="op">&gt;</span>,
     <span class="ident">map</span>,
-    <span class="ident">HashMap</span>::<span class="ident">with_hasher</span>(<span class="ident">S</span>::<span class="ident">default</span>()),
     <span class="ident">HashMap</span>::<span class="ident">with_capacity_and_hasher</span>(<span class="ident">size_hint</span>::<span class="ident">cautious</span>(<span class="ident">map</span>.<span class="ident">size_hint</span>()), <span class="ident">S</span>::<span class="ident">default</span>()));
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
@@ -3678,7 +3966,7 @@
             <span class="ident">deserializer</span>.<span class="ident">deserialize_str</span>(<span class="ident">IpAddrVisitor</span>)
         } <span class="kw">else</span> {
             <span class="kw">use</span> <span class="ident">lib</span>::<span class="ident">net</span>::<span class="ident">IpAddr</span>;
-            <span class="macro">deserialize_enum</span><span class="macro">!</span>{
+            <span class="macro">deserialize_enum</span><span class="macro">!</span> {
                 <span class="ident">IpAddr</span> <span class="ident">IpAddrKind</span> (<span class="ident">V4</span>; <span class="string">b&quot;V4&quot;</span>; <span class="number">0</span>, <span class="ident">V6</span>; <span class="string">b&quot;V6&quot;</span>; <span class="number">1</span>)
                 <span class="string">&quot;`V4` or `V6`&quot;</span>,
                 <span class="ident">deserializer</span>
@@ -3755,7 +4043,7 @@
             <span class="ident">deserializer</span>.<span class="ident">deserialize_str</span>(<span class="ident">SocketAddrVisitor</span>)
         } <span class="kw">else</span> {
             <span class="kw">use</span> <span class="ident">lib</span>::<span class="ident">net</span>::<span class="ident">SocketAddr</span>;
-            <span class="macro">deserialize_enum</span><span class="macro">!</span>{
+            <span class="macro">deserialize_enum</span><span class="macro">!</span> {
                 <span class="ident">SocketAddr</span> <span class="ident">SocketAddrKind</span> (<span class="ident">V4</span>; <span class="string">b&quot;V4&quot;</span>; <span class="number">0</span>, <span class="ident">V6</span>; <span class="string">b&quot;V6&quot;</span>; <span class="number">1</span>)
                 <span class="string">&quot;`V4` or `V6`&quot;</span>,
                 <span class="ident">deserializer</span>
@@ -3855,7 +4143,7 @@
 <span class="comment">//    #[derive(Deserialize)]</span>
 <span class="comment">//    #[serde(variant_identifier)]</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">windows</span>)))]</span>
-<span class="macro">variant_identifier</span><span class="macro">!</span>{
+<span class="macro">variant_identifier</span><span class="macro">!</span> {
     <span class="ident">OsStringKind</span> (<span class="ident">Unix</span>; <span class="string">b&quot;Unix&quot;</span>; <span class="number">0</span>, <span class="ident">Windows</span>; <span class="string">b&quot;Windows&quot;</span>; <span class="number">1</span>)
     <span class="string">&quot;`Unix` or `Windows`&quot;</span>,
     <span class="ident">OSSTR_VARIANTS</span>
@@ -3926,7 +4214,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
 <span class="macro">forwarded_impl</span><span class="macro">!</span>((), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">String</span>::<span class="ident">into_boxed_str</span>);
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">de_rc_dst</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+    <span class="ident">not</span>(<span class="ident">de_rc_dst</span>),
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>,
+    <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)
+))]</span>
 <span class="macro">forwarded_impl</span><span class="macro">!</span> {
     <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
     <span class="doccomment">///</span>
@@ -3938,7 +4230,11 @@
     (<span class="ident">T</span>), <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Arc</span>::<span class="ident">new</span>
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">de_rc_dst</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+    <span class="ident">not</span>(<span class="ident">de_rc_dst</span>),
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>,
+    <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)
+))]</span>
 <span class="macro">forwarded_impl</span><span class="macro">!</span> {
     <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
     <span class="doccomment">///</span>
@@ -4348,8 +4644,7 @@
 <span class="comment">//         start: u64,</span>
 <span class="comment">//         end: u32,</span>
 <span class="comment">//     }</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">Idx</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ops</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">Idx</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">Idx</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
 {
@@ -4357,16 +4652,187 @@
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="comment">// If this were outside of the serde crate, it would just use:</span>
-        <span class="comment">//</span>
-        <span class="comment">//    #[derive(Deserialize)]</span>
-        <span class="comment">//    #[serde(field_identifier, rename_all = &quot;lowercase&quot;)]</span>
+        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">deserializer</span>.<span class="ident">deserialize_struct</span>(
+            <span class="string">&quot;Range&quot;</span>,
+            <span class="ident">range</span>::<span class="ident">FIELDS</span>,
+            <span class="ident">range</span>::<span class="ident">RangeVisitor</span> {
+                <span class="ident">expecting</span>: <span class="string">&quot;struct Range&quot;</span>,
+                <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
+            },
+        )<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">start</span>..<span class="ident">end</span>)
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">range_inclusive</span>)]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">Idx</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">Idx</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+{
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">deserializer</span>.<span class="ident">deserialize_struct</span>(
+            <span class="string">&quot;RangeInclusive&quot;</span>,
+            <span class="ident">range</span>::<span class="ident">FIELDS</span>,
+            <span class="ident">range</span>::<span class="ident">RangeVisitor</span> {
+                <span class="ident">expecting</span>: <span class="string">&quot;struct RangeInclusive&quot;</span>,
+                <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
+            },
+        )<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">RangeInclusive</span>::<span class="ident">new</span>(<span class="ident">start</span>, <span class="ident">end</span>))
+    }
+}
+
+<span class="kw">mod</span> <span class="ident">range</span> {
+    <span class="kw">use</span> <span class="ident">lib</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">use</span> <span class="ident">de</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Error</span>, <span class="ident">MapAccess</span>, <span class="ident">SeqAccess</span>, <span class="ident">Visitor</span>};
+
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FIELDS</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;start&quot;</span>, <span class="string">&quot;end&quot;</span>];
+
+    <span class="comment">// If this were outside of the serde crate, it would just use:</span>
+    <span class="comment">//</span>
+    <span class="comment">//    #[derive(Deserialize)]</span>
+    <span class="comment">//    #[serde(field_identifier, rename_all = &quot;lowercase&quot;)]</span>
+    <span class="kw">enum</span> <span class="ident">Field</span> {
+        <span class="ident">Start</span>,
+        <span class="ident">End</span>,
+    }
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Field</span> {
+        <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">struct</span> <span class="ident">FieldVisitor</span>;
+
+            <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FieldVisitor</span> {
+                <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Field</span>;
+
+                <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+                    <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;`start` or `end`&quot;</span>)
+                }
+
+                <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+                <span class="kw">where</span>
+                    <span class="ident">E</span>: <span class="ident">Error</span>,
+                {
+                    <span class="kw">match</span> <span class="ident">value</span> {
+                        <span class="string">&quot;start&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Start</span>),
+                        <span class="string">&quot;end&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">End</span>),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_field</span>(<span class="ident">value</span>, <span class="ident">FIELDS</span>)),
+                    }
+                }
+
+                <span class="kw">fn</span> <span class="ident">visit_bytes</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+                <span class="kw">where</span>
+                    <span class="ident">E</span>: <span class="ident">Error</span>,
+                {
+                    <span class="kw">match</span> <span class="ident">value</span> {
+                        <span class="string">b&quot;start&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Start</span>),
+                        <span class="string">b&quot;end&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">End</span>),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {
+                            <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> ::<span class="ident">export</span>::<span class="ident">from_utf8_lossy</span>(<span class="ident">value</span>);
+                            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_field</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>, <span class="ident">FIELDS</span>))
+                        }
+                    }
+                }
+            }
+
+            <span class="ident">deserializer</span>.<span class="ident">deserialize_identifier</span>(<span class="ident">FieldVisitor</span>)
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RangeVisitor</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> {
+        <span class="kw">pub</span> <span class="ident">expecting</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="kw">pub</span> <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>,
+    }
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">Idx</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeVisitor</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">Idx</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> (<span class="ident">Idx</span>, <span class="ident">Idx</span>);
+
+        <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+            <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="self">self</span>.<span class="ident">expecting</span>)
+        }
+
+        <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">let</span> <span class="ident">start</span>: <span class="ident">Idx</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
+                <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
+                }
+            };
+            <span class="kw">let</span> <span class="ident">end</span>: <span class="ident">Idx</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
+                <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="number">1</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
+                }
+            };
+            <span class="prelude-val">Ok</span>((<span class="ident">start</span>, <span class="ident">end</span>))
+        }
+
+        <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">map</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">A</span>: <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_key</span>()) {
+                <span class="kw">match</span> <span class="ident">key</span> {
+                    <span class="ident">Field</span>::<span class="ident">Start</span> <span class="op">=&gt;</span> {
+                        <span class="kw">if</span> <span class="ident">start</span>.<span class="ident">is_some</span>() {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;start&quot;</span>));
+                        }
+                        <span class="ident">start</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()));
+                    }
+                    <span class="ident">Field</span>::<span class="ident">End</span> <span class="op">=&gt;</span> {
+                        <span class="kw">if</span> <span class="ident">end</span>.<span class="ident">is_some</span>() {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;end&quot;</span>));
+                        }
+                        <span class="ident">end</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()));
+                    }
+                }
+            }
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">start</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">start</span>) <span class="op">=&gt;</span> <span class="ident">start</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">missing_field</span>(<span class="string">&quot;start&quot;</span>)),
+            };
+            <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">end</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">end</span>) <span class="op">=&gt;</span> <span class="ident">end</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">missing_field</span>(<span class="string">&quot;end&quot;</span>)),
+            };
+            <span class="prelude-val">Ok</span>((<span class="ident">start</span>, <span class="ident">end</span>))
+        }
+    }
+}
+
+<span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">ops_bound</span>, <span class="ident">collections_bound</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+{
+    <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
         <span class="kw">enum</span> <span class="ident">Field</span> {
-            <span class="ident">Start</span>,
-            <span class="ident">End</span>,
-        };
+            <span class="ident">Unbounded</span>,
+            <span class="ident">Included</span>,
+            <span class="ident">Excluded</span>,
+        }
 
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Field</span> {
+            <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
@@ -4377,7 +4843,22 @@
                     <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Field</span>;
 
                     <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-                        <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;`start` or `end`&quot;</span>)
+                        <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;`Unbounded`, `Included` or `Excluded`&quot;</span>)
+                    }
+
+                    <span class="kw">fn</span> <span class="ident">visit_u32</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+                    <span class="kw">where</span>
+                        <span class="ident">E</span>: <span class="ident">Error</span>,
+                    {
+                        <span class="kw">match</span> <span class="ident">value</span> {
+                            <span class="number">0</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Unbounded</span>),
+                            <span class="number">1</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Included</span>),
+                            <span class="number">2</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Excluded</span>),
+                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
+                                <span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u64</span>),
+                                <span class="kw-2">&amp;</span><span class="self">self</span>,
+                            )),
+                        }
                     }
 
                     <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
@@ -4385,9 +4866,10 @@
                         <span class="ident">E</span>: <span class="ident">Error</span>,
                     {
                         <span class="kw">match</span> <span class="ident">value</span> {
-                            <span class="string">&quot;start&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Start</span>),
-                            <span class="string">&quot;end&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">End</span>),
-                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_field</span>(<span class="ident">value</span>, <span class="ident">FIELDS</span>)),
+                            <span class="string">&quot;Unbounded&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Unbounded</span>),
+                            <span class="string">&quot;Included&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Included</span>),
+                            <span class="string">&quot;Excluded&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Excluded</span>),
+                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_variant</span>(<span class="ident">value</span>, <span class="ident">VARIANTS</span>)),
                         }
                     }
 
@@ -4396,12 +4878,15 @@
                         <span class="ident">E</span>: <span class="ident">Error</span>,
                     {
                         <span class="kw">match</span> <span class="ident">value</span> {
-                            <span class="string">b&quot;start&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Start</span>),
-                            <span class="string">b&quot;end&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">End</span>),
-                            <span class="kw">_</span> <span class="op">=&gt;</span> {
-                                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from_utf8_lossy</span>(<span class="ident">value</span>);
-                                <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_field</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>, <span class="ident">FIELDS</span>))
-                            }
+                            <span class="string">b&quot;Unbounded&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Unbounded</span>),
+                            <span class="string">b&quot;Included&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Included</span>),
+                            <span class="string">b&quot;Excluded&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Field</span>::<span class="ident">Excluded</span>),
+                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="ident">value</span>) {
+                                <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">unknown_variant</span>(<span class="ident">value</span>, <span class="ident">VARIANTS</span>)),
+                                <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
+                                    <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_value</span>(<span class="ident">Unexpected</span>::<span class="ident">Bytes</span>(<span class="ident">value</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
+                                }
+                            },
                         }
                     }
                 }
@@ -4410,81 +4895,33 @@
             }
         }
 
-        <span class="kw">struct</span> <span class="ident">RangeVisitor</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> {
-            <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>,
-        }
+        <span class="kw">struct</span> <span class="ident">BoundVisitor</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>);
 
-        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">Idx</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RangeVisitor</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>
+        <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">BoundVisitor</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
         <span class="kw">where</span>
-            <span class="ident">Idx</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            <span class="ident">T</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
         {
-            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">ops</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span>;
+            <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
 
             <span class="kw">fn</span> <span class="ident">expecting</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-                <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;struct Range&quot;</span>)
+                <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;enum Bound&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">seq</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">fn</span> <span class="ident">visit_enum</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">data</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
-                <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+                <span class="ident">A</span>: <span class="ident">EnumAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
             {
-                <span class="kw">let</span> <span class="ident">start</span>: <span class="ident">Idx</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
-                    <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>,
-                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
-                    }
-                };
-                <span class="kw">let</span> <span class="ident">end</span>: <span class="ident">Idx</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">seq</span>.<span class="ident">next_element</span>()) {
-                    <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">value</span>,
-                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="number">1</span>, <span class="kw-2">&amp;</span><span class="self">self</span>));
-                    }
-                };
-                <span class="prelude-val">Ok</span>(<span class="ident">start</span>..<span class="ident">end</span>)
-            }
-
-            <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">map</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span>
-                <span class="ident">A</span>: <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-            {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Idx</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_key</span>()) {
-                    <span class="kw">match</span> <span class="ident">key</span> {
-                        <span class="ident">Field</span>::<span class="ident">Start</span> <span class="op">=&gt;</span> {
-                            <span class="kw">if</span> <span class="ident">start</span>.<span class="ident">is_some</span>() {
-                                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;start&quot;</span>));
-                            }
-                            <span class="ident">start</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()));
-                        }
-                        <span class="ident">Field</span>::<span class="ident">End</span> <span class="op">=&gt;</span> {
-                            <span class="kw">if</span> <span class="ident">end</span>.<span class="ident">is_some</span>() {
-                                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;end&quot;</span>));
-                            }
-                            <span class="ident">end</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()));
-                        }
-                    }
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">variant</span>()) {
+                    (<span class="ident">Field</span>::<span class="ident">Unbounded</span>, <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>.<span class="ident">unit_variant</span>().<span class="ident">map</span>(<span class="op">|</span>()<span class="op">|</span> <span class="ident">Bound</span>::<span class="ident">Unbounded</span>),
+                    (<span class="ident">Field</span>::<span class="ident">Included</span>, <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>.<span class="ident">newtype_variant</span>().<span class="ident">map</span>(<span class="ident">Bound</span>::<span class="ident">Included</span>),
+                    (<span class="ident">Field</span>::<span class="ident">Excluded</span>, <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>.<span class="ident">newtype_variant</span>().<span class="ident">map</span>(<span class="ident">Bound</span>::<span class="ident">Excluded</span>),
                 }
-                <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">start</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">start</span>) <span class="op">=&gt;</span> <span class="ident">start</span>,
-                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">missing_field</span>(<span class="string">&quot;start&quot;</span>)),
-                };
-                <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">end</span> {
-                    <span class="prelude-val">Some</span>(<span class="ident">end</span>) <span class="op">=&gt;</span> <span class="ident">end</span>,
-                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="op">&lt;</span><span class="ident">A</span>::<span class="ident">Error</span> <span class="kw">as</span> <span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">missing_field</span>(<span class="string">&quot;end&quot;</span>)),
-                };
-                <span class="prelude-val">Ok</span>(<span class="ident">start</span>..<span class="ident">end</span>)
             }
         }
 
-        <span class="kw">const</span> <span class="ident">FIELDS</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;start&quot;</span>, <span class="string">&quot;end&quot;</span>];
-        <span class="ident">deserializer</span>.<span class="ident">deserialize_struct</span>(
-            <span class="string">&quot;Range&quot;</span>,
-            <span class="ident">FIELDS</span>,
-            <span class="ident">RangeVisitor</span> {
-                <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
-            },
-        )
+        <span class="kw">const</span> <span class="ident">VARIANTS</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">&quot;Unbounded&quot;</span>, <span class="string">&quot;Included&quot;</span>, <span class="string">&quot;Excluded&quot;</span>];
+
+        <span class="ident">deserializer</span>.<span class="ident">deserialize_enum</span>(<span class="string">&quot;Bound&quot;</span>, <span class="ident">VARIANTS</span>, <span class="ident">BoundVisitor</span>(<span class="ident">PhantomData</span>))
     }
 }
 
@@ -4516,8 +4953,15 @@
     <span class="ident">NonZeroU16</span>,
     <span class="ident">NonZeroU32</span>,
     <span class="ident">NonZeroU64</span>,
-    <span class="comment">// FIXME: https://github.com/serde-rs/serde/issues/1136 NonZeroU128,</span>
     <span class="ident">NonZeroUsize</span>,
+}
+
+<span class="comment">// Currently 128-bit integers do not work on Emscripten targets so we need an</span>
+<span class="comment">// additional `#[cfg]`</span>
+<span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+    <span class="macro">nonzero_integers</span><span class="macro">!</span> {
+        <span class="ident">NonZeroU128</span>,
+    }
 }
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
@@ -4645,5 +5089,5 @@
         <span class="ident">Deserialize</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>).<span class="ident">map</span>(<span class="ident">Wrapping</span>)
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

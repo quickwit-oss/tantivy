@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `de` mod in crate `serde`."><meta name="keywords" content="rust, rustlang, rust-lang, de"><title>serde::de - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Module de</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'><a href='../index.html'>serde</a></p><script>window.sidebarCurrent = {name: 'de', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>serde</a>::<wbr><a class="mod" href=''>de</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/serde/de/mod.rs.html#9-2275' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Generic data structure deserialization framework.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `de` mod in crate `serde`."><meta name="keywords" content="rust, rustlang, rust-lang, de"><title>serde::de - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../serde/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a><p class='location'>Module de</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'><a href='../index.html'>serde</a></p><script>window.sidebarCurrent = {name: 'de', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/serde/de/mod.rs.html#1-2269' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>serde</a>::<wbr><a class="mod" href=''>de</a></span></h1><div class='docblock'><p>Generic data structure deserialization framework.</p>
 <p>The two most important traits in this module are <a href="../trait.Deserialize.html"><code>Deserialize</code></a> and
 <a href="../trait.Deserializer.html"><code>Deserializer</code></a>.</p>
 <ul>
@@ -13,8 +13,7 @@ standard library types. The complete list is below. All of these can be
 deserialized using Serde out of the box.</p>
 <p>Additionally, Serde provides a procedural macro called <a href="https://crates.io/crates/serde_derive"><code>serde_derive</code></a> to
 automatically generate <a href="../trait.Deserialize.html"><code>Deserialize</code></a> implementations for structs and enums
-in your program. See the <a href="https://serde.rs/codegen.html">codegen section of the manual</a> for how to use
-this.</p>
+in your program. See the <a href="https://serde.rs/derive.html">derive section of the manual</a> for how to use this.</p>
 <p>In rare cases it may be necessary to implement <a href="../trait.Deserialize.html"><code>Deserialize</code></a> manually for
 some type in your program. See the <a href="https://serde.rs/impl-deserialize.html">Implementing <code>Deserialize</code></a> section of
 the manual for more about this.</p>
@@ -60,13 +59,13 @@ One example is <code>OsStr</code>.</p>
 <li>Box&lt;T&gt;</li>
 <li>Box&lt;[T]&gt;</li>
 <li>Box&lt;str&gt;</li>
-<li>Rc&lt;T&gt;</li>
-<li>Arc&lt;T&gt;</li>
 <li>Cow&lt;'a, T&gt;</li>
 <li>Cell&lt;T&gt;</li>
 <li>RefCell&lt;T&gt;</li>
 <li>Mutex&lt;T&gt;</li>
 <li>RwLock&lt;T&gt;</li>
+<li>Rc&lt;T&gt; <em>(if</em> features = [&quot;rc&quot;] <em>is enabled)</em></li>
+<li>Arc&lt;T&gt; <em>(if</em> features = [&quot;rc&quot;] <em>is enabled)</em></li>
 </ul>
 </li>
 <li><strong>Collection types</strong>:
@@ -101,6 +100,8 @@ One example is <code>OsStr</code>.</p>
 <li>Path</li>
 <li>PathBuf</li>
 <li>Range&lt;T&gt;</li>
+<li>RangeInclusive&lt;T&gt;</li>
+<li>Bound&lt;T&gt;</li>
 <li>num::NonZero*</li>
 <li><code>!</code> <em>(unstable)</em></li>
 </ul>
@@ -117,140 +118,35 @@ One example is <code>OsStr</code>.</p>
 </li>
 </ul>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="value/index.html"
-                                  title='mod serde::de::value'>value</a></td>
-                           <td class='docblock-short'>
-                                <p>Building blocks for deserializing basic values using the <code>IntoDeserializer</code>
+<table><tr class='module-item'><td><a class="mod" href="value/index.html" title='serde::de::value mod'>value</a></td><td class='docblock-short'><p>Building blocks for deserializing basic values using the <code>IntoDeserializer</code>
 trait.</p>
-
-                           </td>
-                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.IgnoredAny.html"
-                                  title='struct serde::de::IgnoredAny'>IgnoredAny</a></td>
-                           <td class='docblock-short'>
-                                <p>An efficient way of discarding data from a deserializer.</p>
-
-                           </td>
-                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="enum" href="enum.Unexpected.html"
-                                  title='enum serde::de::Unexpected'>Unexpected</a></td>
-                           <td class='docblock-short'>
-                                <p><code>Unexpected</code> represents an unexpected invocation of any one of the <code>Visitor</code>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.IgnoredAny.html" title='serde::de::IgnoredAny struct'>IgnoredAny</a></td><td class='docblock-short'><p>An efficient way of discarding data from a deserializer.</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.Unexpected.html" title='serde::de::Unexpected enum'>Unexpected</a></td><td class='docblock-short'><p><code>Unexpected</code> represents an unexpected invocation of any one of the <code>Visitor</code>
 trait methods.</p>
-
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Deserialize.html"
-                                  title='trait serde::de::Deserialize'>Deserialize</a></td>
-                           <td class='docblock-short'>
-                                <p>A <strong>data structure</strong> that can be deserialized from any data format supported
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.Deserialize.html" title='serde::de::Deserialize trait'>Deserialize</a></td><td class='docblock-short'><p>A <strong>data structure</strong> that can be deserialized from any data format supported
 by Serde.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.DeserializeOwned.html"
-                                  title='trait serde::de::DeserializeOwned'>DeserializeOwned</a></td>
-                           <td class='docblock-short'>
-                                <p>A data structure that can be deserialized without borrowing any data from
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.DeserializeOwned.html" title='serde::de::DeserializeOwned trait'>DeserializeOwned</a></td><td class='docblock-short'><p>A data structure that can be deserialized without borrowing any data from
 the deserializer.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.DeserializeSeed.html"
-                                  title='trait serde::de::DeserializeSeed'>DeserializeSeed</a></td>
-                           <td class='docblock-short'>
-                                <p><code>DeserializeSeed</code> is the stateful form of the <code>Deserialize</code> trait. If you
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.DeserializeSeed.html" title='serde::de::DeserializeSeed trait'>DeserializeSeed</a></td><td class='docblock-short'><p><code>DeserializeSeed</code> is the stateful form of the <code>Deserialize</code> trait. If you
 ever find yourself looking for a way to pass data into a <code>Deserialize</code> impl,
 this trait is the way to do it.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Deserializer.html"
-                                  title='trait serde::de::Deserializer'>Deserializer</a></td>
-                           <td class='docblock-short'>
-                                <p>A <strong>data format</strong> that can deserialize any data structure supported by
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Deserializer.html" title='serde::de::Deserializer trait'>Deserializer</a></td><td class='docblock-short'><p>A <strong>data format</strong> that can deserialize any data structure supported by
 Serde.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.EnumAccess.html"
-                                  title='trait serde::de::EnumAccess'>EnumAccess</a></td>
-                           <td class='docblock-short'>
-                                <p>Provides a <code>Visitor</code> access to the data of an enum in the input.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Error.html"
-                                  title='trait serde::de::Error'>Error</a></td>
-                           <td class='docblock-short'>
-                                <p>The <code>Error</code> trait allows <code>Deserialize</code> implementations to create descriptive
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.EnumAccess.html" title='serde::de::EnumAccess trait'>EnumAccess</a></td><td class='docblock-short'><p>Provides a <code>Visitor</code> access to the data of an enum in the input.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Error.html" title='serde::de::Error trait'>Error</a></td><td class='docblock-short'><p>The <code>Error</code> trait allows <code>Deserialize</code> implementations to create descriptive
 error messages belonging to the <code>Deserializer</code> against which they are
 currently running.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Expected.html"
-                                  title='trait serde::de::Expected'>Expected</a></td>
-                           <td class='docblock-short'>
-                                <p><code>Expected</code> represents an explanation of what data a <code>Visitor</code> was expecting
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Expected.html" title='serde::de::Expected trait'>Expected</a></td><td class='docblock-short'><p><code>Expected</code> represents an explanation of what data a <code>Visitor</code> was expecting
 to receive.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.IntoDeserializer.html"
-                                  title='trait serde::de::IntoDeserializer'>IntoDeserializer</a></td>
-                           <td class='docblock-short'>
-                                <p>Converts an existing value into a <code>Deserializer</code> from which other values can
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.IntoDeserializer.html" title='serde::de::IntoDeserializer trait'>IntoDeserializer</a></td><td class='docblock-short'><p>Converts an existing value into a <code>Deserializer</code> from which other values can
 be deserialized.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.MapAccess.html"
-                                  title='trait serde::de::MapAccess'>MapAccess</a></td>
-                           <td class='docblock-short'>
-                                <p>Provides a <code>Visitor</code> access to each entry of a map in the input.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.SeqAccess.html"
-                                  title='trait serde::de::SeqAccess'>SeqAccess</a></td>
-                           <td class='docblock-short'>
-                                <p>Provides a <code>Visitor</code> access to each element of a sequence in the input.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.VariantAccess.html"
-                                  title='trait serde::de::VariantAccess'>VariantAccess</a></td>
-                           <td class='docblock-short'>
-                                <p><code>VariantAccess</code> is a visitor that is created by the <code>Deserializer</code> and
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.MapAccess.html" title='serde::de::MapAccess trait'>MapAccess</a></td><td class='docblock-short'><p>Provides a <code>Visitor</code> access to each entry of a map in the input.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.SeqAccess.html" title='serde::de::SeqAccess trait'>SeqAccess</a></td><td class='docblock-short'><p>Provides a <code>Visitor</code> access to each element of a sequence in the input.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.VariantAccess.html" title='serde::de::VariantAccess trait'>VariantAccess</a></td><td class='docblock-short'><p><code>VariantAccess</code> is a visitor that is created by the <code>Deserializer</code> and
 passed to the <code>Deserialize</code> to deserialize the content of a particular enum
 variant.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Visitor.html"
-                                  title='trait serde::de::Visitor'>Visitor</a></td>
-                           <td class='docblock-short'>
-                                <p>This trait represents a visitor that walks through a deserializer.</p>
-
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "serde";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Visitor.html" title='serde::de::Visitor trait'>Visitor</a></td><td class='docblock-short'><p>This trait represents a visitor that walks through a deserializer.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "serde";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

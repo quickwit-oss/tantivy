@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.0/src/raw/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.3/src/raw/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../fst/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1044,7 +1044,27 @@
 <span id="1044">1044</span>
 <span id="1045">1045</span>
 <span id="1046">1046</span>
-</pre><pre class="rust ">
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/*!
 Operations on raw finite state transducers.
 
@@ -1266,8 +1286,7 @@ Most of the rest of the types are streams from set operations.
 <span class="doccomment">///</span>
 <span class="doccomment">/// The corresponding automaton looks like this:</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ![finite state automaton - one billion strings]</span>
-<span class="doccomment">/// (http://burntsushi.net/stuff/one-billion.png)</span>
+<span class="doccomment">/// ![finite state automaton - one billion strings](http://burntsushi.net/stuff/one-billion.png)</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Indeed, the on disk size of this automaton is a mere **251 bytes**.</span>
 <span class="doccomment">///</span>
@@ -1353,6 +1372,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// A `MmapReadOnly` lets one control which region of the file is used for</span>
     <span class="doccomment">/// the transducer.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_mmap</span>(<span class="ident">mmap</span>: <span class="ident">MmapReadOnly</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="ident">Fst</span>::<span class="ident">new</span>(<span class="ident">FstData</span>::<span class="ident">Mmap</span>(<span class="ident">mmap</span>))
     }
@@ -1365,6 +1385,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// transducer builder (`Builder` qualifies). If the format is invalid or</span>
     <span class="doccomment">/// if there is a mismatch between the API version of this library and the</span>
     <span class="doccomment">/// fst, then an error is returned.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_bytes</span>(<span class="ident">bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="ident">Fst</span>::<span class="ident">new</span>(<span class="ident">FstData</span>::<span class="ident">Cow</span>(<span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">bytes</span>)))
     }
@@ -1373,6 +1394,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">///</span>
     <span class="doccomment">/// This accepts a static byte slice, which may be useful if the Fst</span>
     <span class="doccomment">/// is embedded into source code.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_static_slice</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="ident">Fst</span>::<span class="ident">new</span>(<span class="ident">FstData</span>::<span class="ident">Cow</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="ident">bytes</span>)))
     }
@@ -1382,6 +1404,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">///</span>
     <span class="doccomment">/// This permits creating multiple transducers from a single region of</span>
     <span class="doccomment">/// owned memory.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_shared_bytes</span>(
         <span class="ident">bytes</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>,
         <span class="ident">offset</span>: <span class="ident">usize</span>,
@@ -1486,6 +1509,7 @@ Most of the rest of the types are streams from set operations.
 
     <span class="doccomment">/// Return a lexicographically ordered stream of all key-value pairs in</span>
     <span class="doccomment">/// this fst.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stream</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Stream</span> {
         <span class="ident">StreamBuilder</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">AlwaysMatch</span>).<span class="ident">into_stream</span>()
     }
@@ -1494,6 +1518,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">///</span>
     <span class="doccomment">/// A range query returns a subset of key-value pairs in this fst in a</span>
     <span class="doccomment">/// range given in lexicographic order.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">StreamBuilder</span> {
         <span class="ident">StreamBuilder</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">AlwaysMatch</span>)
     }
@@ -1504,16 +1529,19 @@ Most of the rest of the types are streams from set operations.
     }
 
     <span class="doccomment">/// Returns the number of keys in this fst.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">len</span>
     }
 
     <span class="doccomment">/// Returns true if and only if this fst has no keys.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">len</span> <span class="op">==</span> <span class="number">0</span>
     }
 
     <span class="doccomment">/// Returns the number of bytes used by this fst.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">len</span>()
     }
@@ -1524,6 +1552,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// and perform set operations like union, intersection, difference and</span>
     <span class="doccomment">/// symmetric difference on the keys of the fst. These set operations also</span>
     <span class="doccomment">/// allow one to specify how conflicting values are merged in the stream.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">op</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">OpBuilder</span> {
         <span class="ident">OpBuilder</span>::<span class="ident">new</span>().<span class="ident">add</span>(<span class="self">self</span>)
     }
@@ -1578,6 +1607,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">///</span>
     <span class="doccomment">/// This crate reserves the range 0-255 (inclusive) but currently leaves</span>
     <span class="doccomment">/// the meaning of 0-255 unspecified.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fst_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">FstType</span> {
         <span class="self">self</span>.<span class="ident">ty</span>
     }
@@ -1591,13 +1621,21 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// Returns the node at the given address.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Node addresses can be obtained by reading transitions on `Node` values.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">addr</span>: <span class="ident">CompiledAddr</span>) <span class="op">-&gt;</span> <span class="ident">Node</span> {
         <span class="ident">node_new</span>(<span class="self">self</span>.<span class="ident">version</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>)
     }
 
     <span class="doccomment">/// Returns a copy of the binary contents of this FST.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_vec</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">to_vec</span>()
+    }
+
+    <span class="doccomment">/// Returns the binary contents of this FST.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>
     }
 
     <span class="kw">fn</span> <span class="ident">empty_final_output</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Output</span><span class="op">&gt;</span> {
@@ -1614,6 +1652,7 @@ Most of the rest of the types are streams from set operations.
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="ident">Output</span>);
     <span class="kw">type</span> <span class="ident">Into</span> <span class="op">=</span> <span class="ident">Stream</span><span class="op">&lt;</span><span class="lifetime">&#39;f</span><span class="op">&gt;</span>;
 
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">into_stream</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">Into</span> {
         <span class="ident">StreamBuilder</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">AlwaysMatch</span>).<span class="ident">into_stream</span>()
     }
@@ -2053,6 +2092,7 @@ Most of the rest of the types are streams from set operations.
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Transition</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Transition</span> {
             <span class="ident">inp</span>: <span class="number">0</span>,
@@ -2091,5 +2131,5 @@ system.&quot;</span>, <span class="ident">n</span>);
     }
     <span class="ident">n</span> <span class="kw">as</span> <span class="ident">usize</span>
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "fst";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "fst";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/memmap-0.6.2/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/memmap-0.7.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../memmap/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1006,19 +1006,10 @@
 <span id="1006">1006</span>
 <span id="1007">1007</span>
 <span id="1008">1008</span>
-<span id="1009">1009</span>
-<span id="1010">1010</span>
-<span id="1011">1011</span>
-<span id="1012">1012</span>
-<span id="1013">1013</span>
-<span id="1014">1014</span>
-<span id="1015">1015</span>
-<span id="1016">1016</span>
-<span id="1017">1017</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A cross-platform Rust API for memory mapped buffers.</span>
 
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/memmap/0.6.2&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/memmap/0.7.0&quot;</span>)]</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">winapi</span>;
@@ -1035,9 +1026,9 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">usize</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
 
 <span class="doccomment">/// A memory map builder, providing advanced options and flags for specifying memory map behavior.</span>
 <span class="doccomment">///</span>
@@ -1046,7 +1037,7 @@
 <span class="doccomment">/// `MmapOptions::map_exec`, or `MmapOptions::map_copy`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MmapOptions</span> {
-    <span class="ident">offset</span>: <span class="ident">usize</span>,
+    <span class="ident">offset</span>: <span class="ident">u64</span>,
     <span class="ident">len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
     <span class="ident">stack</span>: <span class="ident">bool</span>,
 }
@@ -1060,7 +1051,7 @@
     <span class="doccomment">/// use memmap::{MmapMut, MmapOptions};</span>
     <span class="doccomment">/// # use std::io::Result;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; Result&lt;()&gt; {</span>
     <span class="doccomment">/// // Create a new memory map builder.</span>
     <span class="doccomment">/// let mut mmap_options = MmapOptions::new();</span>
     <span class="doccomment">///</span>
@@ -1074,7 +1065,6 @@
     <span class="doccomment">/// # let _ = mmap_options;</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">MmapOptions</span> {
         <span class="ident">MmapOptions</span>::<span class="ident">default</span>()
@@ -1092,7 +1082,7 @@
     <span class="doccomment">/// use memmap::MmapOptions;</span>
     <span class="doccomment">/// use std::fs::File;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let mmap = unsafe {</span>
     <span class="doccomment">///     MmapOptions::new()</span>
     <span class="doccomment">///                 .offset(10)</span>
@@ -1102,9 +1092,8 @@
     <span class="doccomment">///            &amp;mmap[..51]);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">offset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">offset</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">offset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">offset</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">offset</span> <span class="op">=</span> <span class="ident">offset</span>;
         <span class="self">self</span>
     }
@@ -1121,7 +1110,7 @@
     <span class="doccomment">/// use memmap::MmapOptions;</span>
     <span class="doccomment">/// use std::fs::File;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let mmap = unsafe {</span>
     <span class="doccomment">///     MmapOptions::new()</span>
     <span class="doccomment">///                 .len(8)</span>
@@ -1130,7 +1119,6 @@
     <span class="doccomment">/// assert_eq!(&amp;b&quot;# memmap&quot;[..], &amp;mmap[..]);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">len</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">len</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">len</span>);
@@ -1140,14 +1128,14 @@
     <span class="doccomment">/// Returns the configured length, or the length of the provided file.</span>
     <span class="kw">fn</span> <span class="ident">get_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">len</span>.<span class="ident">map</span>(<span class="prelude-val">Ok</span>).<span class="ident">unwrap_or_else</span>(<span class="op">||</span> {
-            <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">file</span>.<span class="ident">metadata</span>()<span class="question-mark">?</span>.<span class="ident">len</span>();
+            <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">file</span>.<span class="ident">metadata</span>()<span class="question-mark">?</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">offset</span>;
             <span class="kw">if</span> <span class="ident">len</span> <span class="op">&gt;</span> (<span class="ident">usize</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>) {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">new</span>(
                     <span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>,
-                    <span class="string">&quot;file length overflows usize&quot;</span>,
+                    <span class="string">&quot;memory map length overflows usize&quot;</span>,
                 ));
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">offset</span>)
+            <span class="prelude-val">Ok</span>(<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span>)
         })
     }
 
@@ -1162,11 +1150,10 @@
     <span class="doccomment">/// ```</span>
     <span class="doccomment">/// use memmap::MmapOptions;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let stack = MmapOptions::new().stack().len(4096).map_anon();</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stack</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span> {
         <span class="self">self</span>.<span class="ident">stack</span> <span class="op">=</span> <span class="bool-val">true</span>;
@@ -1187,7 +1174,7 @@
     <span class="doccomment">/// use std::fs::File;</span>
     <span class="doccomment">/// use std::io::Read;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let mut file = File::open(&quot;README.md&quot;)?;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut contents = Vec::new();</span>
@@ -1200,7 +1187,6 @@
     <span class="doccomment">/// assert_eq!(&amp;contents[..], &amp;mmap[..]);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">map</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Mmap</span><span class="op">&gt;</span> {
         <span class="ident">MmapInner</span>::<span class="ident">map</span>(<span class="self">self</span>.<span class="ident">get_len</span>(<span class="ident">file</span>)<span class="question-mark">?</span>, <span class="ident">file</span>, <span class="self">self</span>.<span class="ident">offset</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">inner</span><span class="op">|</span> <span class="ident">Mmap</span> { <span class="ident">inner</span>: <span class="ident">inner</span> })
@@ -1235,7 +1221,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// use memmap::MmapOptions;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// # let tempdir = tempdir::TempDir::new(&quot;mmap&quot;)?;</span>
     <span class="doccomment">/// let path: PathBuf = /* path to file */</span>
     <span class="doccomment">/// #   tempdir.path().join(&quot;map_mut&quot;);</span>
@@ -1249,7 +1235,6 @@
     <span class="doccomment">/// mmap.copy_from_slice(b&quot;Hello, world!&quot;);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">map_mut</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MmapMut</span><span class="op">&gt;</span> {
         <span class="ident">MmapInner</span>::<span class="ident">map_mut</span>(<span class="self">self</span>.<span class="ident">get_len</span>(<span class="ident">file</span>)<span class="question-mark">?</span>, <span class="ident">file</span>, <span class="self">self</span>.<span class="ident">offset</span>)
@@ -1273,13 +1258,12 @@
     <span class="doccomment">/// use std::fs::File;</span>
     <span class="doccomment">/// use std::io::Write;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let file = File::open(&quot;README.md&quot;)?;</span>
     <span class="doccomment">/// let mut mmap = unsafe { MmapOptions::new().map_copy(&amp;file)? };</span>
     <span class="doccomment">/// (&amp;mut mmap[..]).write_all(b&quot;Hello, world!&quot;)?;</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">map_copy</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MmapMut</span><span class="op">&gt;</span> {
         <span class="ident">MmapInner</span>::<span class="ident">map_copy</span>(<span class="self">self</span>.<span class="ident">get_len</span>(<span class="ident">file</span>)<span class="question-mark">?</span>, <span class="ident">file</span>, <span class="self">self</span>.<span class="ident">offset</span>)
@@ -1314,13 +1298,12 @@
 <span class="doccomment">/// use std::io::Write;</span>
 <span class="doccomment">/// use std::fs::File;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+<span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
 <span class="doccomment">/// let file = File::open(&quot;README.md&quot;)?;</span>
 <span class="doccomment">/// let mmap = unsafe { MmapOptions::new().map(&amp;file)? };</span>
 <span class="doccomment">/// assert_eq!(b&quot;# memmap&quot;, &amp;mmap[0..8]);</span>
 <span class="doccomment">/// # Ok(())</span>
 <span class="doccomment">/// # }</span>
-<span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See `MmapMut` for the mutable version.</span>
@@ -1346,7 +1329,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// use memmap::Mmap;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let mut file = File::open(&quot;README.md&quot;)?;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut contents = Vec::new();</span>
@@ -1357,7 +1340,6 @@
     <span class="doccomment">/// assert_eq!(&amp;contents[..], &amp;mmap[..]);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">map</span>(<span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Mmap</span><span class="op">&gt;</span> {
         <span class="ident">MmapOptions</span>::<span class="ident">new</span>().<span class="ident">map</span>(<span class="ident">file</span>)
@@ -1383,7 +1365,7 @@
     <span class="doccomment">/// use std::io::Write;</span>
     <span class="doccomment">/// # use std::fs::OpenOptions;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// # let tempdir = tempdir::TempDir::new(&quot;mmap&quot;)?;</span>
     <span class="doccomment">/// let file = /* file opened with write permissions */</span>
     <span class="doccomment">/// #          OpenOptions::new()</span>
@@ -1399,7 +1381,6 @@
     <span class="doccomment">/// mut_mmap.deref_mut().write_all(b&quot;hello, world!&quot;)?;</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_mut</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MmapMut</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">make_mut</span>()<span class="question-mark">?</span>;
@@ -1464,7 +1445,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// use memmap::MmapMut;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// # let tempdir = tempdir::TempDir::new(&quot;mmap&quot;)?;</span>
     <span class="doccomment">/// let path: PathBuf = /* path to file */</span>
     <span class="doccomment">/// #   tempdir.path().join(&quot;map_mut&quot;);</span>
@@ -1480,7 +1461,6 @@
     <span class="doccomment">/// mmap.copy_from_slice(b&quot;Hello, world!&quot;);</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">map_mut</span>(<span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MmapMut</span><span class="op">&gt;</span> {
         <span class="ident">MmapOptions</span>::<span class="ident">new</span>().<span class="ident">map_mut</span>(<span class="ident">file</span>)
@@ -1515,7 +1495,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// use memmap::MmapMut;</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// # let tempdir = tempdir::TempDir::new(&quot;mmap&quot;)?;</span>
     <span class="doccomment">/// let path: PathBuf = /* path to file */</span>
     <span class="doccomment">/// #   tempdir.path().join(&quot;flush&quot;);</span>
@@ -1528,7 +1508,6 @@
     <span class="doccomment">/// mmap.flush()?;</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">len</span>();
@@ -1590,7 +1569,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// use memmap::{Mmap, MmapMut};</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// # fn try_main() -&gt; std::io::Result&lt;()&gt; {</span>
+    <span class="doccomment">/// # fn main() -&gt; std::io::Result&lt;()&gt; {</span>
     <span class="doccomment">/// let mut mmap = MmapMut::map_anon(128)?;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// (&amp;mut mmap[..]).write(b&quot;Hello, world!&quot;)?;</span>
@@ -1598,7 +1577,6 @@
     <span class="doccomment">/// let mmap: Mmap = mmap.make_read_only()?;</span>
     <span class="doccomment">/// # Ok(())</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// # fn main() { try_main().unwrap(); }</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_read_only</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Mmap</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">make_read_only</span>()<span class="question-mark">?</span>;
@@ -1666,9 +1644,9 @@
     <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">winapi</span>;
 
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">OpenOptions</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">windows</span>::<span class="ident">fs</span>::<span class="ident">OpenOptionsExt</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
 
@@ -1847,11 +1825,15 @@
             .<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)
             .<span class="ident">unwrap</span>();
 
-        <span class="ident">file</span>.<span class="ident">set_len</span>(<span class="number">500000</span> <span class="kw">as</span> <span class="ident">u64</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">offset</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">2</span>;
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="number">5432</span>;
+        <span class="ident">file</span>.<span class="ident">set_len</span>(<span class="ident">offset</span> <span class="op">+</span> <span class="ident">len</span> <span class="kw">as</span> <span class="ident">u64</span>).<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">5099</span>;
-        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="number">50050</span>;
+        <span class="comment">// Check inferred length mmap.</span>
+        <span class="kw">let</span> <span class="ident">mmap</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">MmapOptions</span>::<span class="ident">new</span>().<span class="ident">offset</span>(<span class="ident">offset</span>).<span class="ident">map_mut</span>(<span class="kw-2">&amp;</span><span class="ident">file</span>).<span class="ident">unwrap</span>() };
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="ident">mmap</span>.<span class="ident">len</span>());
 
+        <span class="comment">// Check explicit length mmap.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mmap</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">MmapOptions</span>::<span class="ident">new</span>()
                 .<span class="ident">offset</span>(<span class="ident">offset</span>)
@@ -2033,5 +2015,5 @@
         <span class="ident">drop</span>(<span class="ident">mmap</span>);
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "memmap";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "memmap";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

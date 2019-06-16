@@ -1,0 +1,529 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/htmlescape-0.3.1/src/entities.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>entities.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../htmlescape/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">MINIMAL_ENTITIES</span>: [(<span class="ident">char</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>); <span class="number">5</span>] <span class="op">=</span> [
+    (<span class="string">&#39;&quot;&#39;</span>, <span class="string">&quot;&amp;quot;&quot;</span>),
+    (<span class="string">&#39;&amp;&#39;</span>, <span class="string">&quot;&amp;amp;&quot;</span>),
+    (<span class="string">&#39;\&#39;&#39;</span>, <span class="string">&quot;&amp;#x27;&quot;</span>),
+    (<span class="string">&#39;&lt;&#39;</span>, <span class="string">&quot;&amp;lt;&quot;</span>),
+    (<span class="string">&#39;&gt;&#39;</span>, <span class="string">&quot;&amp;gt;&quot;</span>)
+];
+
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">NAMED_ENTITIES</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span>[(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+    (<span class="string">&quot;AElig&quot;</span>, <span class="string">&#39;\u{00C6}&#39;</span>),
+    (<span class="string">&quot;Aacute&quot;</span>, <span class="string">&#39;\u{00C1}&#39;</span>),
+    (<span class="string">&quot;Acirc&quot;</span>, <span class="string">&#39;\u{00C2}&#39;</span>),
+    (<span class="string">&quot;Agrave&quot;</span>, <span class="string">&#39;\u{00C0}&#39;</span>),
+    (<span class="string">&quot;Alpha&quot;</span>, <span class="string">&#39;\u{0391}&#39;</span>),
+    (<span class="string">&quot;Aring&quot;</span>, <span class="string">&#39;\u{00C5}&#39;</span>),
+    (<span class="string">&quot;Atilde&quot;</span>, <span class="string">&#39;\u{00C3}&#39;</span>),
+    (<span class="string">&quot;Auml&quot;</span>, <span class="string">&#39;\u{00C4}&#39;</span>),
+    (<span class="string">&quot;Beta&quot;</span>, <span class="string">&#39;\u{0392}&#39;</span>),
+    (<span class="string">&quot;Ccedil&quot;</span>, <span class="string">&#39;\u{00C7}&#39;</span>),
+    (<span class="string">&quot;Chi&quot;</span>, <span class="string">&#39;\u{03A7}&#39;</span>),
+    (<span class="string">&quot;Dagger&quot;</span>, <span class="string">&#39;\u{2021}&#39;</span>),
+    (<span class="string">&quot;Delta&quot;</span>, <span class="string">&#39;\u{0394}&#39;</span>),
+    (<span class="string">&quot;ETH&quot;</span>, <span class="string">&#39;\u{00D0}&#39;</span>),
+    (<span class="string">&quot;Eacute&quot;</span>, <span class="string">&#39;\u{00C9}&#39;</span>),
+    (<span class="string">&quot;Ecirc&quot;</span>, <span class="string">&#39;\u{00CA}&#39;</span>),
+    (<span class="string">&quot;Egrave&quot;</span>, <span class="string">&#39;\u{00C8}&#39;</span>),
+    (<span class="string">&quot;Epsilon&quot;</span>, <span class="string">&#39;\u{0395}&#39;</span>),
+    (<span class="string">&quot;Eta&quot;</span>, <span class="string">&#39;\u{0397}&#39;</span>),
+    (<span class="string">&quot;Euml&quot;</span>, <span class="string">&#39;\u{00CB}&#39;</span>),
+    (<span class="string">&quot;Gamma&quot;</span>, <span class="string">&#39;\u{0393}&#39;</span>),
+    (<span class="string">&quot;Iacute&quot;</span>, <span class="string">&#39;\u{00CD}&#39;</span>),
+    (<span class="string">&quot;Icirc&quot;</span>, <span class="string">&#39;\u{00CE}&#39;</span>),
+    (<span class="string">&quot;Igrave&quot;</span>, <span class="string">&#39;\u{00CC}&#39;</span>),
+    (<span class="string">&quot;Iota&quot;</span>, <span class="string">&#39;\u{0399}&#39;</span>),
+    (<span class="string">&quot;Iuml&quot;</span>, <span class="string">&#39;\u{00CF}&#39;</span>),
+    (<span class="string">&quot;Kappa&quot;</span>, <span class="string">&#39;\u{039A}&#39;</span>),
+    (<span class="string">&quot;Lambda&quot;</span>, <span class="string">&#39;\u{039B}&#39;</span>),
+    (<span class="string">&quot;Mu&quot;</span>, <span class="string">&#39;\u{039C}&#39;</span>),
+    (<span class="string">&quot;Ntilde&quot;</span>, <span class="string">&#39;\u{00D1}&#39;</span>),
+    (<span class="string">&quot;Nu&quot;</span>, <span class="string">&#39;\u{039D}&#39;</span>),
+    (<span class="string">&quot;OElig&quot;</span>, <span class="string">&#39;\u{0152}&#39;</span>),
+    (<span class="string">&quot;Oacute&quot;</span>, <span class="string">&#39;\u{00D3}&#39;</span>),
+    (<span class="string">&quot;Ocirc&quot;</span>, <span class="string">&#39;\u{00D4}&#39;</span>),
+    (<span class="string">&quot;Ograve&quot;</span>, <span class="string">&#39;\u{00D2}&#39;</span>),
+    (<span class="string">&quot;Omega&quot;</span>, <span class="string">&#39;\u{03A9}&#39;</span>),
+    (<span class="string">&quot;Omicron&quot;</span>, <span class="string">&#39;\u{039F}&#39;</span>),
+    (<span class="string">&quot;Oslash&quot;</span>, <span class="string">&#39;\u{00D8}&#39;</span>),
+    (<span class="string">&quot;Otilde&quot;</span>, <span class="string">&#39;\u{00D5}&#39;</span>),
+    (<span class="string">&quot;Ouml&quot;</span>, <span class="string">&#39;\u{00D6}&#39;</span>),
+    (<span class="string">&quot;Phi&quot;</span>, <span class="string">&#39;\u{03A6}&#39;</span>),
+    (<span class="string">&quot;Pi&quot;</span>, <span class="string">&#39;\u{03A0}&#39;</span>),
+    (<span class="string">&quot;Prime&quot;</span>, <span class="string">&#39;\u{2033}&#39;</span>),
+    (<span class="string">&quot;Psi&quot;</span>, <span class="string">&#39;\u{03A8}&#39;</span>),
+    (<span class="string">&quot;Rho&quot;</span>, <span class="string">&#39;\u{03A1}&#39;</span>),
+    (<span class="string">&quot;Scaron&quot;</span>, <span class="string">&#39;\u{0160}&#39;</span>),
+    (<span class="string">&quot;Sigma&quot;</span>, <span class="string">&#39;\u{03A3}&#39;</span>),
+    (<span class="string">&quot;THORN&quot;</span>, <span class="string">&#39;\u{00DE}&#39;</span>),
+    (<span class="string">&quot;Tau&quot;</span>, <span class="string">&#39;\u{03A4}&#39;</span>),
+    (<span class="string">&quot;Theta&quot;</span>, <span class="string">&#39;\u{0398}&#39;</span>),
+    (<span class="string">&quot;Uacute&quot;</span>, <span class="string">&#39;\u{00DA}&#39;</span>),
+    (<span class="string">&quot;Ucirc&quot;</span>, <span class="string">&#39;\u{00DB}&#39;</span>),
+    (<span class="string">&quot;Ugrave&quot;</span>, <span class="string">&#39;\u{00D9}&#39;</span>),
+    (<span class="string">&quot;Upsilon&quot;</span>, <span class="string">&#39;\u{03A5}&#39;</span>),
+    (<span class="string">&quot;Uuml&quot;</span>, <span class="string">&#39;\u{00DC}&#39;</span>),
+    (<span class="string">&quot;Xi&quot;</span>, <span class="string">&#39;\u{039E}&#39;</span>),
+    (<span class="string">&quot;Yacute&quot;</span>, <span class="string">&#39;\u{00DD}&#39;</span>),
+    (<span class="string">&quot;Yuml&quot;</span>, <span class="string">&#39;\u{0178}&#39;</span>),
+    (<span class="string">&quot;Zeta&quot;</span>, <span class="string">&#39;\u{0396}&#39;</span>),
+    (<span class="string">&quot;aacute&quot;</span>, <span class="string">&#39;\u{00E1}&#39;</span>),
+    (<span class="string">&quot;acirc&quot;</span>, <span class="string">&#39;\u{00E2}&#39;</span>),
+    (<span class="string">&quot;acute&quot;</span>, <span class="string">&#39;\u{00B4}&#39;</span>),
+    (<span class="string">&quot;aelig&quot;</span>, <span class="string">&#39;\u{00E6}&#39;</span>),
+    (<span class="string">&quot;agrave&quot;</span>, <span class="string">&#39;\u{00E0}&#39;</span>),
+    (<span class="string">&quot;alefsym&quot;</span>, <span class="string">&#39;\u{2135}&#39;</span>),
+    (<span class="string">&quot;alpha&quot;</span>, <span class="string">&#39;\u{03B1}&#39;</span>),
+    (<span class="string">&quot;amp&quot;</span>, <span class="string">&#39;\u{0026}&#39;</span>),
+    (<span class="string">&quot;and&quot;</span>, <span class="string">&#39;\u{2227}&#39;</span>),
+    (<span class="string">&quot;ang&quot;</span>, <span class="string">&#39;\u{2220}&#39;</span>),
+    (<span class="string">&quot;aring&quot;</span>, <span class="string">&#39;\u{00E5}&#39;</span>),
+    (<span class="string">&quot;asymp&quot;</span>, <span class="string">&#39;\u{2248}&#39;</span>),
+    (<span class="string">&quot;atilde&quot;</span>, <span class="string">&#39;\u{00E3}&#39;</span>),
+    (<span class="string">&quot;auml&quot;</span>, <span class="string">&#39;\u{00E4}&#39;</span>),
+    (<span class="string">&quot;bdquo&quot;</span>, <span class="string">&#39;\u{201E}&#39;</span>),
+    (<span class="string">&quot;beta&quot;</span>, <span class="string">&#39;\u{03B2}&#39;</span>),
+    (<span class="string">&quot;brvbar&quot;</span>, <span class="string">&#39;\u{00A6}&#39;</span>),
+    (<span class="string">&quot;bull&quot;</span>, <span class="string">&#39;\u{2022}&#39;</span>),
+    (<span class="string">&quot;cap&quot;</span>, <span class="string">&#39;\u{2229}&#39;</span>),
+    (<span class="string">&quot;ccedil&quot;</span>, <span class="string">&#39;\u{00E7}&#39;</span>),
+    (<span class="string">&quot;cedil&quot;</span>, <span class="string">&#39;\u{00B8}&#39;</span>),
+    (<span class="string">&quot;cent&quot;</span>, <span class="string">&#39;\u{00A2}&#39;</span>),
+    (<span class="string">&quot;chi&quot;</span>, <span class="string">&#39;\u{03C7}&#39;</span>),
+    (<span class="string">&quot;circ&quot;</span>, <span class="string">&#39;\u{02C6}&#39;</span>),
+    (<span class="string">&quot;clubs&quot;</span>, <span class="string">&#39;\u{2663}&#39;</span>),
+    (<span class="string">&quot;cong&quot;</span>, <span class="string">&#39;\u{2245}&#39;</span>),
+    (<span class="string">&quot;copy&quot;</span>, <span class="string">&#39;\u{00A9}&#39;</span>),
+    (<span class="string">&quot;crarr&quot;</span>, <span class="string">&#39;\u{21B5}&#39;</span>),
+    (<span class="string">&quot;cup&quot;</span>, <span class="string">&#39;\u{222A}&#39;</span>),
+    (<span class="string">&quot;curren&quot;</span>, <span class="string">&#39;\u{00A4}&#39;</span>),
+    (<span class="string">&quot;dArr&quot;</span>, <span class="string">&#39;\u{21D3}&#39;</span>),
+    (<span class="string">&quot;dagger&quot;</span>, <span class="string">&#39;\u{2020}&#39;</span>),
+    (<span class="string">&quot;darr&quot;</span>, <span class="string">&#39;\u{2193}&#39;</span>),
+    (<span class="string">&quot;deg&quot;</span>, <span class="string">&#39;\u{00B0}&#39;</span>),
+    (<span class="string">&quot;delta&quot;</span>, <span class="string">&#39;\u{03B4}&#39;</span>),
+    (<span class="string">&quot;diams&quot;</span>, <span class="string">&#39;\u{2666}&#39;</span>),
+    (<span class="string">&quot;divide&quot;</span>, <span class="string">&#39;\u{00F7}&#39;</span>),
+    (<span class="string">&quot;eacute&quot;</span>, <span class="string">&#39;\u{00E9}&#39;</span>),
+    (<span class="string">&quot;ecirc&quot;</span>, <span class="string">&#39;\u{00EA}&#39;</span>),
+    (<span class="string">&quot;egrave&quot;</span>, <span class="string">&#39;\u{00E8}&#39;</span>),
+    (<span class="string">&quot;empty&quot;</span>, <span class="string">&#39;\u{2205}&#39;</span>),
+    (<span class="string">&quot;emsp&quot;</span>, <span class="string">&#39;\u{2003}&#39;</span>),
+    (<span class="string">&quot;ensp&quot;</span>, <span class="string">&#39;\u{2002}&#39;</span>),
+    (<span class="string">&quot;epsilon&quot;</span>, <span class="string">&#39;\u{03B5}&#39;</span>),
+    (<span class="string">&quot;equiv&quot;</span>, <span class="string">&#39;\u{2261}&#39;</span>),
+    (<span class="string">&quot;eta&quot;</span>, <span class="string">&#39;\u{03B7}&#39;</span>),
+    (<span class="string">&quot;eth&quot;</span>, <span class="string">&#39;\u{00F0}&#39;</span>),
+    (<span class="string">&quot;euml&quot;</span>, <span class="string">&#39;\u{00EB}&#39;</span>),
+    (<span class="string">&quot;euro&quot;</span>, <span class="string">&#39;\u{20AC}&#39;</span>),
+    (<span class="string">&quot;exist&quot;</span>, <span class="string">&#39;\u{2203}&#39;</span>),
+    (<span class="string">&quot;fnof&quot;</span>, <span class="string">&#39;\u{0192}&#39;</span>),
+    (<span class="string">&quot;forall&quot;</span>, <span class="string">&#39;\u{2200}&#39;</span>),
+    (<span class="string">&quot;frac12&quot;</span>, <span class="string">&#39;\u{00BD}&#39;</span>),
+    (<span class="string">&quot;frac14&quot;</span>, <span class="string">&#39;\u{00BC}&#39;</span>),
+    (<span class="string">&quot;frac34&quot;</span>, <span class="string">&#39;\u{00BE}&#39;</span>),
+    (<span class="string">&quot;frasl&quot;</span>, <span class="string">&#39;\u{2044}&#39;</span>),
+    (<span class="string">&quot;gamma&quot;</span>, <span class="string">&#39;\u{03B3}&#39;</span>),
+    (<span class="string">&quot;ge&quot;</span>, <span class="string">&#39;\u{2265}&#39;</span>),
+    (<span class="string">&quot;gt&quot;</span>, <span class="string">&#39;\u{003E}&#39;</span>),
+    (<span class="string">&quot;hArr&quot;</span>, <span class="string">&#39;\u{21D4}&#39;</span>),
+    (<span class="string">&quot;harr&quot;</span>, <span class="string">&#39;\u{2194}&#39;</span>),
+    (<span class="string">&quot;hearts&quot;</span>, <span class="string">&#39;\u{2665}&#39;</span>),
+    (<span class="string">&quot;hellip&quot;</span>, <span class="string">&#39;\u{2026}&#39;</span>),
+    (<span class="string">&quot;iacute&quot;</span>, <span class="string">&#39;\u{00ED}&#39;</span>),
+    (<span class="string">&quot;icirc&quot;</span>, <span class="string">&#39;\u{00EE}&#39;</span>),
+    (<span class="string">&quot;iexcl&quot;</span>, <span class="string">&#39;\u{00A1}&#39;</span>),
+    (<span class="string">&quot;igrave&quot;</span>, <span class="string">&#39;\u{00EC}&#39;</span>),
+    (<span class="string">&quot;image&quot;</span>, <span class="string">&#39;\u{2111}&#39;</span>),
+    (<span class="string">&quot;infin&quot;</span>, <span class="string">&#39;\u{221E}&#39;</span>),
+    (<span class="string">&quot;int&quot;</span>, <span class="string">&#39;\u{222B}&#39;</span>),
+    (<span class="string">&quot;iota&quot;</span>, <span class="string">&#39;\u{03B9}&#39;</span>),
+    (<span class="string">&quot;iquest&quot;</span>, <span class="string">&#39;\u{00BF}&#39;</span>),
+    (<span class="string">&quot;isin&quot;</span>, <span class="string">&#39;\u{2208}&#39;</span>),
+    (<span class="string">&quot;iuml&quot;</span>, <span class="string">&#39;\u{00EF}&#39;</span>),
+    (<span class="string">&quot;kappa&quot;</span>, <span class="string">&#39;\u{03BA}&#39;</span>),
+    (<span class="string">&quot;lArr&quot;</span>, <span class="string">&#39;\u{21D0}&#39;</span>),
+    (<span class="string">&quot;lambda&quot;</span>, <span class="string">&#39;\u{03BB}&#39;</span>),
+    (<span class="string">&quot;lang&quot;</span>, <span class="string">&#39;\u{2329}&#39;</span>),
+    (<span class="string">&quot;laquo&quot;</span>, <span class="string">&#39;\u{00AB}&#39;</span>),
+    (<span class="string">&quot;larr&quot;</span>, <span class="string">&#39;\u{2190}&#39;</span>),
+    (<span class="string">&quot;lceil&quot;</span>, <span class="string">&#39;\u{2308}&#39;</span>),
+    (<span class="string">&quot;ldquo&quot;</span>, <span class="string">&#39;\u{201C}&#39;</span>),
+    (<span class="string">&quot;le&quot;</span>, <span class="string">&#39;\u{2264}&#39;</span>),
+    (<span class="string">&quot;lfloor&quot;</span>, <span class="string">&#39;\u{230A}&#39;</span>),
+    (<span class="string">&quot;lowast&quot;</span>, <span class="string">&#39;\u{2217}&#39;</span>),
+    (<span class="string">&quot;loz&quot;</span>, <span class="string">&#39;\u{25CA}&#39;</span>),
+    (<span class="string">&quot;lrm&quot;</span>, <span class="string">&#39;\u{200E}&#39;</span>),
+    (<span class="string">&quot;lsaquo&quot;</span>, <span class="string">&#39;\u{2039}&#39;</span>),
+    (<span class="string">&quot;lsquo&quot;</span>, <span class="string">&#39;\u{2018}&#39;</span>),
+    (<span class="string">&quot;lt&quot;</span>, <span class="string">&#39;\u{003C}&#39;</span>),
+    (<span class="string">&quot;macr&quot;</span>, <span class="string">&#39;\u{00AF}&#39;</span>),
+    (<span class="string">&quot;mdash&quot;</span>, <span class="string">&#39;\u{2014}&#39;</span>),
+    (<span class="string">&quot;micro&quot;</span>, <span class="string">&#39;\u{00B5}&#39;</span>),
+    (<span class="string">&quot;middot&quot;</span>, <span class="string">&#39;\u{00B7}&#39;</span>),
+    (<span class="string">&quot;minus&quot;</span>, <span class="string">&#39;\u{2212}&#39;</span>),
+    (<span class="string">&quot;mu&quot;</span>, <span class="string">&#39;\u{03BC}&#39;</span>),
+    (<span class="string">&quot;nabla&quot;</span>, <span class="string">&#39;\u{2207}&#39;</span>),
+    (<span class="string">&quot;nbsp&quot;</span>, <span class="string">&#39;\u{00A0}&#39;</span>),
+    (<span class="string">&quot;ndash&quot;</span>, <span class="string">&#39;\u{2013}&#39;</span>),
+    (<span class="string">&quot;ne&quot;</span>, <span class="string">&#39;\u{2260}&#39;</span>),
+    (<span class="string">&quot;ni&quot;</span>, <span class="string">&#39;\u{220B}&#39;</span>),
+    (<span class="string">&quot;not&quot;</span>, <span class="string">&#39;\u{00AC}&#39;</span>),
+    (<span class="string">&quot;notin&quot;</span>, <span class="string">&#39;\u{2209}&#39;</span>),
+    (<span class="string">&quot;nsub&quot;</span>, <span class="string">&#39;\u{2284}&#39;</span>),
+    (<span class="string">&quot;ntilde&quot;</span>, <span class="string">&#39;\u{00F1}&#39;</span>),
+    (<span class="string">&quot;nu&quot;</span>, <span class="string">&#39;\u{03BD}&#39;</span>),
+    (<span class="string">&quot;oacute&quot;</span>, <span class="string">&#39;\u{00F3}&#39;</span>),
+    (<span class="string">&quot;ocirc&quot;</span>, <span class="string">&#39;\u{00F4}&#39;</span>),
+    (<span class="string">&quot;oelig&quot;</span>, <span class="string">&#39;\u{0153}&#39;</span>),
+    (<span class="string">&quot;ograve&quot;</span>, <span class="string">&#39;\u{00F2}&#39;</span>),
+    (<span class="string">&quot;oline&quot;</span>, <span class="string">&#39;\u{203E}&#39;</span>),
+    (<span class="string">&quot;omega&quot;</span>, <span class="string">&#39;\u{03C9}&#39;</span>),
+    (<span class="string">&quot;omicron&quot;</span>, <span class="string">&#39;\u{03BF}&#39;</span>),
+    (<span class="string">&quot;oplus&quot;</span>, <span class="string">&#39;\u{2295}&#39;</span>),
+    (<span class="string">&quot;or&quot;</span>, <span class="string">&#39;\u{2228}&#39;</span>),
+    (<span class="string">&quot;ordf&quot;</span>, <span class="string">&#39;\u{00AA}&#39;</span>),
+    (<span class="string">&quot;ordm&quot;</span>, <span class="string">&#39;\u{00BA}&#39;</span>),
+    (<span class="string">&quot;oslash&quot;</span>, <span class="string">&#39;\u{00F8}&#39;</span>),
+    (<span class="string">&quot;otilde&quot;</span>, <span class="string">&#39;\u{00F5}&#39;</span>),
+    (<span class="string">&quot;otimes&quot;</span>, <span class="string">&#39;\u{2297}&#39;</span>),
+    (<span class="string">&quot;ouml&quot;</span>, <span class="string">&#39;\u{00F6}&#39;</span>),
+    (<span class="string">&quot;para&quot;</span>, <span class="string">&#39;\u{00B6}&#39;</span>),
+    (<span class="string">&quot;part&quot;</span>, <span class="string">&#39;\u{2202}&#39;</span>),
+    (<span class="string">&quot;permil&quot;</span>, <span class="string">&#39;\u{2030}&#39;</span>),
+    (<span class="string">&quot;perp&quot;</span>, <span class="string">&#39;\u{22A5}&#39;</span>),
+    (<span class="string">&quot;phi&quot;</span>, <span class="string">&#39;\u{03C6}&#39;</span>),
+    (<span class="string">&quot;pi&quot;</span>, <span class="string">&#39;\u{03C0}&#39;</span>),
+    (<span class="string">&quot;piv&quot;</span>, <span class="string">&#39;\u{03D6}&#39;</span>),
+    (<span class="string">&quot;plusmn&quot;</span>, <span class="string">&#39;\u{00B1}&#39;</span>),
+    (<span class="string">&quot;pound&quot;</span>, <span class="string">&#39;\u{00A3}&#39;</span>),
+    (<span class="string">&quot;prime&quot;</span>, <span class="string">&#39;\u{2032}&#39;</span>),
+    (<span class="string">&quot;prod&quot;</span>, <span class="string">&#39;\u{220F}&#39;</span>),
+    (<span class="string">&quot;prop&quot;</span>, <span class="string">&#39;\u{221D}&#39;</span>),
+    (<span class="string">&quot;psi&quot;</span>, <span class="string">&#39;\u{03C8}&#39;</span>),
+    (<span class="string">&quot;quot&quot;</span>, <span class="string">&#39;\u{0022}&#39;</span>),
+    (<span class="string">&quot;rArr&quot;</span>, <span class="string">&#39;\u{21D2}&#39;</span>),
+    (<span class="string">&quot;radic&quot;</span>, <span class="string">&#39;\u{221A}&#39;</span>),
+    (<span class="string">&quot;rang&quot;</span>, <span class="string">&#39;\u{232A}&#39;</span>),
+    (<span class="string">&quot;raquo&quot;</span>, <span class="string">&#39;\u{00BB}&#39;</span>),
+    (<span class="string">&quot;rarr&quot;</span>, <span class="string">&#39;\u{2192}&#39;</span>),
+    (<span class="string">&quot;rceil&quot;</span>, <span class="string">&#39;\u{2309}&#39;</span>),
+    (<span class="string">&quot;rdquo&quot;</span>, <span class="string">&#39;\u{201D}&#39;</span>),
+    (<span class="string">&quot;real&quot;</span>, <span class="string">&#39;\u{211C}&#39;</span>),
+    (<span class="string">&quot;reg&quot;</span>, <span class="string">&#39;\u{00AE}&#39;</span>),
+    (<span class="string">&quot;rfloor&quot;</span>, <span class="string">&#39;\u{230B}&#39;</span>),
+    (<span class="string">&quot;rho&quot;</span>, <span class="string">&#39;\u{03C1}&#39;</span>),
+    (<span class="string">&quot;rlm&quot;</span>, <span class="string">&#39;\u{200F}&#39;</span>),
+    (<span class="string">&quot;rsaquo&quot;</span>, <span class="string">&#39;\u{203A}&#39;</span>),
+    (<span class="string">&quot;rsquo&quot;</span>, <span class="string">&#39;\u{2019}&#39;</span>),
+    (<span class="string">&quot;sbquo&quot;</span>, <span class="string">&#39;\u{201A}&#39;</span>),
+    (<span class="string">&quot;scaron&quot;</span>, <span class="string">&#39;\u{0161}&#39;</span>),
+    (<span class="string">&quot;sdot&quot;</span>, <span class="string">&#39;\u{22C5}&#39;</span>),
+    (<span class="string">&quot;sect&quot;</span>, <span class="string">&#39;\u{00A7}&#39;</span>),
+    (<span class="string">&quot;shy&quot;</span>, <span class="string">&#39;\u{00AD}&#39;</span>),
+    (<span class="string">&quot;sigma&quot;</span>, <span class="string">&#39;\u{03C3}&#39;</span>),
+    (<span class="string">&quot;sigmaf&quot;</span>, <span class="string">&#39;\u{03C2}&#39;</span>),
+    (<span class="string">&quot;sim&quot;</span>, <span class="string">&#39;\u{223C}&#39;</span>),
+    (<span class="string">&quot;spades&quot;</span>, <span class="string">&#39;\u{2660}&#39;</span>),
+    (<span class="string">&quot;sub&quot;</span>, <span class="string">&#39;\u{2282}&#39;</span>),
+    (<span class="string">&quot;sube&quot;</span>, <span class="string">&#39;\u{2286}&#39;</span>),
+    (<span class="string">&quot;sum&quot;</span>, <span class="string">&#39;\u{2211}&#39;</span>),
+    (<span class="string">&quot;sup&quot;</span>, <span class="string">&#39;\u{2283}&#39;</span>),
+    (<span class="string">&quot;sup1&quot;</span>, <span class="string">&#39;\u{00B9}&#39;</span>),
+    (<span class="string">&quot;sup2&quot;</span>, <span class="string">&#39;\u{00B2}&#39;</span>),
+    (<span class="string">&quot;sup3&quot;</span>, <span class="string">&#39;\u{00B3}&#39;</span>),
+    (<span class="string">&quot;supe&quot;</span>, <span class="string">&#39;\u{2287}&#39;</span>),
+    (<span class="string">&quot;szlig&quot;</span>, <span class="string">&#39;\u{00DF}&#39;</span>),
+    (<span class="string">&quot;tau&quot;</span>, <span class="string">&#39;\u{03C4}&#39;</span>),
+    (<span class="string">&quot;there4&quot;</span>, <span class="string">&#39;\u{2234}&#39;</span>),
+    (<span class="string">&quot;theta&quot;</span>, <span class="string">&#39;\u{03B8}&#39;</span>),
+    (<span class="string">&quot;thetasym&quot;</span>, <span class="string">&#39;\u{03D1}&#39;</span>),
+    (<span class="string">&quot;thinsp&quot;</span>, <span class="string">&#39;\u{2009}&#39;</span>),
+    (<span class="string">&quot;thorn&quot;</span>, <span class="string">&#39;\u{00FE}&#39;</span>),
+    (<span class="string">&quot;tilde&quot;</span>, <span class="string">&#39;\u{02DC}&#39;</span>),
+    (<span class="string">&quot;times&quot;</span>, <span class="string">&#39;\u{00D7}&#39;</span>),
+    (<span class="string">&quot;trade&quot;</span>, <span class="string">&#39;\u{2122}&#39;</span>),
+    (<span class="string">&quot;uArr&quot;</span>, <span class="string">&#39;\u{21D1}&#39;</span>),
+    (<span class="string">&quot;uacute&quot;</span>, <span class="string">&#39;\u{00FA}&#39;</span>),
+    (<span class="string">&quot;uarr&quot;</span>, <span class="string">&#39;\u{2191}&#39;</span>),
+    (<span class="string">&quot;ucirc&quot;</span>, <span class="string">&#39;\u{00FB}&#39;</span>),
+    (<span class="string">&quot;ugrave&quot;</span>, <span class="string">&#39;\u{00F9}&#39;</span>),
+    (<span class="string">&quot;uml&quot;</span>, <span class="string">&#39;\u{00A8}&#39;</span>),
+    (<span class="string">&quot;upsih&quot;</span>, <span class="string">&#39;\u{03D2}&#39;</span>),
+    (<span class="string">&quot;upsilon&quot;</span>, <span class="string">&#39;\u{03C5}&#39;</span>),
+    (<span class="string">&quot;uuml&quot;</span>, <span class="string">&#39;\u{00FC}&#39;</span>),
+    (<span class="string">&quot;weierp&quot;</span>, <span class="string">&#39;\u{2118}&#39;</span>),
+    (<span class="string">&quot;xi&quot;</span>, <span class="string">&#39;\u{03BE}&#39;</span>),
+    (<span class="string">&quot;yacute&quot;</span>, <span class="string">&#39;\u{00FD}&#39;</span>),
+    (<span class="string">&quot;yen&quot;</span>, <span class="string">&#39;\u{00A5}&#39;</span>),
+    (<span class="string">&quot;yuml&quot;</span>, <span class="string">&#39;\u{00FF}&#39;</span>),
+    (<span class="string">&quot;zeta&quot;</span>, <span class="string">&#39;\u{03B6}&#39;</span>),
+    (<span class="string">&quot;zwj&quot;</span>, <span class="string">&#39;\u{200D}&#39;</span>),
+    (<span class="string">&quot;zwnj&quot;</span>, <span class="string">&#39;\u{200C}&#39;</span>),
+];
+
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "htmlescape";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

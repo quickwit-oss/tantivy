@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num_cpus-1.8.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num_cpus-1.10.1/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../num_cpus/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -412,7 +412,76 @@
 <span id="412">412</span>
 <span id="413">413</span>
 <span id="414">414</span>
-</pre><pre class="rust ">
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! A crate with utilities to determine the number of CPUs available on the</span>
 <span class="doccomment">//! current system.</span>
 <span class="doccomment">//! </span>
@@ -425,38 +494,44 @@
 <span class="doccomment">//! for example memory access speeds (for all the caches and RAM) and the physical</span>
 <span class="doccomment">//! architecture of the processor, so the number of CPUs should be used as a rough guide</span>
 <span class="doccomment">//! only.</span>
-<span class="doccomment">//! </span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Examples</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Fetch the number of logical CPUs.</span>
-<span class="doccomment">//! </span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//! let cpus = num_cpus::get();</span>
 <span class="doccomment">//! ```</span>
-<span class="doccomment">//! </span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! See [`rayon::Threadpool`] for an example of where the number of CPUs could be</span>
 <span class="doccomment">//! used when setting up parallel jobs (Where the threadpool example uses a fixed</span>
 <span class="doccomment">//! number 8, it could use the number of CPUs).</span>
-<span class="doccomment">//! </span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! [processor tricks]: https://en.wikipedia.org/wiki/Simultaneous_multithreading</span>
-<span class="doccomment">//! [`rayon::ThreadPool`]: https://docs.rs/rayon/0.8.2/rayon/struct.ThreadPool.html</span>
+<span class="doccomment">//! [`rayon::ThreadPool`]: https://docs.rs/rayon/1.*/rayon/struct.ThreadPool.html</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/num_cpus/1.8.0&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/num_cpus/1.10.1&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">windows</span>))]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">libc</span>;
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">doc_comment</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="macro">doctest</span><span class="macro">!</span>(<span class="string">&quot;../README.md&quot;</span>);
 
 <span class="doccomment">/// Returns the number of available CPUs of the current system.</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// This function will get the number of logical cores. Sometimes this is different from the number</span>
 <span class="doccomment">/// of physical cores (See [Simultaneous multithreading on Wikipedia][smt]).</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// # Examples</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// let cpus = num_cpus::get();</span>
 <span class="doccomment">/// if cpus &gt; 1 {</span>
@@ -470,7 +545,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This will check [sched affinity] on Linux, showing a lower number of CPUs if the current </span>
 <span class="doccomment">/// thread does not have access to all the computer&#39;s CPUs. </span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// [smt]: https://en.wikipedia.org/wiki/Simultaneous_multithreading</span>
 <span class="doccomment">/// [sched affinity]: http://www.gnu.org/software/libc/manual/html_node/CPU-Affinity.html</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -486,9 +561,9 @@
 <span class="doccomment">/// On other platforms, or if the physical count fails on supported platforms,</span>
 <span class="doccomment">/// this function returns the same as [`get()`], which is the number of logical</span>
 <span class="doccomment">/// CPUS.</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// # Examples</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// let logical_cpus = num_cpus::get();</span>
 <span class="doccomment">/// let physical_cpus = num_cpus::get_physical();</span>
@@ -504,7 +579,7 @@
 <span class="doccomment">///               some of the CPUs on our system.&quot;);</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="doccomment">/// </span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// [`get()`]: fn.get.html</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_physical</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -771,6 +846,7 @@
     <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
     <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
     <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>,
     <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;fuchsia&quot;</span>)
 )]</span>
 <span class="kw">fn</span> <span class="ident">get_num_cpus</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -789,12 +865,74 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;redox&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;haiku&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;haiku&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">get_num_cpus</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="number">1</span>
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_camel_case_types</span>)]</span>
+    <span class="kw">type</span> <span class="ident">bigtime_t</span> <span class="op">=</span> <span class="ident">i64</span>;
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_camel_case_types</span>)]</span>
+    <span class="kw">type</span> <span class="ident">status_t</span> <span class="op">=</span> <span class="ident">i32</span>;
+
+    <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">system_info</span> {
+        <span class="kw">pub</span> <span class="ident">boot_time</span>: <span class="ident">bigtime_t</span>,
+        <span class="kw">pub</span> <span class="ident">cpu_count</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">max_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">used_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">cached_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">block_cache_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">ignored_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">needed_memory</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">free_memory</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">max_swap_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">free_swap_pages</span>: <span class="ident">u64</span>,
+        <span class="kw">pub</span> <span class="ident">page_faults</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">max_sems</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">used_sems</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">max_ports</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">used_ports</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">max_threads</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">used_threads</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">max_teams</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">used_teams</span>: <span class="ident">u32</span>,
+        <span class="kw">pub</span> <span class="ident">kernel_name</span>: [::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>; <span class="number">256usize</span>],
+        <span class="kw">pub</span> <span class="ident">kernel_build_date</span>: [::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>; <span class="number">32usize</span>],
+        <span class="kw">pub</span> <span class="ident">kernel_build_time</span>: [::<span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_char</span>; <span class="number">32usize</span>],
+        <span class="kw">pub</span> <span class="ident">kernel_version</span>: <span class="ident">i64</span>,
+        <span class="kw">pub</span> <span class="ident">abi</span>: <span class="ident">u32</span>,
+    }
+
+    <span class="kw">extern</span> {
+        <span class="kw">fn</span> <span class="ident">get_system_info</span>(<span class="ident">info</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">system_info</span>) <span class="op">-&gt;</span> <span class="ident">status_t</span>;
+    }
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">info</span>: <span class="ident">system_info</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
+    <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">get_system_info</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">info</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>) };
+    <span class="kw">if</span> <span class="ident">status</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="ident">info</span>.<span class="ident">cpu_count</span> <span class="kw">as</span> <span class="ident">usize</span>
+    } <span class="kw">else</span> {
+        <span class="number">1</span>
+    }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;wasm32&quot;</span>, <span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>)))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;nacl&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;fuchsia&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;bitrig&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;haiku&quot;</span>,
+    <span class="ident">windows</span>,
+)))]</span>
 <span class="kw">fn</span> <span class="ident">get_num_cpus</span>() <span class="op">-&gt;</span> <span class="ident">usize</span> {
     <span class="number">1</span>
 }
@@ -827,5 +965,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "num_cpus";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "num_cpus";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

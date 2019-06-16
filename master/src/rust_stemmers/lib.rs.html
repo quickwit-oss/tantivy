@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-stemmers-0.1.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-stemmers-1.1.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../rust_stemmers/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -246,7 +246,62 @@
 <span id="246">246</span>
 <span id="247">247</span>
 <span id="248">248</span>
-</pre><pre class="rust ">
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This library provides rust implementations for some stemmer algorithms</span>
 <span class="doccomment">//! written in the [snowball language](https://snowballstem.org/).</span>
 <span class="doccomment">//!</span>
@@ -256,7 +311,7 @@
 <span class="doccomment">//! # Usage</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [dependencies]</span>
-<span class="doccomment">//! rust-stemmers = &quot;0.1&quot;</span>
+<span class="doccomment">//! rust-stemmers = &quot;^1.0&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
@@ -269,7 +324,9 @@
 <span class="doccomment">//!    assert_eq!(en_stemmer.stem(&quot;fruitlessly&quot;), &quot;fruitless&quot;);</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
-
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde</span>;
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_derive</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 
@@ -280,36 +337,53 @@
 
 <span class="doccomment">/// Enum of all supported algorithms.</span>
 <span class="doccomment">/// Check the [Snowball-Website](https://snowballstem.org/) for details.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Algorithm</span> {
     <span class="ident">Arabic</span>,
+    <span class="ident">Danish</span>,
+    <span class="ident">Dutch</span>,
     <span class="ident">English</span>,
+    <span class="ident">Finnish</span>,
     <span class="ident">French</span>,
     <span class="ident">German</span>,
+    <span class="ident">Greek</span>,
+    <span class="ident">Hungarian</span>,
     <span class="ident">Italian</span>,
     <span class="ident">Portuguese</span>,
     <span class="ident">Romanian</span>,
     <span class="ident">Russian</span>,
     <span class="ident">Spanish</span>,
+    <span class="ident">Swedish</span>,
+    <span class="ident">Tamil</span>,
+    <span class="ident">Turkish</span>
 }
 
 <span class="doccomment">/// Wrapps a usable interface around the actual stemmer implementation</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Stemmer</span> {
-    <span class="ident">stemmer</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>) <span class="op">-&gt;</span> <span class="ident">bool</span><span class="op">&gt;</span>,
+    <span class="ident">stemmer</span>: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Stemmer</span> {
     <span class="doccomment">/// Create a new stemmer from an algorithm</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">lang</span>: <span class="ident">Algorithm</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">match</span> <span class="ident">lang</span> {
-            <span class="ident">Algorithm</span>::<span class="ident">Arabic</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">arabic</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">English</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">english</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">French</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">french</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">German</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">german</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">Italian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">italian</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">Portuguese</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">portuguese</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">Romanian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">romanian</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">Russian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">russian</span>::<span class="ident">_stem</span>) },
-            <span class="ident">Algorithm</span>::<span class="ident">Spanish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">algorithms</span>::<span class="ident">spanish</span>::<span class="ident">_stem</span>) },
+            <span class="ident">Algorithm</span>::<span class="ident">Arabic</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">arabic</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Danish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">danish</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Dutch</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">dutch</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">English</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">english</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Finnish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">finnish</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">French</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">french</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">German</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">german</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Greek</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">greek</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Hungarian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">hungarian</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Italian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">italian</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Portuguese</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">portuguese</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Romanian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">romanian</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Russian</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">russian</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Spanish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">spanish</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Swedish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">swedish</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Tamil</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">tamil</span>::<span class="ident">stem</span> },
+            <span class="ident">Algorithm</span>::<span class="ident">Turkish</span> <span class="op">=&gt;</span> <span class="ident">Stemmer</span> { <span class="ident">stemmer</span>: <span class="ident">algorithms</span>::<span class="ident">turkish</span>::<span class="ident">stem</span> },
         }
     }
 
@@ -494,6 +568,42 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">finnish_test</span>() {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">BufRead</span>;
+
+        <span class="kw">let</span> <span class="ident">vocab</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">fs</span>::<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;test_data/voc_fi.txt&quot;</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">fs</span>::<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;test_data/res_fi.txt&quot;</span>).<span class="ident">unwrap</span>());
+
+        <span class="kw">let</span> <span class="ident">lines</span> <span class="op">=</span> <span class="ident">vocab</span>.<span class="ident">lines</span>().<span class="ident">zip</span>(<span class="ident">result</span>.<span class="ident">lines</span>());
+
+        <span class="kw">for</span> (<span class="ident">voc</span>, <span class="ident">res</span>) <span class="kw">in</span> <span class="ident">lines</span> {
+            <span class="ident">stemms_to</span>(<span class="ident">voc</span>.<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+                      <span class="ident">res</span>.<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+                      <span class="ident">Algorithm</span>::<span class="ident">Finnish</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">greek_test</span>() {
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">BufRead</span>;
+
+        <span class="kw">let</span> <span class="ident">vocab</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">fs</span>::<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;test_data/voc_el.txt&quot;</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">fs</span>::<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;test_data/res_el.txt&quot;</span>).<span class="ident">unwrap</span>());
+
+        <span class="kw">let</span> <span class="ident">lines</span> <span class="op">=</span> <span class="ident">vocab</span>.<span class="ident">lines</span>().<span class="ident">zip</span>(<span class="ident">result</span>.<span class="ident">lines</span>());
+
+        <span class="kw">for</span> (<span class="ident">voc</span>, <span class="ident">res</span>) <span class="kw">in</span> <span class="ident">lines</span> {
+            <span class="ident">stemms_to</span>(<span class="ident">voc</span>.<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+                      <span class="ident">res</span>.<span class="ident">unwrap</span>().<span class="ident">as_str</span>(),
+                      <span class="ident">Algorithm</span>::<span class="ident">Greek</span>);
+        }
+    }
+
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rust_stemmers";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rust_stemmers";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/boolean_query/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/boolean_query/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -200,7 +200,176 @@
 <span id="200">200</span>
 <span id="201">201</span>
 <span id="202">202</span>
-</pre><pre class="rust ">
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">boolean_query</span>;
 <span class="kw">mod</span> <span class="ident">boolean_weight</span>;
 
@@ -211,7 +380,6 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::<span class="ident">TestCollector</span>;
-    <span class="kw">use</span> <span class="ident">downcast</span>::<span class="ident">Downcast</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">SumWithCoordsCombiner</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::<span class="ident">TermScorer</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Intersection</span>;
@@ -223,15 +391,16 @@
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
+    <span class="kw">use</span> {<span class="ident">DocAddress</span>, <span class="ident">DocId</span>};
 
     <span class="kw">fn</span> <span class="ident">aux_test_helper</span>() <span class="op">-&gt;</span> (<span class="ident">Index</span>, <span class="ident">Field</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
         {
             <span class="comment">// writing the segment</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
             {
                 <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="macro">doc</span><span class="macro">!</span>(<span class="ident">text_field</span> <span class="op">=&gt;</span> <span class="string">&quot;a b c&quot;</span>);
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
@@ -254,7 +423,6 @@
             }
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">is_ok</span>());
         }
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
         (<span class="ident">index</span>, <span class="ident">text_field</span>)
     }
 
@@ -263,7 +431,8 @@
         <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">text_field</span>]);
         <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;(+a +b) d&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">query</span>.<span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">index</span>.<span class="ident">searcher</span>()).<span class="ident">unwrap</span>(), <span class="number">3</span>);
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">query</span>.<span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>).<span class="ident">unwrap</span>(), <span class="number">3</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -271,28 +440,28 @@
         <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">text_field</span>]);
         <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_termonly_intersection</span>() {
         <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">text_field</span>]);
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
         {
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a +b +c&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;&gt;</span>());
         }
         {
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a +(b c)&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>());
         }
     }
 
@@ -300,21 +469,19 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_boolean_reqopt</span>() {
         <span class="kw">let</span> (<span class="ident">index</span>, <span class="ident">text_field</span>) <span class="op">=</span> <span class="ident">aux_test_helper</span>();
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">text_field</span>]);
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
         {
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a b&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span>
-                <span class="ident">RequiredOptionalScorer</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">SumWithCoordsCombiner</span><span class="op">&gt;</span>,
-            <span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">scorer</span>
+                .<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">RequiredOptionalScorer</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span>, <span class="ident">SumWithCoordsCombiner</span><span class="op">&gt;&gt;</span>());
         }
         {
             <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;+a b&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">false</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">false</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
-            <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">scorer</span>.<span class="ident">type_name</span>());
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">scorer</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">is</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>());
         }
     }
 
@@ -331,11 +498,18 @@
             <span class="ident">query</span>
         };
 
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="ident">matching_docs</span> <span class="op">=</span> <span class="op">|</span><span class="ident">boolean_query</span>: <span class="kw-2">&amp;</span><span class="ident">Query</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_collector</span> <span class="op">=</span> <span class="ident">TestCollector</span>::<span class="ident">default</span>();
-            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="ident">boolean_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test_collector</span>).<span class="ident">unwrap</span>();
-            <span class="ident">test_collector</span>.<span class="ident">docs</span>()
+            <span class="ident">reader</span>
+                .<span class="ident">searcher</span>()
+                .<span class="ident">search</span>(<span class="ident">boolean_query</span>, <span class="kw-2">&amp;</span><span class="ident">TestCollector</span>)
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">docs</span>()
+                .<span class="ident">iter</span>()
+                .<span class="ident">cloned</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc</span><span class="op">|</span> <span class="ident">doc</span>.<span class="number">1</span>)
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;&gt;</span>()
         };
 
         {
@@ -386,12 +560,13 @@
             <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">term_query</span>);
             <span class="ident">query</span>
         };
-
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">score_docs</span> <span class="op">=</span> <span class="op">|</span><span class="ident">boolean_query</span>: <span class="kw-2">&amp;</span><span class="ident">Query</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_collector</span> <span class="op">=</span> <span class="ident">TestCollector</span>::<span class="ident">default</span>();
-            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="ident">boolean_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test_collector</span>).<span class="ident">unwrap</span>();
-            <span class="ident">test_collector</span>.<span class="ident">scores</span>()
+            <span class="kw">let</span> <span class="ident">fruit</span> <span class="op">=</span> <span class="ident">reader</span>
+                .<span class="ident">searcher</span>()
+                .<span class="ident">search</span>(<span class="ident">boolean_query</span>, <span class="kw-2">&amp;</span><span class="ident">TestCollector</span>)
+                .<span class="ident">unwrap</span>();
+            <span class="ident">fruit</span>.<span class="ident">scores</span>().<span class="ident">to_vec</span>()
         };
 
         {
@@ -402,6 +577,169 @@
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">score_docs</span>(<span class="kw-2">&amp;</span><span class="ident">boolean_query</span>), <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0.977973</span>, <span class="number">0.84699446</span>]);
         }
     }
+
+    <span class="comment">// motivated by #554</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_bm25_several_fields</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
+        <span class="kw">let</span> <span class="ident">title</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">TEXT</span>);
+        <span class="kw">let</span> <span class="ident">text</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+        <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
+        <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+            <span class="comment">// tf = 1 0</span>
+            <span class="ident">title</span> <span class="op">=&gt;</span>  <span class="string">&quot;Законы притяжения   Оксана Кулакова&quot;</span>,
+            <span class="comment">// tf = 1 0</span>
+            <span class="ident">text</span> <span class="op">=&gt;</span> <span class="string">&quot;Законы притяжения Оксана Кулакова]  \n\nТема: Сексуальное искусство, Женственность\nТип товара: Запись вебинара (аудио)\nПродолжительность: 1,5 часа\n\nСсылка на вебинар:\n  &quot;</span>,
+        ));
+        <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+            <span class="comment">// tf = 1 0</span>
+            <span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">&quot;Любимые русские пироги (Оксана Путан)&quot;</span>,
+            <span class="comment">// tf = 2 0</span>
+            <span class="ident">text</span> <span class="op">=&gt;</span> <span class="string">&quot;http://i95.fastpic.ru/big/2017/0628/9a/615b9c8504d94a3893d7f496ac53539a.jpg \n\nОт издателя\nОксана Путан   профессиональный повар, автор кулинарных книг и известный кулинарный блогер. Ее рецепты отличаются практичностью, доступностью и пользуются огромной популярностью в русскоязычном интернете. Это третья книга автора о самом вкусном и ароматном   настоящих русских пирогах и выпечке!\nДаже новички на кухне легко готовят по ее рецептам. Оксана описывает процесс приготовления настолько подробно и понятно, что вам остается только наслаждаться готовкой и не тратить время на лишние усилия. Готовьте легко и просто!\n\nhttps://www.ozon.ru/context/detail/id/139872462/&quot;</span>
+        ));
+        <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+            <span class="comment">// tf = 1 1</span>
+            <span class="ident">title</span> <span class="op">=&gt;</span>  <span class="string">&quot;PDF Мастер Класс \&quot;Морячок\&quot; (Оксана Лифенко)&quot;</span>,
+            <span class="comment">// tf = 0 0 </span>
+            <span class="ident">text</span> <span class="op">=&gt;</span> <span class="string">&quot;https://i.ibb.co/pzvHrDN/I3d U T6 Gg TM.jpg\nhttps://i.ibb.co/NFrb6v6/N0ls Z9nwjb U.jpg\nВ описание входит штаны, кофта, берет, матросский воротник. Описание продается в формате PDF, состоит из 12 страниц формата А4 и может быть напечатано на любом принтере.\nОписание предназначено для кукол BJD RealPuki от FairyLand, но может подойти и другим подобным куклам. Также вы можете вязать этот наряд из обычной пряжи, и он подойдет для куколок побольше.\nhttps://vk.com/market 95724412?w=product 95724412_2212&quot;</span>
+        ));
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1_000</span> {
+            <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+                <span class="ident">title</span> <span class="op">=&gt;</span>  <span class="string">&quot;a b d e f g&quot;</span>,
+                <span class="ident">text</span> <span class="op">=&gt;</span> <span class="string">&quot;maitre corbeau sur un arbre perche tenait dans son bec un fromage Maitre rnard par lodeur alleche lui tint a peu pres ce langage.&quot;</span>
+            ));
+        }
+        <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>, <span class="ident">text</span>]);
+        <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>
+            .<span class="ident">parse_query</span>(<span class="string">&quot;Оксана Лифенко&quot;</span>)
+            .<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="bool-val">true</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>.<span class="ident">scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>)).<span class="ident">unwrap</span>();
+        <span class="ident">scorer</span>.<span class="ident">advance</span>();
+
+        <span class="kw">let</span> <span class="ident">explanation</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">explain</span>(<span class="kw-2">&amp;</span><span class="ident">searcher</span>, <span class="ident">DocAddress</span>(<span class="number">0u32</span>, <span class="number">0u32</span>)).<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">explanation</span>.<span class="ident">to_pretty_json</span>(),
+            <span class="string">r#&quot;{
+  &quot;value&quot;: 12.997711,
+  &quot;description&quot;: &quot;BooleanClause. Sum of ...&quot;,
+  &quot;details&quot;: [
+    {
+      &quot;value&quot;: 12.997711,
+      &quot;description&quot;: &quot;BooleanClause. Sum of ...&quot;,
+      &quot;details&quot;: [
+        {
+          &quot;value&quot;: 6.551476,
+          &quot;description&quot;: &quot;TermQuery, product of...&quot;,
+          &quot;details&quot;: [
+            {
+              &quot;value&quot;: 2.2,
+              &quot;description&quot;: &quot;(K1+1)&quot;
+            },
+            {
+              &quot;value&quot;: 5.658984,
+              &quot;description&quot;: &quot;idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))&quot;,
+              &quot;details&quot;: [
+                {
+                  &quot;value&quot;: 3.0,
+                  &quot;description&quot;: &quot;n, number of docs containing this term&quot;
+                },
+                {
+                  &quot;value&quot;: 1003.0,
+                  &quot;description&quot;: &quot;N, total number of docs&quot;
+                }
+              ]
+            },
+            {
+              &quot;value&quot;: 0.5262329,
+              &quot;description&quot;: &quot;freq / (freq + k1 * (1 - b + b * dl / avgdl))&quot;,
+              &quot;details&quot;: [
+                {
+                  &quot;value&quot;: 1.0,
+                  &quot;description&quot;: &quot;freq, occurrences of term within document&quot;
+                },
+                {
+                  &quot;value&quot;: 1.2,
+                  &quot;description&quot;: &quot;k1, term saturation parameter&quot;
+                },
+                {
+                  &quot;value&quot;: 0.75,
+                  &quot;description&quot;: &quot;b, length normalization parameter&quot;
+                },
+                {
+                  &quot;value&quot;: 4.0,
+                  &quot;description&quot;: &quot;dl, length of field&quot;
+                },
+                {
+                  &quot;value&quot;: 5.997009,
+                  &quot;description&quot;: &quot;avgdl, average length of field&quot;
+                }
+              ]
+            }
+          ]
+        },
+        {
+          &quot;value&quot;: 6.446235,
+          &quot;description&quot;: &quot;TermQuery, product of...&quot;,
+          &quot;details&quot;: [
+            {
+              &quot;value&quot;: 2.2,
+              &quot;description&quot;: &quot;(K1+1)&quot;
+            },
+            {
+              &quot;value&quot;: 5.9954567,
+              &quot;description&quot;: &quot;idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))&quot;,
+              &quot;details&quot;: [
+                {
+                  &quot;value&quot;: 2.0,
+                  &quot;description&quot;: &quot;n, number of docs containing this term&quot;
+                },
+                {
+                  &quot;value&quot;: 1003.0,
+                  &quot;description&quot;: &quot;N, total number of docs&quot;
+                }
+              ]
+            },
+            {
+              &quot;value&quot;: 0.4887212,
+              &quot;description&quot;: &quot;freq / (freq + k1 * (1 - b + b * dl / avgdl))&quot;,
+              &quot;details&quot;: [
+                {
+                  &quot;value&quot;: 1.0,
+                  &quot;description&quot;: &quot;freq, occurrences of term within document&quot;
+                },
+                {
+                  &quot;value&quot;: 1.2,
+                  &quot;description&quot;: &quot;k1, term saturation parameter&quot;
+                },
+                {
+                  &quot;value&quot;: 0.75,
+                  &quot;description&quot;: &quot;b, length normalization parameter&quot;
+                },
+                {
+                  &quot;value&quot;: 20.0,
+                  &quot;description&quot;: &quot;dl, length of field&quot;
+                },
+                {
+                  &quot;value&quot;: 24.123629,
+                  &quot;description&quot;: &quot;avgdl, average length of field&quot;
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}&quot;#</span>
+        );
+    }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "tantivy";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "tantivy";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>

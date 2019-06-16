@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Lcg64Xsh32","A PCG random number generator (XSH RR 64/32 (LCG) variant)."],["Mcg128Xsl64","A PCG random number generator (XSL 128/64 (MCG) variant)."]],"type":[["Pcg32","`Lcg64Xsh32` is also officially known as `pcg32`."],["Pcg64Mcg","A friendly name for `Mcg128Xsl64`."]]});

@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.5.6/src/distributions/log_gamma.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>log_gamma.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="comment">// Copyright 2016-2017 The Rust Project Developers. See the COPYRIGHT</span>
+<span class="comment">// file at the top-level directory of this distribution and at</span>
+<span class="comment">// https://rust-lang.org/COPYRIGHT.</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
+<span class="comment">// https://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or https://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// option. This file may not be copied, modified, or distributed</span>
+<span class="comment">// except according to those terms.</span>
+
+<span class="doccomment">/// Calculates ln(gamma(x)) (natural logarithm of the gamma</span>
+<span class="doccomment">/// function) using the Lanczos approximation.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The approximation expresses the gamma function as:</span>
+<span class="doccomment">/// `gamma(z+1) = sqrt(2*pi)*(z+g+0.5)^(z+0.5)*exp(-z-g-0.5)*Ag(z)`</span>
+<span class="doccomment">/// `g` is an arbitrary constant; we use the approximation with `g=5`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Noting that `gamma(z+1) = z*gamma(z)` and applying `ln` to both sides:</span>
+<span class="doccomment">/// `ln(gamma(z)) = (z+0.5)*ln(z+g+0.5)-(z+g+0.5) + ln(sqrt(2*pi)*Ag(z)/z)`</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `Ag(z)` is an infinite series with coefficients that can be calculated</span>
+<span class="doccomment">/// ahead of time - we use just the first 6 terms, which is good enough</span>
+<span class="doccomment">/// for most purposes.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log_gamma</span>(<span class="ident">x</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+    <span class="comment">// precalculated 6 coefficients for the first 6 terms of the series</span>
+    <span class="kw">let</span> <span class="ident">coefficients</span>: [<span class="ident">f64</span>; <span class="number">6</span>] <span class="op">=</span> [
+        <span class="number">76.18009172947146</span>,
+        <span class="op">-</span><span class="number">86.50532032941677</span>,
+        <span class="number">24.01409824083091</span>,
+        <span class="op">-</span><span class="number">1.231739572450155</span>,
+        <span class="number">0.1208650973866179e-2</span>,
+        <span class="op">-</span><span class="number">0.5395239384953e-5</span>,
+    ];
+
+    <span class="comment">// (x+0.5)*ln(x+g+0.5)-(x+g+0.5)</span>
+    <span class="kw">let</span> <span class="ident">tmp</span> <span class="op">=</span> <span class="ident">x</span> <span class="op">+</span> <span class="number">5.5</span>;
+    <span class="kw">let</span> <span class="ident">log</span> <span class="op">=</span> (<span class="ident">x</span> <span class="op">+</span> <span class="number">0.5</span>) <span class="op">*</span> <span class="ident">tmp</span>.<span class="ident">ln</span>() <span class="op">-</span> <span class="ident">tmp</span>;
+
+    <span class="comment">// the first few terms of the series for Ag(x)</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">a</span> <span class="op">=</span> <span class="number">1.000000000190015</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">denom</span> <span class="op">=</span> <span class="ident">x</span>;
+    <span class="kw">for</span> <span class="ident">coeff</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">coefficients</span> {
+        <span class="ident">denom</span> <span class="op">+=</span> <span class="number">1.0</span>;
+        <span class="ident">a</span> <span class="op">+=</span> <span class="ident">coeff</span> <span class="op">/</span> <span class="ident">denom</span>;
+    }
+
+    <span class="comment">// get everything together</span>
+    <span class="comment">// a is Ag(x)</span>
+    <span class="comment">// 2.5066... is sqrt(2pi)</span>
+    <span class="ident">log</span> <span class="op">+</span> (<span class="number">2.5066282746310005</span> <span class="op">*</span> <span class="ident">a</span> <span class="op">/</span> <span class="ident">x</span>).<span class="ident">ln</span>()
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/schema/facet.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>facet.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/schema/facet.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>facet.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -242,7 +242,21 @@
 <span id="242">242</span>
 <span id="243">243</span>
 <span id="244">244</span>
-</pre><pre class="rust ">
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
@@ -251,6 +265,7 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Display</span>, <span class="ident">Formatter</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">string</span>::<span class="ident">FromUtf8Error</span>;
 
 <span class="kw">const</span> <span class="ident">SLASH_BYTE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="string">b&#39;/&#39;</span>;
 <span class="kw">const</span> <span class="ident">ESCAPE_BYTE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="string">b&#39;\\&#39;</span>;
@@ -258,6 +273,10 @@
 <span class="doccomment">/// BYTE used as a level separation in the binary</span>
 <span class="doccomment">/// representation of facets.</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FACET_SEP_BYTE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">0u8</span>;
+
+<span class="doccomment">/// `char` used as a level separation in the binary</span>
+<span class="doccomment">/// representation of facets. (It is the null codepoint.)</span>
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FACET_SEP_CHAR</span>: <span class="ident">char</span> <span class="op">=</span> <span class="string">&#39;\u{0}&#39;</span>;
 
 <span class="doccomment">/// A Facet represent a point in a given hierarchy.</span>
 <span class="doccomment">///</span>
@@ -271,18 +290,18 @@
 <span class="doccomment">/// its facet. In the example above, `/electronics/tv_and_video/`</span>
 <span class="doccomment">/// and `/electronics`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Eq</span>, <span class="ident">Hash</span>, <span class="ident">PartialEq</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Facet</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Facet</span>(<span class="ident">String</span>);
 
 <span class="kw">impl</span> <span class="ident">Facet</span> {
     <span class="doccomment">/// Returns a new instance of the &quot;root facet&quot;</span>
     <span class="doccomment">/// Equivalent to `/`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">root</span>() <span class="op">-&gt;</span> <span class="ident">Facet</span> {
-        <span class="ident">Facet</span>(<span class="macro">vec</span><span class="macro">!</span>[])
+        <span class="ident">Facet</span>(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>())
     }
 
     <span class="doccomment">/// Returns true iff the facet is the root facet `/`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_root</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">encoded_bytes</span>().<span class="ident">is_empty</span>()
+        <span class="self">self</span>.<span class="ident">encoded_str</span>().<span class="ident">is_empty</span>()
     }
 
     <span class="doccomment">/// Returns a binary representation of the facet.</span>
@@ -294,13 +313,19 @@
     <span class="doccomment">/// This representation has the benefit of making it possible to</span>
     <span class="doccomment">/// express &quot;being a child of a given facet&quot; as a range over</span>
     <span class="doccomment">/// the term ordinals.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encoded_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encoded_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_encoded_string</span>(<span class="ident">facet_string</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">Facet</span> {
+        <span class="ident">Facet</span>(<span class="ident">facet_string</span>)
+    }
+
     <span class="doccomment">/// Creates a `Facet` from its binary representation.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_encoded</span>(<span class="ident">encoded_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Facet</span> {
-        <span class="ident">Facet</span>(<span class="ident">encoded_bytes</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_encoded</span>(<span class="ident">encoded_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Facet</span>, <span class="ident">FromUtf8Error</span><span class="op">&gt;</span> {
+        <span class="comment">// facet bytes validation. `0u8` is used a separator but that is still legal utf-8</span>
+        <span class="comment">//Ok(Facet(String::from_utf8(encoded_bytes)?))</span>
+        <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">encoded_bytes</span>).<span class="ident">map</span>(<span class="ident">Facet</span>)
     }
 
     <span class="doccomment">/// Parse a text representation of a facet.</span>
@@ -324,40 +349,37 @@
         <span class="ident">Path</span>: <span class="ident">IntoIterator</span>,
         <span class="ident">Path</span>::<span class="ident">Item</span>: <span class="ident">ToString</span>,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_string</span>: <span class="ident">String</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">step_it</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">into_iter</span>();
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">step</span>) <span class="op">=</span> <span class="ident">step_it</span>.<span class="ident">next</span>() {
-            <span class="ident">facet_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="ident">step</span>.<span class="ident">to_string</span>().<span class="ident">as_bytes</span>());
+            <span class="ident">facet_string</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">to_string</span>());
         }
         <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="ident">step_it</span> {
-            <span class="ident">facet_bytes</span>.<span class="ident">push</span>(<span class="ident">FACET_SEP_BYTE</span>);
-            <span class="ident">facet_bytes</span>.<span class="ident">extend_from_slice</span>(<span class="ident">step</span>.<span class="ident">to_string</span>().<span class="ident">as_bytes</span>());
+            <span class="ident">facet_string</span>.<span class="ident">push</span>(<span class="ident">FACET_SEP_CHAR</span>);
+            <span class="ident">facet_string</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">to_string</span>());
         }
-        <span class="ident">Facet</span>(<span class="ident">facet_bytes</span>)
+        <span class="ident">Facet</span>(<span class="ident">facet_string</span>)
     }
 
     <span class="doccomment">/// Accessor for the inner buffer of the `Facet`.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">inner_buffer_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">set_facet_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">facet_str</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">clear</span>();
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">push_str</span>(<span class="ident">facet_str</span>);
     }
 
     <span class="doccomment">/// Returns `true` iff other is a subfacet of `self`.</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">collapsible_if</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_prefix_of</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">Facet</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">self_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="self">self</span>.<span class="ident">encoded_bytes</span>();
-        <span class="kw">let</span> <span class="ident">other_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="ident">other</span>.<span class="ident">encoded_bytes</span>();
-        <span class="kw">if</span> <span class="ident">self_bytes</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">other_bytes</span>.<span class="ident">len</span>() {
-            <span class="kw">if</span> <span class="ident">other_bytes</span>.<span class="ident">starts_with</span>(<span class="ident">self_bytes</span>) {
-                <span class="kw">return</span> <span class="ident">other_bytes</span>[<span class="ident">self_bytes</span>.<span class="ident">len</span>()] <span class="op">==</span> <span class="number">0u8</span>;
-            }
-        }
-        <span class="bool-val">false</span>
+        <span class="kw">let</span> <span class="ident">self_str</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">encoded_str</span>();
+        <span class="kw">let</span> <span class="ident">other_str</span> <span class="op">=</span> <span class="ident">other</span>.<span class="ident">encoded_str</span>();
+        <span class="ident">self_str</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">other_str</span>.<span class="ident">len</span>()
+            <span class="op">&amp;&amp;</span> <span class="ident">other_str</span>.<span class="ident">starts_with</span>(<span class="ident">self_str</span>)
+            <span class="op">&amp;&amp;</span> <span class="ident">other_str</span>.<span class="ident">as_bytes</span>()[<span class="ident">self_str</span>.<span class="ident">len</span>()] <span class="op">==</span> <span class="ident">FACET_SEP_BYTE</span>
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Borrow</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Facet</span> {
-    <span class="kw">fn</span> <span class="ident">borrow</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="self">self</span>.<span class="ident">encoded_bytes</span>()
+<span class="kw">impl</span> <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Facet</span> {
+    <span class="kw">fn</span> <span class="ident">borrow</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="self">self</span>.<span class="ident">encoded_str</span>()
     }
 }
 
@@ -369,45 +391,51 @@
             <span class="ident">Idle</span>,
         }
         <span class="kw">let</span> <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="ident">path_asref</span>.<span class="ident">as_ref</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_encoded</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">path</span>.<span class="ident">is_empty</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">path</span>.<span class="ident">starts_with</span>(<span class="string">&#39;/&#39;</span>));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_encoded</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Idle</span>;
         <span class="kw">let</span> <span class="ident">path_bytes</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">as_bytes</span>();
-        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">c</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">path_bytes</span>[<span class="number">1</span>..] {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_offset</span> <span class="op">=</span> <span class="number">1</span>;
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">1</span>..<span class="ident">path_bytes</span>.<span class="ident">len</span>() {
+            <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="ident">path_bytes</span>[<span class="ident">i</span>];
             <span class="kw">match</span> (<span class="ident">state</span>, <span class="ident">c</span>) {
-                (<span class="ident">State</span>::<span class="ident">Idle</span>, <span class="ident">ESCAPE_BYTE</span>) <span class="op">=&gt;</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Escaped</span>,
+                (<span class="ident">State</span>::<span class="ident">Idle</span>, <span class="ident">ESCAPE_BYTE</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">facet_encoded</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>[<span class="ident">last_offset</span>..<span class="ident">i</span>]);
+                    <span class="ident">last_offset</span> <span class="op">=</span> <span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>;
+                    <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Escaped</span>
+                }
                 (<span class="ident">State</span>::<span class="ident">Idle</span>, <span class="ident">SLASH_BYTE</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">facet_encoded</span>.<span class="ident">push</span>(<span class="ident">FACET_SEP_BYTE</span>);
+                    <span class="ident">facet_encoded</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>[<span class="ident">last_offset</span>..<span class="ident">i</span>]);
+                    <span class="ident">facet_encoded</span>.<span class="ident">push</span>(<span class="ident">FACET_SEP_CHAR</span>);
+                    <span class="ident">last_offset</span> <span class="op">=</span> <span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>;
                 }
-                (<span class="ident">State</span>::<span class="ident">Escaped</span>, <span class="ident">any_char</span>) <span class="op">=&gt;</span> {
+                (<span class="ident">State</span>::<span class="ident">Escaped</span>, <span class="ident">_escaped_char</span>) <span class="op">=&gt;</span> {
                     <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Idle</span>;
-                    <span class="ident">facet_encoded</span>.<span class="ident">push</span>(<span class="ident">any_char</span>);
                 }
-                (<span class="ident">State</span>::<span class="ident">Idle</span>, <span class="ident">other_char</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">facet_encoded</span>.<span class="ident">push</span>(<span class="ident">other_char</span>);
-                }
+                (<span class="ident">State</span>::<span class="ident">Idle</span>, <span class="ident">_any_char</span>) <span class="op">=&gt;</span> {}
             }
         }
+        <span class="ident">facet_encoded</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>[<span class="ident">last_offset</span>..]);
         <span class="ident">Facet</span>(<span class="ident">facet_encoded</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">BinarySerializable</span> <span class="kw">for</span> <span class="ident">Facet</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">as</span> <span class="ident">BinarySerializable</span><span class="op">&gt;</span>::<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">writer</span>)
+        <span class="op">&lt;</span><span class="ident">String</span> <span class="kw">as</span> <span class="ident">BinarySerializable</span><span class="op">&gt;</span>::<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="ident">writer</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Read</span><span class="op">&gt;</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">as</span> <span class="ident">BinarySerializable</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Facet</span>(<span class="ident">bytes</span>))
+        <span class="prelude-val">Ok</span>(<span class="ident">Facet</span>(<span class="op">&lt;</span><span class="ident">String</span> <span class="kw">as</span> <span class="ident">BinarySerializable</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>))
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Facet</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">split</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">==</span> <span class="ident">FACET_SEP_BYTE</span>) {
+        <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">split</span>(<span class="ident">FACET_SEP_CHAR</span>) {
             <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;/&quot;</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">step_str</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">step</span>) };
-            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">escape_slashes</span>(<span class="ident">step_str</span>))<span class="question-mark">?</span>;
+            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">escape_slashes</span>(<span class="ident">step</span>))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -487,5 +515,5 @@
     }
 
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

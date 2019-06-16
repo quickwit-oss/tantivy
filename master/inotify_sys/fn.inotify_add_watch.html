@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `inotify_add_watch` fn in crate `inotify_sys`."><meta name="keywords" content="rust, rustlang, rust-lang, inotify_add_watch"><title>inotify_sys::inotify_add_watch - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc fn"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../inotify_sys/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><div class="sidebar-elems"><p class='location'><a href='index.html'>inotify_sys</a></p><script>window.sidebarCurrent = {name: 'inotify_add_watch', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/inotify_sys/lib.rs.html#694' title='goto source code'>[src]</a></span><span class='in-band'>Function <a href='index.html'>inotify_sys</a>::<wbr><a class="fn" href=''>inotify_add_watch</a></span></h1><pre class='rust fn'>pub unsafe extern &quot;C&quot; fn inotify_add_watch(<br>&nbsp;&nbsp;&nbsp;&nbsp;fd: <a class="type" href="../libc/unix/type.c_int.html" title="type libc::unix::c_int">c_int</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;pathname: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const </a><a class="type" href="../libc/unix/notbsd/linux/other/b64/x86_64/type.c_char.html" title="type libc::unix::notbsd::linux::other::b64::x86_64::c_char">c_char</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;mask: <a class="type" href="../libc/fixed_width_ints/type.uint32_t.html" title="type libc::fixed_width_ints::uint32_t">uint32_t</a><br>) -&gt; <a class="type" href="../libc/unix/type.c_int.html" title="type libc::unix::c_int">c_int</a></pre><div class='docblock'><p>Adds or updates an inotify watch</p>
+<p>Adds an item to the watch list of an inotify instance, or modifies an
+item on that list. This function takes the following arguments:</p>
+<ul>
+<li><code>fd</code> is the file descriptor of the inotify instance (created by
+<a href="fn.inotify_init.html"><code>inotify_init</code></a> or <a href="fn.inotify_init1.html"><code>inotify_init1</code></a>)</li>
+<li><code>pathname</code> is the path of the file or directory watch</li>
+<li><code>mask</code> defines the behavior of this function and configures the watch</li>
+</ul>
+<p>The following flags in <code>mask</code> control the type of events to watch for:</p>
+<ul>
+<li><a href="constant.IN_ACCESS.html"><code>IN_ACCESS</code></a></li>
+<li><a href="constant.IN_ATTRIB.html"><code>IN_ATTRIB</code></a></li>
+<li><a href="constant.IN_CLOSE_NOWRITE.html"><code>IN_CLOSE_NOWRITE</code></a></li>
+<li><a href="constant.IN_CLOSE_WRITE.html"><code>IN_CLOSE_WRITE</code></a></li>
+<li><a href="constant.IN_CREATE.html"><code>IN_CREATE</code></a></li>
+<li><a href="constant.IN_DELETE.html"><code>IN_DELETE</code></a></li>
+<li><a href="constant.IN_DELETE_SELF.html"><code>IN_DELETE_SELF</code></a></li>
+<li><a href="constant.IN_MODIFY.html"><code>IN_MODIFY</code></a></li>
+<li><a href="constant.IN_MOVED_FROM.html"><code>IN_MOVED_FROM</code></a></li>
+<li><a href="constant.IN_MOVED_TO.html"><code>IN_MOVED_TO</code></a></li>
+<li><a href="constant.IN_MOVE_SELF.html"><code>IN_MOVE_SELF</code></a></li>
+<li><a href="constant.IN_OPEN.html"><code>IN_OPEN</code></a></li>
+</ul>
+<p>The following constants can be used as shortcuts to set multiple event
+flags:</p>
+<ul>
+<li><a href="constant.IN_ALL_EVENTS.html"><code>IN_ALL_EVENTS</code></a></li>
+<li><a href="constant.IN_CLOSE.html"><code>IN_CLOSE</code></a></li>
+<li><a href="constant.IN_MOVE.html"><code>IN_MOVE</code></a></li>
+</ul>
+<p>In addition, the following flags can be set to control the behaviors of
+the watch and this function:</p>
+<ul>
+<li><a href="constant.IN_DONT_FOLLOW.html"><code>IN_DONT_FOLLOW</code></a></li>
+<li><a href="constant.IN_EXCL_UNLINK.html"><code>IN_EXCL_UNLINK</code></a></li>
+<li><a href="constant.IN_MASK_ADD.html"><code>IN_MASK_ADD</code></a></li>
+<li><a href="constant.IN_ONESHOT.html"><code>IN_ONESHOT</code></a></li>
+<li><a href="constant.IN_ONLYDIR.html"><code>IN_ONLYDIR</code></a></li>
+</ul>
+<p>The function returns <code>-1</code> if an error occured. Otherwise, it returns a
+watch descriptor that can be used to remove the watch using
+<a href="fn.inotify_rm_watch.html"><code>inotify_rm_watch</code></a> or identify the watch via <a href="struct.inotify_event.html"><code>inotify_event</code></a>'s [wd`]
+field.</p>
+<p>Please refer to the <a href="http://man7.org/linux/man-pages/man2/inotify_add_watch.2.html">man page</a> for additional details.</p>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "inotify_sys";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

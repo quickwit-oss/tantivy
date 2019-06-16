@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["AtomicLazyCell","A lazily filled and thread-safe `Cell`, with frozen contents."],["LazyCell","A lazily filled `Cell`, with mutable contents."]]});

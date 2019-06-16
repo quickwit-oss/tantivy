@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Drain","A draining iterator for `Slab`"],["Iter","An iterator over the values stored in the `Slab`"],["IterMut","A mutable iterator over the values stored in the `Slab`"],["Slab","Pre-allocated storage for a uniform data type"],["VacantEntry","A handle to a vacant entry in a `Slab`."]]});

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/byteorder-1.2.3/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/byteorder-1.3.2/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../byteorder/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -3158,10 +3158,178 @@
 <span id="3158">3158</span>
 <span id="3159">3159</span>
 <span id="3160">3160</span>
-</pre><pre class="rust ">
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
+<span id="3173">3173</span>
+<span id="3174">3174</span>
+<span id="3175">3175</span>
+<span id="3176">3176</span>
+<span id="3177">3177</span>
+<span id="3178">3178</span>
+<span id="3179">3179</span>
+<span id="3180">3180</span>
+<span id="3181">3181</span>
+<span id="3182">3182</span>
+<span id="3183">3183</span>
+<span id="3184">3184</span>
+<span id="3185">3185</span>
+<span id="3186">3186</span>
+<span id="3187">3187</span>
+<span id="3188">3188</span>
+<span id="3189">3189</span>
+<span id="3190">3190</span>
+<span id="3191">3191</span>
+<span id="3192">3192</span>
+<span id="3193">3193</span>
+<span id="3194">3194</span>
+<span id="3195">3195</span>
+<span id="3196">3196</span>
+<span id="3197">3197</span>
+<span id="3198">3198</span>
+<span id="3199">3199</span>
+<span id="3200">3200</span>
+<span id="3201">3201</span>
+<span id="3202">3202</span>
+<span id="3203">3203</span>
+<span id="3204">3204</span>
+<span id="3205">3205</span>
+<span id="3206">3206</span>
+<span id="3207">3207</span>
+<span id="3208">3208</span>
+<span id="3209">3209</span>
+<span id="3210">3210</span>
+<span id="3211">3211</span>
+<span id="3212">3212</span>
+<span id="3213">3213</span>
+<span id="3214">3214</span>
+<span id="3215">3215</span>
+<span id="3216">3216</span>
+<span id="3217">3217</span>
+<span id="3218">3218</span>
+<span id="3219">3219</span>
+<span id="3220">3220</span>
+<span id="3221">3221</span>
+<span id="3222">3222</span>
+<span id="3223">3223</span>
+<span id="3224">3224</span>
+<span id="3225">3225</span>
+<span id="3226">3226</span>
+<span id="3227">3227</span>
+<span id="3228">3228</span>
+<span id="3229">3229</span>
+<span id="3230">3230</span>
+<span id="3231">3231</span>
+<span id="3232">3232</span>
+<span id="3233">3233</span>
+<span id="3234">3234</span>
+<span id="3235">3235</span>
+<span id="3236">3236</span>
+<span id="3237">3237</span>
+<span id="3238">3238</span>
+<span id="3239">3239</span>
+<span id="3240">3240</span>
+<span id="3241">3241</span>
+<span id="3242">3242</span>
+<span id="3243">3243</span>
+<span id="3244">3244</span>
+<span id="3245">3245</span>
+<span id="3246">3246</span>
+<span id="3247">3247</span>
+<span id="3248">3248</span>
+<span id="3249">3249</span>
+<span id="3250">3250</span>
+<span id="3251">3251</span>
+<span id="3252">3252</span>
+<span id="3253">3253</span>
+<span id="3254">3254</span>
+<span id="3255">3255</span>
+<span id="3256">3256</span>
+<span id="3257">3257</span>
+<span id="3258">3258</span>
+<span id="3259">3259</span>
+<span id="3260">3260</span>
+<span id="3261">3261</span>
+<span id="3262">3262</span>
+<span id="3263">3263</span>
+<span id="3264">3264</span>
+<span id="3265">3265</span>
+<span id="3266">3266</span>
+<span id="3267">3267</span>
+<span id="3268">3268</span>
+<span id="3269">3269</span>
+<span id="3270">3270</span>
+<span id="3271">3271</span>
+<span id="3272">3272</span>
+<span id="3273">3273</span>
+<span id="3274">3274</span>
+<span id="3275">3275</span>
+<span id="3276">3276</span>
+<span id="3277">3277</span>
+<span id="3278">3278</span>
+<span id="3279">3279</span>
+<span id="3280">3280</span>
+<span id="3281">3281</span>
+<span id="3282">3282</span>
+<span id="3283">3283</span>
+<span id="3284">3284</span>
+<span id="3285">3285</span>
+<span id="3286">3286</span>
+<span id="3287">3287</span>
+<span id="3288">3288</span>
+<span id="3289">3289</span>
+<span id="3290">3290</span>
+<span id="3291">3291</span>
+<span id="3292">3292</span>
+<span id="3293">3293</span>
+<span id="3294">3294</span>
+<span id="3295">3295</span>
+<span id="3296">3296</span>
+<span id="3297">3297</span>
+<span id="3298">3298</span>
+<span id="3299">3299</span>
+<span id="3300">3300</span>
+<span id="3301">3301</span>
+<span id="3302">3302</span>
+<span id="3303">3303</span>
+<span id="3304">3304</span>
+<span id="3305">3305</span>
+<span id="3306">3306</span>
+<span id="3307">3307</span>
+<span id="3308">3308</span>
+<span id="3309">3309</span>
+<span id="3310">3310</span>
+<span id="3311">3311</span>
+<span id="3312">3312</span>
+<span id="3313">3313</span>
+<span id="3314">3314</span>
+<span id="3315">3315</span>
+<span id="3316">3316</span>
+<span id="3317">3317</span>
+<span id="3318">3318</span>
+<span id="3319">3319</span>
+<span id="3320">3320</span>
+<span id="3321">3321</span>
+<span id="3322">3322</span>
+<span id="3323">3323</span>
+<span id="3324">3324</span>
+<span id="3325">3325</span>
+<span id="3326">3326</span>
+<span id="3327">3327</span>
+<span id="3328">3328</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/*!
-This crate provides convenience methods for encoding and decoding numbers
-in either [big-endian or little-endian order].
+This crate provides convenience methods for encoding and decoding numbers in
+either [big-endian or little-endian order].
 
 The organization of the crate is pretty simple. A trait, [`ByteOrder`], specifies
 byte conversion methods for each type of number in Rust (sans numbers that have
@@ -3210,6 +3378,12 @@ when built with the `i128` feature enabled.
 
 This crate can also be used without the standard library.
 
+# Alternatives
+
+Note that as of Rust 1.32, the standard numeric types provide built-in methods
+like `to_le_bytes` and `from_le_bytes`, which support some of the same use
+cases.
+
 [big-endian or little-endian order]: https://en.wikipedia.org/wiki/Endianness
 [`ByteOrder`]: trait.ByteOrder.html
 [`BigEndian`]: enum.BigEndian.html
@@ -3224,10 +3398,16 @@ This crate can also be used without the standard library.
 
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>), <span class="ident">no_std</span>)]</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/byteorder/1.2.1&quot;</span>)]</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">core</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">doc_comment</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="macro">doctest</span><span class="macro">!</span>(<span class="string">&quot;../README.md&quot;</span>);
 
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">hash</span>::<span class="ident">Hash</span>;
@@ -3246,7 +3426,7 @@ This crate can also be used without the standard library.
     (<span class="ident">val</span> <span class="op">&lt;&lt;</span> <span class="ident">shift</span>) <span class="kw">as</span> <span class="ident">i64</span> <span class="op">&gt;&gt;</span> <span class="ident">shift</span>
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">extend_sign128</span>(<span class="ident">val</span>: <span class="ident">u128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i128</span> {
     <span class="kw">let</span> <span class="ident">shift</span> <span class="op">=</span> (<span class="number">16</span> <span class="op">-</span> <span class="ident">nbytes</span>) <span class="op">*</span> <span class="number">8</span>;
@@ -3259,7 +3439,7 @@ This crate can also be used without the standard library.
     (<span class="ident">val</span> <span class="op">&lt;&lt;</span> <span class="ident">shift</span>) <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&gt;&gt;</span> <span class="ident">shift</span>
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">unextend_sign128</span>(<span class="ident">val</span>: <span class="ident">i128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u128</span> {
     <span class="kw">let</span> <span class="ident">shift</span> <span class="op">=</span> (<span class="number">16</span> <span class="op">-</span> <span class="ident">nbytes</span>) <span class="op">*</span> <span class="number">8</span>;
@@ -3287,7 +3467,7 @@ This crate can also be used without the standard library.
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">pack_size128</span>(<span class="ident">n</span>: <span class="ident">u128</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
     <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="number">8</span> {
@@ -3362,8 +3542,8 @@ This crate can also be used without the standard library.
 <span class="doccomment">/// use byteorder::{ByteOrder, BigEndian};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let mut buf = [0; 2];</span>
-<span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -50_000);</span>
-<span class="doccomment">/// assert_eq!(-50_000, BigEndian::read_i16(&amp;buf));</span>
+<span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -5_000);</span>
+<span class="doccomment">/// assert_eq!(-5_000, BigEndian::read_i16(&amp;buf));</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
@@ -3419,6 +3599,27 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">read_u32</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u32</span>;
 
+    <span class="doccomment">/// Reads an unsigned 48 bit integer from `buf`, stored in u64.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `buf.len() &lt; 6`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read 48 bit `u64` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut buf = [0; 6];</span>
+    <span class="doccomment">/// LittleEndian::write_u48(&amp;mut buf, 1_000_000_000_000);</span>
+    <span class="doccomment">/// assert_eq!(1_000_000_000_000, LittleEndian::read_u48(&amp;buf));</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">fn</span> <span class="ident">read_u48</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">Self</span>::<span class="ident">read_uint</span>(<span class="ident">buf</span>, <span class="number">6</span>) <span class="kw">as</span> <span class="ident">u64</span>
+    }
+
     <span class="doccomment">/// Reads an unsigned 64 bit integer from `buf`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
@@ -3455,7 +3656,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_u128(&amp;mut buf, 1_000_000);</span>
     <span class="doccomment">/// assert_eq!(1_000_000, LittleEndian::read_u128(&amp;buf));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">read_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u128</span>;
 
     <span class="doccomment">/// Reads an unsigned n-bytes integer from `buf`.</span>
@@ -3496,7 +3697,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_uint128(&amp;mut buf, 1_000_000, 3);</span>
     <span class="doccomment">/// assert_eq!(1_000_000, LittleEndian::read_uint128(&amp;buf, 3));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">read_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u128</span>;
 
     <span class="doccomment">/// Writes an unsigned 16 bit integer `n` to `buf`.</span>
@@ -3513,8 +3714,8 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut buf = [0; 2];</span>
-    <span class="doccomment">/// LittleEndian::write_u16(&amp;mut buf, 1_000_000);</span>
-    <span class="doccomment">/// assert_eq!(1_000_000, LittleEndian::read_u16(&amp;buf));</span>
+    <span class="doccomment">/// LittleEndian::write_u16(&amp;mut buf, 1_000);</span>
+    <span class="doccomment">/// assert_eq!(1_000, LittleEndian::read_u16(&amp;buf));</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_u16</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u16</span>);
 
@@ -3558,6 +3759,27 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_u32</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u32</span>);
 
+    <span class="doccomment">/// Writes an unsigned 48 bit integer `n` to `buf`, stored in u64.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `buf.len() &lt; 6`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read 48 bit `u64` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut buf = [0; 6];</span>
+    <span class="doccomment">/// LittleEndian::write_u48(&amp;mut buf, 1_000_000_000_000);</span>
+    <span class="doccomment">/// assert_eq!(1_000_000_000_000, LittleEndian::read_u48(&amp;buf));</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">fn</span> <span class="ident">write_u48</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u64</span>) {
+        <span class="self">Self</span>::<span class="ident">write_uint</span>(<span class="ident">buf</span>, <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="number">6</span>)
+    }
+
     <span class="doccomment">/// Writes an unsigned 64 bit integer `n` to `buf`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
@@ -3594,7 +3816,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_u128(&amp;mut buf, 1_000_000);</span>
     <span class="doccomment">/// assert_eq!(1_000_000, LittleEndian::read_u128(&amp;buf));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>);
 
     <span class="doccomment">/// Writes an unsigned integer `n` to `buf` using only `nbytes`.</span>
@@ -3635,7 +3857,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_uint128(&amp;mut buf, 1_000_000, 3);</span>
     <span class="doccomment">/// assert_eq!(1_000_000, LittleEndian::read_uint128(&amp;buf, 3));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>);
 
     <span class="doccomment">/// Reads a signed 16 bit integer from `buf`.</span>
@@ -3704,6 +3926,28 @@ This crate can also be used without the standard library.
         <span class="self">Self</span>::<span class="ident">read_u32</span>(<span class="ident">buf</span>) <span class="kw">as</span> <span class="ident">i32</span>
     }
 
+    <span class="doccomment">/// Reads a signed 48 bit integer from `buf`, stored in i64.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `buf.len() &lt; 6`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read 48 bit `i64` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut buf = [0; 6];</span>
+    <span class="doccomment">/// LittleEndian::write_i48(&amp;mut buf, -1_000_000_000_000);</span>
+    <span class="doccomment">/// assert_eq!(-1_000_000_000_000, LittleEndian::read_i48(&amp;buf));</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">read_i48</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">i64</span> {
+        <span class="self">Self</span>::<span class="ident">read_int</span>(<span class="ident">buf</span>, <span class="number">6</span>) <span class="kw">as</span> <span class="ident">i64</span>
+    }
+
     <span class="doccomment">/// Reads a signed 64 bit integer from `buf`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
@@ -3743,7 +3987,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_i128(&amp;mut buf, -1_000_000_000);</span>
     <span class="doccomment">/// assert_eq!(-1_000_000_000, LittleEndian::read_i128(&amp;buf));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">i128</span> {
         <span class="self">Self</span>::<span class="ident">read_u128</span>(<span class="ident">buf</span>) <span class="kw">as</span> <span class="ident">i128</span>
@@ -3790,7 +4034,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_int128(&amp;mut buf, -1_000, 3);</span>
     <span class="doccomment">/// assert_eq!(-1_000, LittleEndian::read_int128(&amp;buf, 3));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_int128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i128</span> {
         <span class="ident">extend_sign128</span>(<span class="self">Self</span>::<span class="ident">read_uint128</span>(<span class="ident">buf</span>, <span class="ident">nbytes</span>), <span class="ident">nbytes</span>)
@@ -3908,6 +4152,28 @@ This crate can also be used without the standard library.
         <span class="self">Self</span>::<span class="ident">write_u32</span>(<span class="ident">buf</span>, <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u32</span>)
     }
 
+    <span class="doccomment">/// Writes a signed 48 bit integer `n` to `buf`, stored in i64.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `buf.len() &lt; 6`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read 48 bit `i64` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut buf = [0; 6];</span>
+    <span class="doccomment">/// LittleEndian::write_i48(&amp;mut buf, -1_000_000_000_000);</span>
+    <span class="doccomment">/// assert_eq!(-1_000_000_000_000, LittleEndian::read_i48(&amp;buf));</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">write_i48</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">i64</span>) {
+        <span class="self">Self</span>::<span class="ident">write_int</span>(<span class="ident">buf</span>, <span class="ident">n</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">6</span>)
+    }
+
     <span class="doccomment">/// Writes a signed 64 bit integer `n` to `buf`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
@@ -3947,7 +4213,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_i128(&amp;mut buf, -1_000_000_000);</span>
     <span class="doccomment">/// assert_eq!(-1_000_000_000, LittleEndian::read_i128(&amp;buf));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_i128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">i128</span>) {
         <span class="self">Self</span>::<span class="ident">write_u128</span>(<span class="ident">buf</span>, <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u128</span>)
@@ -3994,7 +4260,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::write_int128(&amp;mut buf, -1_000, 3);</span>
     <span class="doccomment">/// assert_eq!(-1_000, LittleEndian::read_int128(&amp;buf, 3));</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_int128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">i128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>) {
         <span class="self">Self</span>::<span class="ident">write_uint128</span>(<span class="ident">buf</span>, <span class="ident">unextend_sign128</span>(<span class="ident">n</span>, <span class="ident">nbytes</span>), <span class="ident">nbytes</span>)
@@ -4138,7 +4404,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::read_u128_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">read_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]);
 
     <span class="doccomment">/// Reads signed 16 bit integers from `src` to `dst`.</span>
@@ -4155,7 +4421,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 8];</span>
-    <span class="doccomment">/// let numbers_given = [1, 2, 0xf00f, 0xffee];</span>
+    <span class="doccomment">/// let numbers_given = [1, 2, 0x0f, 0xee];</span>
     <span class="doccomment">/// LittleEndian::write_i16_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0; 4];</span>
@@ -4249,7 +4515,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::read_i128_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i128</span>]) {
         <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
@@ -4273,7 +4539,40 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 16];</span>
-    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e311, -11.32e91];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e31, -11.32e19];</span>
+    <span class="doccomment">/// LittleEndian::write_f32_into(&amp;numbers_given, &amp;mut bytes);</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
+    <span class="doccomment">/// LittleEndian::read_f32_into(&amp;bytes, &amp;mut numbers_got);</span>
+    <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">read_f32_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f32</span>]) {
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u32</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
+    }
+
+    <span class="doccomment">/// **DEPRECATED**.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method is deprecated. Use `read_f32_into` instead.</span>
+    <span class="doccomment">/// Reads IEEE754 single-precision (4 bytes) floating point numbers from</span>
+    <span class="doccomment">/// `src` into `dst`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `src.len() != 4*dst.len()`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read `f32` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut bytes = [0; 16];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e31, -11.32e19];</span>
     <span class="doccomment">/// LittleEndian::write_f32_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
@@ -4281,11 +4580,9 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">since</span><span class="op">=</span><span class="string">&quot;1.3.0&quot;</span>, <span class="ident">note</span><span class="op">=</span><span class="string">&quot;please use `read_f32_into` instead&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">read_f32_into_unchecked</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f32</span>]) {
-        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u32</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
-        };
-        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
+        <span class="self">Self</span>::<span class="ident">read_f32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Reads IEEE754 single-precision (4 bytes) floating point numbers from</span>
@@ -4303,7 +4600,41 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 32];</span>
-    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e311, -11.32e91];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e211, -11.32e91];</span>
+    <span class="doccomment">/// LittleEndian::write_f64_into(&amp;numbers_given, &amp;mut bytes);</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
+    <span class="doccomment">/// LittleEndian::read_f64_into(&amp;bytes, &amp;mut numbers_got);</span>
+    <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">read_f64_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f64</span>]) {
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
+    }
+
+    <span class="doccomment">/// **DEPRECATED**.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method is deprecated. Use `read_f64_into` instead.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Reads IEEE754 single-precision (4 bytes) floating point numbers from</span>
+    <span class="doccomment">/// `src` into `dst`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics when `src.len() != 8*dst.len()`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Write and read `f64` numbers in little endian order:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let mut bytes = [0; 32];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e211, -11.32e91];</span>
     <span class="doccomment">/// LittleEndian::write_f64_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
@@ -4311,11 +4642,9 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">since</span><span class="op">=</span><span class="string">&quot;1.3.0&quot;</span>, <span class="ident">note</span><span class="op">=</span><span class="string">&quot;please use `read_f64_into` instead&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">read_f64_into_unchecked</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f64</span>]) {
-        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
-        };
-        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
+        <span class="self">Self</span>::<span class="ident">read_f64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes unsigned 16 bit integers from `src` into `dst`.</span>
@@ -4408,7 +4737,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::read_u128_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u128</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]);
 
     <span class="doccomment">/// Writes signed 16 bit integers from `src` into `dst`.</span>
@@ -4425,7 +4754,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 8];</span>
-    <span class="doccomment">/// let numbers_given = [1, 2, 0xf00f, 0xffee];</span>
+    <span class="doccomment">/// let numbers_given = [1, 2, 0x0f, 0xee];</span>
     <span class="doccomment">/// LittleEndian::write_i16_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0; 4];</span>
@@ -4516,7 +4845,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// LittleEndian::read_i128_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_i128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">i128</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
         <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u128</span>, <span class="ident">src</span>.<span class="ident">len</span>())
@@ -4539,12 +4868,12 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 16];</span>
-    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e311, -11.32e91];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e31, -11.32e19];</span>
     <span class="doccomment">/// LittleEndian::write_f32_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
     <span class="doccomment">/// unsafe {</span>
-    <span class="doccomment">///     LittleEndian::read_f32_into_unchecked(&amp;bytes, &amp;mut numbers_got);</span>
+    <span class="doccomment">///     LittleEndian::read_f32_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
@@ -4570,12 +4899,12 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// use byteorder::{ByteOrder, LittleEndian};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut bytes = [0; 32];</span>
-    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e311, -11.32e91];</span>
+    <span class="doccomment">/// let numbers_given = [1.0, 2.0, 31.312e211, -11.32e91];</span>
     <span class="doccomment">/// LittleEndian::write_f64_into(&amp;numbers_given, &amp;mut bytes);</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let mut numbers_got = [0.0; 4];</span>
     <span class="doccomment">/// unsafe {</span>
-    <span class="doccomment">///     LittleEndian::read_f64_into_unchecked(&amp;bytes, &amp;mut numbers_got);</span>
+    <span class="doccomment">///     LittleEndian::read_f64_into(&amp;bytes, &amp;mut numbers_got);</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
@@ -4660,7 +4989,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// BigEndian::from_slice_u128(&amp;mut numbers);</span>
     <span class="doccomment">/// assert_eq!(numbers, [5u128.to_be(), 65000u128.to_be()]);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">fn</span> <span class="ident">from_slice_u128</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]);
 
     <span class="doccomment">/// Converts the given slice of signed 16 bit integers to a particular</span>
@@ -4676,9 +5005,9 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// ```rust</span>
     <span class="doccomment">/// use byteorder::{ByteOrder, BigEndian};</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// let mut numbers = [5, 65000];</span>
+    <span class="doccomment">/// let mut numbers = [5, 6500];</span>
     <span class="doccomment">/// BigEndian::from_slice_i16(&amp;mut numbers);</span>
-    <span class="doccomment">/// assert_eq!(numbers, [5i16.to_be(), 65000i16.to_be()]);</span>
+    <span class="doccomment">/// assert_eq!(numbers, [5i16.to_be(), 6500i16.to_be()]);</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from_slice_i16</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i16</span>]) {
@@ -4755,7 +5084,7 @@ This crate can also be used without the standard library.
     <span class="doccomment">/// BigEndian::from_slice_i128(&amp;mut numbers);</span>
     <span class="doccomment">/// assert_eq!(numbers, [5i128.to_be(), 65000i128.to_be()]);</span>
     <span class="doccomment">/// ```</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from_slice_i128</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i128</span>]) {
         <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
@@ -4858,8 +5187,8 @@ This crate can also be used without the standard library.
 <span class="doccomment">/// use byteorder::{ByteOrder, NetworkEndian, BigEndian};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let mut buf = [0; 2];</span>
-<span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -50_000);</span>
-<span class="doccomment">/// assert_eq!(-50_000, NetworkEndian::read_i16(&amp;buf));</span>
+<span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -5_000);</span>
+<span class="doccomment">/// assert_eq!(-5_000, NetworkEndian::read_i16(&amp;buf));</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
@@ -4970,7 +5299,7 @@ This crate can also be used without the standard library.
         <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="number">8</span>, <span class="ident">buf</span>, <span class="ident">to_be</span>)
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u128</span> {
         <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">u128</span>, <span class="number">16</span>, <span class="ident">buf</span>, <span class="ident">to_be</span>)
@@ -4988,7 +5317,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u128</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="number">1</span> <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
@@ -5016,7 +5345,7 @@ This crate can also be used without the standard library.
         <span class="macro">write_num_bytes</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="number">8</span>, <span class="ident">n</span>, <span class="ident">buf</span>, <span class="ident">to_be</span>);
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>) {
         <span class="macro">write_num_bytes</span><span class="macro">!</span>(<span class="ident">u128</span>, <span class="number">16</span>, <span class="ident">n</span>, <span class="ident">buf</span>, <span class="ident">to_be</span>);
@@ -5035,7 +5364,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size128</span>(<span class="ident">n</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span>);
@@ -5064,7 +5393,7 @@ This crate can also be used without the standard library.
         <span class="macro">read_slice</span><span class="macro">!</span>(<span class="ident">src</span>, <span class="ident">dst</span>, <span class="number">8</span>, <span class="ident">to_be</span>);
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]) {
         <span class="macro">read_slice</span><span class="macro">!</span>(<span class="ident">src</span>, <span class="ident">dst</span>, <span class="number">16</span>, <span class="ident">to_be</span>);
@@ -5097,7 +5426,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u128</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;big&quot;</span>) {
@@ -5134,7 +5463,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from_slice_u128</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;little&quot;</span>) {
@@ -5185,7 +5514,7 @@ This crate can also be used without the standard library.
         <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="number">8</span>, <span class="ident">buf</span>, <span class="ident">to_le</span>)
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u128</span> {
         <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">u128</span>, <span class="number">16</span>, <span class="ident">buf</span>, <span class="ident">to_le</span>)
@@ -5202,7 +5531,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">nbytes</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u128</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="number">1</span> <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
@@ -5229,7 +5558,7 @@ This crate can also be used without the standard library.
         <span class="macro">write_num_bytes</span><span class="macro">!</span>(<span class="ident">u64</span>, <span class="number">8</span>, <span class="ident">n</span>, <span class="ident">buf</span>, <span class="ident">to_le</span>);
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_u128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>) {
         <span class="macro">write_num_bytes</span><span class="macro">!</span>(<span class="ident">u128</span>, <span class="number">16</span>, <span class="ident">n</span>, <span class="ident">buf</span>, <span class="ident">to_le</span>);
@@ -5245,7 +5574,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_uint128</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">u128</span>, <span class="ident">nbytes</span>: <span class="ident">usize</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size128</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">u128</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span>);
@@ -5271,7 +5600,7 @@ This crate can also be used without the standard library.
         <span class="macro">read_slice</span><span class="macro">!</span>(<span class="ident">src</span>, <span class="ident">dst</span>, <span class="number">8</span>, <span class="ident">to_le</span>);
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]) {
         <span class="macro">read_slice</span><span class="macro">!</span>(<span class="ident">src</span>, <span class="ident">dst</span>, <span class="number">16</span>, <span class="ident">to_le</span>);
@@ -5304,7 +5633,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_u128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u128</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;little&quot;</span>) {
@@ -5341,7 +5670,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from_slice_u128</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u128</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;big&quot;</span>) {
@@ -5383,10 +5712,15 @@ This crate can also be used without the standard library.
 
     <span class="kw">use</span> <span class="self">self</span>::<span class="ident">quickcheck</span>::{<span class="ident">QuickCheck</span>, <span class="ident">StdGen</span>, <span class="ident">Testable</span>};
     <span class="kw">use</span> <span class="self">self</span>::<span class="ident">rand</span>::<span class="ident">thread_rng</span>;
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">quickcheck</span>::{<span class="ident">Arbitrary</span>, <span class="ident">Gen</span>};
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">rand</span>::<span class="ident">Rng</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">quickcheck</span>::{<span class="ident">Arbitrary</span>, <span class="ident">Gen</span>};
 
     <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">U24_MAX</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">16_777_215</span>;
     <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">I24_MAX</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="number">8_388_607</span>;
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">U48_MAX</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">281_474_976_710_655</span>;
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">I48_MAX</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">140_737_488_355_327</span>;
 
     <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">U64_MAX</span>: <span class="ident">u64</span> <span class="op">=</span> ::<span class="ident">core</span>::<span class="ident">u64</span>::<span class="ident">MAX</span>;
     <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">I64_MAX</span>: <span class="ident">u64</span> <span class="op">=</span> ::<span class="ident">core</span>::<span class="ident">i64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>;
@@ -5401,7 +5735,7 @@ This crate can also be used without the standard library.
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw">pub</span> <span class="ident">T</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Clone</span><span class="op">&gt;</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">T</span> {
             <span class="self">self</span>.<span class="number">0</span>.<span class="ident">clone</span>()
@@ -5414,7 +5748,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">impl</span> <span class="ident">Arbitrary</span> <span class="kw">for</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span> {
         <span class="kw">fn</span> <span class="ident">arbitrary</span><span class="op">&lt;</span><span class="ident">G</span>: <span class="ident">Gen</span><span class="op">&gt;</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">G</span>) <span class="op">-&gt;</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span> {
             <span class="kw">let</span> <span class="ident">max</span> <span class="op">=</span> <span class="macro">calc_max</span><span class="macro">!</span>(::<span class="ident">core</span>::<span class="ident">u128</span>::<span class="ident">MAX</span>, <span class="ident">gen</span>.<span class="ident">size</span>(), <span class="number">16</span>);
@@ -5425,7 +5759,7 @@ This crate can also be used without the standard library.
         }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="kw">impl</span> <span class="ident">Arbitrary</span> <span class="kw">for</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span> {
         <span class="kw">fn</span> <span class="ident">arbitrary</span><span class="op">&lt;</span><span class="ident">G</span>: <span class="ident">Gen</span><span class="op">&gt;</span>(<span class="ident">gen</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">G</span>) <span class="op">-&gt;</span> <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span> {
             <span class="kw">let</span> <span class="ident">max</span> <span class="op">=</span> <span class="macro">calc_max</span><span class="macro">!</span>(::<span class="ident">core</span>::<span class="ident">i128</span>::<span class="ident">MAX</span>, <span class="ident">gen</span>.<span class="ident">size</span>(), <span class="number">16</span>);
@@ -5531,14 +5865,16 @@ This crate can also be used without the standard library.
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_i24</span>, <span class="ident">i32</span>, ::<span class="ident">test</span>::<span class="ident">I24_MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_i24</span>, <span class="ident">write_i24</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_u32</span>, <span class="ident">u32</span>, ::<span class="ident">core</span>::<span class="ident">u32</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_u32</span>, <span class="ident">write_u32</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_i32</span>, <span class="ident">i32</span>, ::<span class="ident">core</span>::<span class="ident">i32</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_i32</span>, <span class="ident">write_i32</span>);
+    <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_u48</span>, <span class="ident">u64</span>, ::<span class="ident">test</span>::<span class="ident">U48_MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_u48</span>, <span class="ident">write_u48</span>);
+    <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_i48</span>, <span class="ident">i64</span>, ::<span class="ident">test</span>::<span class="ident">I48_MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_i48</span>, <span class="ident">write_i48</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_u64</span>, <span class="ident">u64</span>, ::<span class="ident">core</span>::<span class="ident">u64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_u64</span>, <span class="ident">write_u64</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_i64</span>, <span class="ident">i64</span>, ::<span class="ident">core</span>::<span class="ident">i64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_i64</span>, <span class="ident">write_i64</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_f32</span>, <span class="ident">f32</span>, ::<span class="ident">core</span>::<span class="ident">u64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_f32</span>, <span class="ident">write_f32</span>);
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_f64</span>, <span class="ident">f64</span>, ::<span class="ident">core</span>::<span class="ident">i64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_f64</span>, <span class="ident">write_f64</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_u128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">16</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">read_u128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_i128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">16</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">read_i128</span>, <span class="ident">write_i128</span>);
 
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint_1</span>,
@@ -5558,52 +5894,52 @@ This crate can also be used without the standard library.
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint_8</span>,
         <span class="ident">u64</span>, <span class="macro">calc_max</span><span class="macro">!</span>(<span class="kw">super</span>::<span class="ident">U64_MAX</span>, <span class="number">8</span>), <span class="number">8</span>, <span class="ident">read_uint</span>, <span class="ident">write_uint</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_1</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_2</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_3</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_4</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_5</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">5</span>, <span class="number">5</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_6</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">6</span>, <span class="number">6</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_7</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_8</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">8</span>, <span class="number">8</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_9</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">9</span>, <span class="number">9</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_10</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_11</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">11</span>, <span class="number">11</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_12</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">12</span>, <span class="number">12</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_13</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">13</span>, <span class="number">13</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_14</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">14</span>, <span class="number">14</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_15</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">15</span>, <span class="number">15</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_uint128_16</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">16</span>, <span class="number">16</span>, <span class="ident">read_uint128</span>, <span class="ident">write_uint128</span>);
 
@@ -5624,52 +5960,52 @@ This crate can also be used without the standard library.
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int_8</span>,
         <span class="ident">i64</span>, <span class="macro">calc_max</span><span class="macro">!</span>(<span class="kw">super</span>::<span class="ident">I64_MAX</span>, <span class="number">8</span>), <span class="number">8</span>, <span class="ident">read_int</span>, <span class="ident">write_int</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_1</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_2</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_3</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_4</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_5</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">5</span>, <span class="number">5</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_6</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">6</span>, <span class="number">6</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_7</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_8</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">8</span>, <span class="number">8</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_9</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">9</span>, <span class="number">9</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_10</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_11</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">11</span>, <span class="number">11</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_12</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">12</span>, <span class="number">12</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_13</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">13</span>, <span class="number">13</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_14</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">14</span>, <span class="number">14</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_15</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">15</span>, <span class="number">15</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_byte_order</span><span class="macro">!</span>(<span class="ident">prop_int128_16</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">16</span>, <span class="number">16</span>, <span class="ident">read_int128</span>, <span class="ident">write_int128</span>);
 
@@ -5764,9 +6100,9 @@ This crate can also be used without the standard library.
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_i64</span>, <span class="number">7</span>, <span class="number">0</span>, <span class="ident">read_i64</span>, <span class="ident">write_i64</span>);
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_f32</span>, <span class="number">3</span>, <span class="number">0.0</span>, <span class="ident">read_f32</span>, <span class="ident">write_f32</span>);
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_f64</span>, <span class="number">7</span>, <span class="number">0.0</span>, <span class="ident">read_f64</span>, <span class="ident">write_f64</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_u128</span>, <span class="number">15</span>, <span class="number">0</span>, <span class="ident">read_u128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_i128</span>, <span class="number">15</span>, <span class="number">0</span>, <span class="ident">read_i128</span>, <span class="ident">write_i128</span>);
 
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint_1</span>, <span class="number">1</span>, <span class="ident">read_uint</span>);
@@ -5777,35 +6113,35 @@ This crate can also be used without the standard library.
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint_6</span>, <span class="number">6</span>, <span class="ident">read_uint</span>);
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint_7</span>, <span class="number">7</span>, <span class="ident">read_uint</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_1</span>, <span class="number">1</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_2</span>, <span class="number">2</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_3</span>, <span class="number">3</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_4</span>, <span class="number">4</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_5</span>, <span class="number">5</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_6</span>, <span class="number">6</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_7</span>, <span class="number">7</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_8</span>, <span class="number">8</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_9</span>, <span class="number">9</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_10</span>, <span class="number">10</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_11</span>, <span class="number">11</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_12</span>, <span class="number">12</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_13</span>, <span class="number">13</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_14</span>, <span class="number">14</span>, <span class="ident">read_uint128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_uint128_15</span>, <span class="number">15</span>, <span class="ident">read_uint128</span>);
 
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int_1</span>, <span class="number">1</span>, <span class="ident">read_int</span>);
@@ -5816,35 +6152,35 @@ This crate can also be used without the standard library.
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int_6</span>, <span class="number">6</span>, <span class="ident">read_int</span>);
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int_7</span>, <span class="number">7</span>, <span class="ident">read_int</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_1</span>, <span class="number">1</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_2</span>, <span class="number">2</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_3</span>, <span class="number">3</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_4</span>, <span class="number">4</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_5</span>, <span class="number">5</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_6</span>, <span class="number">6</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_7</span>, <span class="number">7</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_8</span>, <span class="number">8</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_9</span>, <span class="number">9</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_10</span>, <span class="number">10</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_11</span>, <span class="number">11</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_12</span>, <span class="number">12</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_13</span>, <span class="number">13</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_14</span>, <span class="number">14</span>, <span class="ident">read_int128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">too_small</span><span class="macro">!</span>(<span class="ident">small_int128_15</span>, <span class="number">15</span>, <span class="ident">read_int128</span>);
 
     <span class="comment">// Test that reading/writing slices enforces the correct lengths.</span>
@@ -5932,16 +6268,16 @@ This crate can also be used without the standard library.
     <span class="macro">slice_lengths</span><span class="macro">!</span>(
         <span class="ident">slice_len_too_big_i64</span>, <span class="ident">read_i64_into</span>, <span class="ident">write_i64_into</span>, <span class="number">17</span>, [<span class="number">0</span>, <span class="number">0</span>]);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">slice_lengths</span><span class="macro">!</span>(
         <span class="ident">slice_len_too_small_u128</span>, <span class="ident">read_u128_into</span>, <span class="ident">write_u128_into</span>, <span class="number">31</span>, [<span class="number">0</span>, <span class="number">0</span>]);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">slice_lengths</span><span class="macro">!</span>(
         <span class="ident">slice_len_too_big_u128</span>, <span class="ident">read_u128_into</span>, <span class="ident">write_u128_into</span>, <span class="number">33</span>, [<span class="number">0</span>, <span class="number">0</span>]);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">slice_lengths</span><span class="macro">!</span>(
         <span class="ident">slice_len_too_small_i128</span>, <span class="ident">read_i128_into</span>, <span class="ident">write_i128_into</span>, <span class="number">31</span>, [<span class="number">0</span>, <span class="number">0</span>]);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">slice_lengths</span><span class="macro">!</span>(
         <span class="ident">slice_len_too_big_i128</span>, <span class="ident">read_i128_into</span>, <span class="ident">write_i128_into</span>, <span class="number">33</span>, [<span class="number">0</span>, <span class="number">0</span>]);
 
@@ -6088,9 +6424,9 @@ This crate can also be used without the standard library.
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_f64</span>,
         <span class="ident">f64</span>, ::<span class="ident">std</span>::<span class="ident">i64</span>::<span class="ident">MAX</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">read_f64</span>, <span class="ident">write_f64</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_u128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">16</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">read_u128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_i128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">16</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">read_i128</span>, <span class="ident">write_i128</span>);
 
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint_1</span>,
@@ -6110,52 +6446,52 @@ This crate can also be used without the standard library.
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint_8</span>,
         <span class="ident">u64</span>, <span class="macro">calc_max</span><span class="macro">!</span>(::<span class="ident">test</span>::<span class="ident">U64_MAX</span>, <span class="number">8</span>), <span class="number">8</span>, <span class="ident">read_uint</span>, <span class="ident">write_u64</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_1</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_2</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_3</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_4</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_5</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">5</span>, <span class="number">5</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_6</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">6</span>, <span class="number">6</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_7</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_8</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">8</span>, <span class="number">8</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_9</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">9</span>, <span class="number">9</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_10</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_11</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">11</span>, <span class="number">11</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_12</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">12</span>, <span class="number">12</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_13</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">13</span>, <span class="number">13</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_14</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">14</span>, <span class="number">14</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_15</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">15</span>, <span class="number">15</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_uint128_16</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="number">16</span>, <span class="number">16</span>, <span class="ident">read_uint128</span>, <span class="ident">write_u128</span>);
 
@@ -6176,52 +6512,52 @@ This crate can also be used without the standard library.
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int_8</span>,
         <span class="ident">i64</span>, <span class="macro">calc_max</span><span class="macro">!</span>(::<span class="ident">test</span>::<span class="ident">I64_MAX</span>, <span class="number">8</span>), <span class="number">8</span>, <span class="ident">read_int</span>, <span class="ident">write_i64</span>);
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_1</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_2</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_3</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_4</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_5</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">5</span>, <span class="number">5</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_6</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">6</span>, <span class="number">6</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_7</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_8</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">8</span>, <span class="number">8</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_9</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">9</span>, <span class="number">9</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_10</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_11</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">11</span>, <span class="number">11</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_12</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">12</span>, <span class="number">12</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_13</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">13</span>, <span class="number">13</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_14</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">14</span>, <span class="number">14</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_15</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">15</span>, <span class="number">15</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_bytes_ext</span><span class="macro">!</span>(<span class="ident">prop_ext_int128_16</span>,
         <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="number">16</span>, <span class="number">16</span>, <span class="ident">read_int128</span>, <span class="ident">write_i128</span>);
 
@@ -6307,17 +6643,17 @@ This crate can also be used without the standard library.
     <span class="macro">qc_slice</span><span class="macro">!</span>(<span class="ident">prop_slice_i32</span>, <span class="ident">i32</span>, <span class="ident">read_i32_into</span>, <span class="ident">write_i32_into</span>, <span class="number">0</span>);
     <span class="macro">qc_slice</span><span class="macro">!</span>(<span class="ident">prop_slice_u64</span>, <span class="ident">u64</span>, <span class="ident">read_u64_into</span>, <span class="ident">write_u64_into</span>, <span class="number">0</span>);
     <span class="macro">qc_slice</span><span class="macro">!</span>(<span class="ident">prop_slice_i64</span>, <span class="ident">i64</span>, <span class="ident">read_i64_into</span>, <span class="ident">write_i64_into</span>, <span class="number">0</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_slice</span><span class="macro">!</span>(
         <span class="ident">prop_slice_u128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">u128</span><span class="op">&gt;</span>, <span class="ident">read_u128_into</span>, <span class="ident">write_u128_into</span>, <span class="number">0</span>);
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">byteorder_i128</span>)]</span>
     <span class="macro">qc_slice</span><span class="macro">!</span>(
         <span class="ident">prop_slice_i128</span>, <span class="ident">Wi128</span><span class="op">&lt;</span><span class="ident">i128</span><span class="op">&gt;</span>, <span class="ident">read_i128_into</span>, <span class="ident">write_i128_into</span>, <span class="number">0</span>);
 
     <span class="macro">qc_slice</span><span class="macro">!</span>(
-        <span class="ident">prop_slice_f32</span>, <span class="ident">f32</span>, <span class="ident">read_f32_into_unchecked</span>, <span class="ident">write_f32_into</span>, <span class="number">0.0</span>);
+        <span class="ident">prop_slice_f32</span>, <span class="ident">f32</span>, <span class="ident">read_f32_into</span>, <span class="ident">write_f32_into</span>, <span class="number">0.0</span>);
     <span class="macro">qc_slice</span><span class="macro">!</span>(
-        <span class="ident">prop_slice_f64</span>, <span class="ident">f64</span>, <span class="ident">read_f64_into_unchecked</span>, <span class="ident">write_f64_into</span>, <span class="number">0.0</span>);
+        <span class="ident">prop_slice_f64</span>, <span class="ident">f64</span>, <span class="ident">read_f64_into</span>, <span class="ident">write_f64_into</span>, <span class="number">0.0</span>);
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "byteorder";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "byteorder";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

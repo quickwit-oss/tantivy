@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/core/segment_reader.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>segment_reader.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/core/segment_reader.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>segment_reader.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -409,68 +409,22 @@
 <span id="409">409</span>
 <span id="410">410</span>
 <span id="411">411</span>
-<span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
-<span id="437">437</span>
-<span id="438">438</span>
-<span id="439">439</span>
-<span id="440">440</span>
-<span id="441">441</span>
-<span id="442">442</span>
-<span id="443">443</span>
-<span id="444">444</span>
-<span id="445">445</span>
-<span id="446">446</span>
-<span id="447">447</span>
-<span id="448">448</span>
-<span id="449">449</span>
-<span id="450">450</span>
-<span id="451">451</span>
-<span id="452">452</span>
-<span id="453">453</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">InvertedIndexReader</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
-<span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorKind</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FacetReader</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="self">self</span>, <span class="ident">FastFieldNotAvailableError</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">BytesFastFieldReader</span>, <span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReaders</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">space_usage</span>::<span class="ident">SegmentSpaceUsage</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
@@ -498,15 +452,17 @@
     <span class="ident">inv_idx_reader_cache</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">InvertedIndexReader</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span>,
 
     <span class="ident">segment_id</span>: <span class="ident">SegmentId</span>,
-    <span class="ident">segment_meta</span>: <span class="ident">SegmentMeta</span>,
+    <span class="ident">max_doc</span>: <span class="ident">DocId</span>,
+    <span class="ident">num_docs</span>: <span class="ident">DocId</span>,
 
     <span class="ident">termdict_composite</span>: <span class="ident">CompositeFile</span>,
     <span class="ident">postings_composite</span>: <span class="ident">CompositeFile</span>,
     <span class="ident">positions_composite</span>: <span class="ident">CompositeFile</span>,
-    <span class="ident">fast_fields_composite</span>: <span class="ident">CompositeFile</span>,
+    <span class="ident">positions_idx_composite</span>: <span class="ident">CompositeFile</span>,
+    <span class="ident">fast_fields_readers</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">FastFieldReaders</span><span class="op">&gt;</span>,
     <span class="ident">fieldnorms_composite</span>: <span class="ident">CompositeFile</span>,
 
-    <span class="ident">store_reader</span>: <span class="ident">StoreReader</span>,
+    <span class="ident">store_source</span>: <span class="ident">ReadOnlySource</span>,
     <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>,
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
 }
@@ -517,7 +473,7 @@
     <span class="doccomment">/// Today, `tantivy` does not handle deletes, so it happens</span>
     <span class="doccomment">/// to also be the number of documents in the index.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
-        <span class="self">self</span>.<span class="ident">segment_meta</span>.<span class="ident">max_doc</span>()
+        <span class="self">self</span>.<span class="ident">max_doc</span>
     }
 
     <span class="doccomment">/// Returns the number of documents.</span>
@@ -526,7 +482,7 @@
     <span class="doccomment">/// Today, `tantivy` does not handle deletes so max doc and</span>
     <span class="doccomment">/// num_docs are the same.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
-        <span class="self">self</span>.<span class="ident">segment_meta</span>.<span class="ident">num_docs</span>()
+        <span class="self">self</span>.<span class="ident">num_docs</span>
     }
 
     <span class="doccomment">/// Returns the schema of the index this segment belongs to.</span>
@@ -557,98 +513,27 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// May panic if the index is corrupted.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fast_field_reader</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">field</span>: <span class="ident">Field</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
-        <span class="kw">if</span> <span class="ident">Item</span>::<span class="ident">fast_field_cardinality</span>(<span class="ident">field_entry</span>.<span class="ident">field_type</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">SingleValue</span>)
-        {
-            <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                .<span class="ident">open_read</span>(<span class="ident">field</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">fast_field_reader_with_idx</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">field</span>: <span class="ident">Field</span>,
-        <span class="ident">idx</span>: <span class="ident">usize</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ff_source</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>.<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="ident">idx</span>) {
-            <span class="prelude-val">Ok</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">ff_source</span>))
-        } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
-            <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-        }
-    }
-
-    <span class="doccomment">/// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.</span>
-    <span class="doccomment">/// May panick if the field is not a multivalued fastfield of the type `Item`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">multi_fast_field_reader</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">field</span>: <span class="ident">Field</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
-        <span class="kw">if</span> <span class="ident">Item</span>::<span class="ident">fast_field_cardinality</span>(<span class="ident">field_entry</span>.<span class="ident">field_type</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>)
-        {
-            <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_field_reader_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">vals_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_field_reader_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(<span class="ident">MultiValueIntFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">vals_reader</span>))
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-        }
-    }
-
-    <span class="doccomment">/// Accessor to the `BytesFastFieldReader` associated to a given `Field`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes_fast_field_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">BytesFastFieldReader</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
-        <span class="kw">match</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
-            <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {}
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>)),
-        }
-        <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-            .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)
-            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-            .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-            .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)
-            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">BytesFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">values</span>))
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fast_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">FastFieldReaders</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">fast_fields_readers</span>
     }
 
     <span class="doccomment">/// Accessor to the `FacetReader` associated to a given `Field`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">facet_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FacetReader</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">facet_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FacetReader</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">if</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>() <span class="op">!=</span> <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidArgument</span>(<span class="macro">format</span><span class="macro">!</span>(
-                <span class="string">&quot;The field {:?} is not a \
-                 hierarchical facet.&quot;</span>,
-                <span class="ident">field_entry</span>
-            )).<span class="ident">into</span>());
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
-        <span class="kw">let</span> <span class="ident">term_ords_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">termdict_source</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">termdict_composite</span>.<span class="ident">open_read</span>(<span class="ident">field</span>).<span class="ident">ok_or_else</span>(<span class="op">||</span> {
-            <span class="ident">ErrorKind</span>::<span class="ident">InvalidArgument</span>(<span class="macro">format</span><span class="macro">!</span>(
-                <span class="string">&quot;The field \&quot;{}\&quot; is a hierarchical \
-                 but this segment does not seem to have the field term \
-                 dictionary.&quot;</span>,
-                <span class="ident">field_entry</span>.<span class="ident">name</span>()
-            ))
-        })<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">termdict</span> <span class="op">=</span> <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>);
+        <span class="kw">let</span> <span class="ident">term_ords_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields</span>().<span class="ident">u64s</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">termdict_source</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">termdict_composite</span>.<span class="ident">open_read</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">termdict</span> <span class="op">=</span> <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="kw-2">&amp;</span><span class="ident">termdict_source</span>);
         <span class="kw">let</span> <span class="ident">facet_reader</span> <span class="op">=</span> <span class="ident">FacetReader</span>::<span class="ident">new</span>(<span class="ident">term_ords_reader</span>, <span class="ident">termdict</span>);
-        <span class="prelude-val">Ok</span>(<span class="ident">facet_reader</span>)
+        <span class="prelude-val">Some</span>(<span class="ident">facet_reader</span>)
     }
 
     <span class="doccomment">/// Accessor to the segment&#39;s `Field norms`&#39;s reader.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Field norms are the length (in tokens) of the fields.</span>
-    <span class="doccomment">/// It is used in the computation of the [TfIdf]</span>
-    <span class="doccomment">/// (https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).</span>
+    <span class="doccomment">/// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// They are simply stored as a fast field, serialized in</span>
     <span class="doccomment">/// the `.fieldnorm` file of the segment.</span>
@@ -666,8 +551,8 @@
     }
 
     <span class="doccomment">/// Accessor to the segment&#39;s `StoreReader`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_store_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">StoreReader</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">store_reader</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_store_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">StoreReader</span> {
+        <span class="ident">StoreReader</span>::<span class="ident">from_source</span>(<span class="self">self</span>.<span class="ident">store_source</span>.<span class="ident">clone</span>())
     }
 
     <span class="doccomment">/// Open a new segment for reading.</span>
@@ -676,7 +561,8 @@
         <span class="kw">let</span> <span class="ident">termdict_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">termdict_source</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="ident">store_source</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">STORE</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">store_reader</span> <span class="op">=</span> <span class="ident">StoreReader</span>::<span class="ident">from_source</span>(<span class="ident">store_source</span>);
+
+        <span class="macro">fail_point</span><span class="macro">!</span>(<span class="string">&quot;SegmentReader::open#middle&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">postings_source</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">POSTINGS</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">postings_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">postings_source</span>)<span class="question-mark">?</span>;
@@ -689,8 +575,20 @@
             }
         };
 
+        <span class="kw">let</span> <span class="ident">positions_idx_composite</span> <span class="op">=</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">source</span>) <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">POSITIONSSKIP</span>) {
+                <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>)<span class="question-mark">?</span>
+            } <span class="kw">else</span> {
+                <span class="ident">CompositeFile</span>::<span class="ident">empty</span>()
+            }
+        };
+
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">schema</span>();
+
         <span class="kw">let</span> <span class="ident">fast_fields_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">FASTFIELDS</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">fast_fields_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">fast_fields_data</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">fast_field_readers</span> <span class="op">=</span>
+            <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">FastFieldReaders</span>::<span class="ident">load_all</span>(<span class="kw-2">&amp;</span><span class="ident">schema</span>, <span class="kw-2">&amp;</span><span class="ident">fast_fields_composite</span>)<span class="question-mark">?</span>);
 
         <span class="kw">let</span> <span class="ident">fieldnorms_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">FIELDNORMS</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">fieldnorms_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">fieldnorms_data</span>)<span class="question-mark">?</span>;
@@ -702,18 +600,19 @@
             <span class="prelude-val">None</span>
         };
 
-        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">schema</span>();
         <span class="prelude-val">Ok</span>(<span class="ident">SegmentReader</span> {
             <span class="ident">inv_idx_reader_cache</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">HashMap</span>::<span class="ident">new</span>())),
-            <span class="ident">segment_meta</span>: <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">clone</span>(),
+            <span class="ident">max_doc</span>: <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">max_doc</span>(),
+            <span class="ident">num_docs</span>: <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">num_docs</span>(),
             <span class="ident">termdict_composite</span>,
             <span class="ident">postings_composite</span>,
-            <span class="ident">fast_fields_composite</span>,
+            <span class="ident">fast_fields_readers</span>: <span class="ident">fast_field_readers</span>,
             <span class="ident">fieldnorms_composite</span>,
             <span class="ident">segment_id</span>: <span class="ident">segment</span>.<span class="ident">id</span>(),
-            <span class="ident">store_reader</span>,
+            <span class="ident">store_source</span>,
             <span class="ident">delete_bitset_opt</span>,
             <span class="ident">positions_composite</span>,
+            <span class="ident">positions_idx_composite</span>,
             <span class="ident">schema</span>,
         })
     }
@@ -726,7 +625,8 @@
     <span class="doccomment">/// term dictionary associated to a specific field,</span>
     <span class="doccomment">/// and opening the posting list associated to any term.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">inverted_index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">InvertedIndexReader</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">inv_idx_reader</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">inv_idx_reader_cache</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">inv_idx_reader</span>) <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">inv_idx_reader_cache</span>
             .<span class="ident">read</span>()
             .<span class="ident">expect</span>(<span class="string">&quot;Lock poisoned. This should never happen&quot;</span>)
             .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>)
@@ -750,23 +650,31 @@
             <span class="comment">// As a result, no data is associated to the inverted index.</span>
             <span class="comment">//</span>
             <span class="comment">// Returns an empty inverted index.</span>
-            <span class="kw">return</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">InvertedIndexReader</span>::<span class="ident">empty</span>(<span class="ident">field_type</span>.<span class="ident">clone</span>()));
+            <span class="kw">return</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">InvertedIndexReader</span>::<span class="ident">empty</span>(<span class="ident">field_type</span>));
         }
 
         <span class="kw">let</span> <span class="ident">postings_source</span> <span class="op">=</span> <span class="ident">postings_source_opt</span>.<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">termdict_source</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">termdict_composite</span>
+        <span class="kw">let</span> <span class="ident">termdict_source</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">termdict_composite</span>
             .<span class="ident">open_read</span>(<span class="ident">field</span>)
-            .<span class="ident">expect</span>(<span class="string">&quot;Failed to open field term dictionary in composite file. Is the field indexed&quot;</span>);
+            .<span class="ident">expect</span>(<span class="string">&quot;Failed to open field term dictionary in composite file. Is the field indexed?&quot;</span>);
 
-        <span class="kw">let</span> <span class="ident">positions_source</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">positions_composite</span>
+        <span class="kw">let</span> <span class="ident">positions_source</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">positions_composite</span>
+            .<span class="ident">open_read</span>(<span class="ident">field</span>)
+            .<span class="ident">expect</span>(<span class="string">&quot;Index corrupted. Failed to open field positions in composite file.&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">positions_idx_source</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">positions_idx_composite</span>
             .<span class="ident">open_read</span>(<span class="ident">field</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;Index corrupted. Failed to open field positions in composite file.&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">inv_idx_reader</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">InvertedIndexReader</span>::<span class="ident">new</span>(
-            <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
+            <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="kw-2">&amp;</span><span class="ident">termdict_source</span>),
             <span class="ident">postings_source</span>,
             <span class="ident">positions_source</span>,
+            <span class="ident">positions_idx_source</span>,
             <span class="ident">record_option</span>,
         ));
 
@@ -778,14 +686,6 @@
             .<span class="ident">insert</span>(<span class="ident">field</span>, <span class="ident">Arc</span>::<span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="ident">inv_idx_reader</span>));
 
         <span class="ident">inv_idx_reader</span>
-    }
-
-    <span class="doccomment">/// Returns the document (or to be accurate, its stored field)</span>
-    <span class="doccomment">/// bearing the given doc id.</span>
-    <span class="doccomment">/// This method is slow and should seldom be called from</span>
-    <span class="doccomment">/// within a collector.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Document</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">store_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>)
     }
 
     <span class="doccomment">/// Returns the segment id</span>
@@ -811,6 +711,24 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">doc_ids_alive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SegmentReaderAliveDocsIterator</span> {
         <span class="ident">SegmentReaderAliveDocsIterator</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="self">self</span>)
     }
+
+    <span class="doccomment">/// Summarize total space usage of this segment.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">space_usage</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SegmentSpaceUsage</span> {
+        <span class="ident">SegmentSpaceUsage</span>::<span class="ident">new</span>(
+            <span class="self">self</span>.<span class="ident">num_docs</span>(),
+            <span class="self">self</span>.<span class="ident">termdict_composite</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">postings_composite</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">positions_composite</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">positions_idx_composite</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">fast_fields_readers</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">fieldnorms_composite</span>.<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">get_store_reader</span>().<span class="ident">space_usage</span>(),
+            <span class="self">self</span>.<span class="ident">delete_bitset_opt</span>
+                .<span class="ident">as_ref</span>()
+                .<span class="ident">map</span>(<span class="ident">DeleteBitSet</span>::<span class="ident">space_usage</span>)
+                .<span class="ident">unwrap_or</span>(<span class="number">0</span>),
+        )
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">SegmentReader</span> {
@@ -830,7 +748,7 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">SegmentReaderAliveDocsIterator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="ident">SegmentReaderAliveDocsIterator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="ident">SegmentReaderAliveDocsIterator</span> {
-            <span class="ident">reader</span>: <span class="ident">reader</span>,
+            <span class="ident">reader</span>,
             <span class="ident">max_doc</span>: <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
             <span class="ident">current</span>: <span class="number">0</span>,
         }
@@ -868,12 +786,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">STORED</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Schema</span>, <span class="ident">Term</span>, <span class="ident">STORED</span>, <span class="ident">TEXT</span>};
     <span class="kw">use</span> <span class="ident">DocId</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_alive_docs_iterator</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;name&quot;</span>, <span class="ident">TEXT</span> <span class="op">|</span> <span class="ident">STORED</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>.<span class="ident">clone</span>());
@@ -898,12 +816,10 @@
             <span class="comment">// ok, now we should have a deleted doc</span>
             <span class="ident">index_writer2</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
         }
-
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
         <span class="kw">let</span> <span class="ident">docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>).<span class="ident">doc_ids_alive</span>().<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u32</span>, <span class="number">2u32</span>], <span class="ident">docs</span>);
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

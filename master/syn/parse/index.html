@@ -1,0 +1,164 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `parse` mod in crate `syn`."><meta name="keywords" content="rust, rustlang, rust-lang, parse"><title>syn::parse - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../syn/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a><p class='location'>Module parse</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>syn</a></p><script>window.sidebarCurrent = {name: 'parse', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/syn/parse.rs.html#1-1111' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>syn</a>::<wbr><a class="mod" href=''>parse</a></span></h1><div class='docblock'><p>Parsing interface for parsing a token stream into a syntax tree node.</p>
+<p>Parsing in Syn is built on parser functions that take in a <a href="type.ParseStream.html"><code>ParseStream</code></a>
+and produce a <a href="type.Result.html"><code>Result&lt;T&gt;</code></a> where <code>T</code> is some syntax tree node. Underlying
+these parser functions is a lower level mechanism built around the
+<a href="../buffer/index.html"><code>Cursor</code></a> type. <code>Cursor</code> is a cheaply copyable cursor over a range of
+tokens in a token stream.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<p>Here is a snippet of parsing code to get a feel for the style of the
+library. We define data structures for a subset of Rust syntax including
+enums (not shown) and structs, then provide implementations of the <a href="trait.Parse.html"><code>Parse</code></a>
+trait to parse these syntax tree data structures from a token stream.</p>
+<p>Once <code>Parse</code> impls have been defined, they can be called conveniently from a
+procedural macro through <a href="../macro.parse_macro_input.html"><code>parse_macro_input!</code></a> as shown at the bottom of
+the snippet. If the caller provides syntactically invalid input to the
+procedural macro, they will receive a helpful compiler error message
+pointing out the exact token that triggered the failure to parse.</p>
+<pre><code class="language-edition2018">extern crate proc_macro;
+
+use proc_macro::TokenStream;
+use syn::{braced, parse_macro_input, token, Field, Ident, Result, Token};
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+
+enum Item {
+    Struct(ItemStruct),
+    Enum(ItemEnum),
+}
+
+struct ItemStruct {
+    struct_token: Token![struct],
+    ident: Ident,
+    brace_token: token::Brace,
+    fields: Punctuated&lt;Field, Token![,]&gt;,
+}
+#
+# enum ItemEnum {}
+
+impl Parse for Item {
+    fn parse(input: ParseStream) -&gt; Result&lt;Self&gt; {
+        let lookahead = input.lookahead1();
+        if lookahead.peek(Token![struct]) {
+            input.parse().map(Item::Struct)
+        } else if lookahead.peek(Token![enum]) {
+            input.parse().map(Item::Enum)
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+impl Parse for ItemStruct {
+    fn parse(input: ParseStream) -&gt; Result&lt;Self&gt; {
+        let content;
+        Ok(ItemStruct {
+            struct_token: input.parse()?,
+            ident: input.parse()?,
+            brace_token: braced!(content in input),
+            fields: content.parse_terminated(Field::parse_named)?,
+        })
+    }
+}
+#
+# impl Parse for ItemEnum {
+#     fn parse(input: ParseStream) -&gt; Result&lt;Self&gt; {
+#         unimplemented!()
+#     }
+# }
+
+# const IGNORE: &amp;str = stringify! {
+#[proc_macro]
+# };
+pub fn my_macro(tokens: TokenStream) -&gt; TokenStream {
+    let input = parse_macro_input!(tokens as Item);
+
+    /* ... */
+#   &quot;&quot;.parse().unwrap()
+}
+</code></pre>
+<h1 id="the-synparse-functions" class="section-header"><a href="#the-synparse-functions">The <code>syn::parse*</code> functions</a></h1>
+<p>The <a href="../fn.parse.html"><code>syn::parse</code></a>, <a href="../fn.parse2.html"><code>syn::parse2</code></a>, and <a href="../fn.parse_str.html"><code>syn::parse_str</code></a> functions serve
+as an entry point for parsing syntax tree nodes that can be parsed in an
+obvious default way. These functions can return any syntax tree node that
+implements the <a href="trait.Parse.html"><code>Parse</code></a> trait, which includes most types in Syn.</p>
+<pre><code class="language-edition2018">use syn::Type;
+
+# fn run_parser() -&gt; syn::Result&lt;()&gt; {
+let t: Type = syn::parse_str(&quot;std::collections::HashMap&lt;String, Value&gt;&quot;)?;
+#     Ok(())
+# }
+#
+# fn main() {
+#     run_parser().unwrap();
+# }
+</code></pre>
+<p>The <a href="../macro.parse_quote.html"><code>parse_quote!</code></a> macro also uses this approach.</p>
+<h1 id="the-parser-trait" class="section-header"><a href="#the-parser-trait">The <code>Parser</code> trait</a></h1>
+<p>Some types can be parsed in several ways depending on context. For example
+an <a href="../struct.Attribute.html"><code>Attribute</code></a> can be either &quot;outer&quot; like <code>#[...]</code> or &quot;inner&quot; like
+<code>#![...]</code> and parsing the wrong one would be a bug. Similarly <a href="../punctuated/index.html"><code>Punctuated</code></a>
+may or may not allow trailing punctuation, and parsing it the wrong way
+would either reject valid input or accept invalid input.</p>
+<p>The <code>Parse</code> trait is not implemented in these cases because there is no good
+behavior to consider the default.</p>
+<pre><code class="language-edition2018,compile_fail"># extern crate proc_macro;
+#
+# use syn::punctuated::Punctuated;
+# use syn::{PathSegment, Result, Token};
+#
+# fn f(tokens: proc_macro::TokenStream) -&gt; Result&lt;()&gt; {
+#
+// Can't parse `Punctuated` without knowing whether trailing punctuation
+// should be allowed in this context.
+let path: Punctuated&lt;PathSegment, Token![::]&gt; = syn::parse(tokens)?;
+#
+#     Ok(())
+# }
+</code></pre>
+<p>In these cases the types provide a choice of parser functions rather than a
+single <code>Parse</code> implementation, and those parser functions can be invoked
+through the <a href="trait.Parser.html"><code>Parser</code></a> trait.</p>
+<pre><code class="language-edition2018">extern crate proc_macro;
+
+use proc_macro::TokenStream;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
+use syn::{Attribute, Expr, PathSegment, Result, Token};
+
+fn call_some_parser_methods(input: TokenStream) -&gt; Result&lt;()&gt; {
+    // Parse a nonempty sequence of path segments separated by `::` punctuation
+    // with no trailing punctuation.
+    let tokens = input.clone();
+    let parser = Punctuated::&lt;PathSegment, Token![::]&gt;::parse_separated_nonempty;
+    let _path = parser.parse(tokens)?;
+
+    // Parse a possibly empty sequence of expressions terminated by commas with
+    // an optional trailing punctuation.
+    let tokens = input.clone();
+    let parser = Punctuated::&lt;Expr, Token![,]&gt;::parse_terminated;
+    let _args = parser.parse(tokens)?;
+
+    // Parse zero or more outer attributes but not inner attributes.
+    let tokens = input.clone();
+    let parser = Attribute::parse_outer;
+    let _attrs = parser.parse(tokens)?;
+
+    Ok(())
+}
+</code></pre>
+<hr />
+<p><em>This module is available if Syn is built with the <code>&quot;parsing&quot;</code> feature.</em></p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Error.html" title='syn::parse::Error struct'>Error</a></td><td class='docblock-short'><p>Error returned when a Syn parser cannot parse the input tokens.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Lookahead1.html" title='syn::parse::Lookahead1 struct'>Lookahead1</a></td><td class='docblock-short'><p>Support for checking the next token in a stream to decide how to parse.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.ParseBuffer.html" title='syn::parse::ParseBuffer struct'>ParseBuffer</a></td><td class='docblock-short'><p>Cursor position within a buffered token stream.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.StepCursor.html" title='syn::parse::StepCursor struct'>StepCursor</a></td><td class='docblock-short'><p>Cursor state associated with speculative parsing.</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.Parse.html" title='syn::parse::Parse trait'>Parse</a></td><td class='docblock-short'><p>Parsing interface implemented by all types that can be parsed in a default
+way from a token stream.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Parser.html" title='syn::parse::Parser trait'>Parser</a></td><td class='docblock-short'><p>Parser that can parse Rust tokens into a particular syntax tree node.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Peek.html" title='syn::parse::Peek trait'>Peek</a></td><td class='docblock-short'><p>Types that can be parsed by looking at just one token.</p>
+</td></tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table><tr class='module-item'><td><a class="type" href="type.ParseStream.html" title='syn::parse::ParseStream type'>ParseStream</a></td><td class='docblock-short'><p>Input to a Syn parser function.</p>
+</td></tr><tr class='module-item'><td><a class="type" href="type.Result.html" title='syn::parse::Result type'>Result</a></td><td class='docblock-short'><p>The result of a Syn parser.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

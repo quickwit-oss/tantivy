@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/tokenizer/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/tokenizer/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -289,57 +289,7 @@
 <span id="289">289</span>
 <span id="290">290</span>
 <span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
-<span id="327">327</span>
-<span id="328">328</span>
-<span id="329">329</span>
-<span id="330">330</span>
-<span id="331">331</span>
-<span id="332">332</span>
-<span id="333">333</span>
-<span id="334">334</span>
-<span id="335">335</span>
-<span id="336">336</span>
-<span id="337">337</span>
-<span id="338">338</span>
-<span id="339">339</span>
-<span id="340">340</span>
-<span id="341">341</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Tokenizer are in charge of chopping text into a stream of tokens</span>
 <span class="doccomment">//! ready for indexing.</span>
 <span class="doccomment">//!</span>
@@ -351,7 +301,7 @@
 <span class="doccomment">//! use tantivy::schema::*;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # fn main() {</span>
-<span class="doccomment">//! let mut schema_builder = SchemaBuilder::new();</span>
+<span class="doccomment">//! let mut schema_builder = Schema::builder();</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let text_options = TextOptions::default()</span>
 <span class="doccomment">//!     .set_indexing_options(</span>
@@ -415,7 +365,7 @@
 <span class="doccomment">//! let en_stem = SimpleTokenizer</span>
 <span class="doccomment">//!     .filter(RemoveLongFilter::limit(40))</span>
 <span class="doccomment">//!     .filter(LowerCaser)</span>
-<span class="doccomment">//!     .filter(Stemmer::new());</span>
+<span class="doccomment">//!     .filter(Stemmer::new(Language::English));</span>
 <span class="doccomment">//! # }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
@@ -424,12 +374,12 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//! # extern crate tantivy;</span>
-<span class="doccomment">//! # use tantivy::schema::SchemaBuilder;</span>
+<span class="doccomment">//! # use tantivy::schema::Schema;</span>
 <span class="doccomment">//! # use tantivy::tokenizer::*;</span>
 <span class="doccomment">//! # use tantivy::Index;</span>
 <span class="doccomment">//! # fn main() {</span>
 <span class="doccomment">//! # let custom_en_tokenizer = SimpleTokenizer;</span>
-<span class="doccomment">//! # let schema = SchemaBuilder::new().build();</span>
+<span class="doccomment">//! # let schema = Schema::builder().build();</span>
 <span class="doccomment">//! let index = Index::create_in_ram(schema);</span>
 <span class="doccomment">//! index.tokenizers()</span>
 <span class="doccomment">//!      .register(&quot;custom_en&quot;, custom_en_tokenizer);</span>
@@ -439,16 +389,18 @@
 <span class="doccomment">//! If you built your schema programmatically, a complete example</span>
 <span class="doccomment">//! could like this for instance.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! Note that tokens with a len greater or equal to [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! # Example</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//! extern crate tantivy;</span>
-<span class="doccomment">//! use tantivy::schema::{SchemaBuilder, IndexRecordOption, TextOptions, TextFieldIndexing};</span>
+<span class="doccomment">//! use tantivy::schema::{Schema, IndexRecordOption, TextOptions, TextFieldIndexing};</span>
 <span class="doccomment">//! use tantivy::tokenizer::*;</span>
 <span class="doccomment">//! use tantivy::Index;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # fn main() {</span>
-<span class="doccomment">//! let mut schema_builder = SchemaBuilder::new();</span>
+<span class="doccomment">//! let mut schema_builder = Schema::builder();</span>
 <span class="doccomment">//! let text_field_indexing = TextFieldIndexing::default()</span>
 <span class="doccomment">//!     .set_tokenizer(&quot;custom_en&quot;)</span>
 <span class="doccomment">//!     .set_index_option(IndexRecordOption::WithFreqsAndPositions);</span>
@@ -471,8 +423,8 @@
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="kw">mod</span> <span class="ident">alphanum_only</span>;
+<span class="kw">mod</span> <span class="ident">ascii_folding_filter</span>;
 <span class="kw">mod</span> <span class="ident">facet_tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">japanese_tokenizer</span>;
 <span class="kw">mod</span> <span class="ident">lower_caser</span>;
 <span class="kw">mod</span> <span class="ident">ngram_tokenizer</span>;
 <span class="kw">mod</span> <span class="ident">raw_tokenizer</span>;
@@ -485,48 +437,56 @@
 <span class="kw">mod</span> <span class="ident">tokenizer_manager</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">alphanum_only</span>::<span class="ident">AlphaNumOnlyFilter</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ascii_folding_filter</span>::<span class="ident">AsciiFoldingFilter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet_tokenizer</span>::<span class="ident">FacetTokenizer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">japanese_tokenizer</span>::<span class="ident">JapaneseTokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">lower_caser</span>::<span class="ident">LowerCaser</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ngram_tokenizer</span>::<span class="ident">NgramTokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">raw_tokenizer</span>::<span class="ident">RawTokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">remove_long</span>::<span class="ident">RemoveLongFilter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">simple_tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stemmer</span>::<span class="ident">Stemmer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stemmer</span>::{<span class="ident">Language</span>, <span class="ident">Stemmer</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stop_word_filter</span>::<span class="ident">StopWordFilter</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">token_stream_chain</span>::<span class="ident">TokenStreamChain</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::<span class="ident">box_tokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
+
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenFilter</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer_manager</span>::<span class="ident">TokenizerManager</span>;
 
-<span class="doccomment">/// This is a function that can be used in tests and doc tests</span>
-<span class="doccomment">/// to assert a token&#39;s correctness.</span>
-<span class="doccomment">/// TODO: can this be wrapped in #[cfg(test)] so as not to be in the</span>
-<span class="doccomment">/// public api?</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_token</span>(<span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span>, <span class="ident">position</span>: <span class="ident">usize</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">from</span>: <span class="ident">usize</span>, <span class="ident">to</span>: <span class="ident">usize</span>) {
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="ident">token</span>.<span class="ident">position</span>, <span class="ident">position</span>,
-        <span class="string">&quot;expected position {} but {:?}&quot;</span>,
-        <span class="ident">position</span>, <span class="ident">token</span>
-    );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">token</span>.<span class="ident">text</span>, <span class="ident">text</span>, <span class="string">&quot;expected text {} but {:?}&quot;</span>, <span class="ident">text</span>, <span class="ident">token</span>);
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="ident">token</span>.<span class="ident">offset_from</span>, <span class="ident">from</span>,
-        <span class="string">&quot;expected offset_from {} but {:?}&quot;</span>,
-        <span class="ident">from</span>, <span class="ident">token</span>
-    );
-    <span class="macro">assert_eq</span><span class="macro">!</span>(
-        <span class="ident">token</span>.<span class="ident">offset_to</span>, <span class="ident">to</span>,
-        <span class="string">&quot;expected offset_to {} but {:?}&quot;</span>,
-        <span class="ident">to</span>, <span class="ident">token</span>
-    );
-}
+<span class="doccomment">/// Maximum authorized len (in bytes) for a token.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Tokenizer are in charge of not emitting tokens larger than this value.</span>
+<span class="doccomment">/// Currently, if a faulty tokenizer implementation emits tokens with a length larger than</span>
+<span class="doccomment">/// `2^16 - 1 - 4`, the token will simply be ignored downstream.</span>
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MAX_TOKEN_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">u16</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="number">4</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">test</span> {
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">assert_token</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Token</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TokenizerManager</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::{
+        <span class="ident">Language</span>, <span class="ident">LowerCaser</span>, <span class="ident">RemoveLongFilter</span>, <span class="ident">SimpleTokenizer</span>, <span class="ident">Stemmer</span>, <span class="ident">Token</span>, <span class="ident">Tokenizer</span>,
+        <span class="ident">TokenizerManager</span>,
+    };
+
+    <span class="doccomment">/// This is a function that can be used in tests and doc tests</span>
+    <span class="doccomment">/// to assert a token&#39;s correctness.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_token</span>(<span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span>, <span class="ident">position</span>: <span class="ident">usize</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">from</span>: <span class="ident">usize</span>, <span class="ident">to</span>: <span class="ident">usize</span>) {
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">token</span>.<span class="ident">position</span>, <span class="ident">position</span>,
+            <span class="string">&quot;expected position {} but {:?}&quot;</span>,
+            <span class="ident">position</span>, <span class="ident">token</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">token</span>.<span class="ident">text</span>, <span class="ident">text</span>, <span class="string">&quot;expected text {} but {:?}&quot;</span>, <span class="ident">text</span>, <span class="ident">token</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">token</span>.<span class="ident">offset_from</span>, <span class="ident">from</span>,
+            <span class="string">&quot;expected offset_from {} but {:?}&quot;</span>,
+            <span class="ident">from</span>, <span class="ident">token</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">token</span>.<span class="ident">offset_to</span>, <span class="ident">to</span>,
+            <span class="string">&quot;expected offset_to {} but {:?}&quot;</span>,
+            <span class="ident">to</span>, <span class="ident">token</span>
+        );
+    }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_raw_tokenizer</span>() {
@@ -559,6 +519,7 @@
                 .<span class="ident">token_stream</span>(<span class="string">&quot;Hello, happy tax payer!&quot;</span>)
                 .<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">add_token</span>);
         }
+
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tokens</span>.<span class="ident">len</span>(), <span class="number">4</span>);
         <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;hello&quot;</span>, <span class="number">0</span>, <span class="number">5</span>);
         <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">1</span>, <span class="string">&quot;happi&quot;</span>, <span class="number">7</span>, <span class="number">12</span>);
@@ -567,91 +528,30 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_jp_tokenizer</span>() {
+    <span class="kw">fn</span> <span class="ident">test_non_en_tokenizer</span>() {
         <span class="kw">let</span> <span class="ident">tokenizer_manager</span> <span class="op">=</span> <span class="ident">TokenizerManager</span>::<span class="ident">default</span>();
-        <span class="kw">let</span> <span class="ident">en_tokenizer</span> <span class="op">=</span> <span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="string">&quot;ja&quot;</span>).<span class="ident">unwrap</span>();
-
+        <span class="ident">tokenizer_manager</span>.<span class="ident">register</span>(
+            <span class="string">&quot;el_stem&quot;</span>,
+            <span class="ident">SimpleTokenizer</span>
+                .<span class="ident">filter</span>(<span class="ident">RemoveLongFilter</span>::<span class="ident">limit</span>(<span class="number">40</span>))
+                .<span class="ident">filter</span>(<span class="ident">LowerCaser</span>)
+                .<span class="ident">filter</span>(<span class="ident">Stemmer</span>::<span class="ident">new</span>(<span class="ident">Language</span>::<span class="ident">Greek</span>)),
+        );
+        <span class="kw">let</span> <span class="ident">en_tokenizer</span> <span class="op">=</span> <span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="string">&quot;el_stem&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokens</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add_token</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
                 <span class="ident">tokens</span>.<span class="ident">push</span>(<span class="ident">token</span>.<span class="ident">clone</span>());
             };
             <span class="ident">en_tokenizer</span>
-                .<span class="ident">token_stream</span>(<span class="string">&quot;野菜食べないとやばい!&quot;</span>)
+                .<span class="ident">token_stream</span>(<span class="string">&quot;Καλημέρα, χαρούμενε φορολογούμενε!&quot;</span>)
                 .<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">add_token</span>);
         }
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tokens</span>.<span class="ident">len</span>(), <span class="number">5</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;野菜&quot;</span>, <span class="number">0</span>, <span class="number">6</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">1</span>, <span class="string">&quot;食べ&quot;</span>, <span class="number">6</span>, <span class="number">12</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">2</span>], <span class="number">2</span>, <span class="string">&quot;ない&quot;</span>, <span class="number">12</span>, <span class="number">18</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">3</span>], <span class="number">3</span>, <span class="string">&quot;と&quot;</span>, <span class="number">18</span>, <span class="number">21</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">4</span>], <span class="number">4</span>, <span class="string">&quot;やばい&quot;</span>, <span class="number">21</span>, <span class="number">30</span>);
-    }
 
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_ngram_tokenizer</span>() {
-        <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">LowerCaser</span>, <span class="ident">NgramTokenizer</span>};
-        <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">tokenizer</span>::<span class="ident">TokenStream</span>;
-        <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">tokenizer</span>::<span class="ident">Tokenizer</span>;
-
-        <span class="kw">let</span> <span class="ident">tokenizer_manager</span> <span class="op">=</span> <span class="ident">TokenizerManager</span>::<span class="ident">default</span>();
-        <span class="ident">tokenizer_manager</span>.<span class="ident">register</span>(<span class="string">&quot;ngram12&quot;</span>, <span class="ident">NgramTokenizer</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">2</span>, <span class="bool-val">false</span>));
-        <span class="ident">tokenizer_manager</span>.<span class="ident">register</span>(
-            <span class="string">&quot;ngram3&quot;</span>,
-            <span class="ident">NgramTokenizer</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">3</span>, <span class="bool-val">false</span>).<span class="ident">filter</span>(<span class="ident">LowerCaser</span>),
-        );
-        <span class="ident">tokenizer_manager</span>.<span class="ident">register</span>(
-            <span class="string">&quot;edgegram5&quot;</span>,
-            <span class="ident">NgramTokenizer</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">5</span>, <span class="bool-val">true</span>).<span class="ident">filter</span>(<span class="ident">LowerCaser</span>),
-        );
-
-        <span class="kw">let</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="ident">NgramTokenizer</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">2</span>, <span class="bool-val">false</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokens</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add_token</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
-                <span class="ident">tokens</span>.<span class="ident">push</span>(<span class="ident">token</span>.<span class="ident">clone</span>());
-            };
-            <span class="ident">tokenizer</span>.<span class="ident">token_stream</span>(<span class="string">&quot;hello&quot;</span>).<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">add_token</span>);
-        }
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tokens</span>.<span class="ident">len</span>(), <span class="number">9</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;h&quot;</span>, <span class="number">0</span>, <span class="number">1</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">0</span>, <span class="string">&quot;he&quot;</span>, <span class="number">0</span>, <span class="number">2</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">2</span>], <span class="number">1</span>, <span class="string">&quot;e&quot;</span>, <span class="number">1</span>, <span class="number">2</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">3</span>], <span class="number">1</span>, <span class="string">&quot;el&quot;</span>, <span class="number">1</span>, <span class="number">3</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">4</span>], <span class="number">2</span>, <span class="string">&quot;l&quot;</span>, <span class="number">2</span>, <span class="number">3</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">5</span>], <span class="number">2</span>, <span class="string">&quot;ll&quot;</span>, <span class="number">2</span>, <span class="number">4</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">6</span>], <span class="number">3</span>, <span class="string">&quot;l&quot;</span>, <span class="number">3</span>, <span class="number">4</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">7</span>], <span class="number">3</span>, <span class="string">&quot;lo&quot;</span>, <span class="number">3</span>, <span class="number">5</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">8</span>], <span class="number">4</span>, <span class="string">&quot;o&quot;</span>, <span class="number">4</span>, <span class="number">5</span>);
-
-        <span class="kw">let</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="string">&quot;ngram3&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokens</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add_token</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
-                <span class="ident">tokens</span>.<span class="ident">push</span>(<span class="ident">token</span>.<span class="ident">clone</span>());
-            };
-            <span class="ident">tokenizer</span>.<span class="ident">token_stream</span>(<span class="string">&quot;Hello&quot;</span>).<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">add_token</span>);
-        }
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tokens</span>.<span class="ident">len</span>(), <span class="number">3</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;hel&quot;</span>, <span class="number">0</span>, <span class="number">3</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">1</span>, <span class="string">&quot;ell&quot;</span>, <span class="number">1</span>, <span class="number">4</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">2</span>], <span class="number">2</span>, <span class="string">&quot;llo&quot;</span>, <span class="number">2</span>, <span class="number">5</span>);
-
-        <span class="kw">let</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="string">&quot;edgegram5&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokens</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Token</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">add_token</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
-                <span class="ident">tokens</span>.<span class="ident">push</span>(<span class="ident">token</span>.<span class="ident">clone</span>());
-            };
-            <span class="ident">tokenizer</span>
-                .<span class="ident">token_stream</span>(<span class="string">&quot;Frankenstein&quot;</span>)
-                .<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">add_token</span>);
-        }
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tokens</span>.<span class="ident">len</span>(), <span class="number">4</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;fr&quot;</span>, <span class="number">0</span>, <span class="number">2</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">0</span>, <span class="string">&quot;fra&quot;</span>, <span class="number">0</span>, <span class="number">3</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">2</span>], <span class="number">0</span>, <span class="string">&quot;fran&quot;</span>, <span class="number">0</span>, <span class="number">4</span>);
-        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">3</span>], <span class="number">0</span>, <span class="string">&quot;frank&quot;</span>, <span class="number">0</span>, <span class="number">5</span>);
+        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">0</span>], <span class="number">0</span>, <span class="string">&quot;καλημερ&quot;</span>, <span class="number">0</span>, <span class="number">16</span>);
+        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">1</span>], <span class="number">1</span>, <span class="string">&quot;χαρουμεν&quot;</span>, <span class="number">18</span>, <span class="number">36</span>);
+        <span class="ident">assert_token</span>(<span class="kw-2">&amp;</span><span class="ident">tokens</span>[<span class="number">2</span>], <span class="number">2</span>, <span class="string">&quot;φορολογουμεν&quot;</span>, <span class="number">37</span>, <span class="number">63</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -681,5 +581,5 @@
     }
 
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `rand_os` crate."><meta name="keywords" content="rust, rustlang, rust-lang, rand_os"><title>rand_os - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../rand_os/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Crate rand_os</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all rand_os's items</p></a><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#structs">Structs</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'rand_os', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/rand_os/lib.rs.html#10-440' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>rand_os</a></span></h1><div class='docblock'><p>Interface to the random number generator of the operating system.</p>
+<p>[<code>OsRng</code>] is the preferred external source of entropy for most applications.
+Commonly it is used to initialize a user-space RNG, which can then be used
+to generate random values with much less overhead than <code>OsRng</code>.</p>
+<p>You may prefer to use <a href="../rand/rngs/struct.EntropyRng.html"><code>EntropyRng</code></a> instead of <code>OsRng</code>. It is unlikely, but
+not entirely theoretical, for <code>OsRng</code> to fail. In such cases <a href="../rand/rngs/struct.EntropyRng.html"><code>EntropyRng</code></a>
+falls back on a good alternative entropy source.</p>
+<p>[<code>OsRng::new()</code>] is guaranteed to be very cheap (after the first successful
+call), and will never consume more than one file handle per process.</p>
+<h1 id="usage-example" class="section-header"><a href="#usage-example">Usage example</a></h1>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand_os</span>::<span class="ident">OsRng</span>;
+<span class="kw">use</span> <span class="ident">rand_os</span>::<span class="ident">rand_core</span>::<span class="ident">RngCore</span>;
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">os_rng</span> <span class="op">=</span> <span class="ident">OsRng</span>::<span class="ident">new</span>().<span class="ident">unwrap</span>();
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">16</span>];
+<span class="ident">os_rng</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">key</span>);
+<span class="kw">let</span> <span class="ident">random_u64</span> <span class="op">=</span> <span class="ident">os_rng</span>.<span class="ident">next_u64</span>();</pre></div>
+<h1 id="platform-sources" class="section-header"><a href="#platform-sources">Platform sources</a></h1><table><thead><tr><th> OS               </th><th> interface</th></tr></thead><tbody>
+<tr><td> Linux, Android   </td><td> <a href="http://man7.org/linux/man-pages/man2/getrandom.2.html"><code>getrandom</code></a> system call if available, otherwise <a href="http://man7.org/linux/man-pages/man4/urandom.4.html"><code>/dev/urandom</code></a> after reading from <code>/dev/random</code> once</td></tr>
+<tr><td> Windows          </td><td> <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa387694.aspx"><code>RtlGenRandom</code></a></td></tr>
+<tr><td> macOS, iOS       </td><td> <a href="https://developer.apple.com/documentation/security/1399291-secrandomcopybytes?language=objc"><code>SecRandomCopyBytes</code></a></td></tr>
+<tr><td> FreeBSD          </td><td> <a href="https://www.freebsd.org/cgi/man.cgi?query=random&amp;sektion=4"><code>kern.arandom</code></a></td></tr>
+<tr><td> OpenBSD, Bitrig  </td><td> <a href="https://man.openbsd.org/getentropy.2"><code>getentropy</code></a></td></tr>
+<tr><td> NetBSD           </td><td> <a href="http://netbsd.gw.com/cgi-bin/man-cgi?random+4+NetBSD-current"><code>/dev/urandom</code></a> after reading from <code>/dev/random</code> once</td></tr>
+<tr><td> Dragonfly BSD    </td><td> <a href="https://leaf.dragonflybsd.org/cgi/web-man?command=random&amp;section=4"><code>/dev/random</code></a></td></tr>
+<tr><td> Solaris, illumos </td><td> <a href="https://docs.oracle.com/cd/E88353_01/html/E37841/getrandom-2.html"><code>getrandom</code></a> system call if available, otherwise <a href="https://docs.oracle.com/cd/E86824_01/html/E54777/random-7d.html"><code>/dev/random</code></a></td></tr>
+<tr><td> Fuchsia OS       </td><td> <a href="https://fuchsia.googlesource.com/zircon/+/HEAD/docs/syscalls/cprng_draw.md"><code>cprng_draw</code></a></td></tr>
+<tr><td> Redox            </td><td> <a href="https://github.com/redox-os/randd/blob/master/src/main.rs"><code>rand:</code></a></td></tr>
+<tr><td> CloudABI         </td><td> <a href="https://github.com/NuxiNL/cloudabi/blob/v0.20/cloudabi.txt#L1826"><code>random_get</code></a></td></tr>
+<tr><td> Haiku            </td><td> <code>/dev/random</code> (identical to <code>/dev/urandom</code>)</td></tr>
+<tr><td> Web browsers     </td><td> <a href="https://www.w3.org/TR/WebCryptoAPI/#Crypto-method-getRandomValues"><code>Crypto.getRandomValues</code></a> (see <a href="https://www.w3.org/TR/WebCryptoAPI/#Crypto-method-getRandomValues">Support for WebAssembly and ams.js</a>)</td></tr>
+<tr><td> Node.js          </td><td> <a href="https://nodejs.org/api/crypto.html#crypto_crypto_randombytes_size_callback"><code>crypto.randomBytes</code></a> (see <a href="#support-for-webassembly-and-amsjs">Support for WebAssembly and ams.js</a>)</td></tr>
+</tbody></table>
+<p>Rand doesn't have a blanket implementation for all Unix-like operating
+systems that reads from <code>/dev/urandom</code>. This ensures all supported operating
+systems are using the recommended interface and respect maximum buffer
+sizes.</p>
+<h2 id="support-for-webassembly-and-amsjs" class="section-header"><a href="#support-for-webassembly-and-amsjs">Support for WebAssembly and ams.js</a></h2>
+<p>The three Emscripten targets <code>asmjs-unknown-emscripten</code>,
+<code>wasm32-unknown-emscripten</code> and <code>wasm32-experimental-emscripten</code> use
+Emscripten's emulation of <code>/dev/random</code> on web browsers and Node.js.</p>
+<p>The bare WASM target <code>wasm32-unknown-unknown</code> tries to call the javascript
+methods directly, using either <code>stdweb</code> or <code>wasm-bindgen</code> depending on what
+features are activated for this crate. Note that if both features are
+enabled <code>wasm-bindgen</code> will be used.</p>
+<h2 id="early-boot" class="section-header"><a href="#early-boot">Early boot</a></h2>
+<p>It is possible that early in the boot process the OS hasn't had enough time
+yet to collect entropy to securely seed its RNG, especially on virtual
+machines.</p>
+<p>Some operating systems always block the thread until the RNG is securely
+seeded. This can take anywhere from a few seconds to more than a minute.
+Others make a best effort to use a seed from before the shutdown and don't
+document much.</p>
+<p>A few, Linux, NetBSD and Solaris, offer a choice between blocking, and
+getting an error. With <code>try_fill_bytes</code> we choose to get the error
+(<a href="rand_core::ErrorKind"><code>ErrorKind::NotReady</code></a>), while the other methods use a blocking interface.</p>
+<p>On Linux (when the <code>genrandom</code> system call is not available) and on NetBSD
+reading from <code>/dev/urandom</code> never blocks, even when the OS hasn't collected
+enough entropy yet. As a countermeasure we try to do a single read from
+<code>/dev/random</code> until we know the OS RNG is initialized (and store this in a
+global static).</p>
+<h1 id="panics-and-error-handling" class="section-header"><a href="#panics-and-error-handling">Panics and error handling</a></h1>
+<p>We cannot guarantee that <code>OsRng</code> will fail, but if it does, it will likely
+be either when <code>OsRng::new()</code> is first called or when data is first read.
+If you wish to catch errors early, then test reading of at least one byte
+from <code>OsRng</code> via <a href="RngCore::try_fill_bytes"><code>try_fill_bytes</code></a>. If this succeeds, it is extremely
+unlikely that any further errors will occur.</p>
+<p>Only <a href="RngCore::try_fill_bytes"><code>try_fill_bytes</code></a> is able to report the cause of an error; the other
+[<code>RngCore</code>] methods may (depending on the error kind) retry several times,
+but must eventually panic if the error persists.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub extern crate <a class="mod" href="../rand_core/index.html" title="mod rand_core">rand_core</a>;</code></td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.OsRng.html" title='rand_os::OsRng struct'>OsRng</a></td><td class='docblock-short'><p>A random number generator that retrieves randomness straight from the
+operating system.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "rand_os";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

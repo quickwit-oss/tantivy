@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `rngs` mod in crate `rand`."><meta name="keywords" content="rust, rustlang, rust-lang, rngs"><title>rand::rngs - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Module rngs</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'><a href='../index.html'>rand</a></p><script>window.sidebarCurrent = {name: 'rngs', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/rand/rngs/mod.rs.html#9-167' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>rand</a>::<wbr><a class="mod" href=''>rngs</a></span></h1><div class='docblock'><p>Random number generators and adapters for common usage:</p>
+<ul>
+<li><a href="rngs::ThreadRng"><code>ThreadRng</code></a>, a fast, secure, auto-seeded thread-local generator</li>
+<li><a href="rngs::StdRng"><code>StdRng</code></a> and <a href="rngs::SmallRng"><code>SmallRng</code></a>, algorithms to cover typical usage</li>
+<li><a href="rngs::EntropyRng"><code>EntropyRng</code></a>, <a href="rand_os::OsRng"><code>OsRng</code></a> and <a href="rngs::JitterRng"><code>JitterRng</code></a> as entropy sources</li>
+<li><a href="rngs::mock::StepRng"><code>mock::StepRng</code></a> as a simple counter for tests</li>
+<li><a href="rngs::adapter::ReadRng"><code>adapter::ReadRng</code></a> to read from a file/stream</li>
+<li><a href="rngs::adapter::ReseedingRng"><code>adapter::ReseedingRng</code></a> to reseed a PRNG on clone / process fork etc.</li>
+</ul>
+<h1 id="background--random-number-generators-rngs" class="section-header"><a href="#background--random-number-generators-rngs">Background — Random number generators (RNGs)</a></h1>
+<p>Computers are inherently deterministic, so to get <em>random</em> numbers one
+either has to use a hardware generator or collect bits of <em>entropy</em> from
+various sources (e.g. event timestamps, or jitter). This is a relatively
+slow and complicated operation.</p>
+<p>Generally the operating system will collect some entropy, remove bias, and
+use that to seed its own PRNG; <a href="rand_os::OsRng"><code>OsRng</code></a> provides an interface to this.
+<a href="rngs::JitterRng"><code>JitterRng</code></a> is an entropy collector included with Rand that measures
+jitter in the CPU execution time, and jitter in memory access time.
+<a href="rngs::EntropyRng"><code>EntropyRng</code></a> is a wrapper that uses the best entropy source that is
+available.</p>
+<h2 id="pseudo-random-number-generators" class="section-header"><a href="#pseudo-random-number-generators">Pseudo-random number generators</a></h2>
+<p>What is commonly used instead of &quot;true&quot; random number renerators, are
+<em>pseudo-random number generators</em> (PRNGs), deterministic algorithms that
+produce an infinite stream of pseudo-random numbers from a small random
+seed. PRNGs are faster, and have better provable properties. The numbers
+produced can be statistically of very high quality and can be impossible to
+predict. (They can also have obvious correlations and be trivial to predict;
+quality varies.)</p>
+<p>There are two different types of PRNGs: those developed for simulations
+and statistics, and those developed for use in cryptography; the latter are
+called Cryptographically Secure PRNGs (CSPRNG or CPRNG). Both types can
+have good statistical quality but the latter also have to be impossible to
+predict, even after seeing many previous output values. Rand provides a good
+default algorithm from each class:</p>
+<ul>
+<li><a href="rngs::SmallRng"><code>SmallRng</code></a> is a PRNG chosen for low memory usage, high performance and
+good statistical quality.</li>
+<li><a href="rngs::StdRng"><code>StdRng</code></a> is a CSPRNG chosen for good performance and trust of security
+(based on reviews, maturity and usage). The current algorithm is HC-128,
+which is one of the recommendations by ECRYPT's eSTREAM project.</li>
+</ul>
+<p>The above PRNGs do not cover all use-cases; more algorithms can be found in
+the [<code>prng</code>][crate::prng] module, as well as in several other crates. For example, you
+may wish a CSPRNG with significantly lower memory usage than <a href="rngs::StdRng"><code>StdRng</code></a>
+while being less concerned about performance, in which case <a href="rand_chacha::ChaChaRng"><code>ChaChaRng</code></a>
+is a good choice.</p>
+<p>One complexity is that the internal state of a PRNG must change with every
+generated number. For APIs this generally means a mutable reference to the
+state of the PRNG has to be passed around.</p>
+<p>A solution is <a href="rngs::ThreadRng"><code>ThreadRng</code></a>. This is a thread-local implementation of
+<a href="rngs::StdRng"><code>StdRng</code></a> with automatic seeding on first use. It is the best choice if you
+&quot;just&quot; want a convenient, secure, fast random number source. Use via the
+[<code>thread_rng</code>] function, which gets a reference to the current thread's
+local instance.</p>
+<h2 id="seeding" class="section-header"><a href="#seeding">Seeding</a></h2>
+<p>As mentioned above, PRNGs require a random seed in order to produce random
+output. This is especially important for CSPRNGs, which are still
+deterministic algorithms, thus can only be secure if their seed value is
+also secure. To seed a PRNG, use one of:</p>
+<ul>
+<li>[<code>FromEntropy::from_entropy</code>]; this is the most convenient way to seed
+with fresh, secure random data.</li>
+<li>[<code>SeedableRng::from_rng</code>]; this allows seeding from another PRNG or
+from an entropy source such as <a href="rngs::EntropyRng"><code>EntropyRng</code></a>.</li>
+<li>[<code>SeedableRng::from_seed</code>]; this is mostly useful if you wish to be able
+to reproduce the output sequence by using a fixed seed. (Don't use
+<a href="rngs::StdRng"><code>StdRng</code></a> or <a href="rngs::SmallRng"><code>SmallRng</code></a> in this case since different algorithms may be
+used by future versions of Rand; use an algorithm from the
+[<code>prng</code>] module.)</li>
+</ul>
+<h2 id="conclusion" class="section-header"><a href="#conclusion">Conclusion</a></h2>
+<ul>
+<li>[<code>thread_rng</code>] is what you often want to use.</li>
+<li>If you want more control, flexibility, or better performance, use
+<a href="rngs::StdRng"><code>StdRng</code></a>, <a href="rngs::SmallRng"><code>SmallRng</code></a> or an algorithm from the [<code>prng</code>] module.</li>
+<li>Use [<code>FromEntropy::from_entropy</code>] to seed new PRNGs.</li>
+<li>If you need reproducibility, use [<code>SeedableRng::from_seed</code>] combined with
+a named PRNG.</li>
+</ul>
+<p>More information and notes on cryptographic security can be found
+in the [<code>prng</code>] module.</p>
+<h2 id="examples" class="section-header"><a href="#examples">Examples</a></h2>
+<p>Examples of seeding PRNGs:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+
+<span class="comment">// StdRng seeded securely by the OS or local entropy collector:</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">StdRng</span>::<span class="ident">from_entropy</span>();
+
+<span class="comment">// SmallRng seeded from thread_rng:</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">SmallRng</span>::<span class="ident">from_rng</span>(<span class="ident">thread_rng</span>())<span class="question-mark">?</span>;
+
+<span class="comment">// SmallRng seeded by a constant, for deterministic results:</span>
+<span class="kw">let</span> <span class="ident">seed</span> <span class="op">=</span> [<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>, <span class="number">5</span>,<span class="number">6</span>,<span class="number">7</span>,<span class="number">8</span>, <span class="number">9</span>,<span class="number">10</span>,<span class="number">11</span>,<span class="number">12</span>, <span class="number">13</span>,<span class="number">14</span>,<span class="number">15</span>,<span class="number">16</span>]; <span class="comment">// byte array</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">SmallRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);</pre></div>
+<h1 id="implementing-custom-rngs" class="section-header"><a href="#implementing-custom-rngs">Implementing custom RNGs</a></h1>
+<p>If you want to implement custom RNG, see the [<code>rand_core</code>] crate. The RNG
+will have to implement the [<code>RngCore</code>] trait, where the [<code>Rng</code>] trait is
+build on top of.</p>
+<p>If the RNG needs seeding, also implement the [<code>SeedableRng</code>] trait.</p>
+<p>[<code>CryptoRng</code>] is a marker trait cryptographically secure PRNGs can
+implement.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="adapter/index.html" title='rand::rngs::adapter mod'>adapter</a></td><td class='docblock-short'><p>Wrappers / adapters forming RNGs</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="mock/index.html" title='rand::rngs::mock mod'>mock</a></td><td class='docblock-short'><p>Mock random number generator</p>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.EntropyRng.html" title='rand::rngs::EntropyRng struct'>EntropyRng</a></td><td class='docblock-short'><p>An interface returning random data from external source(s), provided
+specifically for securely seeding algorithmic generators (PRNGs).</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.JitterRng.html" title='rand::rngs::JitterRng struct'>JitterRng</a></td><td class='docblock-short'><p>A true random number generator based on jitter in the CPU execution time,
+and jitter in memory access time.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.OsRng.html" title='rand::rngs::OsRng struct'>OsRng</a></td><td class='docblock-short'><p>A random number generator that retrieves randomness straight from the
+operating system.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.SmallRng.html" title='rand::rngs::SmallRng struct'>SmallRng</a></td><td class='docblock-short'><p>An RNG recommended when small state, cheap initialization and good
+performance are required. The PRNG algorithm in <code>SmallRng</code> is chosen to be
+efficient on the current platform, <strong>without consideration for cryptography
+or security</strong>. The size of its state is much smaller than for <a href="crate::rngs::StdRng"><code>StdRng</code></a>.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.StdRng.html" title='rand::rngs::StdRng struct'>StdRng</a></td><td class='docblock-short'><p>The standard RNG. The PRNG algorithm in <code>StdRng</code> is chosen to be efficient
+on the current platform, to be statistically strong and unpredictable
+(meaning a cryptographically secure PRNG).</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.ThreadRng.html" title='rand::rngs::ThreadRng struct'>ThreadRng</a></td><td class='docblock-short'><p>The type returned by [<code>thread_rng</code>], essentially just a reference to the
+PRNG in thread-local memory.</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.TimerError.html" title='rand::rngs::TimerError enum'>TimerError</a></td><td class='docblock-short'><p>An error that can occur when <a href="crate::JitterRng::test_timer"><code>JitterRng::test_timer</code></a> fails.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "rand";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

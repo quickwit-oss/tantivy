@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.4.0/src/bitpacker8x.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bitpacker8x.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.6.0/src/bitpacker8x.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bitpacker8x.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../bitpacking/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -305,32 +305,65 @@
 <span id="305">305</span>
 <span id="306">306</span>
 <span id="307">307</span>
-</pre><pre class="rust ">
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BitPacker</span>, <span class="ident">UnsafeBitPacker</span>};
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">Available</span>;
 
 <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span> <span class="op">*</span> <span class="number">8</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span><span class="op">=</span><span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span><span class="op">=</span><span class="string">&quot;x86_64&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">avx2</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BLOCK_LEN</span>;
     <span class="kw">use</span> <span class="ident">Available</span>;
 
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">__m256i</span> <span class="kw">as</span> <span class="ident">DataType</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_set1_epi32</span> <span class="kw">as</span> <span class="ident">set1</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_srli_epi32</span> <span class="kw">as</span> <span class="ident">right_shift_32</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_slli_epi32</span> <span class="kw">as</span> <span class="ident">left_shift_32</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_or_si256</span> <span class="kw">as</span> <span class="ident">op_or</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_and_si256</span> <span class="kw">as</span> <span class="ident">op_and</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_lddqu_si256</span> <span class="kw">as</span> <span class="ident">load_unaligned</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_or_si256</span> <span class="kw">as</span> <span class="ident">op_or</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_set1_epi32</span> <span class="kw">as</span> <span class="ident">set1</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_slli_epi32</span> <span class="kw">as</span> <span class="ident">left_shift_32</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_srli_epi32</span> <span class="kw">as</span> <span class="ident">right_shift_32</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::<span class="ident">_mm256_storeu_si256</span> <span class="kw">as</span> <span class="ident">store_unaligned</span>;
 
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::{<span class="ident">_mm256_permute2f128_si256</span>, <span class="ident">_mm256_extract_epi32</span>, <span class="ident">_mm256_sub_epi32</span>, <span class="ident">_mm256_add_epi32</span>, <span class="ident">_mm256_srli_si256</span>, <span class="ident">_mm256_slli_si256</span>, <span class="ident">_mm256_shuffle_epi32</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">arch</span>::<span class="ident">x86_64</span>::{
+        <span class="ident">_mm256_add_epi32</span>, <span class="ident">_mm256_extract_epi32</span>, <span class="ident">_mm256_permute2f128_si256</span>, <span class="ident">_mm256_shuffle_epi32</span>,
+        <span class="ident">_mm256_slli_si256</span>, <span class="ident">_mm256_srli_si256</span>, <span class="ident">_mm256_sub_epi32</span>,
+    };
 
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">or_collapse_to_u32</span>(<span class="ident">accumulator</span>: <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
@@ -361,16 +394,18 @@
         <span class="kw">let</span> <span class="ident">offset</span> <span class="op">=</span> <span class="ident">_mm256_permute2f128_si256</span>(<span class="ident">offset_repeat</span>, <span class="ident">offset_repeat</span>, <span class="number">3</span> <span class="op">|</span> (<span class="number">8</span> <span class="op">&lt;&lt;</span> <span class="number">4</span>));
         <span class="kw">let</span> <span class="ident">a__b__c__d__e__f__g__h__</span> <span class="op">=</span> <span class="ident">delta</span>;
         <span class="kw">let</span> <span class="ident">______a__b________e__f__</span> <span class="op">=</span> <span class="ident">_mm256_slli_si256</span>(<span class="ident">delta</span>, <span class="number">8</span>);
-        <span class="kw">let</span> <span class="ident">a__b__ca_db_e__f__ge_fh_</span> <span class="op">=</span> <span class="ident">_mm256_add_epi32</span>(<span class="ident">a__b__c__d__e__f__g__h__</span>, <span class="ident">______a__b________e__f__</span>);
+        <span class="kw">let</span> <span class="ident">a__b__ca_db_e__f__ge_fh_</span> <span class="op">=</span>
+            <span class="ident">_mm256_add_epi32</span>(<span class="ident">a__b__c__d__e__f__g__h__</span>, <span class="ident">______a__b________e__f__</span>);
         <span class="kw">let</span> <span class="ident">___a__b__ca____e__f__ge_</span> <span class="op">=</span> <span class="ident">_mm256_slli_si256</span>(<span class="ident">a__b__ca_db_e__f__ge_fh_</span>, <span class="number">4</span>);
-        <span class="kw">let</span> <span class="ident">halved_prefix_sum</span> <span class="op">=</span> <span class="ident">_mm256_add_epi32</span>(<span class="ident">___a__b__ca____e__f__ge_</span>, <span class="ident">a__b__ca_db_e__f__ge_fh_</span>);
+        <span class="kw">let</span> <span class="ident">halved_prefix_sum</span> <span class="op">=</span>
+            <span class="ident">_mm256_add_epi32</span>(<span class="ident">___a__b__ca____e__f__ge_</span>, <span class="ident">a__b__ca_db_e__f__ge_fh_</span>);
         <span class="kw">let</span> <span class="ident">offseted_halved_prefix_sum</span> <span class="op">=</span> <span class="ident">_mm256_add_epi32</span>(<span class="ident">halved_prefix_sum</span>, <span class="ident">offset</span>);
         <span class="kw">let</span> <span class="ident">select_last_low</span> <span class="op">=</span> <span class="ident">_mm256_shuffle_epi32</span>(<span class="ident">offseted_halved_prefix_sum</span>, <span class="number">0xff</span>);
         <span class="kw">let</span> <span class="ident">high_offset</span> <span class="op">=</span> <span class="ident">_mm256_permute2f128_si256</span>(<span class="ident">select_last_low</span>, <span class="ident">select_last_low</span>, <span class="number">8</span> <span class="op">|</span> <span class="number">0</span>);
         <span class="ident">_mm256_add_epi32</span>(<span class="ident">high_offset</span>, <span class="ident">offseted_halved_prefix_sum</span>)
     }
 
-    <span class="macro">declare_bitpacker</span><span class="macro">!</span>(<span class="ident">target_feature</span>(<span class="ident">enable</span><span class="op">=</span><span class="string">&quot;avx2&quot;</span>));
+    <span class="macro">declare_bitpacker</span><span class="macro">!</span>(<span class="ident">target_feature</span>(<span class="ident">enable</span> <span class="op">=</span> <span class="string">&quot;avx2&quot;</span>));
 
     <span class="kw">impl</span> <span class="ident">Available</span> <span class="kw">for</span> <span class="ident">UnsafeBitPackerImpl</span> {
         <span class="kw">fn</span> <span class="ident">available</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -379,75 +414,81 @@
     }
 }
 
-
 <span class="kw">mod</span> <span class="ident">scalar</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BLOCK_LEN</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
     <span class="kw">use</span> <span class="ident">Available</span>;
 
     <span class="kw">type</span> <span class="ident">DataType</span> <span class="op">=</span> [<span class="ident">u32</span>; <span class="number">8</span>];
-
 
     <span class="kw">fn</span> <span class="ident">set1</span>(<span class="ident">el</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
         [<span class="ident">el</span> <span class="kw">as</span> <span class="ident">u32</span>; <span class="number">8</span>]
     }
 
     <span class="kw">fn</span> <span class="ident">right_shift_32</span>(<span class="ident">el</span>: <span class="ident">DataType</span>, <span class="ident">shift</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
-        [<span class="ident">el</span>[<span class="number">0</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">1</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">2</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">3</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">4</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">5</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">6</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">7</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>]
+        [
+            <span class="ident">el</span>[<span class="number">0</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">1</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">2</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">3</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">4</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">5</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">6</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">7</span>] <span class="op">&gt;&gt;</span> <span class="ident">shift</span>,
+        ]
     }
 
     <span class="kw">fn</span> <span class="ident">left_shift_32</span>(<span class="ident">el</span>: <span class="ident">DataType</span>, <span class="ident">shift</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
-        [<span class="ident">el</span>[<span class="number">0</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">1</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">2</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">3</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">4</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">5</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">6</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
-         <span class="ident">el</span>[<span class="number">7</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>]
+        [
+            <span class="ident">el</span>[<span class="number">0</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">1</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">2</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">3</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">4</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">5</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">6</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+            <span class="ident">el</span>[<span class="number">7</span>] <span class="op">&lt;&lt;</span> <span class="ident">shift</span>,
+        ]
     }
 
     <span class="kw">fn</span> <span class="ident">op_or</span>(<span class="ident">left</span>: <span class="ident">DataType</span>, <span class="ident">right</span>: <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
-        [<span class="ident">left</span>[<span class="number">0</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">0</span>],
-         <span class="ident">left</span>[<span class="number">1</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">1</span>],
-         <span class="ident">left</span>[<span class="number">2</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">2</span>],
-         <span class="ident">left</span>[<span class="number">3</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">3</span>],
-         <span class="ident">left</span>[<span class="number">4</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">4</span>],
-         <span class="ident">left</span>[<span class="number">5</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">5</span>],
-         <span class="ident">left</span>[<span class="number">6</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">6</span>],
-         <span class="ident">left</span>[<span class="number">7</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">7</span>]]
-
+        [
+            <span class="ident">left</span>[<span class="number">0</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">0</span>],
+            <span class="ident">left</span>[<span class="number">1</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">1</span>],
+            <span class="ident">left</span>[<span class="number">2</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">2</span>],
+            <span class="ident">left</span>[<span class="number">3</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">3</span>],
+            <span class="ident">left</span>[<span class="number">4</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">4</span>],
+            <span class="ident">left</span>[<span class="number">5</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">5</span>],
+            <span class="ident">left</span>[<span class="number">6</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">6</span>],
+            <span class="ident">left</span>[<span class="number">7</span>] <span class="op">|</span> <span class="ident">right</span>[<span class="number">7</span>],
+        ]
     }
 
     <span class="kw">fn</span> <span class="ident">op_and</span>(<span class="ident">left</span>: <span class="ident">DataType</span>, <span class="ident">right</span>: <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
-        [<span class="ident">left</span>[<span class="number">0</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">0</span>],
-         <span class="ident">left</span>[<span class="number">1</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">1</span>],
-         <span class="ident">left</span>[<span class="number">2</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">2</span>],
-         <span class="ident">left</span>[<span class="number">3</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">3</span>],
-         <span class="ident">left</span>[<span class="number">4</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">4</span>],
-         <span class="ident">left</span>[<span class="number">5</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">5</span>],
-         <span class="ident">left</span>[<span class="number">6</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">6</span>],
-         <span class="ident">left</span>[<span class="number">7</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">7</span>]]
+        [
+            <span class="ident">left</span>[<span class="number">0</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">0</span>],
+            <span class="ident">left</span>[<span class="number">1</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">1</span>],
+            <span class="ident">left</span>[<span class="number">2</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">2</span>],
+            <span class="ident">left</span>[<span class="number">3</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">3</span>],
+            <span class="ident">left</span>[<span class="number">4</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">4</span>],
+            <span class="ident">left</span>[<span class="number">5</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">5</span>],
+            <span class="ident">left</span>[<span class="number">6</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">6</span>],
+            <span class="ident">left</span>[<span class="number">7</span>] <span class="op">&amp;</span> <span class="ident">right</span>[<span class="number">7</span>],
+        ]
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">load_unaligned</span>(<span class="ident">addr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
-        <span class="kw-2">*</span><span class="ident">addr</span>
+        <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">addr</span>)
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">store_unaligned</span>(<span class="ident">addr</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">DataType</span>, <span class="ident">data</span>: <span class="ident">DataType</span>) {
-        <span class="kw-2">*</span><span class="ident">addr</span> <span class="op">=</span> <span class="ident">data</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">store_unaligned</span>(<span class="ident">dst</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">DataType</span>, <span class="ident">data</span>: <span class="ident">DataType</span>) {
+        <span class="ident">ptr</span>::<span class="ident">write_unaligned</span>(<span class="ident">dst</span>, <span class="ident">data</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">or_collapse_to_u32</span>(<span class="ident">accumulator</span>: <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
-         ((<span class="ident">accumulator</span>[<span class="number">0</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">1</span>]) <span class="op">|</span> (<span class="ident">accumulator</span>[<span class="number">2</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">3</span>]))
-       <span class="op">|</span> ((<span class="ident">accumulator</span>[<span class="number">4</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">5</span>]) <span class="op">|</span> (<span class="ident">accumulator</span>[<span class="number">6</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">7</span>]))
+        ((<span class="ident">accumulator</span>[<span class="number">0</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">1</span>]) <span class="op">|</span> (<span class="ident">accumulator</span>[<span class="number">2</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">3</span>]))
+            <span class="op">|</span> ((<span class="ident">accumulator</span>[<span class="number">4</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">5</span>]) <span class="op">|</span> (<span class="ident">accumulator</span>[<span class="number">6</span>] <span class="op">|</span> <span class="ident">accumulator</span>[<span class="number">7</span>]))
     }
 
     <span class="kw">fn</span> <span class="ident">compute_delta</span>(<span class="ident">curr</span>: <span class="ident">DataType</span>, <span class="ident">prev</span>: <span class="ident">DataType</span>) <span class="op">-&gt;</span> <span class="ident">DataType</span> {
@@ -459,7 +500,7 @@
             <span class="ident">curr</span>[<span class="number">4</span>].<span class="ident">wrapping_sub</span>(<span class="ident">curr</span>[<span class="number">3</span>]),
             <span class="ident">curr</span>[<span class="number">5</span>].<span class="ident">wrapping_sub</span>(<span class="ident">curr</span>[<span class="number">4</span>]),
             <span class="ident">curr</span>[<span class="number">6</span>].<span class="ident">wrapping_sub</span>(<span class="ident">curr</span>[<span class="number">5</span>]),
-            <span class="ident">curr</span>[<span class="number">7</span>].<span class="ident">wrapping_sub</span>(<span class="ident">curr</span>[<span class="number">6</span>])
+            <span class="ident">curr</span>[<span class="number">7</span>].<span class="ident">wrapping_sub</span>(<span class="ident">curr</span>[<span class="number">6</span>]),
         ]
     }
 
@@ -479,7 +520,7 @@
     <span class="comment">//</span>
     <span class="comment">// For other bitpacker, we enable specific CPU instruction set, but for the</span>
     <span class="comment">// scalar bitpacker none is required.</span>
-    <span class="macro">declare_bitpacker</span><span class="macro">!</span>(<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">debug</span>, <span class="ident">not</span>(<span class="ident">debug</span>))) );
+    <span class="macro">declare_bitpacker</span><span class="macro">!</span>(<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">debug</span>, <span class="ident">not</span>(<span class="ident">debug</span>))));
 
     <span class="kw">impl</span> <span class="ident">Available</span> <span class="kw">for</span> <span class="ident">UnsafeBitPackerImpl</span> {
         <span class="kw">fn</span> <span class="ident">available</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -488,25 +529,24 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">enum</span> <span class="ident">InstructionSet</span> {
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
     <span class="ident">AVX2</span>,
-    <span class="ident">Scalar</span>
+    <span class="ident">Scalar</span>,
 }
 
 <span class="doccomment">/// `BitPacker8x` packs integers in groups of 8. This gives an opportunity</span>
 <span class="doccomment">/// to leverage `AVX2` instructions to encode and decode the stream.</span>
 <span class="doccomment">/// One block must contain `256 integers`.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BitPacker8x</span>(<span class="ident">InstructionSet</span>);
 
 <span class="kw">impl</span> <span class="ident">BitPacker</span> <span class="kw">for</span> <span class="ident">BitPacker8x</span> {
-
     <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">BLOCK_LEN</span>;
 
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
         {
             <span class="kw">if</span> <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">available</span>() {
                 <span class="kw">return</span> <span class="ident">BitPacker8x</span>(<span class="ident">InstructionSet</span>::<span class="ident">AVX2</span>);
@@ -518,53 +558,79 @@
     <span class="kw">fn</span> <span class="ident">compress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress</span>(<span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> {
+                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress</span>(<span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>)
+                }
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> {
                     <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress</span>(<span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>)
+                }
             }
-
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">compress_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">fn</span> <span class="ident">compress_sorted</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">initial</span>: <span class="ident">u32</span>,
+        <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>],
+        <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
+        <span class="ident">num_bits</span>: <span class="ident">u8</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
-                    <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>)
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress_sorted</span>(
+                    <span class="ident">initial</span>,
+                    <span class="ident">decompressed</span>,
+                    <span class="ident">compressed</span>,
+                    <span class="ident">num_bits</span>,
+                ),
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress_sorted</span>(
+                    <span class="ident">initial</span>,
+                    <span class="ident">decompressed</span>,
+                    <span class="ident">compressed</span>,
+                    <span class="ident">num_bits</span>,
+                ),
             }
-
         }
     }
 
     <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress</span>(<span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> {
+                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress</span>(<span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>)
+                }
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> {
                     <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress</span>(<span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>)
+                }
             }
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">initial</span>: <span class="ident">u32</span>,
+        <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>],
+        <span class="ident">num_bits</span>: <span class="ident">u8</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress_sorted</span>(<span class="ident">initial</span>, <span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
-                    <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress_sorted</span>(<span class="ident">initial</span>, <span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>)
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress_sorted</span>(
+                    <span class="ident">initial</span>,
+                    <span class="ident">compressed</span>,
+                    <span class="ident">decompressed</span>,
+                    <span class="ident">num_bits</span>,
+                ),
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress_sorted</span>(
+                    <span class="ident">initial</span>,
+                    <span class="ident">compressed</span>,
+                    <span class="ident">decompressed</span>,
+                    <span class="ident">num_bits</span>,
+                ),
             }
         }
     }
@@ -572,12 +638,9 @@
     <span class="kw">fn</span> <span class="ident">num_bits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits</span>(<span class="ident">decompressed</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
-                    <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits</span>(<span class="ident">decompressed</span>)
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits</span>(<span class="ident">decompressed</span>),
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits</span>(<span class="ident">decompressed</span>),
             }
         }
     }
@@ -585,32 +648,34 @@
     <span class="kw">fn</span> <span class="ident">num_bits_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
-                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
-                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>),
-                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
+                <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span> {
+                    <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>)
+                }
+                <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span> {
                     <span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>)
+                }
             }
         }
     }
 }
 
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">Available</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">scalar</span>, <span class="ident">avx2</span>};
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">test_util_compatible</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BLOCK_LEN</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">avx2</span>, <span class="ident">scalar</span>};
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">test_util_compatible</span>;
+    <span class="kw">use</span> <span class="ident">Available</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_compatible</span>() {
         <span class="kw">if</span> <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">available</span>() {
-            <span class="ident">test_util_compatible</span>::<span class="op">&lt;</span><span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>, <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span><span class="op">&gt;</span>(<span class="ident">BLOCK_LEN</span>);
+            <span class="ident">test_util_compatible</span>::<span class="op">&lt;</span><span class="ident">scalar</span>::<span class="ident">UnsafeBitPackerImpl</span>, <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span><span class="op">&gt;</span>(
+                <span class="ident">BLOCK_LEN</span>,
+            );
         }
     }
-}</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "bitpacking";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "bitpacking";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

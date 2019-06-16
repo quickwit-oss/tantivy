@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/fcntl.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fcntl.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/fcntl.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fcntl.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../nix/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -307,65 +307,248 @@
 <span id="307">307</span>
 <span id="308">308</span>
 <span id="309">309</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> {<span class="ident">Error</span>, <span class="ident">Errno</span>, <span class="prelude-ty">Result</span>, <span class="ident">NixPath</span>};
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> {<span class="ident">Error</span>, <span class="prelude-ty">Result</span>, <span class="ident">NixPath</span>};
+<span class="kw">use</span> <span class="ident">errno</span>::<span class="ident">Errno</span>;
 <span class="kw">use</span> <span class="ident">libc</span>::{<span class="self">self</span>, <span class="ident">c_int</span>, <span class="ident">c_uint</span>, <span class="ident">c_char</span>, <span class="ident">size_t</span>, <span class="ident">ssize_t</span>};
 <span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">stat</span>::<span class="ident">Mode</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">io</span>::<span class="ident">RawFd</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ffi</span>::<span class="ident">OsStr</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">ffi</span>::<span class="ident">OsStrExt</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">uio</span>::<span class="ident">IoVec</span>;  <span class="comment">// For vmsplice</span>
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">consts</span>::<span class="kw-2">*</span>;
-
-<span class="comment">// TODO: The remainder of the ffi module should be removed afer work on</span>
-<span class="comment">// https://github.com/rust-lang/libc/issues/235 is resolved.</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-<span class="kw">mod</span> <span class="ident">ffi</span> {
-    <span class="kw">use</span> <span class="ident">libc</span>::<span class="ident">c_int</span>;
-
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">F_ADD_SEALS</span>: <span class="ident">c_int</span> <span class="op">=</span> <span class="number">1033</span>;
-    <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">F_GET_SEALS</span>: <span class="ident">c_int</span> <span class="op">=</span> <span class="number">1034</span>;
-}
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>)))]</span>
 <span class="macro">libc_bitflags</span><span class="macro">!</span>{
-    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">AtFlags</span>: <span class="ident">c_int</span> {
-        <span class="ident">AT_SYMLINK_NOFOLLOW</span>,
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
-        <span class="ident">AT_NO_AUTOMOUNT</span>,
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
-        <span class="ident">AT_EMPTY_PATH</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AtFlags</span>: <span class="ident">c_int</span> {
+        <span class="ident">AT_SYMLINK_NOFOLLOW</span>;
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">AT_NO_AUTOMOUNT</span>;
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">AT_EMPTY_PATH</span>;
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>))]</span>
-<span class="macro">bitflags</span><span class="macro">!</span>(
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AtFlags</span>: <span class="ident">c_int</span> {
-        <span class="comment">// hack because bitflags require one entry</span>
-        <span class="kw">const</span> <span class="ident">EMPTY</span> <span class="op">=</span> <span class="number">0x0</span>;
+<span class="macro">libc_bitflags</span><span class="macro">!</span>(
+    <span class="doccomment">/// Configuration options for opened files.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OFlag</span>: <span class="ident">c_int</span> {
+        <span class="doccomment">/// Mask for the access mode of the file.</span>
+        <span class="ident">O_ACCMODE</span>;
+        <span class="doccomment">/// Use alternate I/O semantics.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
+        <span class="ident">O_ALT_IO</span>;
+        <span class="doccomment">/// Open the file in append-only mode.</span>
+        <span class="ident">O_APPEND</span>;
+        <span class="doccomment">/// Generate a signal when input or output becomes possible.</span>
+        <span class="ident">O_ASYNC</span>;
+        <span class="doccomment">/// Closes the file descriptor once an `execve` call is made.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Also sets the file offset to the beginning of the file.</span>
+        <span class="ident">O_CLOEXEC</span>;
+        <span class="doccomment">/// Create the file if it does not exist.</span>
+        <span class="ident">O_CREAT</span>;
+        <span class="doccomment">/// Try to minimize cache effects of the I/O for this file.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>))]</span>
+        <span class="ident">O_DIRECT</span>;
+        <span class="doccomment">/// If the specified path isn&#39;t a directory, fail.</span>
+        <span class="ident">O_DIRECTORY</span>;
+        <span class="doccomment">/// Implicitly follow each `write()` with an `fdatasync()`.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+        <span class="ident">O_DSYNC</span>;
+        <span class="doccomment">/// Error out if a file was not created.</span>
+        <span class="ident">O_EXCL</span>;
+        <span class="doccomment">/// Open for execute only.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
+        <span class="ident">O_EXEC</span>;
+        <span class="doccomment">/// Open with an exclusive file lock.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+        <span class="ident">O_EXLOCK</span>;
+        <span class="doccomment">/// Same as `O_SYNC`.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+                  <span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">not</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;musl&quot;</span>)),
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+        <span class="ident">O_FSYNC</span>;
+        <span class="doccomment">/// Allow files whose sizes can&#39;t be represented in an `off_t` to be opened.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">O_LARGEFILE</span>;
+        <span class="doccomment">/// Do not update the file last access time during `read(2)`s.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">O_NOATIME</span>;
+        <span class="doccomment">/// Don&#39;t attach the device as the process&#39; controlling terminal.</span>
+        <span class="ident">O_NOCTTY</span>;
+        <span class="doccomment">/// Same as `O_NONBLOCK`.</span>
+        <span class="ident">O_NDELAY</span>;
+        <span class="doccomment">/// `open()` will fail if the given path is a symbolic link.</span>
+        <span class="ident">O_NOFOLLOW</span>;
+        <span class="doccomment">/// When possible, open the file in nonblocking mode.</span>
+        <span class="ident">O_NONBLOCK</span>;
+        <span class="doccomment">/// Don&#39;t deliver `SIGPIPE`.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
+        <span class="ident">O_NOSIGPIPE</span>;
+        <span class="doccomment">/// Obtain a file descriptor for low-level access.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// The file itself is not opened and other file operations will fail.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">O_PATH</span>;
+        <span class="doccomment">/// Only allow reading.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This should not be combined with `O_WRONLY` or `O_RDWR`.</span>
+        <span class="ident">O_RDONLY</span>;
+        <span class="doccomment">/// Allow both reading and writing.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This should not be combined with `O_WRONLY` or `O_RDONLY`.</span>
+        <span class="ident">O_RDWR</span>;
+        <span class="doccomment">/// Similar to `O_DSYNC` but applies to `read`s instead.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+        <span class="ident">O_RSYNC</span>;
+        <span class="doccomment">/// Skip search permission checks.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
+        <span class="ident">O_SEARCH</span>;
+        <span class="doccomment">/// Open with a shared file lock.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+                  <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+        <span class="ident">O_SHLOCK</span>;
+        <span class="doccomment">/// Implicitly follow each `write()` with an `fsync()`.</span>
+        <span class="ident">O_SYNC</span>;
+        <span class="doccomment">/// Create an unnamed temporary file.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">O_TMPFILE</span>;
+        <span class="doccomment">/// Truncate an existing regular file to 0 length if it allows writing.</span>
+        <span class="ident">O_TRUNC</span>;
+        <span class="doccomment">/// Restore default TTY attributes.</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
+        <span class="ident">O_TTY_INIT</span>;
+        <span class="doccomment">/// Only allow writing.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This should not be combined with `O_RDONLY` or `O_RDWR`.</span>
+        <span class="ident">O_WRONLY</span>;
     }
 );
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>, <span class="ident">oflag</span>: <span class="ident">OFlag</span>, <span class="ident">mode</span>: <span class="ident">Mode</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RawFd</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">fd</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">fd</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
         <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">open</span>(<span class="ident">cstr</span>.<span class="ident">as_ptr</span>(), <span class="ident">oflag</span>.<span class="ident">bits</span>(), <span class="ident">mode</span>.<span class="ident">bits</span>() <span class="kw">as</span> <span class="ident">c_uint</span>) }
-    }));
+    })<span class="question-mark">?</span>;
 
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">fd</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">openat</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">dirfd</span>: <span class="ident">RawFd</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>, <span class="ident">oflag</span>: <span class="ident">OFlag</span>, <span class="ident">mode</span>: <span class="ident">Mode</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RawFd</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">fd</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">fd</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
         <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">openat</span>(<span class="ident">dirfd</span>, <span class="ident">cstr</span>.<span class="ident">as_ptr</span>(), <span class="ident">oflag</span>.<span class="ident">bits</span>(), <span class="ident">mode</span>.<span class="ident">bits</span>() <span class="kw">as</span> <span class="ident">c_uint</span>) }
-    }));
+    })<span class="question-mark">?</span>;
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">fd</span>)
 }
 
-<span class="kw">fn</span> <span class="ident">wrap_readlink_result</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span>[<span class="ident">u8</span>], <span class="ident">res</span>: <span class="ident">ssize_t</span>) 
-  <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">OsStr</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">wrap_readlink_result</span>(<span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span>[<span class="ident">u8</span>], <span class="ident">res</span>: <span class="ident">ssize_t</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">OsStr</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>) {
         <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
         <span class="prelude-val">Ok</span>(<span class="ident">len</span>) <span class="op">=&gt;</span> {
@@ -379,22 +562,54 @@
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">readlink</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">OsStr</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
         <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">readlink</span>(<span class="ident">cstr</span>.<span class="ident">as_ptr</span>(), <span class="ident">buffer</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span>, <span class="ident">buffer</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">size_t</span>) }
-    }));
+    })<span class="question-mark">?</span>;
 
     <span class="ident">wrap_readlink_result</span>(<span class="ident">buffer</span>, <span class="ident">res</span>)
 }
 
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">readlinkat</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">P</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">NixPath</span><span class="op">&gt;</span>(<span class="ident">dirfd</span>: <span class="ident">RawFd</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">P</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">OsStr</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">with_nix_path</span>(<span class="op">|</span><span class="ident">cstr</span><span class="op">|</span> {
         <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">readlinkat</span>(<span class="ident">dirfd</span>, <span class="ident">cstr</span>.<span class="ident">as_ptr</span>(), <span class="ident">buffer</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_char</span>, <span class="ident">buffer</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">size_t</span>) }
-    }));
+    })<span class="question-mark">?</span>;
 
     <span class="ident">wrap_readlink_result</span>(<span class="ident">buffer</span>, <span class="ident">res</span>)
 }
 
+<span class="doccomment">/// Computes the raw fd consumed by a function of the form `*at`.</span>
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">at_rawfd</span>(<span class="ident">fd</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RawFd</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">raw</span>::<span class="ident">c_int</span> {
+    <span class="kw">match</span> <span class="ident">fd</span> {
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">AT_FDCWD</span>,
+        <span class="prelude-val">Some</span>(<span class="ident">fd</span>) <span class="op">=&gt;</span> <span class="ident">fd</span>,
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">libc_bitflags</span><span class="macro">!</span>(
+    <span class="doccomment">/// Additional flags for file sealing, which allows for limiting operations on a file.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SealFlag</span>: <span class="ident">c_int</span> {
+        <span class="doccomment">/// Prevents further calls to `fcntl()` with `F_ADD_SEALS`.</span>
+        <span class="ident">F_SEAL_SEAL</span>;
+        <span class="doccomment">/// The file cannot be reduced in size.</span>
+        <span class="ident">F_SEAL_SHRINK</span>;
+        <span class="doccomment">/// The size of the file cannot be increased.</span>
+        <span class="ident">F_SEAL_GROW</span>;
+        <span class="doccomment">/// The file contents cannot be modified.</span>
+        <span class="ident">F_SEAL_WRITE</span>;
+    }
+);
+
+<span class="macro">libc_bitflags</span><span class="macro">!</span>(
+    <span class="doccomment">/// Additional configuration flags for `fcntl`&#39;s `F_SETFD`.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FdFlag</span>: <span class="ident">c_int</span> {
+        <span class="doccomment">/// The file descriptor will automatically be closed during a successful `execve(2)`.</span>
+        <span class="ident">FD_CLOEXEC</span>;
+    }
+);
+
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FcntlArg</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">F_DUPFD</span>(<span class="ident">RawFd</span>),
     <span class="ident">F_DUPFD_CLOEXEC</span>(<span class="ident">RawFd</span>),
@@ -411,16 +626,16 @@
     <span class="ident">F_OFD_SETLKW</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">libc</span>::<span class="ident">flock</span>),
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
     <span class="ident">F_OFD_GETLK</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">flock</span>),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
     <span class="ident">F_ADD_SEALS</span>(<span class="ident">SealFlag</span>),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
     <span class="ident">F_GET_SEALS</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>))]</span>
     <span class="ident">F_FULLFSYNC</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
     <span class="ident">F_GETPIPE_SZ</span>,
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
-    <span class="ident">F_SETPIPE_SZ</span>(<span class="ident">libc</span>::<span class="ident">c_int</span>),
+    <span class="ident">F_SETPIPE_SZ</span>(<span class="ident">c_int</span>),
 
     <span class="comment">// TODO: Rest of flags</span>
 }
@@ -439,10 +654,10 @@
             <span class="ident">F_SETLK</span>(<span class="ident">flock</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_SETLK</span>, <span class="ident">flock</span>),
             <span class="ident">F_SETLKW</span>(<span class="ident">flock</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_SETLKW</span>, <span class="ident">flock</span>),
             <span class="ident">F_GETLK</span>(<span class="ident">flock</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_GETLK</span>, <span class="ident">flock</span>),
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-            <span class="ident">F_ADD_SEALS</span>(<span class="ident">flag</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">ffi</span>::<span class="ident">F_ADD_SEALS</span>, <span class="ident">flag</span>.<span class="ident">bits</span>()),
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-            <span class="ident">F_GET_SEALS</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">ffi</span>::<span class="ident">F_GET_SEALS</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+            <span class="ident">F_ADD_SEALS</span>(<span class="ident">flag</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_ADD_SEALS</span>, <span class="ident">flag</span>.<span class="ident">bits</span>()),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+            <span class="ident">F_GET_SEALS</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_GET_SEALS</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>))]</span>
             <span class="ident">F_FULLFSYNC</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_FULLFSYNC</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
@@ -457,6 +672,8 @@
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>)
 }
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">FlockArg</span> {
     <span class="ident">LockShared</span>,
     <span class="ident">LockExclusive</span>,
@@ -481,6 +698,27 @@
     };
 
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">libc_bitflags</span><span class="macro">!</span> {
+    <span class="doccomment">/// Additional flags to `splice` and friends.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpliceFFlags</span>: <span class="ident">c_uint</span> {
+        <span class="doccomment">/// Request that pages be moved instead of copied.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Not applicable to `vmsplice`.</span>
+        <span class="ident">SPLICE_F_MOVE</span>;
+        <span class="doccomment">/// Do not block on I/O.</span>
+        <span class="ident">SPLICE_F_NONBLOCK</span>;
+        <span class="doccomment">/// Hint that more data will be coming in a subsequent splice.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Not applicable to `vmsplice`.</span>
+        <span class="ident">SPLICE_F_MORE</span>;
+        <span class="doccomment">/// Gift the user pages to the kernel.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Not applicable to `splice`.</span>
+        <span class="ident">SPLICE_F_GIFT</span>;
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
@@ -509,113 +747,45 @@
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">ret</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">r</span> <span class="kw">as</span> <span class="ident">usize</span>)
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
-<span class="kw">mod</span> <span class="ident">consts</span> {
-    <span class="kw">use</span> <span class="ident">libc</span>::{<span class="self">self</span>, <span class="ident">c_int</span>, <span class="ident">c_uint</span>};
-
-    <span class="macro">libc_bitflags</span><span class="macro">!</span> {
-        <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">SpliceFFlags</span>: <span class="ident">c_uint</span> {
-            <span class="ident">SPLICE_F_MOVE</span>,
-            <span class="ident">SPLICE_F_NONBLOCK</span>,
-            <span class="ident">SPLICE_F_MORE</span>,
-            <span class="ident">SPLICE_F_GIFT</span>,
-        }
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">libc_bitflags</span><span class="macro">!</span>(
+    <span class="doccomment">/// Mode argument flags for fallocate determining operation performed on a given range.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FallocateFlags</span>: <span class="ident">c_int</span> {
+        <span class="doccomment">/// File size is not changed.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// offset + len can be greater than file size.</span>
+        <span class="ident">FALLOC_FL_KEEP_SIZE</span>;
+        <span class="doccomment">/// Deallocates space by creating a hole.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Must be ORed with FALLOC_FL_KEEP_SIZE. Byte range starts at offset and continues for len bytes.</span>
+        <span class="ident">FALLOC_FL_PUNCH_HOLE</span>;
+        <span class="doccomment">/// Removes byte range from a file without leaving a hole.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Byte range to collapse starts at offset and continues for len bytes.</span>
+        <span class="ident">FALLOC_FL_COLLAPSE_RANGE</span>;
+        <span class="doccomment">/// Zeroes space in specified byte range.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Byte range starts at offset and continues for len bytes.</span>
+        <span class="ident">FALLOC_FL_ZERO_RANGE</span>;
+        <span class="doccomment">/// Increases file space by inserting a hole within the file size.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Does not overwrite existing data. Hole starts at offset and continues for len bytes.</span>
+        <span class="ident">FALLOC_FL_INSERT_RANGE</span>;
+        <span class="doccomment">/// Shared file data extants are made private to the file.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// Gaurantees that a subsequent write will not fail due to lack of space.</span>
+        <span class="ident">FALLOC_FL_UNSHARE_RANGE</span>;
     }
+);
 
-    <span class="macro">bitflags</span><span class="macro">!</span>(
-        <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OFlag</span>: <span class="ident">c_int</span> {
-            <span class="kw">const</span> <span class="ident">O_ACCMODE</span>   <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_ACCMODE</span>;
-            <span class="kw">const</span> <span class="ident">O_RDONLY</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_RDONLY</span>;
-            <span class="kw">const</span> <span class="ident">O_WRONLY</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_WRONLY</span>;
-            <span class="kw">const</span> <span class="ident">O_RDWR</span>      <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_RDWR</span>;
-            <span class="kw">const</span> <span class="ident">O_CREAT</span>     <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_CREAT</span>;
-            <span class="kw">const</span> <span class="ident">O_EXCL</span>      <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_EXCL</span>;
-            <span class="kw">const</span> <span class="ident">O_NOCTTY</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_NOCTTY</span>;
-            <span class="kw">const</span> <span class="ident">O_TRUNC</span>     <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_TRUNC</span>;
-            <span class="kw">const</span> <span class="ident">O_APPEND</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_APPEND</span>;
-            <span class="kw">const</span> <span class="ident">O_NONBLOCK</span>  <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_NONBLOCK</span>;
-            <span class="kw">const</span> <span class="ident">O_DSYNC</span>     <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_DSYNC</span>;
-            <span class="kw">const</span> <span class="ident">O_DIRECT</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_DIRECT</span>;
-            <span class="kw">const</span> <span class="ident">O_LARGEFILE</span> <span class="op">=</span> <span class="number">0o00100000</span>;
-            <span class="kw">const</span> <span class="ident">O_DIRECTORY</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_DIRECTORY</span>;
-            <span class="kw">const</span> <span class="ident">O_NOFOLLOW</span>  <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_NOFOLLOW</span>;
-            <span class="kw">const</span> <span class="ident">O_NOATIME</span>   <span class="op">=</span> <span class="number">0o01000000</span>;
-            <span class="kw">const</span> <span class="ident">O_CLOEXEC</span>   <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_CLOEXEC</span>;
-            <span class="kw">const</span> <span class="ident">O_SYNC</span>      <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_SYNC</span>;
-            <span class="kw">const</span> <span class="ident">O_PATH</span>      <span class="op">=</span> <span class="number">0o10000000</span>;
-            <span class="kw">const</span> <span class="ident">O_TMPFILE</span>   <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_TMPFILE</span>;
-            <span class="kw">const</span> <span class="ident">O_NDELAY</span>    <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">O_NDELAY</span>;
-        }
-    );
-
-    <span class="macro">libc_bitflags</span><span class="macro">!</span>(
-        <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">FdFlag</span>: <span class="ident">c_int</span> {
-            <span class="ident">FD_CLOEXEC</span>
-        }
-    );
-
-    <span class="macro">bitflags</span><span class="macro">!</span>(
-        <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SealFlag</span>: <span class="ident">c_int</span> {
-            <span class="kw">const</span> <span class="ident">F_SEAL_SEAL</span> <span class="op">=</span> <span class="number">1</span>;
-            <span class="kw">const</span> <span class="ident">F_SEAL_SHRINK</span> <span class="op">=</span> <span class="number">2</span>;
-            <span class="kw">const</span> <span class="ident">F_SEAL_GROW</span> <span class="op">=</span> <span class="number">4</span>;
-            <span class="kw">const</span> <span class="ident">F_SEAL_WRITE</span> <span class="op">=</span> <span class="number">8</span>;
-        }
-    );
-
+<span class="doccomment">/// Manipulates file space.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Allows the caller to directly manipulate the allocated disk space for the</span>
+<span class="doccomment">/// file referred to by fd.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fallocate</span>(<span class="ident">fd</span>: <span class="ident">RawFd</span>, <span class="ident">mode</span>: <span class="ident">FallocateFlags</span>, <span class="ident">offset</span>: <span class="ident">libc</span>::<span class="ident">off_t</span>, <span class="ident">len</span>: <span class="ident">libc</span>::<span class="ident">off_t</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">fallocate</span>(<span class="ident">fd</span>, <span class="ident">mode</span>.<span class="ident">bits</span>(), <span class="ident">offset</span>, <span class="ident">len</span>) };
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>)
 }
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>,
-          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>))]</span>
-<span class="kw">mod</span> <span class="ident">consts</span> {
-    <span class="kw">use</span> <span class="ident">libc</span>::{<span class="self">self</span>,<span class="ident">c_int</span>};
-
-    <span class="macro">libc_bitflags</span><span class="macro">!</span>(
-        <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">OFlag</span>: <span class="ident">c_int</span> {
-            <span class="ident">O_ACCMODE</span>,
-            <span class="ident">O_RDONLY</span>,
-            <span class="ident">O_WRONLY</span>,
-            <span class="ident">O_RDWR</span>,
-            <span class="ident">O_NONBLOCK</span>,
-            <span class="ident">O_APPEND</span>,
-            <span class="ident">O_SHLOCK</span>,
-            <span class="ident">O_EXLOCK</span>,
-            <span class="ident">O_ASYNC</span>,
-            <span class="ident">O_SYNC</span>,
-            <span class="ident">O_NOFOLLOW</span>,
-            <span class="ident">O_CREAT</span>,
-            <span class="ident">O_TRUNC</span>,
-            <span class="ident">O_EXCL</span>,
-            <span class="ident">O_NOCTTY</span>,
-            <span class="ident">O_DIRECTORY</span>,
-            <span class="ident">O_CLOEXEC</span>,
-            <span class="ident">O_FSYNC</span>,
-            <span class="ident">O_NDELAY</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
-                      <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>))]</span>
-            <span class="ident">O_DSYNC</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">O_DIRECT</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
-            <span class="ident">O_RSYNC</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
-            <span class="ident">O_EXEC</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
-            <span class="ident">O_TTY_INIT</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
-            <span class="ident">O_ALT_IO</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
-            <span class="ident">O_NOSIGPIPE</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>)]</span>
-            <span class="ident">O_SEARCH</span>,
-        }
-    );
-
-    <span class="macro">libc_bitflags</span><span class="macro">!</span>(
-        <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">FdFlag</span>: <span class="ident">c_int</span> {
-            <span class="ident">FD_CLOEXEC</span>
-        }
-    );
-}
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

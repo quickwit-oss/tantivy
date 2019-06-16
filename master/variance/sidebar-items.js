@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Invariant","A marker for forcing T to be considered invariant."],["InvariantLifetime","A marker for forcing `'id` to be considered invariant."]]});

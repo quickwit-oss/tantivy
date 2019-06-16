@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/postings/recorder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recorder.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/postings/recorder.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recorder.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -190,14 +190,143 @@
 <span id="190">190</span>
 <span id="191">191</span>
 <span id="192">192</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">MemoryArena</span>, <span class="ident">ExpUnrolledLinkedList</span>};
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">ExpUnrolledLinkedList</span>, <span class="ident">MemoryArena</span>};
+<span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">read_u32_vint</span>, <span class="ident">write_u32_vint</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FieldSerializer</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="self">self</span>, <span class="ident">io</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 
-<span class="kw">const</span> <span class="ident">EMPTY_ARRAY</span>: [<span class="ident">u32</span>; <span class="number">0</span>] <span class="op">=</span> [<span class="number">0u32</span>; <span class="number">0</span>];
-<span class="kw">const</span> <span class="ident">POSITION_END</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">u32</span>::<span class="ident">MAX</span>;
+<span class="kw">const</span> <span class="ident">POSITION_END</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">BufferLender</span> {
+    <span class="ident">buffer_u8</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+    <span class="ident">buffer_u32</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">BufferLender</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lend_u8</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">buffer_u8</span>.<span class="ident">clear</span>();
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buffer_u8</span>
+    }
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lend_all</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">buffer_u8</span>.<span class="ident">clear</span>();
+        <span class="self">self</span>.<span class="ident">buffer_u32</span>.<span class="ident">clear</span>();
+        (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buffer_u8</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buffer_u32</span>)
+    }
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">VInt32Reader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>],
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">VInt32Reader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">VInt32Reader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="ident">VInt32Reader</span> { <span class="ident">data</span> }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">VInt32Reader</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">u32</span>;
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">is_empty</span>() {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">read_u32_vint</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">data</span>))
+        }
+    }
+}
 
 <span class="doccomment">/// Recorder is in charge of recording relevant information about</span>
 <span class="doccomment">/// the presence of a term in a document.</span>
@@ -208,9 +337,9 @@
 <span class="doccomment">///   * the document id</span>
 <span class="doccomment">///   * the term frequency</span>
 <span class="doccomment">///   * the term positions</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Recorder</span>: <span class="ident">Copy</span> {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait</span> <span class="ident">Recorder</span>: <span class="ident">Copy</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {
     <span class="doccomment">///</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span>;
     <span class="doccomment">/// Returns the current document</span>
     <span class="kw">fn</span> <span class="ident">current_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span>;
     <span class="doccomment">/// Starts recording information about a new document</span>
@@ -224,6 +353,7 @@
     <span class="doccomment">/// Pushes the postings information to the serializer.</span>
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">buffer_lender</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufferLender</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
@@ -237,10 +367,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">NothingRecorder</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">NothingRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
-            <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>()
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(),
+            <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
         }
     }
 
@@ -250,7 +380,7 @@
 
     <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {}
@@ -259,11 +389,14 @@
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">buffer_lender</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufferLender</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">heap</span>) {
-            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="number">0u32</span>, <span class="kw-2">&amp;</span><span class="ident">EMPTY_ARRAY</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_u8</span>();
+        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">read_to_end</span>(<span class="ident">heap</span>, <span class="ident">buffer</span>);
+        <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">VInt32Reader</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>[..]) {
+            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="number">0u32</span>, <span class="kw-2">&amp;</span>[][..])<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -278,10 +411,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TermFrequencyRecorder</span> {
-
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">TermFrequencyRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(),
             <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
             <span class="ident">current_tf</span>: <span class="number">0u32</span>,
         }
@@ -293,7 +425,7 @@
 
     <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
@@ -302,27 +434,24 @@
 
     <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">current_tf</span> <span class="op">&gt;</span> <span class="number">0</span>);
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="self">self</span>.<span class="ident">current_tf</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="self">self</span>.<span class="ident">current_tf</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
         <span class="self">self</span>.<span class="ident">current_tf</span> <span class="op">=</span> <span class="number">0</span>;
     }
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">buffer_lender</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufferLender</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="comment">// the last document has not been closed...</span>
-        <span class="comment">// its term freq is self.current_tf.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stack</span>
-            .<span class="ident">iter</span>(<span class="ident">heap</span>)
-            .<span class="ident">chain</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">current_tf</span>).<span class="ident">into_iter</span>());
-
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">doc_iter</span>.<span class="ident">next</span>() {
-            <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="ident">doc_iter</span>
-                .<span class="ident">next</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;The IndexWriter recorded a doc without a term freq.&quot;</span>);
-            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="ident">term_freq</span>, <span class="kw-2">&amp;</span><span class="ident">EMPTY_ARRAY</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_u8</span>();
+        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">read_to_end</span>(<span class="ident">heap</span>, <span class="ident">buffer</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">u32_it</span> <span class="op">=</span> <span class="ident">VInt32Reader</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>[..]);
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">u32_it</span>.<span class="ident">next</span>() {
+            <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="ident">u32_it</span>.<span class="ident">next</span>().<span class="ident">unwrap_or</span>(<span class="self">self</span>.<span class="ident">current_tf</span>);
+            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="ident">term_freq</span>, <span class="kw-2">&amp;</span>[][..])<span class="question-mark">?</span>;
         }
+
         <span class="prelude-val">Ok</span>(())
     }
 }
@@ -333,12 +462,10 @@
     <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>,
     <span class="ident">current_doc</span>: <span class="ident">DocId</span>,
 }
-
 <span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TFAndPositionRecorder</span> {
-
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">TFAndPositionRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(),
             <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
         }
     }
@@ -349,39 +476,90 @@
 
     <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: <span class="ident">u32</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="ident">position</span> <span class="op">+</span> <span class="number">1u32</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
-        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">POSITION_END</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">write_u32_vint</span>(<span class="ident">POSITION_END</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">writer</span>(<span class="ident">heap</span>));
     }
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">buffer_lender</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufferLender</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc_positions</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">heap</span>);
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">positions_iter</span>.<span class="ident">next</span>() {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_position</span> <span class="op">=</span> <span class="number">0</span>;
-            <span class="ident">doc_positions</span>.<span class="ident">clear</span>();
-            <span class="kw">for</span> <span class="ident">position</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions_iter</span> {
-                <span class="kw">if</span> <span class="ident">position</span> <span class="op">==</span> <span class="ident">POSITION_END</span> {
-                    <span class="kw">break</span>;
-                } <span class="kw">else</span> {
-                    <span class="ident">doc_positions</span>.<span class="ident">push</span>(<span class="ident">position</span> <span class="op">-</span> <span class="ident">prev_position</span>);
-                    <span class="ident">prev_position</span> <span class="op">=</span> <span class="ident">position</span>;
+        <span class="kw">let</span> (<span class="ident">buffer_u8</span>, <span class="ident">buffer_positions</span>) <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_all</span>();
+        <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">read_to_end</span>(<span class="ident">heap</span>, <span class="ident">buffer_u8</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">u32_it</span> <span class="op">=</span> <span class="ident">VInt32Reader</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">buffer_u8</span>[..]);
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">u32_it</span>.<span class="ident">next</span>() {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_position_plus_one</span> <span class="op">=</span> <span class="number">1u32</span>;
+            <span class="ident">buffer_positions</span>.<span class="ident">clear</span>();
+            <span class="kw">loop</span> {
+                <span class="kw">match</span> <span class="ident">u32_it</span>.<span class="ident">next</span>() {
+                    <span class="prelude-val">Some</span>(<span class="ident">POSITION_END</span>) <span class="op">|</span> <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                        <span class="kw">break</span>;
+                    }
+                    <span class="prelude-val">Some</span>(<span class="ident">position_plus_one</span>) <span class="op">=&gt;</span> {
+                        <span class="kw">let</span> <span class="ident">delta_position</span> <span class="op">=</span> <span class="ident">position_plus_one</span> <span class="op">-</span> <span class="ident">prev_position_plus_one</span>;
+                        <span class="ident">buffer_positions</span>.<span class="ident">push</span>(<span class="ident">delta_position</span>);
+                        <span class="ident">prev_position_plus_one</span> <span class="op">=</span> <span class="ident">position_plus_one</span>;
+                    }
                 }
             }
-            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="ident">doc_positions</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="ident">doc_positions</span>)<span class="question-mark">?</span>;
+            <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="ident">buffer_positions</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="ident">buffer_positions</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">write_u32_vint</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BufferLender</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">VInt32Reader</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_buffer_lender</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer_lender</span> <span class="op">=</span> <span class="ident">BufferLender</span>::<span class="ident">default</span>();
+        {
+            <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_u8</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">is_empty</span>());
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="number">1u8</span>);
+        }
+        {
+            <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_u8</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">is_empty</span>());
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="number">1u8</span>);
+        }
+        {
+            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_all</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">is_empty</span>());
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="number">1u32</span>);
+        }
+        {
+            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">buffer_lender</span>.<span class="ident">lend_all</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">is_empty</span>());
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="number">1u32</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_vint_u32</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+        <span class="kw">let</span> <span class="ident">vals</span> <span class="op">=</span> [<span class="number">0</span>, <span class="number">1</span>, <span class="number">324_234_234</span>, <span class="ident">u32</span>::<span class="ident">max_value</span>()];
+        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">i</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">write_u32_vint</span>(<span class="ident">i</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">is_ok</span>());
+        }
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">len</span>(), <span class="number">1</span> <span class="op">+</span> <span class="number">1</span> <span class="op">+</span> <span class="number">5</span> <span class="op">+</span> <span class="number">5</span>);
+        <span class="kw">let</span> <span class="ident">res</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">VInt32Reader</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>[..]).<span class="ident">collect</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">res</span>[..], <span class="kw-2">&amp;</span><span class="ident">vals</span>[..]);
+    }
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.42/src/unix/notbsd/linux/other/b64/x86_64.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>x86_64.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../../../../light.css" id="themeStyle"><script src="../../../../../../../storage.js"></script><link rel="shortcut icon" href="https://doc.rust-lang.org/favicon.ico"></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../../../../libc/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../../../../../settings.html"><img src="../../../../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.58/src/unix/notbsd/linux/other/b64/x86_64.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>x86_64.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../../../../light.css" id="themeStyle"><script src="../../../../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../../../../libc/index.html'><img src='../../../../../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../../../../settings.html"><img src="../../../../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -658,7 +658,134 @@
 <span id="658">658</span>
 <span id="659">659</span>
 <span id="660">660</span>
-</pre><pre class="rust ">
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! x86_64-specific definitions for 64-bit linux-like values</span>
 
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">c_char</span> <span class="op">=</span> <span class="ident">i8</span>;
@@ -773,20 +900,6 @@
         <span class="ident">__private</span>: [<span class="ident">u64</span>; <span class="number">12</span>],
     }
 
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">user_fpregs_struct</span> {
-        <span class="kw">pub</span> <span class="ident">cwd</span>: ::<span class="ident">c_ushort</span>,
-        <span class="kw">pub</span> <span class="ident">swd</span>: ::<span class="ident">c_ushort</span>,
-        <span class="kw">pub</span> <span class="ident">ftw</span>: ::<span class="ident">c_ushort</span>,
-        <span class="kw">pub</span> <span class="ident">fop</span>: ::<span class="ident">c_ushort</span>,
-        <span class="kw">pub</span> <span class="ident">rip</span>: ::<span class="ident">c_ulonglong</span>,
-        <span class="kw">pub</span> <span class="ident">rdp</span>: ::<span class="ident">c_ulonglong</span>,
-        <span class="kw">pub</span> <span class="ident">mxcsr</span>: ::<span class="ident">c_uint</span>,
-        <span class="kw">pub</span> <span class="ident">mxcr_mask</span>: ::<span class="ident">c_uint</span>,
-        <span class="kw">pub</span> <span class="ident">st_space</span>: [::<span class="ident">c_uint</span>; <span class="number">32</span>],
-        <span class="kw">pub</span> <span class="ident">xmm_space</span>: [::<span class="ident">c_uint</span>; <span class="number">64</span>],
-        <span class="ident">padding</span>: [::<span class="ident">c_uint</span>; <span class="number">24</span>],
-    }
-
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">user_regs_struct</span> {
         <span class="kw">pub</span> <span class="ident">r15</span>: ::<span class="ident">c_ulonglong</span>,
         <span class="kw">pub</span> <span class="ident">r14</span>: ::<span class="ident">c_ulonglong</span>,
@@ -845,15 +958,6 @@
         <span class="ident">__private</span>: [<span class="ident">u64</span>; <span class="number">8</span>],
     }
 
-    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ucontext_t</span> {
-        <span class="kw">pub</span> <span class="ident">uc_flags</span>: ::<span class="ident">c_ulong</span>,
-        <span class="kw">pub</span> <span class="ident">uc_link</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ucontext_t</span>,
-        <span class="kw">pub</span> <span class="ident">uc_stack</span>: ::<span class="ident">stack_t</span>,
-        <span class="kw">pub</span> <span class="ident">uc_mcontext</span>: <span class="ident">mcontext_t</span>,
-        <span class="kw">pub</span> <span class="ident">uc_sigmask</span>: ::<span class="ident">sigset_t</span>,
-        <span class="ident">__private</span>: [<span class="ident">u8</span>; <span class="number">512</span>],
-    }
-
     <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ipc_perm</span> {
         <span class="kw">pub</span> <span class="ident">__key</span>: ::<span class="ident">key_t</span>,
         <span class="kw">pub</span> <span class="ident">uid</span>: ::<span class="ident">uid_t</span>,
@@ -893,11 +997,134 @@
     }
 }
 
+<span class="macro">s_no_extra_traits</span><span class="macro">!</span> {
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">user_fpregs_struct</span> {
+        <span class="kw">pub</span> <span class="ident">cwd</span>: ::<span class="ident">c_ushort</span>,
+        <span class="kw">pub</span> <span class="ident">swd</span>: ::<span class="ident">c_ushort</span>,
+        <span class="kw">pub</span> <span class="ident">ftw</span>: ::<span class="ident">c_ushort</span>,
+        <span class="kw">pub</span> <span class="ident">fop</span>: ::<span class="ident">c_ushort</span>,
+        <span class="kw">pub</span> <span class="ident">rip</span>: ::<span class="ident">c_ulonglong</span>,
+        <span class="kw">pub</span> <span class="ident">rdp</span>: ::<span class="ident">c_ulonglong</span>,
+        <span class="kw">pub</span> <span class="ident">mxcsr</span>: ::<span class="ident">c_uint</span>,
+        <span class="kw">pub</span> <span class="ident">mxcr_mask</span>: ::<span class="ident">c_uint</span>,
+        <span class="kw">pub</span> <span class="ident">st_space</span>: [::<span class="ident">c_uint</span>; <span class="number">32</span>],
+        <span class="kw">pub</span> <span class="ident">xmm_space</span>: [::<span class="ident">c_uint</span>; <span class="number">64</span>],
+        <span class="ident">padding</span>: [::<span class="ident">c_uint</span>; <span class="number">24</span>],
+    }
+
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ucontext_t</span> {
+        <span class="kw">pub</span> <span class="ident">uc_flags</span>: ::<span class="ident">c_ulong</span>,
+        <span class="kw">pub</span> <span class="ident">uc_link</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ucontext_t</span>,
+        <span class="kw">pub</span> <span class="ident">uc_stack</span>: ::<span class="ident">stack_t</span>,
+        <span class="kw">pub</span> <span class="ident">uc_mcontext</span>: <span class="ident">mcontext_t</span>,
+        <span class="kw">pub</span> <span class="ident">uc_sigmask</span>: ::<span class="ident">sigset_t</span>,
+        <span class="ident">__private</span>: [<span class="ident">u8</span>; <span class="number">512</span>],
+        <span class="ident">__ssp</span>: [::<span class="ident">c_ulonglong</span>; <span class="number">4</span>],
+    }
+}
+
+<span class="macro">cfg_if</span><span class="macro">!</span> {
+    <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra_traits&quot;</span>)]</span> {
+        <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">user_fpregs_struct</span> {
+            <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">user_fpregs_struct</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+                <span class="self">self</span>.<span class="ident">cwd</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">cwd</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">swd</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">swd</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">ftw</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">ftw</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">fop</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">fop</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">rip</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">rip</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">rdp</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">rdp</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">mxcsr</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">mxcsr</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">mxcr_mask</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">mxcr_mask</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">st_space</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">st_space</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>
+                    .<span class="ident">xmm_space</span>
+                    .<span class="ident">iter</span>()
+                    .<span class="ident">zip</span>(<span class="ident">other</span>.<span class="ident">xmm_space</span>.<span class="ident">iter</span>())
+                    .<span class="ident">all</span>(<span class="op">|</span>(<span class="ident">a</span>,<span class="ident">b</span>)<span class="op">|</span> <span class="ident">a</span> <span class="op">==</span> <span class="ident">b</span>)
+                <span class="comment">// Ignore padding field</span>
+            }
+        }
+
+        <span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">user_fpregs_struct</span> {}
+
+        <span class="kw">impl</span> ::<span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">user_fpregs_struct</span> {
+            <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> ::<span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+                <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;user_fpregs_struct&quot;</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;cwd&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">cwd</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;ftw&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ftw</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;fop&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">fop</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;rip&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rip</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;rdp&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rdp</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;mxcsr&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">mxcsr</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;mxcr_mask&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">mxcr_mask</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;st_space&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">st_space</span>)
+                <span class="comment">// FIXME: .field(&quot;xmm_space&quot;, &amp;self.xmm_space)</span>
+                <span class="comment">// Ignore padding field</span>
+                    .<span class="ident">finish</span>()
+            }
+        }
+
+        <span class="kw">impl</span> ::<span class="ident">hash</span>::<span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">user_fpregs_struct</span> {
+            <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span>: ::<span class="ident">hash</span>::<span class="ident">Hasher</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>) {
+                <span class="self">self</span>.<span class="ident">cwd</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">ftw</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">fop</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">rip</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">rdp</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">mxcsr</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">mxcr_mask</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">st_space</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">xmm_space</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="comment">// Ignore padding field</span>
+            }
+        }
+
+        <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">ucontext_t</span> {
+            <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">ucontext_t</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+                <span class="self">self</span>.<span class="ident">uc_flags</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">uc_flags</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">uc_link</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">uc_link</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">uc_stack</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">uc_stack</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">uc_mcontext</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">uc_mcontext</span>
+                    <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">uc_sigmask</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">uc_sigmask</span>
+                <span class="comment">// Ignore __private field</span>
+            }
+        }
+
+        <span class="kw">impl</span> <span class="ident">Eq</span> <span class="kw">for</span> <span class="ident">ucontext_t</span> {}
+
+        <span class="kw">impl</span> ::<span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">ucontext_t</span> {
+            <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> ::<span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+                <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;ucontext_t&quot;</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;uc_flags&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">uc_flags</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;uc_link&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">uc_link</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;uc_stack&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">uc_stack</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;uc_mcontext&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">uc_mcontext</span>)
+                    .<span class="ident">field</span>(<span class="string">&quot;uc_sigmask&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">uc_sigmask</span>)
+                <span class="comment">// Ignore __private field</span>
+                    .<span class="ident">finish</span>()
+            }
+        }
+
+        <span class="kw">impl</span> ::<span class="ident">hash</span>::<span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">ucontext_t</span> {
+            <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span>: ::<span class="ident">hash</span>::<span class="ident">Hasher</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">H</span>) {
+                <span class="self">self</span>.<span class="ident">uc_flags</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">uc_link</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">uc_stack</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">uc_mcontext</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="self">self</span>.<span class="ident">uc_sigmask</span>.<span class="ident">hash</span>(<span class="ident">state</span>);
+                <span class="comment">// Ignore __private field</span>
+            }
+        }
+    }
+}
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TIOCGSOFTCAR</span>: ::<span class="ident">c_ulong</span> <span class="op">=</span> <span class="number">0x5419</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TIOCSSOFTCAR</span>: ::<span class="ident">c_ulong</span> <span class="op">=</span> <span class="number">0x541A</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TIOCGRS485</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0x542E</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TIOCSRS485</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0x542F</span>;
 
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">RLIMIT_NOFILE</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">7</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">RLIMIT_NPROC</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">6</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">RLIMIT_NOFILE</span>: ::<span class="ident">__rlimit_resource_t</span> <span class="op">=</span> <span class="number">7</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">RLIMIT_NPROC</span>: ::<span class="ident">__rlimit_resource_t</span> <span class="op">=</span> <span class="number">6</span>;
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">O_APPEND</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">1024</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">O_CREAT</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">64</span>;
@@ -1032,8 +1259,6 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_TIMESTAMPNS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">35</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SCM_TIMESTAMPNS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="ident">SO_TIMESTAMPNS</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_MARK</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">36</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_TIMESTAMPING</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">37</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SCM_TIMESTAMPING</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="ident">SO_TIMESTAMPING</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_PROTOCOL</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">38</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_DOMAIN</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">39</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SO_RXQ_OVFL</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">40</span>;
@@ -1065,6 +1290,10 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGIO</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">29</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGSYS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">31</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGSTKFLT</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">16</span>;
+<span class="attribute">#[<span class="ident">deprecated</span>(
+    <span class="ident">since</span> <span class="op">=</span> <span class="string">&quot;0.2.55&quot;</span>,
+    <span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;Use SIGSYS instead&quot;</span>
+)]</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGUNUSED</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">31</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGPOLL</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">29</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGPWR</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">30</span>;
@@ -1166,15 +1395,15 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGSTKSZ</span>: ::<span class="ident">size_t</span> <span class="op">=</span> <span class="number">8192</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MINSIGSTKSZ</span>: ::<span class="ident">size_t</span> <span class="op">=</span> <span class="number">2048</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CBAUD</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0o0010017</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB1</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0x00000800</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB2</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0x00001000</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB3</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0x00001800</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR1</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00000200</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR2</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00000400</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR3</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00000600</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FF1</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00008000</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BS1</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00002000</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VT1</span>: ::<span class="ident">c_int</span>  <span class="op">=</span> <span class="number">0x00004000</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB1</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00000800</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB2</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00001000</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TAB3</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00001800</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR1</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00000200</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR2</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00000400</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CR3</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00000600</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FF1</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00008000</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BS1</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00002000</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VT1</span>: ::<span class="ident">tcflag_t</span> <span class="op">=</span> <span class="number">0x00004000</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VWERASE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">14</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VREPRINT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">12</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VSUSP</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">10</span>;
@@ -1307,6 +1536,31 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">25</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">26</span>;
 
+<span class="comment">// offsets in mcontext_t.gregs from sys/ucontext.h</span>
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R8</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">0</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R9</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R10</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">2</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R11</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">3</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R12</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">4</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R13</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">5</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R14</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">6</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_R15</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">7</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RDI</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">8</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RSI</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">9</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RBP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">10</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RBX</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">11</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RDX</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">12</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RAX</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">13</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RCX</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">14</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RSP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">15</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_RIP</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">16</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_EFL</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">17</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_CSGSFS</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">18</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_ERR</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">19</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_TRAPNO</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">20</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_OLDMASK</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">21</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">REG_CR2</span>: ::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">22</span>;
+
 <span class="kw">extern</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">getcontext</span>(<span class="ident">ucp</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">ucontext_t</span>) <span class="op">-&gt;</span> ::<span class="ident">c_int</span>;
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">setcontext</span>(<span class="ident">ucp</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">ucontext_t</span>) <span class="op">-&gt;</span> ::<span class="ident">c_int</span>;
@@ -1319,5 +1573,5 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ioperm</span>(<span class="ident">from</span>: ::<span class="ident">c_ulong</span>, <span class="ident">num</span>: ::<span class="ident">c_ulong</span>,
                   <span class="ident">turn_on</span>: ::<span class="ident">c_int</span>) <span class="op">-&gt;</span> ::<span class="ident">c_int</span>;
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../../../../";window.currentCrate = "libc";</script><script src="../../../../../../../aliases.js"></script><script src="../../../../../../../main.js"></script><script defer src="../../../../../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../../../../";window.currentCrate = "libc";</script><script src="../../../../../../../aliases.js"></script><script src="../../../../../../../main.js"></script><script src="../../../../../../../source-script.js"></script><script src="../../../../../../../source-files.js"></script><script defer src="../../../../../../../search-index.js"></script></body></html>

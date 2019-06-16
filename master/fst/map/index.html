@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `map` mod in crate `fst`."><meta name="keywords" content="rust, rustlang, rust-lang, map"><title>fst::map - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Module map</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li></ul></div><p class='location'><a href='../index.html'>fst</a></p><script>window.sidebarCurrent = {name: 'map', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>fst</a>::<wbr><a class="mod" href=''>map</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/fst/lib.rs.html#354-356' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Map operations implemented by finite state transducers.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `map` mod in crate `fst`."><meta name="keywords" content="rust, rustlang, rust-lang, map"><title>fst::map - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../fst/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a><p class='location'>Module map</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li></ul></div><p class='location'><a href='../index.html'>fst</a></p><script>window.sidebarCurrent = {name: 'map', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/fst/lib.rs.html#354-356' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>fst</a>::<wbr><a class="mod" href=''>map</a></span></h1><div class='docblock'><p>Map operations implemented by finite state transducers.</p>
 <p>This API provided by this sub-module is close in spirit to the API
 provided by
 <a href="http://doc.rust-lang.org/stable/std/collections/struct.BTreeMap.html"><code>std::collections::BTreeMap</code></a>.</p>
@@ -11,105 +11,21 @@ and executes set operations like <code>union</code> or <code>intersection</code>
 option of specifying a merge strategy for a map's values. The rest of the
 types are streams for set operations.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Difference.html"
-                                  title='struct fst::map::Difference'>Difference</a></td>
-                           <td class='docblock-short'>
-                                <p>A stream of set difference over multiple map streams in lexicographic
+<table><tr class='module-item'><td><a class="struct" href="struct.Difference.html" title='fst::map::Difference struct'>Difference</a></td><td class='docblock-short'><p>A stream of set difference over multiple map streams in lexicographic
 order.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.IndexedValue.html"
-                                  title='struct fst::map::IndexedValue'>IndexedValue</a></td>
-                           <td class='docblock-short'>
-                                <p>A value indexed by a stream.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Intersection.html"
-                                  title='struct fst::map::Intersection'>Intersection</a></td>
-                           <td class='docblock-short'>
-                                <p>A stream of set intersection over multiple map streams in lexicographic
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.IndexedValue.html" title='fst::map::IndexedValue struct'>IndexedValue</a></td><td class='docblock-short'><p>A value indexed by a stream.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Intersection.html" title='fst::map::Intersection struct'>Intersection</a></td><td class='docblock-short'><p>A stream of set intersection over multiple map streams in lexicographic
 order.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Keys.html"
-                                  title='struct fst::map::Keys'>Keys</a></td>
-                           <td class='docblock-short'>
-                                <p>A lexicographically ordered stream of keys from a map.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Map.html"
-                                  title='struct fst::map::Map'>Map</a></td>
-                           <td class='docblock-short'>
-                                <p>Map is a lexicographically ordered map from byte strings to integers.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.MapBuilder.html"
-                                  title='struct fst::map::MapBuilder'>MapBuilder</a></td>
-                           <td class='docblock-short'>
-                                <p>A builder for creating a map.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.OpBuilder.html"
-                                  title='struct fst::map::OpBuilder'>OpBuilder</a></td>
-                           <td class='docblock-short'>
-                                <p>A builder for collecting map streams on which to perform set operations
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Keys.html" title='fst::map::Keys struct'>Keys</a></td><td class='docblock-short'><p>A lexicographically ordered stream of keys from a map.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Map.html" title='fst::map::Map struct'>Map</a></td><td class='docblock-short'><p>Map is a lexicographically ordered map from byte strings to integers.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.MapBuilder.html" title='fst::map::MapBuilder struct'>MapBuilder</a></td><td class='docblock-short'><p>A builder for creating a map.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.OpBuilder.html" title='fst::map::OpBuilder struct'>OpBuilder</a></td><td class='docblock-short'><p>A builder for collecting map streams on which to perform set operations
 on the keys of maps.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Stream.html"
-                                  title='struct fst::map::Stream'>Stream</a></td>
-                           <td class='docblock-short'>
-                                <p>A lexicographically ordered stream of key-value pairs from a map.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.StreamBuilder.html"
-                                  title='struct fst::map::StreamBuilder'>StreamBuilder</a></td>
-                           <td class='docblock-short'>
-                                <p>A builder for constructing range queries on streams.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.SymmetricDifference.html"
-                                  title='struct fst::map::SymmetricDifference'>SymmetricDifference</a></td>
-                           <td class='docblock-short'>
-                                <p>A stream of set symmetric difference over multiple map streams in
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Stream.html" title='fst::map::Stream struct'>Stream</a></td><td class='docblock-short'><p>A lexicographically ordered stream of key-value pairs from a map.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.StreamBuilder.html" title='fst::map::StreamBuilder struct'>StreamBuilder</a></td><td class='docblock-short'><p>A builder for constructing range queries on streams.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.SymmetricDifference.html" title='fst::map::SymmetricDifference struct'>SymmetricDifference</a></td><td class='docblock-short'><p>A stream of set symmetric difference over multiple map streams in
 lexicographic order.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Union.html"
-                                  title='struct fst::map::Union'>Union</a></td>
-                           <td class='docblock-short'>
-                                <p>A stream of set union over multiple map streams in lexicographic order.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Values.html"
-                                  title='struct fst::map::Values'>Values</a></td>
-                           <td class='docblock-short'>
-                                <p>A stream of values from a map, lexicographically ordered by each value's
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Union.html" title='fst::map::Union struct'>Union</a></td><td class='docblock-short'><p>A stream of set union over multiple map streams in lexicographic order.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Values.html" title='fst::map::Values struct'>Values</a></td><td class='docblock-short'><p>A stream of values from a map, lexicographically ordered by each value's
 corresponding key.</p>
-
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "fst";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "fst";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

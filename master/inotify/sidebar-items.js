@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Event","An inotify event"],["EventMask","Indicates the type of an event"],["Events","Iterator over inotify events"],["Inotify","Idiomatic Rust wrapper around Linux's inotify API"],["WatchDescriptor","Represents a watch on an inode"],["WatchMask","Describes a file system watch"]],"type":[["EventOwned","An owned version of `Event`"]]});

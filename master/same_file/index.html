@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `same_file` crate."><meta name="keywords" content="rust, rustlang, rust-lang, same_file"><title>same_file - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../same_file/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><p class='location'>Crate same_file</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all same_file's items</p></a><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'same_file', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/same_file/lib.rs.html#1-530' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>same_file</a></span></h1><div class='docblock'><p>This crate provides a safe and simple <strong>cross platform</strong> way to determine
+whether two file paths refer to the same file or directory.</p>
+<p>Most uses of this crate should be limited to the top-level <a href="fn.is_same_file.html"><code>is_same_file</code></a>
+function, which takes two file paths and returns true if they refer to the
+same file or directory:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">same_file</span>::<span class="ident">is_same_file</span>;
+
+<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">is_same_file</span>(<span class="string">&quot;/bin/sh&quot;</span>, <span class="string">&quot;/usr/bin/sh&quot;</span>)<span class="question-mark">?</span>);</pre></div>
+<p>Additionally, this crate provides a <a href="struct.Handle.html"><code>Handle</code></a> type that permits a more efficient
+equality check depending on your access pattern. For example, if one wanted to
+check whether any path in a list of paths corresponded to the process' stdout
+handle, then one could build a handle once for stdout. The equality check for
+each file in the list then only requires one stat call instead of two. The code
+might look like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">same_file</span>::<span class="ident">Handle</span>;
+
+<span class="kw">let</span> <span class="ident">candidates</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[
+    <span class="string">&quot;examples/is_same_file.rs&quot;</span>,
+    <span class="string">&quot;examples/is_stderr.rs&quot;</span>,
+    <span class="string">&quot;examples/stderr&quot;</span>,
+];
+<span class="kw">let</span> <span class="ident">stdout_handle</span> <span class="op">=</span> <span class="ident">Handle</span>::<span class="ident">stdout</span>()<span class="question-mark">?</span>;
+<span class="kw">for</span> <span class="ident">candidate</span> <span class="kw">in</span> <span class="ident">candidates</span> {
+    <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="ident">Handle</span>::<span class="ident">from_path</span>(<span class="ident">candidate</span>)<span class="question-mark">?</span>;
+    <span class="kw">if</span> <span class="ident">stdout_handle</span> <span class="op">==</span> <span class="ident">handle</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?} is stdout!&quot;</span>, <span class="ident">candidate</span>);
+    } <span class="kw">else</span> {
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?} is NOT stdout!&quot;</span>, <span class="ident">candidate</span>);
+    }
+}</pre></div>
+<p>See <a href="https://github.com/BurntSushi/same-file/blob/master/examples/is_same_file.rs"><code>examples/is_stderr.rs</code></a> for a runnable example and compare the output of:</p>
+<ul>
+<li><code>cargo run --example is_stderr 2&gt; examples/stderr</code> and</li>
+<li><code>cargo run --example is_stderr</code>.</li>
+</ul>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Handle.html" title='same_file::Handle struct'>Handle</a></td><td class='docblock-short'><p>A handle to a file that can be tested for equality with other handles.</p>
+</td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.is_same_file.html" title='same_file::is_same_file fn'>is_same_file</a></td><td class='docblock-short'><p>Returns true if the two file paths may correspond to the same file.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "same_file";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

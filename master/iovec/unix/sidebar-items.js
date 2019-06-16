@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["as_os_slice","Convert a slice of `IoVec` refs to a slice of `libc::iovec`."],["as_os_slice_mut","Convert a mutable slice of `IoVec` refs to a mutable slice of `libc::iovec`."]]});

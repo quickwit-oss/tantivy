@@ -1,0 +1,103 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `op` mod in crate `notify`."><meta name="keywords" content="rust, rustlang, rust-lang, op"><title>notify::op - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../notify/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a><p class='location'>Module op</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#constants">Constants</a></li></ul></div><p class='location'><a href='../index.html'>notify</a></p><script>window.sidebarCurrent = {name: 'op', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/notify/lib.rs.html#304-336' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../index.html'>notify</a>::<wbr><a class="mod" href=''>op</a></span></h1><div class='docblock'><p>Contains the <code>Op</code> type which describes the actions for an event.</p>
+<p><code>notify</code> aims to provide unified behavior across platforms. This however is not always possible
+due to the underlying technology of the various operating systems. So there are some issues
+<code>notify</code>-API users will have to take care of themselves, depending on their needs.</p>
+<h1 id="chmod" class="section-header"><a href="#chmod">Chmod</a></h1>
+<p><strong>Linux, macOS</strong></p>
+<p>On Linux and macOS the <code>CHMOD</code> event is emitted whenever attributes or extended attributes
+change.</p>
+<p><strong>Windows</strong></p>
+<p>On Windows a <code>WRITE</code> event is emitted when attributes change. This makes it impossible to
+distinguish between writes to a file or its meta data.</p>
+<h1 id="close-write" class="section-header"><a href="#close-write">Close-Write</a></h1>
+<p>A <code>CLOSE_WRITE</code> event is emitted whenever a file that was opened for writing has been closed.</p>
+<p><strong>This event is only available on Linux</strong>.</p>
+<h1 id="create" class="section-header"><a href="#create">Create</a></h1>
+<p>A <code>CREATE</code> event is emitted whenever a new file or directory is created.</p>
+<p>Upon receiving a <code>Create</code> event for a directory, it is necessary to scan the newly created
+directory for contents. The directory can contain files or directories if those contents were
+created before the directory could be watched, or if the directory was moved into the watched
+directory.</p>
+<h1 id="remove" class="section-header"><a href="#remove">Remove</a></h1><h2 id="remove-file-or-directory-within-a-watched-directory" class="section-header"><a href="#remove-file-or-directory-within-a-watched-directory">Remove file or directory within a watched directory</a></h2>
+<p>A <code>REMOVE</code> event is emitted whenever a file or directory is removed.</p>
+<h2 id="remove-watched-file-or-directory-itself" class="section-header"><a href="#remove-watched-file-or-directory-itself">Remove watched file or directory itself</a></h2>
+<p>With the exception of Windows a <code>REMOVE</code> event is emitted whenever the watched file or
+directory itself is removed. The behavior after the remove differs between platforms though.</p>
+<p><strong>Linux</strong></p>
+<p>When a watched file or directory is removed, its watch gets destroyed and no new events will be
+sent.</p>
+<p><strong>Windows</strong></p>
+<p>If a watched directory is removed, an empty event is emitted.</p>
+<p>When watching a single file on Windows, the file path will continue to be watched until either
+the watch is removed by the API user or the parent directory gets removed.</p>
+<p>When watching a directory on Windows, the watch will get destroyed and no new events will be
+sent.</p>
+<p><strong>macOS</strong></p>
+<p>While Linux and Windows monitor &quot;inodes&quot;, macOS monitors &quot;paths&quot;. So a watch stays active even
+after the watched file or directory has been removed and it will emit events in case a new file
+or directory is created in its place.</p>
+<h1 id="rename" class="section-header"><a href="#rename">Rename</a></h1>
+<p>A <code>RENAME</code> event is emitted whenever a file or directory has been renamed or moved to a
+different directory.</p>
+<h2 id="rename-file-or-directory-within-a-watched-directory" class="section-header"><a href="#rename-file-or-directory-within-a-watched-directory">Rename file or directory within a watched directory</a></h2>
+<p><strong>Linux, Windows</strong></p>
+<p>A rename with both the source and the destination path inside a watched directory produces two
+<code>RENAME</code> events. The first event contains the source path, the second contains the destination
+path. Both events share the same cookie.</p>
+<p>A rename that originates inside of a watched directory but ends outside of a watched directory
+produces a <code>DELETE</code> event.</p>
+<p>A rename that originates outside of a watched directory and ends inside of a watched directory
+produces a <code>CREATE</code> event.</p>
+<p><strong>macOS</strong></p>
+<p>A <code>RENAME</code> event is produced whenever a file or directory is moved. This includes moves within
+the watched directory as well as moves into or out of the watched directory. It is up to the
+API user to determine what exactly happened. Usually when a move within a watched directory
+occurs, the cookie is set for both connected events. This can however fail eg. if a file gets
+renamed multiple times without a delay (test <code>fsevents_rename_rename_file_0</code>). So in some cases
+rename cannot be caught properly but would be interpreted as a sequence of events where a file
+or directory is moved out of the watched directory and a different file or directory is moved
+in.</p>
+<h2 id="rename-watched-file-or-directory-itself" class="section-header"><a href="#rename-watched-file-or-directory-itself">Rename watched file or directory itself</a></h2>
+<p>With the exception of Windows a <code>RENAME</code> event is emitted whenever the watched file or
+directory itself is renamed. The behavior after the rename differs between platforms though.
+Depending on the platform either the moved file or directory will continue to be watched or the
+old path. If the moved file or directory will continue to be watched, the paths of emitted
+events will still be prefixed with the old path though.</p>
+<p><strong>Linux</strong></p>
+<p>Linux will continue to watch the moved file or directory. Events will contain paths prefixed
+with the old path.</p>
+<p><strong>Windows</strong></p>
+<p>Currently there is no event emitted when a watched directory is renamed. But the directory will
+continue to be watched and events will contain paths prefixed with the old path.</p>
+<p>When renaming a watched file, a <code>RENAME</code> event is emitted but the old path will continue to be
+watched.</p>
+<p><strong>macOS</strong></p>
+<p>macOS will continue to watch the (now non-existing) path.</p>
+<h2 id="rename-parent-directory-of-watched-file-or-directory" class="section-header"><a href="#rename-parent-directory-of-watched-file-or-directory">Rename parent directory of watched file or directory</a></h2>
+<p>Currently no event will be emitted when any parent directory of the watched file or directory
+is renamed. Depending on the platform either the moved file or directory will continue to be
+watched or the old path. If the moved file or directory will continue to be watched, the paths
+of emitted events will still be prefixed with the old path though.</p>
+<p><strong>Linux, Windows</strong></p>
+<p>Linux and Windows will continue to watch the moved file or directory. Events will contain paths
+prefixed with the old path.</p>
+<p><strong>macOS</strong></p>
+<p>macOS will continue to watch the (now non-existing) path.</p>
+<h1 id="rescan" class="section-header"><a href="#rescan">Rescan</a></h1>
+<p>A <code>RESCAN</code> event indicates that an error occurred and the watched directories need to be
+rescanned. This can happen if the internal event queue has overflown and some events were
+dropped. Or with FSEvents if events were coalesced hierarchically.</p>
+<p><strong>Windows</strong></p>
+<p>At the moment <code>RESCAN</code> events aren't emitted on Windows.</p>
+<p><strong>Queue size</strong></p>
+<p>Linux: <code>/proc/sys/fs/inotify/max_queued_events</code></p>
+<p>Windows: 16384 Bytes. The actual amount of events that fit into the queue depends on the length
+of the paths.</p>
+<h1 id="write" class="section-header"><a href="#write">Write</a></h1>
+<p>A <code>WRITE</code> event is emitted whenever a file has been written to.</p>
+<p><strong>Windows</strong></p>
+<p>On Windows a <code>WRITE</code> event is emitted when attributes change.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Op.html" title='notify::op::Op struct'>Op</a></td><td class='docblock-short'><p>Holds a set of bit flags representing the actions for the event.</p>
+</td></tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table><tr class='module-item'><td><a class="constant" href="constant.CHMOD.html" title='notify::op::CHMOD constant'>CHMOD</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.CLOSE_WRITE.html" title='notify::op::CLOSE_WRITE constant'>CLOSE_WRITE</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.CREATE.html" title='notify::op::CREATE constant'>CREATE</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.REMOVE.html" title='notify::op::REMOVE constant'>REMOVE</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.RENAME.html" title='notify::op::RENAME constant'>RENAME</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.RESCAN.html" title='notify::op::RESCAN constant'>RESCAN</a></td><td class='docblock-short'></td></tr><tr class='module-item'><td><a class="constant" href="constant.WRITE.html" title='notify::op::WRITE constant'>WRITE</a></td><td class='docblock-short'></td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "notify";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

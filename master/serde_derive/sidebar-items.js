@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["derive_deserialize",""],["derive_serialize",""]]});
+initSidebarItems({"derive":[["Deserialize",""],["Serialize",""]]});

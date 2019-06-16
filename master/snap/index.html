@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `snap` crate."><meta name="keywords" content="rust, rustlang, rust-lang, snap"><title>snap - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../snap/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><p class='location'>Crate snap</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all snap's items</p></a><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'snap', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/snap/lib.rs.html#1-118' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>snap</a></span></h1><div class='docblock'><p>This crate provides an implementation of the
+<a href="https://github.com/google/snappy/blob/master/format_description.txt">Snappy compression format</a>,
+as well as the
+<a href="https://github.com/google/snappy/blob/master/framing_format.txt">framing format</a>.
+The goal of Snappy is to provide reasonable compression at high speed. On a
+modern CPU, Snappy can compress data at about 300 MB/sec or more and can
+decompress data at about 800 MB/sec or more.</p>
+<h1 id="install" class="section-header"><a href="#install">Install</a></h1>
+<p>To use this crate with
+<a href="http://doc.crates.io/index.html">Cargo</a>,
+simply add it as a dependency to your <code>Cargo.toml</code>:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+[<span class="ident">dependencies</span>]
+<span class="ident">snap</span> <span class="op">=</span> <span class="string">&quot;0.2&quot;</span></pre></div>
+<p>and add <code>extern crate snap;</code> to your crate root.</p>
+<h1 id="overview" class="section-header"><a href="#overview">Overview</a></h1>
+<p>This crate provides two ways to use Snappy. The first way is through the
+<code>Reader</code> and <code>Writer</code> types, which implement the <code>std::io::Read</code> and
+<code>std::io::Write</code> traits with the Snappy frame format. Unless you have a
+specific reason to the contrary, you should only need to use these types.
+Specifically, the Snappy frame format permits streaming compression or
+decompression.</p>
+<p>The second way is through the <code>Decoder</code> and <code>Encoder</code> types. These types
+provide lower level control to the raw Snappy format, and don't support a
+streaming interface directly. You should only use these types if you know you
+specifically need the Snappy raw format.</p>
+<p>Finally, the <code>Error</code> type in this crate provides an exhaustive list of error
+conditions that are probably useless in most circumstances. Therefore,
+<code>From&lt;snap::Error&gt; for io::Error</code> is implemented in this crate, which will let
+you automatically convert a Snappy error to an <code>std::io::Error</code> (when using
+<code>try!</code>) with an appropriate error message to display to an end user.</p>
+<h1 id="example-compress-data-on-stdin" class="section-header"><a href="#example-compress-data-on-stdin">Example: compress data on <code>stdin</code></a></h1>
+<p>This program reads data from <code>stdin</code>, compresses it and emits it to <code>stdout</code>.
+This example can be found in <code>examples/compress.rs</code>:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">snap</span>;
+
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">stdin</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">stdin</span>();
+    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">stdout</span>();
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rdr</span> <span class="op">=</span> <span class="ident">stdin</span>.<span class="ident">lock</span>();
+    <span class="comment">// Wrap the stdout writer in a Snappy writer.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">wtr</span> <span class="op">=</span> <span class="ident">snap</span>::<span class="ident">Writer</span>::<span class="ident">new</span>(<span class="ident">stdout</span>.<span class="ident">lock</span>());
+    <span class="ident">io</span>::<span class="ident">copy</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rdr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>).<span class="ident">expect</span>(<span class="string">&quot;I/O operation failed&quot;</span>);
+}</pre></div>
+<h1 id="example-decompress-data-on-stdin" class="section-header"><a href="#example-decompress-data-on-stdin">Example: decompress data on <code>stdin</code></a></h1>
+<p>This program reads data from <code>stdin</code>, decompresses it and emits it to <code>stdout</code>.
+This example can be found in <code>examples/decompress.rs</code>:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">snap</span>;
+
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">stdin</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">stdin</span>();
+    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">stdout</span>();
+
+    <span class="comment">// Wrap the stdin reader in a Snappy reader.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rdr</span> <span class="op">=</span> <span class="ident">snap</span>::<span class="ident">Reader</span>::<span class="ident">new</span>(<span class="ident">stdin</span>.<span class="ident">lock</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">wtr</span> <span class="op">=</span> <span class="ident">stdout</span>.<span class="ident">lock</span>();
+    <span class="ident">io</span>::<span class="ident">copy</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rdr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>).<span class="ident">expect</span>(<span class="string">&quot;I/O operation failed&quot;</span>);
+}</pre></div>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Decoder.html" title='snap::Decoder struct'>Decoder</a></td><td class='docblock-short'><p>Decoder is a raw decoder for decompressing bytes in the Snappy format.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Encoder.html" title='snap::Encoder struct'>Encoder</a></td><td class='docblock-short'><p>Encoder is a raw encoder for compressing bytes in the Snappy format.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.IntoInnerError.html" title='snap::IntoInnerError struct'>IntoInnerError</a></td><td class='docblock-short'><p><code>IntoInnerError</code> occurs when consuming a <code>Writer</code> fails.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Reader.html" title='snap::Reader struct'>Reader</a></td><td class='docblock-short'><p>A reader for decompressing a Snappy stream.</p>
+</td></tr><tr class='module-item'><td><a class="struct" href="struct.Writer.html" title='snap::Writer struct'>Writer</a></td><td class='docblock-short'><p>A writer for compressing a Snappy stream.</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.Error.html" title='snap::Error enum'>Error</a></td><td class='docblock-short'><p>Error describes all the possible errors that may occur during Snappy
+compression or decompression.</p>
+</td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.decompress_len.html" title='snap::decompress_len fn'>decompress_len</a></td><td class='docblock-short'><p>Returns the decompressed size (in bytes) of the compressed bytes given.</p>
+</td></tr><tr class='module-item'><td><a class="fn" href="fn.max_compress_len.html" title='snap::max_compress_len fn'>max_compress_len</a></td><td class='docblock-short'><p>Returns the maximum compressed size given the uncompressed size.</p>
+</td></tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table><tr class='module-item'><td><a class="type" href="type.Result.html" title='snap::Result type'>Result</a></td><td class='docblock-short'><p>A convenient type alias for <code>Result&lt;T, snap::Error&gt;</code>.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "snap";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

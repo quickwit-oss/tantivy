@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/pty.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>pty.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/pty.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>pty.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../nix/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -256,7 +256,76 @@
 <span id="256">256</span>
 <span id="257">257</span>
 <span id="258">258</span>
-</pre><pre class="rust ">
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Create master and slave virtual pseudo-terminals (PTYs)</span>
 
 <span class="kw">use</span> <span class="ident">libc</span>;
@@ -269,15 +338,33 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">termios</span>::<span class="ident">Termios</span>;
-<span class="kw">use</span> {<span class="ident">Errno</span>, <span class="prelude-ty">Result</span>, <span class="ident">Error</span>, <span class="ident">fcntl</span>};
+<span class="kw">use</span> <span class="ident">unistd</span>::<span class="ident">ForkResult</span>;
+<span class="kw">use</span> {<span class="prelude-ty">Result</span>, <span class="ident">Error</span>, <span class="ident">fcntl</span>};
+<span class="kw">use</span> <span class="ident">errno</span>::<span class="ident">Errno</span>;
 
 <span class="doccomment">/// Representation of a master/slave pty pair</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is returned by `openpty`.  Note that this type does *not* implement `Drop`, so the user</span>
 <span class="doccomment">/// must manually close the file descriptors.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OpenptyResult</span> {
+    <span class="doccomment">/// The master port in a virtual pty pair</span>
     <span class="kw">pub</span> <span class="ident">master</span>: <span class="ident">RawFd</span>,
+    <span class="doccomment">/// The slave port in a virtual pty pair</span>
     <span class="kw">pub</span> <span class="ident">slave</span>: <span class="ident">RawFd</span>,
+}
+
+<span class="doccomment">/// Representation of a master with a forked pty</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This is returned by `forkpty`. Note that this type does *not* implement `Drop`, so the user</span>
+<span class="doccomment">/// must manually close the file descriptors.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ForkptyResult</span> {
+    <span class="doccomment">/// The master port in a virtual pty pair</span>
+    <span class="kw">pub</span> <span class="ident">master</span>: <span class="ident">RawFd</span>,
+    <span class="doccomment">/// Metadata about forked process</span>
+    <span class="kw">pub</span> <span class="ident">fork_result</span>: <span class="ident">ForkResult</span>,
 }
 
 
@@ -320,21 +407,21 @@
 }
 
 <span class="doccomment">/// Grant access to a slave pseudoterminal (see</span>
-<span class="doccomment">/// [grantpt(3)](http://man7.org/linux/man-pages/man3/grantpt.3.html))</span>
+<span class="doccomment">/// [`grantpt(3)`](http://pubs.opengroup.org/onlinepubs/9699919799/functions/grantpt.html))</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `grantpt()` changes the mode and owner of the slave pseudoterminal device corresponding to the</span>
 <span class="doccomment">/// master pseudoterminal referred to by `fd`. This is a necessary step towards opening the slave.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">grantpt</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">PtyMaster</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">grantpt</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>()) } <span class="op">&lt;</span> <span class="number">0</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>().<span class="ident">into</span>());
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>());
     }
 
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="doccomment">/// Open a pseudoterminal device (see</span>
-<span class="doccomment">/// [posix_openpt(3)](http://man7.org/linux/man-pages/man3/posix_openpt.3.html))</span>
+<span class="doccomment">/// [`posix_openpt(3)`](http://pubs.opengroup.org/onlinepubs/9699919799/functions/posix_openpt.html))</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `posix_openpt()` returns a file descriptor to an existing unused pseuterminal master device.</span>
 <span class="doccomment">///</span>
@@ -345,25 +432,24 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// use std::path::Path;</span>
-<span class="doccomment">/// use nix::fcntl::{O_RDWR, open};</span>
-<span class="doccomment">/// use nix::pty::*;</span>
-<span class="doccomment">/// use nix::sys::stat;</span>
+<span class="doccomment">/// use nix::fcntl::{OFlag, open};</span>
+<span class="doccomment">/// use nix::pty::{grantpt, posix_openpt, ptsname, unlockpt};</span>
+<span class="doccomment">/// use nix::sys::stat::Mode;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # #[allow(dead_code)]</span>
 <span class="doccomment">/// # fn run() -&gt; nix::Result&lt;()&gt; {</span>
 <span class="doccomment">/// // Open a new PTY master</span>
-<span class="doccomment">/// let master_fd = posix_openpt(O_RDWR)?;</span>
+<span class="doccomment">/// let master_fd = posix_openpt(OFlag::O_RDWR)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // Allow a slave to be generated for it</span>
 <span class="doccomment">/// grantpt(&amp;master_fd)?;</span>
 <span class="doccomment">/// unlockpt(&amp;master_fd)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // Get the name of the slave</span>
-<span class="doccomment">/// let slave_name = ptsname(&amp;master_fd)?;</span>
+<span class="doccomment">/// let slave_name = unsafe { ptsname(&amp;master_fd) }?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // Try to open the slave</span>
-<span class="doccomment">/// # #[allow(unused_variables)]</span>
-<span class="doccomment">/// let slave_fd = open(Path::new(&amp;slave_name), O_RDWR, stat::Mode::empty())?;</span>
+<span class="doccomment">/// let _slave_fd = open(Path::new(&amp;slave_name), OFlag::O_RDWR, Mode::empty())?;</span>
 <span class="doccomment">/// # Ok(())</span>
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// ```</span>
@@ -374,35 +460,41 @@
     };
 
     <span class="kw">if</span> <span class="ident">fd</span> <span class="op">&lt;</span> <span class="number">0</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>().<span class="ident">into</span>());
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>());
     }
 
     <span class="prelude-val">Ok</span>(<span class="ident">PtyMaster</span>(<span class="ident">fd</span>))
 }
 
 <span class="doccomment">/// Get the name of the slave pseudoterminal (see</span>
-<span class="doccomment">/// [ptsname(3)](http://man7.org/linux/man-pages/man3/ptsname.3.html))</span>
+<span class="doccomment">/// [`ptsname(3)`](http://man7.org/linux/man-pages/man3/ptsname.3.html))</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `ptsname()` returns the name of the slave pseudoterminal device corresponding to the master</span>
-<span class="doccomment">/// referred to by `fd`. Note that this function is *not* threadsafe. For that see `ptsname_r()`.</span>
+<span class="doccomment">/// referred to by `fd`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This value is useful for opening the slave pty once the master has already been opened with</span>
 <span class="doccomment">/// `posix_openpt()`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Safety</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `ptsname()` mutates global variables and is *not* threadsafe.</span>
+<span class="doccomment">/// Mutating global variables is always considered `unsafe` by Rust and this</span>
+<span class="doccomment">/// function is marked as `unsafe` to reflect that.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For a threadsafe and non-`unsafe` alternative on Linux, see `ptsname_r()`.</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ptsname</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">PtyMaster</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">name_ptr</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">ptsname</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>()) };
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ptsname</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">PtyMaster</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">name_ptr</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">ptsname</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>());
     <span class="kw">if</span> <span class="ident">name_ptr</span>.<span class="ident">is_null</span>() {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>().<span class="ident">into</span>());
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>());
     }
 
-    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-        <span class="ident">CStr</span>::<span class="ident">from_ptr</span>(<span class="ident">name_ptr</span>)
-    };
+    <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">CStr</span>::<span class="ident">from_ptr</span>(<span class="ident">name_ptr</span>);
     <span class="prelude-val">Ok</span>(<span class="ident">name</span>.<span class="ident">to_string_lossy</span>().<span class="ident">into_owned</span>())
 }
 
 <span class="doccomment">/// Get the name of the slave pseudoterminal (see</span>
-<span class="doccomment">/// [ptsname(3)](http://man7.org/linux/man-pages/man3/ptsname.3.html))</span>
+<span class="doccomment">/// [`ptsname(3)`](http://man7.org/linux/man-pages/man3/ptsname.3.html))</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `ptsname_r()` returns the name of the slave pseudoterminal device corresponding to the master</span>
 <span class="doccomment">/// referred to by `fd`. This is the threadsafe version of `ptsname()`, but it is not part of the</span>
@@ -416,7 +508,7 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">name_buf</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u8</span>; <span class="number">64</span>];
     <span class="kw">let</span> <span class="ident">name_buf_ptr</span> <span class="op">=</span> <span class="ident">name_buf</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_char</span>;
     <span class="kw">if</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">ptsname_r</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>(), <span class="ident">name_buf_ptr</span>, <span class="ident">name_buf</span>.<span class="ident">capacity</span>()) } <span class="op">!=</span> <span class="number">0</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>().<span class="ident">into</span>());
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>());
     }
 
     <span class="comment">// Find the first null-character terminating this string. This is guaranteed to succeed if the</span>
@@ -429,7 +521,7 @@
 }
 
 <span class="doccomment">/// Unlock a pseudoterminal master/slave pseudoterminal pair (see</span>
-<span class="doccomment">/// [unlockpt(3)](http://man7.org/linux/man-pages/man3/unlockpt.3.html))</span>
+<span class="doccomment">/// [`unlockpt(3)`](http://pubs.opengroup.org/onlinepubs/9699919799/functions/unlockpt.html))</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `unlockpt()` unlocks the slave pseudoterminal device corresponding to the master pseudoterminal</span>
 <span class="doccomment">/// referred to by `fd`. This must be called before trying to open the slave side of a</span>
@@ -437,7 +529,7 @@
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unlockpt</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">PtyMaster</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">unlockpt</span>(<span class="ident">fd</span>.<span class="ident">as_raw_fd</span>()) } <span class="op">&lt;</span> <span class="number">0</span> {
-        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>().<span class="ident">into</span>());
+        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">last</span>());
     }
 
     <span class="prelude-val">Ok</span>(())
@@ -446,7 +538,7 @@
 
 <span class="doccomment">/// Create a new pseudoterminal, returning the slave and master file descriptors</span>
 <span class="doccomment">/// in `OpenptyResult`</span>
-<span class="doccomment">/// (see [openpty](http://man7.org/linux/man-pages/man3/openpty.3.html)). </span>
+<span class="doccomment">/// (see [`openpty`](http://man7.org/linux/man-pages/man3/openpty.3.html)).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// If `winsize` is not `None`, the window size of the slave will be set to</span>
 <span class="doccomment">/// the values in `winsize`. If `termios` is not `None`, the pseudoterminal&#39;s</span>
@@ -515,5 +607,51 @@
         <span class="ident">slave</span>: <span class="ident">slave</span>,
     })
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+
+<span class="doccomment">/// Create a new pseudoterminal, returning the master file descriptor and forked pid.</span>
+<span class="doccomment">/// in `ForkptyResult`</span>
+<span class="doccomment">/// (see [`forkpty`](http://man7.org/linux/man-pages/man3/forkpty.3.html)).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If `winsize` is not `None`, the window size of the slave will be set to</span>
+<span class="doccomment">/// the values in `winsize`. If `termios` is not `None`, the pseudoterminal&#39;s</span>
+<span class="doccomment">/// terminal settings of the slave will be set to the values in `termios`.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">forkpty</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;b</span>, <span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Winsize</span><span class="op">&gt;&gt;</span>, <span class="ident">U</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">Termios</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>(
+    <span class="ident">winsize</span>: <span class="ident">T</span>,
+    <span class="ident">termios</span>: <span class="ident">U</span>,
+) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ForkptyResult</span><span class="op">&gt;</span> {
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+    <span class="kw">use</span> <span class="ident">unistd</span>::<span class="ident">Pid</span>;
+    <span class="kw">use</span> <span class="ident">unistd</span>::<span class="ident">ForkResult</span>::<span class="kw-2">*</span>;
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">master</span>: <span class="ident">libc</span>::<span class="ident">c_int</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
+
+    <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">termios</span>.<span class="ident">into</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">termios</span>) <span class="op">=&gt;</span> {
+            <span class="kw">let</span> <span class="ident">inner_termios</span> <span class="op">=</span> <span class="ident">termios</span>.<span class="ident">get_libc_termios</span>();
+            <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">inner_termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>
+        },
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
+    };
+
+    <span class="kw">let</span> <span class="ident">win</span> <span class="op">=</span> <span class="ident">winsize</span>
+        .<span class="ident">into</span>()
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">ws</span><span class="op">|</span> <span class="ident">ws</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>)
+        .<span class="ident">unwrap_or</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>());
+
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+        <span class="ident">libc</span>::<span class="ident">forkpty</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">master</span>, <span class="ident">ptr</span>::<span class="ident">null_mut</span>(), <span class="ident">term</span>, <span class="ident">win</span>)
+    };
+
+    <span class="kw">let</span> <span class="ident">fork_result</span> <span class="op">=</span> <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">res</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">res</span> {
+        <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Child</span>,
+        <span class="ident">res</span> <span class="op">=&gt;</span> <span class="ident">Parent</span> { <span class="ident">child</span>: <span class="ident">Pid</span>::<span class="ident">from_raw</span>(<span class="ident">res</span>) },
+    })<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(<span class="ident">ForkptyResult</span> {
+        <span class="ident">master</span>: <span class="ident">master</span>,
+        <span class="ident">fork_result</span>: <span class="ident">fork_result</span>,
+    })
+}
+
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "nix";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

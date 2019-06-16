@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.11/src/re_unicode.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>re_unicode.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.1.7/src/re_unicode.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>re_unicode.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../regex/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1114,7 +1114,102 @@
 <span id="1114">1114</span>
 <span id="1115">1115</span>
 <span id="1116">1116</span>
-</pre><pre class="rust ">
+<span id="1117">1117</span>
+<span id="1118">1118</span>
+<span id="1119">1119</span>
+<span id="1120">1120</span>
+<span id="1121">1121</span>
+<span id="1122">1122</span>
+<span id="1123">1123</span>
+<span id="1124">1124</span>
+<span id="1125">1125</span>
+<span id="1126">1126</span>
+<span id="1127">1127</span>
+<span id="1128">1128</span>
+<span id="1129">1129</span>
+<span id="1130">1130</span>
+<span id="1131">1131</span>
+<span id="1132">1132</span>
+<span id="1133">1133</span>
+<span id="1134">1134</span>
+<span id="1135">1135</span>
+<span id="1136">1136</span>
+<span id="1137">1137</span>
+<span id="1138">1138</span>
+<span id="1139">1139</span>
+<span id="1140">1140</span>
+<span id="1141">1141</span>
+<span id="1142">1142</span>
+<span id="1143">1143</span>
+<span id="1144">1144</span>
+<span id="1145">1145</span>
+<span id="1146">1146</span>
+<span id="1147">1147</span>
+<span id="1148">1148</span>
+<span id="1149">1149</span>
+<span id="1150">1150</span>
+<span id="1151">1151</span>
+<span id="1152">1152</span>
+<span id="1153">1153</span>
+<span id="1154">1154</span>
+<span id="1155">1155</span>
+<span id="1156">1156</span>
+<span id="1157">1157</span>
+<span id="1158">1158</span>
+<span id="1159">1159</span>
+<span id="1160">1160</span>
+<span id="1161">1161</span>
+<span id="1162">1162</span>
+<span id="1163">1163</span>
+<span id="1164">1164</span>
+<span id="1165">1165</span>
+<span id="1166">1166</span>
+<span id="1167">1167</span>
+<span id="1168">1168</span>
+<span id="1169">1169</span>
+<span id="1170">1170</span>
+<span id="1171">1171</span>
+<span id="1172">1172</span>
+<span id="1173">1173</span>
+<span id="1174">1174</span>
+<span id="1175">1175</span>
+<span id="1176">1176</span>
+<span id="1177">1177</span>
+<span id="1178">1178</span>
+<span id="1179">1179</span>
+<span id="1180">1180</span>
+<span id="1181">1181</span>
+<span id="1182">1182</span>
+<span id="1183">1183</span>
+<span id="1184">1184</span>
+<span id="1185">1185</span>
+<span id="1186">1186</span>
+<span id="1187">1187</span>
+<span id="1188">1188</span>
+<span id="1189">1189</span>
+<span id="1190">1190</span>
+<span id="1191">1191</span>
+<span id="1192">1192</span>
+<span id="1193">1193</span>
+<span id="1194">1194</span>
+<span id="1195">1195</span>
+<span id="1196">1196</span>
+<span id="1197">1197</span>
+<span id="1198">1198</span>
+<span id="1199">1199</span>
+<span id="1200">1200</span>
+<span id="1201">1201</span>
+<span id="1202">1202</span>
+<span id="1203">1203</span>
+<span id="1204">1204</span>
+<span id="1205">1205</span>
+<span id="1206">1206</span>
+<span id="1207">1207</span>
+<span id="1208">1208</span>
+<span id="1209">1209</span>
+<span id="1210">1210</span>
+<span id="1211">1211</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -1139,7 +1234,7 @@
 <span class="kw">use</span> <span class="ident">exec</span>::{<span class="ident">Exec</span>, <span class="ident">ExecNoSyncStr</span>};
 <span class="kw">use</span> <span class="ident">expand</span>::<span class="ident">expand_str</span>;
 <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">unicode</span>::<span class="ident">RegexBuilder</span>;
-<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="self">self</span>, <span class="ident">RegularExpression</span>, <span class="ident">Locations</span>, <span class="ident">SubCapturesPosIter</span>};
+<span class="kw">use</span> <span class="ident">re_trait</span>::{<span class="self">self</span>, <span class="ident">RegularExpression</span>, <span class="ident">SubCapturesPosIter</span>};
 
 <span class="doccomment">/// Escapes all regular expression meta characters in `text`.</span>
 <span class="doccomment">///</span>
@@ -1406,8 +1501,8 @@
     <span class="doccomment">///                .unwrap();</span>
     <span class="doccomment">/// let text = &quot;Not my favorite movie: &#39;Citizen Kane&#39; (1941).&quot;;</span>
     <span class="doccomment">/// let caps = re.captures(text).unwrap();</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[&quot;title&quot;], &quot;Citizen Kane&quot;);</span>
-    <span class="doccomment">/// assert_eq!(&amp;caps[&quot;year&quot;], &quot;1941&quot;);</span>
+    <span class="doccomment">/// assert_eq!(caps.name(&quot;title&quot;).unwrap().as_str(), &quot;Citizen Kane&quot;);</span>
+    <span class="doccomment">/// assert_eq!(caps.name(&quot;year&quot;).unwrap().as_str(), &quot;1941&quot;);</span>
     <span class="doccomment">/// assert_eq!(caps.get(0).unwrap().as_str(), &quot;&#39;Citizen Kane&#39; (1941)&quot;);</span>
     <span class="doccomment">/// // You can also access the groups by name using the Index notation.</span>
     <span class="doccomment">/// // Note that this will panic on an invalid group name.</span>
@@ -1426,10 +1521,10 @@
     <span class="doccomment">/// The `0`th capture group is always unnamed, so it must always be</span>
     <span class="doccomment">/// accessed with `get(0)` or `[0]`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">locs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">locations</span>();
-        <span class="self">self</span>.<span class="ident">read_captures_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">locs</span>, <span class="ident">text</span>, <span class="number">0</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Captures</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">locs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">capture_locations</span>();
+        <span class="self">self</span>.<span class="ident">captures_read_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">locs</span>, <span class="ident">text</span>, <span class="number">0</span>).<span class="ident">map</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Captures</span> {
             <span class="ident">text</span>: <span class="ident">text</span>,
-            <span class="ident">locs</span>: <span class="ident">locs</span>,
+            <span class="ident">locs</span>: <span class="ident">locs</span>.<span class="number">0</span>,
             <span class="ident">named_groups</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">capture_name_idx</span>().<span class="ident">clone</span>(),
         })
     }
@@ -1741,7 +1836,6 @@
     <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
     <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
     <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">shortest_match_at</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
@@ -1756,7 +1850,6 @@
     <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
     <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
     <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_match_at</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">start</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">shortest_match_at</span>(<span class="ident">text</span>, <span class="ident">start</span>).<span class="ident">is_some</span>()
     }
@@ -1767,7 +1860,6 @@
     <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
     <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
     <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>,
@@ -1778,23 +1870,55 @@
         })
     }
 
+    <span class="doccomment">/// This is like `captures`, but uses</span>
+    <span class="doccomment">/// [`CaptureLocations`](struct.CaptureLocations.html)</span>
+    <span class="doccomment">/// instead of</span>
+    <span class="doccomment">/// [`Captures`](struct.Captures.html) in order to amortize allocations.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// To create a `CaptureLocations` value, use the</span>
+    <span class="doccomment">/// `Regex::capture_locations` method.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This returns the overall match if this was successful, which is always</span>
+    <span class="doccomment">/// equivalence to the `0`th capture group.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures_read</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CaptureLocations</span>,
+        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">captures_read_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>, <span class="number">0</span>)
+    }
+
     <span class="doccomment">/// Returns the same as captures, but starts the search at the given</span>
     <span class="doccomment">/// offset and populates the capture locations given.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The significance of the starting point is that it takes the surrounding</span>
     <span class="doccomment">/// context into consideration. For example, the `\A` anchor can only</span>
     <span class="doccomment">/// match when `start == 0`.</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_captures_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">captures_read_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Locations</span>,
+        <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CaptureLocations</span>,
         <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>,
         <span class="ident">start</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
         <span class="self">self</span>.<span class="number">0</span>
             .<span class="ident">searcher_str</span>()
-            .<span class="ident">read_captures_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>, <span class="ident">start</span>)
+            .<span class="ident">captures_read_at</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">locs</span>.<span class="number">0</span>, <span class="ident">text</span>, <span class="ident">start</span>)
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">s</span>, <span class="ident">e</span>)<span class="op">|</span> <span class="ident">Match</span>::<span class="ident">new</span>(<span class="ident">text</span>, <span class="ident">s</span>, <span class="ident">e</span>))
+    }
+
+    <span class="doccomment">/// An undocumented alias for `captures_read_at`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `regex-capi` crate previously used this routine, so to avoid</span>
+    <span class="doccomment">/// breaking that crate, we continue to provide the name as an undocumented</span>
+    <span class="doccomment">/// alias.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_captures_at</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">locs</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">CaptureLocations</span>,
+        <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>,
+        <span class="ident">start</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;&gt;</span> {
+        <span class="self">self</span>.<span class="ident">captures_read_at</span>(<span class="ident">locs</span>, <span class="ident">text</span>, <span class="ident">start</span>)
     }
 }
 
@@ -1815,11 +1939,19 @@
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">capture_names</span>().<span class="ident">len</span>()
     }
 
-    <span class="doccomment">/// Returns an empty set of locations that can be reused in multiple calls</span>
-    <span class="doccomment">/// to `read_captures`.</span>
+    <span class="doccomment">/// Returns an empty set of capture locations that can be reused in</span>
+    <span class="doccomment">/// multiple calls to `captures_read` or `captures_read_at`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">capture_locations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">CaptureLocations</span> {
+        <span class="ident">CaptureLocations</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher_str</span>().<span class="ident">locations</span>())
+    }
+
+    <span class="doccomment">/// An alias for `capture_locations` to preserve backward compatibility.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `regex-capi` crate uses this method, so to avoid breaking that</span>
+    <span class="doccomment">/// crate, we continue to export it as an undocumented API.</span>
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">locations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Locations</span> {
-        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher_str</span>().<span class="ident">locations</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">locations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">CaptureLocations</span> {
+        <span class="ident">CaptureLocations</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">searcher_str</span>().<span class="ident">locations</span>())
     }
 }
 
@@ -1907,6 +2039,63 @@
     }
 }
 
+<span class="doccomment">/// CaptureLocations is a low level representation of the raw offsets of each</span>
+<span class="doccomment">/// submatch.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// You can think of this as a lower level</span>
+<span class="doccomment">/// [`Captures`](struct.Captures.html), where this type does not support</span>
+<span class="doccomment">/// named capturing groups directly and it does not borrow the text that these</span>
+<span class="doccomment">/// offsets were matched on.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Primarily, this type is useful when using the lower level `Regex` APIs</span>
+<span class="doccomment">/// such as `read_captures`, which permits amortizing the allocation in which</span>
+<span class="doccomment">/// capture match locations are stored.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// In order to build a value of this type, you&#39;ll need to call the</span>
+<span class="doccomment">/// `capture_locations` method on the `Regex` being used to execute the search.</span>
+<span class="doccomment">/// The value returned can then be reused in subsequent searches.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CaptureLocations</span>(<span class="ident">re_trait</span>::<span class="ident">Locations</span>);
+
+<span class="doccomment">/// A type alias for `CaptureLocations` for backwards compatibility.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Previously, we exported `CaptureLocations` as `Locations` in an</span>
+<span class="doccomment">/// undocumented API. To prevent breaking that code (e.g., in `regex-capi`),</span>
+<span class="doccomment">/// we continue re-exporting the same undocumented API.</span>
+<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Locations</span> <span class="op">=</span> <span class="ident">CaptureLocations</span>;
+
+<span class="kw">impl</span> <span class="ident">CaptureLocations</span> {
+    <span class="doccomment">/// Returns the start and end positions of the Nth capture group. Returns</span>
+    <span class="doccomment">/// `None` if `i` is not a valid capture group or if the capture group did</span>
+    <span class="doccomment">/// not match anything. The positions returned are *always* byte indices</span>
+    <span class="doccomment">/// with respect to the original string matched.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">pos</span>(<span class="ident">i</span>)
+    }
+
+    <span class="doccomment">/// Returns the total number of capturing groups.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is always at least `1` since every regex has at least `1`</span>
+    <span class="doccomment">/// capturing group that corresponds to the entire match.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">len</span>()
+    }
+
+    <span class="doccomment">/// An alias for the `get` method for backwards compatibility.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Previously, we exported `get` as `pos` in an undocumented API. To</span>
+    <span class="doccomment">/// prevent breaking that code (e.g., in `regex-capi`), we continue</span>
+    <span class="doccomment">/// re-exporting the same undocumented API.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">get</span>(<span class="ident">i</span>)
+    }
+}
+
 <span class="doccomment">/// Captures represents a group of captured strings for a single match.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The 0th capture always corresponds to the entire match. Each subsequent</span>
@@ -1920,7 +2109,7 @@
 <span class="doccomment">/// `&#39;t` is the lifetime of the matched text.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Captures</span><span class="op">&lt;</span><span class="lifetime">&#39;t</span><span class="op">&gt;</span> {
     <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;t</span> <span class="ident">str</span>,
-    <span class="ident">locs</span>: <span class="ident">Locations</span>,
+    <span class="ident">locs</span>: <span class="ident">re_trait</span>::<span class="ident">Locations</span>,
     <span class="ident">named_groups</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">usize</span><span class="op">&gt;&gt;</span>,
 }
 
@@ -2130,7 +2319,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// In general, users of this crate shouldn&#39;t need to implement this trait,</span>
 <span class="doccomment">/// since implementations are already provided for `&amp;str` and</span>
-<span class="doccomment">/// `FnMut(&amp;Captures) -&gt; String`, which covers most use cases.</span>
+<span class="doccomment">/// `FnMut(&amp;Captures) -&gt; String` (or any `FnMut(&amp;Captures) -&gt; T`</span>
+<span class="doccomment">/// where `T: AsRef&lt;str&gt;`), which covers most use cases.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Replacer</span> {
     <span class="doccomment">/// Appends text to `dst` to replace the current match.</span>
     <span class="doccomment">///</span>
@@ -2206,9 +2396,9 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">F</span> <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Captures</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Replacer</span> <span class="kw">for</span> <span class="ident">F</span> <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">Captures</span>) <span class="op">-&gt;</span> <span class="ident">T</span>, <span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">replace_append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">caps</span>: <span class="kw-2">&amp;</span><span class="ident">Captures</span>, <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) {
-        <span class="ident">dst</span>.<span class="ident">push_str</span>(<span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="self">self</span>)(<span class="ident">caps</span>));
+        <span class="ident">dst</span>.<span class="ident">push_str</span>((<span class="kw-2">*</span><span class="self">self</span>)(<span class="ident">caps</span>).<span class="ident">as_ref</span>());
     }
 }
 
@@ -2231,5 +2421,5 @@
         <span class="prelude-val">Some</span>(<span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="self">self</span>.<span class="number">0</span>))
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

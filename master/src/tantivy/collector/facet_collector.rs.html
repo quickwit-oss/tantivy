@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/collector/facet_collector.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>facet_collector.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/collector/facet_collector.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>facet_collector.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -644,43 +644,27 @@
 <span id="644">644</span>
 <span id="645">645</span>
 <span id="646">646</span>
-<span id="647">647</span>
-<span id="648">648</span>
-<span id="649">649</span>
-<span id="650">650</span>
-<span id="651">651</span>
-<span id="652">652</span>
-<span id="653">653</span>
-<span id="654">654</span>
-<span id="655">655</span>
-<span id="656">656</span>
-<span id="657">657</span>
-<span id="658">658</span>
-<span id="659">659</span>
-<span id="660">660</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
+<span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">SegmentCollector</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">SkipResult</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FacetReader</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">UnsafeCell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">btree_map</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">Bound</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">u64</span>, <span class="ident">usize</span>};
-<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermMerger</span>;
-
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
 <span class="kw">use</span> <span class="ident">SegmentReader</span>;
+<span class="kw">use</span> <span class="ident">TantivyError</span>;
 
 <span class="kw">struct</span> <span class="ident">Hit</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">count</span>: <span class="ident">u64</span>,
@@ -705,12 +689,6 @@
     <span class="kw">fn</span> <span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">Ordering</span> {
         <span class="ident">other</span>.<span class="ident">count</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">count</span>)
     }
-}
-
-<span class="kw">struct</span> <span class="ident">SegmentFacetCounter</span> {
-    <span class="kw">pub</span> <span class="ident">facet_reader</span>: <span class="ident">FacetReader</span>,
-    <span class="kw">pub</span> <span class="ident">facet_ords</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span> <span class="ident">facet_counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">fn</span> <span class="ident">facet_depth</span>(<span class="ident">facet_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -752,14 +730,14 @@
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// #[macro_use]</span>
 <span class="doccomment">/// extern crate tantivy;</span>
-<span class="doccomment">/// use tantivy::schema::{Facet, SchemaBuilder, TEXT};</span>
+<span class="doccomment">/// use tantivy::schema::{Facet, Schema, TEXT};</span>
 <span class="doccomment">/// use tantivy::{Index, Result};</span>
 <span class="doccomment">/// use tantivy::collector::FacetCollector;</span>
 <span class="doccomment">/// use tantivy::query::AllQuery;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # fn main() { example().unwrap(); }</span>
 <span class="doccomment">/// fn example() -&gt; Result&lt;()&gt; {</span>
-<span class="doccomment">///     let mut schema_builder = SchemaBuilder::new();</span>
+<span class="doccomment">///     let mut schema_builder = Schema::builder();</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     // Facet have their own specific type.</span>
 <span class="doccomment">///     // It is not a bad practise to put all of your</span>
@@ -792,23 +770,19 @@
 <span class="doccomment">///             facet =&gt; Facet::from(&quot;/lang/en&quot;),</span>
 <span class="doccomment">///             facet =&gt; Facet::from(&quot;/category/biography&quot;)</span>
 <span class="doccomment">///         ));</span>
-<span class="doccomment">///         index_writer.commit().unwrap();</span>
+<span class="doccomment">///         index_writer.commit()?;</span>
 <span class="doccomment">///     }</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///     index.load_searchers()?;</span>
-<span class="doccomment">///     let searcher = index.searcher();</span>
+<span class="doccomment">///     let reader = index.reader()?;</span>
+<span class="doccomment">///     let searcher = reader.searcher();</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///			let mut facet_collector = FacetCollector::for_field(facet);</span>
 <span class="doccomment">///         facet_collector.add_facet(&quot;/lang&quot;);</span>
 <span class="doccomment">///         facet_collector.add_facet(&quot;/category&quot;);</span>
-<span class="doccomment">///         searcher.search(&amp;AllQuery, &amp;mut facet_collector).unwrap();</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///         // this object contains count aggregate for all of the facets.</span>
-<span class="doccomment">///         let counts = facet_collector.harvest();</span>
+<span class="doccomment">///         let facet_counts = searcher.search(&amp;AllQuery, &amp;facet_collector)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///         // This lists all of the facet counts</span>
-<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = counts</span>
+<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = facet_counts</span>
 <span class="doccomment">///             .get(&quot;/category&quot;)</span>
 <span class="doccomment">///             .collect();</span>
 <span class="doccomment">///         assert_eq!(facets, vec![</span>
@@ -820,13 +794,10 @@
 <span class="doccomment">///     {</span>
 <span class="doccomment">///			let mut facet_collector = FacetCollector::for_field(facet);</span>
 <span class="doccomment">///         facet_collector.add_facet(&quot;/category/fiction&quot;);</span>
-<span class="doccomment">///         searcher.search(&amp;AllQuery, &amp;mut facet_collector).unwrap();</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///         // this object contains count aggregate for all of the facets.</span>
-<span class="doccomment">///         let counts = facet_collector.harvest();</span>
+<span class="doccomment">///         let facet_counts = searcher.search(&amp;AllQuery, &amp;facet_collector)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///         // This lists all of the facet counts</span>
-<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = counts</span>
+<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = facet_counts</span>
 <span class="doccomment">///             .get(&quot;/category/fiction&quot;)</span>
 <span class="doccomment">///             .collect();</span>
 <span class="doccomment">///         assert_eq!(facets, vec![</span>
@@ -839,13 +810,10 @@
 <span class="doccomment">///    {</span>
 <span class="doccomment">///			let mut facet_collector = FacetCollector::for_field(facet);</span>
 <span class="doccomment">///         facet_collector.add_facet(&quot;/category/fiction&quot;);</span>
-<span class="doccomment">///         searcher.search(&amp;AllQuery, &amp;mut facet_collector).unwrap();</span>
-<span class="doccomment">///</span>
-<span class="doccomment">///         // this object contains count aggregate for all of the facets.</span>
-<span class="doccomment">///         let counts = facet_collector.harvest();</span>
+<span class="doccomment">///         let facet_counts = searcher.search(&amp;AllQuery, &amp;facet_collector)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///         // This lists all of the facet counts</span>
-<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = counts.top_k(&quot;/category/fiction&quot;, 1);</span>
+<span class="doccomment">///         let facets: Vec&lt;(&amp;Facet, u64)&gt; = facet_counts.top_k(&quot;/category/fiction&quot;, 1);</span>
 <span class="doccomment">///         assert_eq!(facets, vec![</span>
 <span class="doccomment">///             (&amp;Facet::from(&quot;/category/fiction/fantasy&quot;), 2)</span>
 <span class="doccomment">///         ]);</span>
@@ -855,19 +823,19 @@
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FacetCollector</span> {
-    <span class="ident">facet_ords</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="ident">field</span>: <span class="ident">Field</span>,
-    <span class="ident">ff_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">UnsafeCell</span><span class="op">&lt;</span><span class="ident">FacetReader</span><span class="op">&gt;&gt;</span>,
-    <span class="ident">segment_counters</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentFacetCounter</span><span class="op">&gt;</span>,
-
-    <span class="comment">// facet_ord -&gt; collapse facet_id</span>
-    <span class="ident">current_segment_collapse_mapping</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
-    <span class="comment">// collapse facet_id -&gt; count</span>
-    <span class="ident">current_segment_counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-    <span class="comment">// collapse facet_id -&gt; facet_ord</span>
-    <span class="ident">current_collapse_facet_ords</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
-
     <span class="ident">facets</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">Facet</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FacetSegmentCollector</span> {
+    <span class="ident">reader</span>: <span class="ident">FacetReader</span>,
+    <span class="ident">facet_ords_buf</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="comment">// facet_ord -&gt; collapse facet_id</span>
+    <span class="ident">collapse_mapping</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="comment">// collapse facet_id -&gt; count</span>
+    <span class="ident">counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
+    <span class="comment">// collapse facet_id -&gt; facet_ord</span>
+    <span class="ident">collapse_facet_ords</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">fn</span> <span class="ident">skip</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span>: <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Facet</span><span class="op">&gt;&gt;</span>(
@@ -876,7 +844,7 @@
 ) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
     <span class="kw">loop</span> {
         <span class="kw">match</span> <span class="ident">collapse_it</span>.<span class="ident">peek</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">facet_bytes</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">facet_bytes</span>.<span class="ident">encoded_bytes</span>().<span class="ident">cmp</span>(<span class="ident">target</span>) {
+            <span class="prelude-val">Some</span>(<span class="ident">facet_bytes</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">facet_bytes</span>.<span class="ident">encoded_str</span>().<span class="ident">as_bytes</span>().<span class="ident">cmp</span>(<span class="ident">target</span>) {
                 <span class="ident">Ordering</span>::<span class="ident">Less</span> <span class="op">=&gt;</span> {}
                 <span class="ident">Ordering</span>::<span class="ident">Greater</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>;
@@ -901,15 +869,8 @@
     <span class="doccomment">/// is of the proper type.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span>(<span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">FacetCollector</span> {
         <span class="ident">FacetCollector</span> {
-            <span class="ident">facet_ords</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">255</span>),
-            <span class="ident">segment_counters</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
             <span class="ident">field</span>,
-            <span class="ident">ff_reader</span>: <span class="prelude-val">None</span>,
-            <span class="ident">facets</span>: <span class="ident">BTreeSet</span>::<span class="ident">new</span>(),
-
-            <span class="ident">current_segment_collapse_mapping</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-            <span class="ident">current_collapse_facet_ords</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-            <span class="ident">current_segment_counts</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+            <span class="ident">facets</span>: <span class="ident">BTreeSet</span>::<span class="ident">default</span>(),
         }
     }
 
@@ -939,141 +900,103 @@
         }
         <span class="self">self</span>.<span class="ident">facets</span>.<span class="ident">insert</span>(<span class="ident">facet</span>);
     }
-
-    <span class="kw">fn</span> <span class="ident">set_collapse_mapping</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">facet_reader</span>: <span class="kw-2">&amp;</span><span class="ident">FacetReader</span>) {
-        <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>.<span class="ident">clear</span>();
-        <span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>.<span class="ident">clear</span>();
-        <span class="self">self</span>.<span class="ident">current_segment_counts</span>.<span class="ident">clear</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapse_facet_it</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">facets</span>.<span class="ident">iter</span>().<span class="ident">peekable</span>();
-        <span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>.<span class="ident">push</span>(<span class="number">0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_streamer</span> <span class="op">=</span> <span class="ident">facet_reader</span>.<span class="ident">facet_dict</span>().<span class="ident">range</span>().<span class="ident">into_stream</span>();
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
-            <span class="kw">return</span>;
-        }
-        <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
-            <span class="comment">// at the begining of this loop, facet_streamer</span>
-            <span class="comment">// is positionned on a term that has not been processed yet.</span>
-            <span class="kw">let</span> <span class="ident">skip_result</span> <span class="op">=</span> <span class="ident">skip</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collapse_facet_it</span>);
-            <span class="kw">match</span> <span class="ident">skip_result</span> {
-                <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> {
-                    <span class="comment">// we reach a facet we decided to collapse.</span>
-                    <span class="kw">let</span> <span class="ident">collapse_depth</span> <span class="op">=</span> <span class="ident">facet_depth</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>());
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapsed_id</span> <span class="op">=</span> <span class="number">0</span>;
-                    <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>.<span class="ident">push</span>(<span class="number">0</span>);
-                    <span class="kw">while</span> <span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
-                        <span class="kw">let</span> <span class="ident">depth</span> <span class="op">=</span> <span class="ident">facet_depth</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>());
-                        <span class="kw">if</span> <span class="ident">depth</span> <span class="op">&lt;=</span> <span class="ident">collapse_depth</span> {
-                            <span class="kw">continue</span> <span class="lifetime">&#39;outer</span>;
-                        }
-                        <span class="kw">if</span> <span class="ident">depth</span> <span class="op">==</span> <span class="ident">collapse_depth</span> <span class="op">+</span> <span class="number">1</span> {
-                            <span class="ident">collapsed_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>.<span class="ident">len</span>();
-                            <span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>
-                                .<span class="ident">push</span>(<span class="ident">facet_streamer</span>.<span class="ident">term_ord</span>());
-                            <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>.<span class="ident">push</span>(<span class="ident">collapsed_id</span>);
-                        } <span class="kw">else</span> {
-                            <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>.<span class="ident">push</span>(<span class="ident">collapsed_id</span>);
-                        }
-                    }
-                    <span class="kw">break</span>;
-                }
-                <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">|</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>.<span class="ident">push</span>(<span class="number">0</span>);
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
-                        <span class="kw">break</span>;
-                    }
-                }
-            }
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">finalize_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ff_reader</span>.<span class="ident">is_some</span>() {
-            <span class="self">self</span>.<span class="ident">segment_counters</span>.<span class="ident">push</span>(<span class="ident">SegmentFacetCounter</span> {
-                <span class="ident">facet_reader</span>: <span class="self">self</span>.<span class="ident">ff_reader</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">into_inner</span>(),
-                <span class="ident">facet_ords</span>: <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>, <span class="ident">Vec</span>::<span class="ident">new</span>()),
-                <span class="ident">facet_counts</span>: <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">current_segment_counts</span>, <span class="ident">Vec</span>::<span class="ident">new</span>()),
-            });
-        }
-    }
-
-    <span class="doccomment">/// Returns the results of the collection.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// This method does not just return the counters,</span>
-    <span class="doccomment">/// it also translates the facet ordinals of the last segment.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">harvest</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">FacetCounts</span> {
-        <span class="self">self</span>.<span class="ident">finalize_segment</span>();
-
-        <span class="kw">let</span> <span class="ident">collapsed_facet_ords</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u64</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_counters</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_counter</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">segment_counter</span>.<span class="ident">facet_ords</span>[..])
-            .<span class="ident">collect</span>();
-        <span class="kw">let</span> <span class="ident">collapsed_facet_counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u64</span>]<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_counters</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_counter</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">segment_counter</span>.<span class="ident">facet_counts</span>[..])
-            .<span class="ident">collect</span>();
-
-        <span class="kw">let</span> <span class="ident">facet_streams</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_counters</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">seg_counts</span><span class="op">|</span> <span class="ident">seg_counts</span>.<span class="ident">facet_reader</span>.<span class="ident">facet_dict</span>().<span class="ident">range</span>().<span class="ident">into_stream</span>())
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_merger</span> <span class="op">=</span> <span class="ident">TermMerger</span>::<span class="ident">new</span>(<span class="ident">facet_streams</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_counts</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
-
-        <span class="kw">while</span> <span class="ident">facet_merger</span>.<span class="ident">advance</span>() {
-            <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="ident">facet_merger</span>
-                .<span class="ident">current_kvs</span>()
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">it</span><span class="op">|</span> {
-                    <span class="kw">let</span> <span class="ident">seg_ord</span> <span class="op">=</span> <span class="ident">it</span>.<span class="ident">segment_ord</span>;
-                    <span class="kw">let</span> <span class="ident">term_ord</span> <span class="op">=</span> <span class="ident">it</span>.<span class="ident">streamer</span>.<span class="ident">term_ord</span>();
-                    <span class="ident">collapsed_facet_ords</span>[<span class="ident">seg_ord</span>]
-                        .<span class="ident">binary_search</span>(<span class="kw-2">&amp;</span><span class="ident">term_ord</span>)
-                        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">collapsed_term_id</span><span class="op">|</span> {
-                            <span class="kw">if</span> <span class="ident">collapsed_term_id</span> <span class="op">==</span> <span class="number">0</span> {
-                                <span class="number">0</span>
-                            } <span class="kw">else</span> {
-                                <span class="ident">collapsed_facet_counts</span>[<span class="ident">seg_ord</span>][<span class="ident">collapsed_term_id</span>]
-                            }
-                        })
-                        .<span class="ident">unwrap_or</span>(<span class="number">0</span>)
-                })
-                .<span class="ident">sum</span>();
-            <span class="kw">if</span> <span class="ident">count</span> <span class="op">&gt;</span> <span class="number">0u64</span> {
-                <span class="kw">let</span> <span class="ident">bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet_merger</span>.<span class="ident">key</span>().<span class="ident">to_owned</span>();
-                <span class="comment">// may create an corrupted facet if the term dicitonary is corrupted</span>
-                <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">bytes</span>) };
-                <span class="ident">facet_counts</span>.<span class="ident">insert</span>(<span class="ident">facet</span>, <span class="ident">count</span>);
-            }
-        }
-        <span class="ident">FacetCounts</span> { <span class="ident">facet_counts</span> }
-    }
 }
 
 <span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">FacetCollector</span> {
-    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">SegmentLocalId</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">finalize_segment</span>();
-        <span class="kw">let</span> <span class="ident">facet_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">facet_reader</span>(<span class="self">self</span>.<span class="ident">field</span>)<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">set_collapse_mapping</span>(<span class="kw-2">&amp;</span><span class="ident">facet_reader</span>);
-        <span class="self">self</span>.<span class="ident">current_segment_counts</span>
-            .<span class="ident">resize</span>(<span class="self">self</span>.<span class="ident">current_collapse_facet_ords</span>.<span class="ident">len</span>(), <span class="number">0</span>);
-        <span class="self">self</span>.<span class="ident">ff_reader</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">facet_reader</span>));
-        <span class="prelude-val">Ok</span>(())
+    <span class="kw">type</span> <span class="ident">Fruit</span> <span class="op">=</span> <span class="ident">FacetCounts</span>;
+
+    <span class="kw">type</span> <span class="ident">Child</span> <span class="op">=</span> <span class="ident">FacetSegmentCollector</span>;
+
+    <span class="kw">fn</span> <span class="ident">for_segment</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw">_</span>: <span class="ident">SegmentLocalId</span>,
+        <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FacetSegmentCollector</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">schema</span>().<span class="ident">get_field_name</span>(<span class="self">self</span>.<span class="ident">field</span>);
+        <span class="kw">let</span> <span class="ident">facet_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">facet_reader</span>(<span class="self">self</span>.<span class="ident">field</span>).<span class="ident">ok_or_else</span>(<span class="op">||</span> {
+            <span class="ident">TantivyError</span>::<span class="ident">SchemaError</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Field {:?} is not a facet field.&quot;</span>, <span class="ident">field_name</span>))
+        })<span class="question-mark">?</span>;
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapse_mapping</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">counts</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapse_facet_ords</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapse_facet_it</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">facets</span>.<span class="ident">iter</span>().<span class="ident">peekable</span>();
+        <span class="ident">collapse_facet_ords</span>.<span class="ident">push</span>(<span class="number">0</span>);
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_streamer</span> <span class="op">=</span> <span class="ident">facet_reader</span>.<span class="ident">facet_dict</span>().<span class="ident">range</span>().<span class="ident">into_stream</span>();
+            <span class="kw">if</span> <span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
+                <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
+                    <span class="comment">// at the begining of this loop, facet_streamer</span>
+                    <span class="comment">// is positionned on a term that has not been processed yet.</span>
+                    <span class="kw">let</span> <span class="ident">skip_result</span> <span class="op">=</span> <span class="ident">skip</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collapse_facet_it</span>);
+                    <span class="kw">match</span> <span class="ident">skip_result</span> {
+                        <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> {
+                            <span class="comment">// we reach a facet we decided to collapse.</span>
+                            <span class="kw">let</span> <span class="ident">collapse_depth</span> <span class="op">=</span> <span class="ident">facet_depth</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>());
+                            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collapsed_id</span> <span class="op">=</span> <span class="number">0</span>;
+                            <span class="ident">collapse_mapping</span>.<span class="ident">push</span>(<span class="number">0</span>);
+                            <span class="kw">while</span> <span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
+                                <span class="kw">let</span> <span class="ident">depth</span> <span class="op">=</span> <span class="ident">facet_depth</span>(<span class="ident">facet_streamer</span>.<span class="ident">key</span>());
+                                <span class="kw">if</span> <span class="ident">depth</span> <span class="op">&lt;=</span> <span class="ident">collapse_depth</span> {
+                                    <span class="kw">continue</span> <span class="lifetime">&#39;outer</span>;
+                                }
+                                <span class="kw">if</span> <span class="ident">depth</span> <span class="op">==</span> <span class="ident">collapse_depth</span> <span class="op">+</span> <span class="number">1</span> {
+                                    <span class="ident">collapsed_id</span> <span class="op">=</span> <span class="ident">collapse_facet_ords</span>.<span class="ident">len</span>();
+                                    <span class="ident">collapse_facet_ords</span>.<span class="ident">push</span>(<span class="ident">facet_streamer</span>.<span class="ident">term_ord</span>());
+                                    <span class="ident">collapse_mapping</span>.<span class="ident">push</span>(<span class="ident">collapsed_id</span>);
+                                } <span class="kw">else</span> {
+                                    <span class="ident">collapse_mapping</span>.<span class="ident">push</span>(<span class="ident">collapsed_id</span>);
+                                }
+                            }
+                            <span class="kw">break</span>;
+                        }
+                        <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">|</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
+                            <span class="ident">collapse_mapping</span>.<span class="ident">push</span>(<span class="number">0</span>);
+                            <span class="kw">if</span> <span class="op">!</span><span class="ident">facet_streamer</span>.<span class="ident">advance</span>() {
+                                <span class="kw">break</span>;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        <span class="ident">counts</span>.<span class="ident">resize</span>(<span class="ident">collapse_facet_ords</span>.<span class="ident">len</span>(), <span class="number">0</span>);
+
+        <span class="prelude-val">Ok</span>(<span class="ident">FacetSegmentCollector</span> {
+            <span class="ident">reader</span>: <span class="ident">facet_reader</span>,
+            <span class="ident">facet_ords_buf</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">255</span>),
+            <span class="ident">collapse_mapping</span>,
+            <span class="ident">counts</span>,
+            <span class="ident">collapse_facet_ords</span>,
+        })
     }
 
+    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="bool-val">false</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">merge_fruits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segments_facet_counts</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FacetCounts</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FacetCounts</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_counts</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">Facet</span>, <span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
+        <span class="kw">for</span> <span class="ident">segment_facet_counts</span> <span class="kw">in</span> <span class="ident">segments_facet_counts</span> {
+            <span class="kw">for</span> (<span class="ident">facet</span>, <span class="ident">count</span>) <span class="kw">in</span> <span class="ident">segment_facet_counts</span>.<span class="ident">facet_counts</span> {
+                <span class="kw-2">*</span>(<span class="ident">facet_counts</span>.<span class="ident">entry</span>(<span class="ident">facet</span>).<span class="ident">or_insert</span>(<span class="number">0</span>)) <span class="op">+=</span> <span class="ident">count</span>;
+            }
+        }
+        <span class="prelude-val">Ok</span>(<span class="ident">FacetCounts</span> { <span class="ident">facet_counts</span> })
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">SegmentCollector</span> <span class="kw">for</span> <span class="ident">FacetSegmentCollector</span> {
+    <span class="kw">type</span> <span class="ident">Fruit</span> <span class="op">=</span> <span class="ident">FacetCounts</span>;
+
     <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="kw">_</span>: <span class="ident">Score</span>) {
-        <span class="kw">let</span> <span class="ident">facet_reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FacetReader</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ff_reader</span>
-                .<span class="ident">as_ref</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;collect() was called before set_segment. This should never happen.&quot;</span>)
-                .<span class="ident">get</span>()
-        };
-        <span class="ident">facet_reader</span>.<span class="ident">facet_ords</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">facet_ords</span>);
+        <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">facet_ords</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">facet_ords_buf</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">previous_collapsed_ord</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">MAX</span>;
-        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">facet_ord</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">facet_ords</span> {
-            <span class="kw">let</span> <span class="ident">collapsed_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">current_segment_collapse_mapping</span>[<span class="ident">facet_ord</span> <span class="kw">as</span> <span class="ident">usize</span>];
-            <span class="self">self</span>.<span class="ident">current_segment_counts</span>[<span class="ident">collapsed_ord</span>] <span class="op">+=</span> <span class="kw">if</span> <span class="ident">collapsed_ord</span> <span class="op">==</span> <span class="ident">previous_collapsed_ord</span>
-            {
+        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">facet_ord</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">facet_ords_buf</span> {
+            <span class="kw">let</span> <span class="ident">collapsed_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">collapse_mapping</span>[<span class="ident">facet_ord</span> <span class="kw">as</span> <span class="ident">usize</span>];
+            <span class="self">self</span>.<span class="ident">counts</span>[<span class="ident">collapsed_ord</span>] <span class="op">+=</span> <span class="kw">if</span> <span class="ident">collapsed_ord</span> <span class="op">==</span> <span class="ident">previous_collapsed_ord</span> {
                 <span class="number">0</span>
             } <span class="kw">else</span> {
                 <span class="number">1</span>
@@ -1082,8 +1005,24 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="bool-val">false</span>
+    <span class="doccomment">/// Returns the results of the collection.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This method does not just return the counters,</span>
+    <span class="doccomment">/// it also translates the facet ordinals of the last segment.</span>
+    <span class="kw">fn</span> <span class="ident">harvest</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">FacetCounts</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_counts</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="ident">facet_dict</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">facet_dict</span>();
+        <span class="kw">for</span> (<span class="ident">collapsed_facet_ord</span>, <span class="ident">count</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">counts</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">enumerate</span>() {
+            <span class="kw">if</span> <span class="ident">count</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+            <span class="kw">let</span> <span class="ident">facet_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">collapse_facet_ords</span>[<span class="ident">collapsed_facet_ord</span>];
+            <span class="ident">facet_dict</span>.<span class="ident">ord_to_term</span>(<span class="ident">facet_ord</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet</span>);
+            <span class="comment">// TODO</span>
+            <span class="ident">facet_counts</span>.<span class="ident">insert</span>(<span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">facet</span>).<span class="ident">unwrap</span>(), <span class="ident">count</span>);
+        }
+        <span class="ident">FacetCounts</span> { <span class="ident">facet_counts</span> }
     }
 }
 
@@ -1115,9 +1054,9 @@
         <span class="kw">let</span> <span class="ident">right_bound</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">facet</span>.<span class="ident">is_root</span>() {
             <span class="ident">Bound</span>::<span class="ident">Unbounded</span>
         } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_after_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet</span>.<span class="ident">encoded_bytes</span>().<span class="ident">to_owned</span>();
-            <span class="ident">facet_after_bytes</span>.<span class="ident">push</span>(<span class="number">1u8</span>);
-            <span class="kw">let</span> <span class="ident">facet_after</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">facet_after_bytes</span>) }; <span class="comment">// ok logic</span>
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_after_bytes</span>: <span class="ident">String</span> <span class="op">=</span> <span class="ident">facet</span>.<span class="ident">encoded_str</span>().<span class="ident">to_owned</span>();
+            <span class="ident">facet_after_bytes</span>.<span class="ident">push</span>(<span class="string">&#39;\u{1}&#39;</span>);
+            <span class="kw">let</span> <span class="ident">facet_after</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from_encoded_string</span>(<span class="ident">facet_after_bytes</span>);
             <span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="ident">facet_after</span>)
         };
         <span class="kw">let</span> <span class="ident">underlying</span>: <span class="ident">btree_map</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">facet_counts</span>.<span class="ident">range</span>((<span class="ident">left_bound</span>, <span class="ident">right_bound</span>));
@@ -1131,16 +1070,23 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">heap</span> <span class="op">=</span> <span class="ident">BinaryHeap</span>::<span class="ident">with_capacity</span>(<span class="ident">k</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">it</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get</span>(<span class="ident">facet</span>);
 
+        <span class="comment">// push the first k elements to first bring the heap</span>
+        <span class="comment">// to capacity</span>
         <span class="kw">for</span> (<span class="ident">facet</span>, <span class="ident">count</span>) <span class="kw">in</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">it</span>).<span class="ident">take</span>(<span class="ident">k</span>) {
             <span class="ident">heap</span>.<span class="ident">push</span>(<span class="ident">Hit</span> { <span class="ident">count</span>, <span class="ident">facet</span> });
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lowest_count</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">peek</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">hit</span><span class="op">|</span> <span class="ident">hit</span>.<span class="ident">count</span>).<span class="ident">unwrap_or</span>(<span class="ident">u64</span>::<span class="ident">MIN</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lowest_count</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">peek</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">hit</span><span class="op">|</span> <span class="ident">hit</span>.<span class="ident">count</span>).<span class="ident">unwrap_or</span>(<span class="ident">u64</span>::<span class="ident">MIN</span>); <span class="comment">//&lt; the `unwrap_or` case may be triggered but the value</span>
+                                                                                          <span class="comment">// is never used in that case.</span>
+
         <span class="kw">for</span> (<span class="ident">facet</span>, <span class="ident">count</span>) <span class="kw">in</span> <span class="ident">it</span> {
             <span class="kw">if</span> <span class="ident">count</span> <span class="op">&gt;</span> <span class="ident">lowest_count</span> {
-                <span class="ident">lowest_count</span> <span class="op">=</span> <span class="ident">count</span>;
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">head</span>) <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">peek_mut</span>() {
                     <span class="kw-2">*</span><span class="ident">head</span> <span class="op">=</span> <span class="ident">Hit</span> { <span class="ident">count</span>, <span class="ident">facet</span> };
+                }
+                <span class="comment">// the heap gets reconstructed at this point</span>
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">head</span>) <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">peek</span>() {
+                    <span class="ident">lowest_count</span> <span class="op">=</span> <span class="ident">head</span>.<span class="ident">count</span>;
                 }
             }
         }
@@ -1156,19 +1102,20 @@
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">FacetCollector</span>, <span class="ident">FacetCounts</span>};
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::<span class="ident">Uniform</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">prelude</span>::<span class="ident">SliceRandom</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">thread_rng</span>, <span class="ident">Rng</span>};
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Facet</span>, <span class="ident">SchemaBuilder</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Facet</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_facet_collector_drilldown</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">facet_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_facet_field</span>(<span class="string">&quot;facet&quot;</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">num_facets</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">3</span> <span class="op">*</span> <span class="number">4</span> <span class="op">*</span> <span class="number">5</span>;
         <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Facet</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">num_facets</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">n</span><span class="op">|</span> {
@@ -1186,14 +1133,12 @@
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
         <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">searcher</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
         <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/top1&quot;</span>));
-        <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">counts</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">counts</span>: <span class="ident">FacetCounts</span> <span class="op">=</span> <span class="ident">facet_collector</span>.<span class="ident">harvest</span>();
         {
             <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">counts</span>
                 .<span class="ident">get</span>(<span class="string">&quot;/top1&quot;</span>)
@@ -1206,22 +1151,45 @@
                     (<span class="string">&quot;/top1/mid1&quot;</span>, <span class="number">50</span>),
                     (<span class="string">&quot;/top1/mid2&quot;</span>, <span class="number">50</span>),
                     (<span class="string">&quot;/top1/mid3&quot;</span>, <span class="number">50</span>),
-                ].<span class="ident">iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">facet_str</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">facet_str</span>), <span class="ident">count</span>))
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()
+                ]
+                .<span class="ident">iter</span>()
+                .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">facet_str</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">facet_str</span>), <span class="ident">count</span>))
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()
             );
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">should_panic</span>(
-        <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Tried to add a facet which is a descendant of \
-                    an already added facet.&quot;</span>
-    )]</span>
+    <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Tried to add a facet which is a descendant of \
+                               an already added facet.&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_misused_facet_collector</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">Field</span>(<span class="number">0</span>));
         <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/country&quot;</span>));
         <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/country/europe&quot;</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_doc_unsorted_multifacet</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
+        <span class="kw">let</span> <span class="ident">facet_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_facet_field</span>(<span class="string">&quot;facets&quot;</span>);
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+        <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
+        <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+            <span class="ident">facet_field</span> <span class="op">=&gt;</span> <span class="ident">Facet</span>::<span class="ident">from_text</span>(<span class="kw-2">&amp;</span><span class="string">&quot;/subjects/A/a&quot;</span>),
+            <span class="ident">facet_field</span> <span class="op">=&gt;</span> <span class="ident">Facet</span>::<span class="ident">from_text</span>(<span class="kw-2">&amp;</span><span class="string">&quot;/subjects/B/a&quot;</span>),
+            <span class="ident">facet_field</span> <span class="op">=&gt;</span> <span class="ident">Facet</span>::<span class="ident">from_text</span>(<span class="kw-2">&amp;</span><span class="string">&quot;/subjects/A/b&quot;</span>),
+            <span class="ident">facet_field</span> <span class="op">=&gt;</span> <span class="ident">Facet</span>::<span class="ident">from_text</span>(<span class="kw-2">&amp;</span><span class="string">&quot;/subjects/B/b&quot;</span>),
+        ));
+        <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">searcher</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">searcher</span>.<span class="ident">num_docs</span>(), <span class="number">1</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
+        <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="string">&quot;/subjects&quot;</span>);
+        <span class="kw">let</span> <span class="ident">counts</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">Facet</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">counts</span>.<span class="ident">get</span>(<span class="string">&quot;/subjects&quot;</span>).<span class="ident">collect</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">facets</span>[<span class="number">0</span>].<span class="number">1</span>, <span class="number">1</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1233,43 +1201,48 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_facet_collector_topk</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">facet_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_facet_field</span>(<span class="string">&quot;facet&quot;</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
 
+        <span class="kw">let</span> <span class="ident">uniform</span> <span class="op">=</span> <span class="ident">Uniform</span>::<span class="ident">new_inclusive</span>(<span class="number">1</span>, <span class="number">100_000</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Document</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[(<span class="string">&quot;a&quot;</span>, <span class="number">10</span>), (<span class="string">&quot;b&quot;</span>, <span class="number">100</span>), (<span class="string">&quot;c&quot;</span>, <span class="number">7</span>), (<span class="string">&quot;d&quot;</span>, <span class="number">12</span>), (<span class="string">&quot;e&quot;</span>, <span class="number">21</span>)]
             .<span class="ident">into_iter</span>()
             .<span class="ident">flat_map</span>(<span class="op">|</span>(<span class="ident">c</span>, <span class="ident">count</span>)<span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/facet_{}&quot;</span>, <span class="ident">c</span>));
+                <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/facet/{}&quot;</span>, <span class="ident">c</span>));
                 <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="macro">doc</span><span class="macro">!</span>(<span class="ident">facet_field</span> <span class="op">=&gt;</span> <span class="ident">facet</span>);
                 <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="ident">doc</span>).<span class="ident">take</span>(<span class="ident">count</span>)
             })
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">doc</span><span class="op">|</span> {
+                <span class="ident">doc</span>.<span class="ident">add_facet</span>(
+                    <span class="ident">facet_field</span>,
+                    <span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/facet/{}&quot;</span>, <span class="ident">thread_rng</span>().<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="ident">uniform</span>)),
+                );
+                <span class="ident">doc</span>
+            })
             .<span class="ident">collect</span>();
-        <span class="ident">thread_rng</span>().<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">docs</span>[..]);
+        <span class="ident">docs</span>[..].<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">thread_rng</span>());
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
         <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">docs</span> {
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
         <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>().<span class="ident">searcher</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
-        <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="string">&quot;/&quot;</span>);
-        <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
+        <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="string">&quot;/facet&quot;</span>);
+        <span class="kw">let</span> <span class="ident">counts</span>: <span class="ident">FacetCounts</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">counts</span>: <span class="ident">FacetCounts</span> <span class="op">=</span> <span class="ident">facet_collector</span>.<span class="ident">harvest</span>();
         {
-            <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">Facet</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">counts</span>.<span class="ident">top_k</span>(<span class="string">&quot;/&quot;</span>, <span class="number">3</span>);
+            <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">Facet</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">counts</span>.<span class="ident">top_k</span>(<span class="string">&quot;/facet&quot;</span>, <span class="number">3</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(
                 <span class="ident">facets</span>,
                 <span class="macro">vec</span><span class="macro">!</span>[
-                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet_b&quot;</span>), <span class="number">100</span>),
-                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet_e&quot;</span>), <span class="number">21</span>),
-                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet_d&quot;</span>), <span class="number">12</span>),
+                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet/b&quot;</span>), <span class="number">100</span>),
+                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet/e&quot;</span>), <span class="number">21</span>),
+                    (<span class="kw-2">&amp;</span><span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/facet/d&quot;</span>), <span class="number">12</span>),
                 ]
             );
         }
@@ -1284,13 +1257,13 @@
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">thread_rng</span>, <span class="ident">Rng</span>};
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
     <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_facet_collector</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
         <span class="kw">let</span> <span class="ident">facet_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_facet_field</span>(<span class="string">&quot;facet&quot;</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
@@ -1305,19 +1278,18 @@
         <span class="comment">// 40425 docs</span>
         <span class="ident">thread_rng</span>().<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">docs</span>[..]);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">3_000_000</span>).<span class="ident">unwrap</span>();
         <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">docs</span> {
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
         <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
-            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
+            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
         });
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

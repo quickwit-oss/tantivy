@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["BufferedStream","`Stream` which buffers items from an instance of `StreamOnce` into a ring buffer. Instances of `StreamOnce` which is not able to implement `Resetable` (such as `ReadStream`) may use this as a way to implement `Resetable` and become a full `Stream` instance."]]});

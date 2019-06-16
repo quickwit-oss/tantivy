@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.4.2/src/distributions/gamma.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>gamma.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/gamma.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>gamma.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -384,27 +384,51 @@
 <span id="384">384</span>
 <span id="385">385</span>
 <span id="386">386</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2013 The Rust Project Developers. See the COPYRIGHT</span>
-<span class="comment">// file at the top-level directory of this distribution and at</span>
-<span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="comment">// Copyright 2018 Developers of the Rand project.</span>
+<span class="comment">// Copyright 2013 The Rust Project Developers.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// https://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or https://opensource.org/licenses/MIT&gt;, at your</span>
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
-<span class="comment">//</span>
-<span class="comment">// ignore-lexer-test FIXME #15679</span>
 
 <span class="doccomment">//! The Gamma and derived distributions.</span>
 
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">GammaRepr</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ChiSquaredRepr</span>::<span class="kw-2">*</span>;
 
-<span class="kw">use</span> {<span class="ident">Rng</span>, <span class="ident">Open01</span>};
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">normal</span>::<span class="ident">StandardNormal</span>;
-<span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">IndependentSample</span>, <span class="ident">Sample</span>, <span class="ident">Exp</span>};
+<span class="kw">use</span> <span class="ident">Rng</span>;
+<span class="kw">use</span> <span class="ident">distributions</span>::<span class="ident">normal</span>::<span class="ident">StandardNormal</span>;
+<span class="kw">use</span> <span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Exp</span>, <span class="ident">Open01</span>};
 
 <span class="doccomment">/// The Gamma distribution `Gamma(shape, scale)` distribution.</span>
 <span class="doccomment">///</span>
@@ -417,25 +441,25 @@
 <span class="doccomment">/// where `Γ` is the Gamma function, `k` is the shape and `θ` is the</span>
 <span class="doccomment">/// scale and both `k` and `θ` are strictly positive.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The algorithm used is that described by Marsaglia &amp; Tsang 2000[1],</span>
+<span class="doccomment">/// The algorithm used is that described by Marsaglia &amp; Tsang 2000[^1],</span>
 <span class="doccomment">/// falling back to directly sampling from an Exponential for `shape</span>
-<span class="doccomment">/// == 1`, and using the boosting technique described in [1] for</span>
+<span class="doccomment">/// == 1`, and using the boosting technique described in that paper for</span>
 <span class="doccomment">/// `shape &lt; 1`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{IndependentSample, Gamma};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{Distribution, Gamma};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let gamma = Gamma::new(2.0, 5.0);</span>
-<span class="doccomment">/// let v = gamma.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = gamma.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from a Gamma(2, 5) distribution&quot;, v);</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [1]: George Marsaglia and Wai Wan Tsang. 2000. &quot;A Simple Method</span>
-<span class="doccomment">/// for Generating Gamma Variables&quot; *ACM Trans. Math. Softw.* 26, 3</span>
-<span class="doccomment">/// (September 2000),</span>
-<span class="doccomment">/// 363-372. DOI:[10.1145/358407.358414](http://doi.acm.org/10.1145/358407.358414)</span>
+<span class="doccomment">/// [^1]: George Marsaglia and Wai Wan Tsang. 2000. &quot;A Simple Method for</span>
+<span class="doccomment">///       Generating Gamma Variables&quot; *ACM Trans. Math. Softw.* 26, 3</span>
+<span class="doccomment">///       (September 2000), 363-372.</span>
+<span class="doccomment">///       DOI:[10.1145/358407.358414](https://doi.acm.org/10.1145/358407.358414)</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Gamma</span> {
     <span class="ident">repr</span>: <span class="ident">GammaRepr</span>,
@@ -496,7 +520,7 @@
         } <span class="kw">else</span> {
             <span class="ident">Large</span>(<span class="ident">GammaLargeShape</span>::<span class="ident">new_raw</span>(<span class="ident">shape</span>, <span class="ident">scale</span>))
         };
-        <span class="ident">Gamma</span> { <span class="ident">repr</span>: <span class="ident">repr</span> }
+        <span class="ident">Gamma</span> { <span class="ident">repr</span> }
     }
 }
 
@@ -513,50 +537,40 @@
     <span class="kw">fn</span> <span class="ident">new_raw</span>(<span class="ident">shape</span>: <span class="ident">f64</span>, <span class="ident">scale</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">GammaLargeShape</span> {
         <span class="kw">let</span> <span class="ident">d</span> <span class="op">=</span> <span class="ident">shape</span> <span class="op">-</span> <span class="number">1.</span> <span class="op">/</span> <span class="number">3.</span>;
         <span class="ident">GammaLargeShape</span> {
-            <span class="ident">scale</span>: <span class="ident">scale</span>,
+            <span class="ident">scale</span>,
             <span class="ident">c</span>: <span class="number">1.</span> <span class="op">/</span> (<span class="number">9.</span> <span class="op">*</span> <span class="ident">d</span>).<span class="ident">sqrt</span>(),
-            <span class="ident">d</span>: <span class="ident">d</span>
+            <span class="ident">d</span>
         }
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Gamma</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaSmallShape</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaLargeShape</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Gamma</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Gamma</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">repr</span> {
-            <span class="ident">Small</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>),
-            <span class="ident">One</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>),
-            <span class="ident">Large</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>),
+            <span class="ident">Small</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">sample</span>(<span class="ident">rng</span>),
+            <span class="ident">One</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">sample</span>(<span class="ident">rng</span>),
+            <span class="ident">Large</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">sample</span>(<span class="ident">rng</span>),
         }
     }
 }
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaSmallShape</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="kw">let</span> <span class="ident">Open01</span>(<span class="ident">u</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">Open01</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;&gt;</span>();
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaSmallShape</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">let</span> <span class="ident">u</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">Open01</span>);
 
-        <span class="self">self</span>.<span class="ident">large_shape</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) <span class="op">*</span> <span class="ident">u</span>.<span class="ident">powf</span>(<span class="self">self</span>.<span class="ident">inv_shape</span>)
+        <span class="self">self</span>.<span class="ident">large_shape</span>.<span class="ident">sample</span>(<span class="ident">rng</span>) <span class="op">*</span> <span class="ident">u</span>.<span class="ident">powf</span>(<span class="self">self</span>.<span class="ident">inv_shape</span>)
     }
 }
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaLargeShape</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GammaLargeShape</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
         <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">StandardNormal</span>(<span class="ident">x</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">StandardNormal</span><span class="op">&gt;</span>();
+            <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">StandardNormal</span>);
             <span class="kw">let</span> <span class="ident">v_cbrt</span> <span class="op">=</span> <span class="number">1.0</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">c</span> <span class="op">*</span> <span class="ident">x</span>;
             <span class="kw">if</span> <span class="ident">v_cbrt</span> <span class="op">&lt;=</span> <span class="number">0.0</span> { <span class="comment">// a^3 &lt;= 0 iff a &lt;= 0</span>
                 <span class="kw">continue</span>
             }
 
             <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">v_cbrt</span> <span class="op">*</span> <span class="ident">v_cbrt</span> <span class="op">*</span> <span class="ident">v_cbrt</span>;
-            <span class="kw">let</span> <span class="ident">Open01</span>(<span class="ident">u</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">Open01</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;&gt;</span>();
+            <span class="kw">let</span> <span class="ident">u</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">Open01</span>);
 
             <span class="kw">let</span> <span class="ident">x_sqr</span> <span class="op">=</span> <span class="ident">x</span> <span class="op">*</span> <span class="ident">x</span>;
             <span class="kw">if</span> <span class="ident">u</span> <span class="op">&lt;</span> <span class="number">1.0</span> <span class="op">-</span> <span class="number">0.0331</span> <span class="op">*</span> <span class="ident">x_sqr</span> <span class="op">*</span> <span class="ident">x_sqr</span> <span class="op">||</span>
@@ -577,11 +591,11 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{ChiSquared, IndependentSample};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{ChiSquared, Distribution};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let chi = ChiSquared::new(11.0);</span>
-<span class="doccomment">/// let v = chi.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = chi.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from a χ²(11) distribution&quot;, v)</span>
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
@@ -608,21 +622,18 @@
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">k</span> <span class="op">&gt;</span> <span class="number">0.0</span>, <span class="string">&quot;ChiSquared::new called with `k` &lt; 0&quot;</span>);
             <span class="ident">DoFAnythingElse</span>(<span class="ident">Gamma</span>::<span class="ident">new</span>(<span class="number">0.5</span> <span class="op">*</span> <span class="ident">k</span>, <span class="number">2.0</span>))
         };
-        <span class="ident">ChiSquared</span> { <span class="ident">repr</span>: <span class="ident">repr</span> }
+        <span class="ident">ChiSquared</span> { <span class="ident">repr</span> }
     }
 }
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ChiSquared</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ChiSquared</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ChiSquared</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">repr</span> {
             <span class="ident">DoFExactlyOne</span> <span class="op">=&gt;</span> {
                 <span class="comment">// k == 1 =&gt; N(0,1)^2</span>
-                <span class="kw">let</span> <span class="ident">StandardNormal</span>(<span class="ident">norm</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">StandardNormal</span><span class="op">&gt;</span>();
+                <span class="kw">let</span> <span class="ident">norm</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">StandardNormal</span>);
                 <span class="ident">norm</span> <span class="op">*</span> <span class="ident">norm</span>
             }
-            <span class="ident">DoFAnythingElse</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>)
+            <span class="ident">DoFAnythingElse</span>(<span class="kw-2">ref</span> <span class="ident">g</span>) <span class="op">=&gt;</span> <span class="ident">g</span>.<span class="ident">sample</span>(<span class="ident">rng</span>)
         }
     }
 }
@@ -635,11 +646,11 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{FisherF, IndependentSample};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{FisherF, Distribution};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let f = FisherF::new(2.0, 32.0);</span>
-<span class="doccomment">/// let v = f.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = f.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from an F(2, 32) distribution&quot;, v)</span>
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
@@ -665,12 +676,9 @@
         }
     }
 }
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FisherF</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FisherF</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="self">self</span>.<span class="ident">numer</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) <span class="op">/</span> <span class="self">self</span>.<span class="ident">denom</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) <span class="op">*</span> <span class="self">self</span>.<span class="ident">dof_ratio</span>
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FisherF</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="self">self</span>.<span class="ident">numer</span>.<span class="ident">sample</span>(<span class="ident">rng</span>) <span class="op">/</span> <span class="self">self</span>.<span class="ident">denom</span>.<span class="ident">sample</span>(<span class="ident">rng</span>) <span class="op">*</span> <span class="self">self</span>.<span class="ident">dof_ratio</span>
     }
 }
 
@@ -679,11 +687,11 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{StudentT, IndependentSample};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{StudentT, Distribution};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let t = StudentT::new(11.0);</span>
-<span class="doccomment">/// let v = t.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = t.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from a t(11) distribution&quot;, v)</span>
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
@@ -703,46 +711,79 @@
         }
     }
 }
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StudentT</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StudentT</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">let</span> <span class="ident">norm</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">StandardNormal</span>);
+        <span class="ident">norm</span> <span class="op">*</span> (<span class="self">self</span>.<span class="ident">dof</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">chi</span>.<span class="ident">sample</span>(<span class="ident">rng</span>)).<span class="ident">sqrt</span>()
+    }
 }
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StudentT</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="kw">let</span> <span class="ident">StandardNormal</span>(<span class="ident">norm</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">StandardNormal</span><span class="op">&gt;</span>();
-        <span class="ident">norm</span> <span class="op">*</span> (<span class="self">self</span>.<span class="ident">dof</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">chi</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>)).<span class="ident">sqrt</span>()
+
+<span class="doccomment">/// The Beta distribution with shape parameters `alpha` and `beta`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{Distribution, Beta};</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let beta = Beta::new(2.0, 5.0);</span>
+<span class="doccomment">/// let v = beta.sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// println!(&quot;{} is from a Beta(2, 5) distribution&quot;, v);</span>
+<span class="doccomment">/// ```</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Beta</span> {
+    <span class="ident">gamma_a</span>: <span class="ident">Gamma</span>,
+    <span class="ident">gamma_b</span>: <span class="ident">Gamma</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Beta</span> {
+    <span class="doccomment">/// Construct an object representing the `Beta(alpha, beta)`</span>
+    <span class="doccomment">/// distribution.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics if `shape &lt;= 0` or `scale &lt;= 0`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">alpha</span>: <span class="ident">f64</span>, <span class="ident">beta</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">Beta</span> {
+        <span class="macro">assert</span><span class="macro">!</span>((<span class="ident">alpha</span> <span class="op">&gt;</span> <span class="number">0.</span>) <span class="op">&amp;</span> (<span class="ident">beta</span> <span class="op">&gt;</span> <span class="number">0.</span>));
+        <span class="ident">Beta</span> {
+            <span class="ident">gamma_a</span>: <span class="ident">Gamma</span>::<span class="ident">new</span>(<span class="ident">alpha</span>, <span class="number">1.</span>),
+            <span class="ident">gamma_b</span>: <span class="ident">Gamma</span>::<span class="ident">new</span>(<span class="ident">beta</span>, <span class="number">1.</span>),
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Beta</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">gamma_a</span>.<span class="ident">sample</span>(<span class="ident">rng</span>);
+        <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">gamma_b</span>.<span class="ident">sample</span>(<span class="ident">rng</span>);
+        <span class="ident">x</span> <span class="op">/</span> (<span class="ident">x</span> <span class="op">+</span> <span class="ident">y</span>)
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
-    <span class="kw">use</span> <span class="ident">distributions</span>::{<span class="ident">Sample</span>, <span class="ident">IndependentSample</span>};
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ChiSquared</span>, <span class="ident">StudentT</span>, <span class="ident">FisherF</span>};
+    <span class="kw">use</span> <span class="ident">distributions</span>::<span class="ident">Distribution</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Beta</span>, <span class="ident">ChiSquared</span>, <span class="ident">StudentT</span>, <span class="ident">FisherF</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_chi_squared_one</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">1.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">1.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">201</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">chi</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">chi</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_chi_squared_small</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">0.5</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">0.5</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">202</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">chi</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">chi</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_chi_squared_large</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">30.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">chi</span> <span class="op">=</span> <span class="ident">ChiSquared</span>::<span class="ident">new</span>(<span class="number">30.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">203</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">chi</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">chi</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -753,23 +794,36 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_f</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">FisherF</span>::<span class="ident">new</span>(<span class="number">2.0</span>, <span class="number">32.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">FisherF</span>::<span class="ident">new</span>(<span class="number">2.0</span>, <span class="number">32.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">204</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">f</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">f</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_t</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">StudentT</span>::<span class="ident">new</span>(<span class="number">11.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">StudentT</span>::<span class="ident">new</span>(<span class="number">11.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">205</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">t</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">t</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_beta</span>() {
+        <span class="kw">let</span> <span class="ident">beta</span> <span class="op">=</span> <span class="ident">Beta</span>::<span class="ident">new</span>(<span class="number">1.0</span>, <span class="number">2.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">201</span>);
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
+            <span class="ident">beta</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">should_panic</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_beta_invalid_dof</span>() {
+        <span class="ident">Beta</span>::<span class="ident">new</span>(<span class="number">0.</span>, <span class="number">0.</span>);
+    }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,0 +1,1563 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.1.7/src/literal/teddy_ssse3/imp.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>imp.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../regex/index.html'><img src='../../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">/*!
+Teddy is a simd accelerated multiple substring matching algorithm. The name
+and the core ideas in the algorithm were learned from the [Hyperscan][1_u]
+project.
+
+
+Background
+----------
+
+The key idea of Teddy is to do *packed* substring matching. In the literature,
+packed substring matching is the idea of examining multiple bytes in a haystack
+at a time to detect matches. Implementations of, for example, memchr (which
+detects matches of a single byte) have been doing this for years. Only
+recently, with the introduction of various SIMD instructions, has this been
+extended to substring matching. The PCMPESTRI instruction (and its relatives),
+for example, implements substring matching in hardware. It is, however, limited
+to substrings of length 16 bytes or fewer, but this restriction is fine in a
+regex engine, since we rarely care about the performance difference between
+searching for a 16 byte literal and a 16 + N literal; 16 is already long
+enough. The key downside of the PCMPESTRI instruction, on current (2016) CPUs
+at least, is its latency and throughput. As a result, it is often faster to do
+substring search with a Boyer-Moore variant and a well placed memchr to quickly
+skip through the haystack.
+
+There are fewer results from the literature on packed substring matching,
+and even fewer for packed multiple substring matching. Ben-Kiki et al. [2]
+describes use of PCMPESTRI for substring matching, but is mostly theoretical
+and hand-waves performance. There is other theoretical work done by Bille [3]
+as well.
+
+The rest of the work in the field, as far as I&#39;m aware, is by Faro and Kulekci
+and is generally focused on multiple pattern search. Their first paper [4a]
+introduces the concept of a fingerprint, which is computed for every block of
+N bytes in every pattern. The haystack is then scanned N bytes at a time and
+a fingerprint is computed in the same way it was computed for blocks in the
+patterns. If the fingerprint corresponds to one that was found in a pattern,
+then a verification step follows to confirm that one of the substrings with the
+corresponding fingerprint actually matches at the current location. Various
+implementation tricks are employed to make sure the fingerprint lookup is fast;
+typically by truncating the fingerprint. (This may, of course, provoke more
+steps in the verification process, so a balance must be struck.)
+
+The main downside of [4a] is that the minimum substring length is 32 bytes,
+presumably because of how the algorithm uses certain SIMD instructions. This
+essentially makes it useless for general purpose regex matching, where a small
+number of short patterns is far more likely.
+
+Faro and Kulekci published another paper [4b] that is conceptually very similar
+to [4a]. The key difference is that it uses the CRC32 instruction (introduced
+as part of SSE 4.2) to compute fingerprint values. This also enables the
+algorithm to work effectively on substrings as short as 7 bytes with 4 byte
+windows. 7 bytes is unfortunately still too long. The window could be
+technically shrunk to 2 bytes, thereby reducing minimum length to 3, but the
+small window size ends up negating most performance benefits—and it&#39;s likely
+the common case in a general purpose regex engine.
+
+Faro and Kulekci also published [4c] that appears to be intended as a
+replacement to using PCMPESTRI. In particular, it is specifically motivated by
+the high throughput/latency time of PCMPESTRI and therefore chooses other SIMD
+instructions that are faster. While this approach works for short substrings,
+I personally couldn&#39;t see a way to generalize it to multiple substring search.
+
+Faro and Kulekci have another paper [4d] that I haven&#39;t been able to read
+because it is behind a paywall.
+
+
+Teddy
+-----
+
+Finally, we get to Teddy. If the above literature review is complete, then it
+appears that Teddy is a novel algorithm. More than that, in my experience, it
+completely blows away the competition for short substrings, which is exactly
+what we want in a general purpose regex engine. Again, the algorithm appears
+to be developed by the authors of [Hyperscan][1_u]. Hyperscan was open sourced
+late 2015, and no earlier history could be found. Therefore, tracking the exact
+provenance of the algorithm with respect to the published literature seems
+difficult.
+
+DISCLAIMER: My understanding of Teddy is limited to reading auto-generated C
+code, its disassembly and observing its runtime behavior.
+
+At a high level, Teddy works somewhat similarly to the fingerprint algorithms
+published by Faro and Kulekci, but Teddy does it in a way that scales a bit
+better. Namely:
+
+1. Teddy&#39;s core algorithm scans the haystack in 16 byte chunks. 16 is
+   significant because it corresponds to the number of bytes in a SIMD vector.
+   If one used AVX2 instructions, then we could scan the haystack in 32 byte
+   chunks. Similarly, if one used AVX512 instructions, we could scan the
+   haystack in 64 byte chunks. Hyperscan implements SSE + AVX2, we only
+   implement SSE for the moment.
+2. Bitwise operations are performed on each chunk to discover if any region of
+   it matches a set of precomputed fingerprints from the patterns. If there are
+   matches, then a verification step is performed. In this implementation, our
+   verification step is naive. This can be improved upon.
+
+The details to make this work are quite clever. First, we must choose how to
+pick our fingerprints. In Hyperscan&#39;s implementation, I *believe* they use the
+last N bytes of each substring, where N must be at least the minimum length of
+any substring in the set being searched. In this implementation, we use the
+first N bytes of each substring. (The tradeoffs between these choices aren&#39;t
+yet clear to me.) We then must figure out how to quickly test whether an
+occurrence of any fingerprint from the set of patterns appears in a 16 byte
+block from the haystack. To keep things simple, let&#39;s assume N = 1 and examine
+some examples to motivate the approach. Here are our patterns:
+
+```ignore
+foo
+bar
+baz
+```
+
+The corresponding fingerprints, for N = 1, are `f`, `b` and `b`. Now let&#39;s set
+our 16 byte block to:
+
+```ignore
+bat cat foo bump
+xxxxxxxxxxxxxxxx
+```
+
+To cut to the chase, Teddy works by using bitsets. In particular, Teddy creates
+a mask that allows us to quickly compute membership of a fingerprint in a 16
+byte block that also tells which pattern the fingerprint corresponds to. In
+this case, our fingerprint is a single byte, so an appropriate abstraction is
+a map from a single byte to a list of patterns that contain that fingerprint:
+
+```ignore
+f |--&gt; foo
+b |--&gt; bar, baz
+```
+
+Now, all we need to do is figure out how to represent this map in vector space
+and use normal SIMD operations to perform a lookup. The first simplification
+we can make is to represent our patterns as bit fields occupying a single
+byte. This is important, because a single SIMD vector can store 16 bytes.
+
+```ignore
+f |--&gt; 00000001
+b |--&gt; 00000010, 00000100
+```
+
+How do we perform lookup though? It turns out that SSSE3 introduced a very cool
+instruction called PSHUFB. The instruction takes two SIMD vectors, `A` and `B`,
+and returns a third vector `C`. All vectors are treated as 16 8-bit integers.
+`C` is formed by `C[i] = A[B[i]]`. (This is a bit of a simplification, but true
+for the purposes of this algorithm. For full details, see [Intel&#39;s Intrinsics
+Guide][5_u].) This essentially lets us use the values in `B` to lookup values
+in `A`.
+
+If we could somehow cause `B` to contain our 16 byte block from the haystack,
+and if `A` could contain our bitmasks, then we&#39;d end up with something like
+this for `A`:
+
+```ignore
+    0x00 0x01 ... 0x62      ... 0x66      ... 0xFF
+A = 0    0        00000110      00000001      0
+```
+
+And if `B` contains our window from our haystack, we could use shuffle to take
+the values from `B` and use them to look up our bitsets in `A`. But of course,
+we can&#39;t do this because `A` in the above example contains 256 bytes, which
+is much larger than the size of a SIMD vector.
+
+Nybbles to the rescue! A nybble is 4 bits. Instead of one mask to hold all of
+our bitsets, we can use two masks, where one mask corresponds to the lower four
+bits of our fingerprint and the other mask corresponds to the upper four bits.
+So our map now looks like:
+
+```ignore
+&#39;f&#39; &amp; 0xF = 0x6 |--&gt; 00000001
+&#39;f&#39; &gt;&gt; 4  = 0x6 |--&gt; 00000111
+&#39;b&#39; &amp; 0xF = 0x2 |--&gt; 00000110
+&#39;b&#39; &gt;&gt; 4  = 0x6 |--&gt; 00000111
+```
+
+Notice that the bitsets for each nybble correspond to the union of all
+fingerprints that contain that nybble. For example, both `f` and `b` have the
+same upper 4 bits but differ on the lower 4 bits. Putting this together, we
+have `A0`, `A1` and `B`, where `A0` is our mask for the lower nybble, `A1` is
+our mask for the upper nybble and `B` is our 16 byte block from the haystack:
+
+```ignore
+      0x00 0x01 0x02      0x03 ... 0x06      ... 0xF
+A0 =  0    0    00000110  0        00000001      0
+A1 =  0    0    0         0        00000111      0
+B  =  b    a    t         _        t             p
+B  =  0x62 0x61 0x74      0x20     0x74          0x70
+```
+
+But of course, we can&#39;t use `B` with `PSHUFB` yet, since its values are 8 bits,
+and we need indexes that are at most 4 bits (corresponding to one of 16
+values). We can apply the same transformation to split `B` into lower and upper
+nybbles as we did `A`. As before, `B0` corresponds to the lower nybbles and
+`B1` corresponds to the upper nybbles:
+
+```ignore
+     b   a   t   _   c   a   t   _   f   o   o   _   b   u   m   p
+B0 = 0x2 0x1 0x4 0x0 0x3 0x1 0x4 0x0 0x6 0xF 0xF 0x0 0x2 0x5 0xD 0x0
+B1 = 0x6 0x6 0x7 0x2 0x6 0x6 0x7 0x2 0x6 0x6 0x6 0x2 0x6 0x7 0x6 0x7
+```
+
+And now we have a nice correspondence. `B0` can index `A0` and `B1` can index
+`A1`. Here&#39;s what we get when we apply `C0 = PSHUFB(A0, B0)`:
+
+```ignore
+     b         a        ... f         o         ... p
+     A0[0x2]   A0[0x1]      A0[0x6]   A0[0xF]       A0[0x0]
+C0 = 00000110  0            00000001  0             0
+```
+
+And `C1 = PSHUFB(A1, B1)`:
+
+```ignore
+     b         a        ... f         o        ... p
+     A1[0x6]   A1[0x6]      A1[0x6]   A1[0x6]      A1[0x7]
+C1 = 00000111  00000111     00000111  00000111     0
+```
+
+Notice how neither one of `C0` or `C1` is guaranteed to report fully correct
+results all on its own. For example, `C1` claims that `b` is a fingerprint for
+the pattern `foo` (since `A1[0x6] = 00000111`), and that `o` is a fingerprint
+for all of our patterns. But if we combined `C0` and `C1` with an `AND`
+operation:
+
+```ignore
+     b         a        ... f         o        ... p
+C  = 00000110  0            00000001  0            0
+```
+
+Then we now have that `C[i]` contains a bitset corresponding to the matching
+fingerprints in a haystack&#39;s 16 byte block, where `i` is the `ith` byte in that
+block.
+
+Once we have that, we can look for the position of the least significant bit
+in `C`. That position, modulo `8`, gives us the pattern that the fingerprint
+matches. That position, integer divided by `8`, also gives us the byte offset
+that the fingerprint occurs in inside the 16 byte haystack block. Using those
+two pieces of information, we can run a verification procedure that tries
+to match all substrings containing that fingerprint at that position in the
+haystack.
+
+
+Implementation notes
+--------------------
+
+The problem with the algorithm as described above is that it uses a single byte
+for a fingerprint. This will work well if the fingerprints are rare in the
+haystack (e.g., capital letters or special characters in normal English text),
+but if the fingerprints are common, you&#39;ll wind up spending too much time in
+the verification step, which effectively negate the performance benefits of
+scanning 16 bytes at a time. Remember, the key to the performance of this
+algorithm is to do as little work as possible per 16 bytes.
+
+This algorithm can be extrapolated in a relatively straight-forward way to use
+larger fingerprints. That is, instead of a single byte prefix, we might use a
+three byte prefix. The implementation below implements N = {1, 2, 3} and always
+picks the largest N possible. The rationale is that the bigger the fingerprint,
+the fewer verification steps we&#39;ll do. Of course, if N is too large, then we&#39;ll
+end up doing too much on each step.
+
+The way to extend it is:
+
+1. Add a mask for each byte in the fingerprint. (Remember that each mask is
+   composed of two SIMD vectors.) This results in a value of `C` for each byte
+   in the fingerprint while searching.
+2. When testing each 16 byte block, each value of `C` must be shifted so that
+   they are aligned. Once aligned, they should all be `AND`&#39;d together. This
+   will give you only the bitsets corresponding to the full match of the
+   fingerprint.
+
+The implementation below is commented to fill in the nitty gritty details.
+
+References
+----------
+
+- **[1]** [Hyperscan on GitHub](https://github.com/01org/hyperscan),
+    [webpage](https://01.org/hyperscan)
+- **[2a]** Ben-Kiki, O., Bille, P., Breslauer, D., Gasieniec, L., Grossi, R.,
+    &amp; Weimann, O. (2011).
+    _Optimal packed string matching_.
+    In LIPIcs-Leibniz International Proceedings in Informatics (Vol. 13).
+    Schloss Dagstuhl-Leibniz-Zentrum fuer Informatik.
+    DOI: 10.4230/LIPIcs.FSTTCS.2011.423.
+    [PDF](http://drops.dagstuhl.de/opus/volltexte/2011/3355/pdf/37.pdf).
+- **[2b]** Ben-Kiki, O., Bille, P., Breslauer, D., Ga̧sieniec, L., Grossi, R.,
+    &amp; Weimann, O. (2014).
+    _Towards optimal packed string matching_.
+    Theoretical Computer Science, 525, 111-129.
+    DOI: 10.1016/j.tcs.2013.06.013.
+    [PDF](http://www.cs.haifa.ac.il/~oren/Publications/bpsm.pdf).
+- **[3]** Bille, P. (2011).
+    _Fast searching in packed strings_.
+    Journal of Discrete Algorithms, 9(1), 49-56.
+    DOI: 10.1016/j.jda.2010.09.003.
+    [PDF](http://www.sciencedirect.com/science/article/pii/S1570866710000353).
+- **[4a]** Faro, S., &amp; Külekci, M. O. (2012, October).
+    _Fast multiple string matching using streaming SIMD extensions technology_.
+    In String Processing and Information Retrieval (pp. 217-228).
+    Springer Berlin Heidelberg.
+    DOI: 10.1007/978-3-642-34109-0_23.
+    [PDF](http://www.dmi.unict.it/~faro/papers/conference/faro32.pdf).
+- **[4b]** Faro, S., &amp; Külekci, M. O. (2013, September).
+    _Towards a Very Fast Multiple String Matching Algorithm for Short Patterns_.
+    In Stringology (pp. 78-91).
+    [PDF](http://www.dmi.unict.it/~faro/papers/conference/faro36.pdf).
+- **[4c]** Faro, S., &amp; Külekci, M. O. (2013, January).
+    _Fast packed string matching for short patterns_.
+    In Proceedings of the Meeting on Algorithm Engineering &amp; Expermiments
+    (pp. 113-121).
+    Society for Industrial and Applied Mathematics.
+    [PDF](http://arxiv.org/pdf/1209.6449.pdf).
+- **[4d]** Faro, S., &amp; Külekci, M. O. (2014).
+    _Fast and flexible packed string matching_.
+    Journal of Discrete Algorithms, 28, 61-72.
+    DOI: 10.1016/j.jda.2014.07.003.
+
+[1_u]: https://github.com/01org/hyperscan
+[5_u]: https://software.intel.com/sites/landingpage/IntrinsicsGuide
+*/</span>
+
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
+
+<span class="kw">use</span> <span class="ident">aho_corasick</span>::{<span class="ident">AhoCorasick</span>, <span class="ident">AhoCorasickBuilder</span>};
+<span class="kw">use</span> <span class="ident">syntax</span>::<span class="ident">hir</span>::<span class="ident">literal</span>::<span class="ident">Literals</span>;
+
+<span class="kw">use</span> <span class="ident">vector</span>::<span class="ident">ssse3</span>::{<span class="ident">SSSE3VectorBuilder</span>, <span class="ident">u8x16</span>};
+
+<span class="doccomment">/// Corresponds to the number of bytes read at a time in the haystack.</span>
+<span class="kw">const</span> <span class="ident">BLOCK_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">16</span>;
+
+<span class="doccomment">/// Match reports match information.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Match</span> {
+    <span class="doccomment">/// The index of the pattern that matched. The index is in correspondence</span>
+    <span class="doccomment">/// with the order of the patterns given at construction.</span>
+    <span class="kw">pub</span> <span class="ident">pat</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// The start byte offset of the match.</span>
+    <span class="kw">pub</span> <span class="ident">start</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// The end byte offset of the match. This is always `start + pat.len()`.</span>
+    <span class="kw">pub</span> <span class="ident">end</span>: <span class="ident">usize</span>,
+}
+
+<span class="doccomment">/// A SIMD accelerated multi substring searcher.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Teddy</span> {
+    <span class="doccomment">/// A builder for SSSE3 empowered vectors.</span>
+    <span class="ident">vb</span>: <span class="ident">SSSE3VectorBuilder</span>,
+    <span class="doccomment">/// A list of substrings to match.</span>
+    <span class="ident">pats</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>,
+    <span class="doccomment">/// An Aho-Corasick automaton of the patterns. We use this when we need to</span>
+    <span class="doccomment">/// search pieces smaller than the Teddy block size.</span>
+    <span class="ident">ac</span>: <span class="ident">AhoCorasick</span>,
+    <span class="doccomment">/// A set of 8 buckets. Each bucket corresponds to a single member of a</span>
+    <span class="doccomment">/// bitset. A bucket contains zero or more substrings. This is useful</span>
+    <span class="doccomment">/// when the number of substrings exceeds 8, since our bitsets cannot have</span>
+    <span class="doccomment">/// more than 8 members.</span>
+    <span class="ident">buckets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;&gt;</span>,
+    <span class="doccomment">/// Our set of masks. There&#39;s one mask for each byte in the fingerprint.</span>
+    <span class="ident">masks</span>: <span class="ident">Masks</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Teddy</span> {
+    <span class="doccomment">/// Returns true if and only if Teddy is supported on this platform.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If this returns `false`, then `Teddy::new(...)` is guaranteed to</span>
+    <span class="doccomment">/// return `None`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">available</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">SSSE3VectorBuilder</span>::<span class="ident">new</span>().<span class="ident">is_some</span>()
+    }
+
+    <span class="doccomment">/// Create a new `Teddy` multi substring matcher.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If a `Teddy` matcher could not be created (e.g., `pats` is empty or has</span>
+    <span class="doccomment">/// an empty substring), then `None` is returned.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">pats</span>: <span class="kw-2">&amp;</span><span class="ident">Literals</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Teddy</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">vb</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">SSSE3VectorBuilder</span>::<span class="ident">new</span>() {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+            <span class="prelude-val">Some</span>(<span class="ident">vb</span>) <span class="op">=&gt;</span> <span class="ident">vb</span>,
+        };
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">Teddy</span>::<span class="ident">available</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let</span> <span class="ident">pats</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">pats</span>.<span class="ident">literals</span>().<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span><span class="ident">p</span>.<span class="ident">to_vec</span>()).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">min_len</span> <span class="op">=</span> <span class="ident">pats</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="ident">p</span>.<span class="ident">len</span>()).<span class="ident">min</span>().<span class="ident">unwrap_or</span>(<span class="number">0</span>);
+        <span class="comment">// Don&#39;t allow any empty patterns and require that we have at</span>
+        <span class="comment">// least one pattern.</span>
+        <span class="kw">if</span> <span class="ident">min_len</span> <span class="op">&lt;</span> <span class="number">1</span> {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+        <span class="comment">// Pick the largest mask possible, but no larger than 3.</span>
+        <span class="kw">let</span> <span class="ident">nmasks</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="number">3</span>, <span class="ident">min_len</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">masks</span> <span class="op">=</span> <span class="ident">Masks</span>::<span class="ident">new</span>(<span class="ident">vb</span>, <span class="ident">nmasks</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buckets</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">vec</span><span class="macro">!</span>[]; <span class="number">8</span>];
+        <span class="comment">// Assign a substring to each bucket, and add the bucket&#39;s bitfield to</span>
+        <span class="comment">// the appropriate position in the mask.</span>
+        <span class="kw">for</span> (<span class="ident">pati</span>, <span class="ident">pat</span>) <span class="kw">in</span> <span class="ident">pats</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+            <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">pati</span> <span class="op">%</span> <span class="number">8</span>;
+            <span class="ident">buckets</span>[<span class="ident">bucket</span>].<span class="ident">push</span>(<span class="ident">pati</span>);
+            <span class="ident">masks</span>.<span class="ident">add</span>(<span class="ident">bucket</span> <span class="kw">as</span> <span class="ident">u8</span>, <span class="ident">pat</span>);
+        }
+        <span class="kw">let</span> <span class="ident">ac</span> <span class="op">=</span> <span class="ident">AhoCorasickBuilder</span>::<span class="ident">new</span>()
+            .<span class="ident">dfa</span>(<span class="bool-val">true</span>)
+            .<span class="ident">prefilter</span>(<span class="bool-val">false</span>)
+            .<span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="ident">pats</span>);
+        <span class="prelude-val">Some</span>(<span class="ident">Teddy</span> {
+            <span class="ident">vb</span>: <span class="ident">vb</span>,
+            <span class="ident">pats</span>: <span class="ident">pats</span>.<span class="ident">to_vec</span>(),
+            <span class="ident">ac</span>: <span class="ident">ac</span>,
+            <span class="ident">buckets</span>: <span class="ident">buckets</span>,
+            <span class="ident">masks</span>: <span class="ident">masks</span>,
+        })
+    }
+
+    <span class="doccomment">/// Returns all of the substrings matched by this `Teddy`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">patterns</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">pats</span>
+    }
+
+    <span class="doccomment">/// Returns the number of substrings in this matcher.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">pats</span>.<span class="ident">len</span>()
+    }
+
+    <span class="doccomment">/// Returns the approximate size on the heap used by this matcher.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">approximate_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">pats</span>.<span class="ident">iter</span>().<span class="ident">fold</span>(<span class="number">0</span>, <span class="op">|</span><span class="ident">a</span>, <span class="ident">b</span><span class="op">|</span> <span class="ident">a</span> <span class="op">+</span> <span class="ident">b</span>.<span class="ident">len</span>())
+    }
+
+    <span class="doccomment">/// Searches `haystack` for the substrings in this `Teddy`. If a match was</span>
+    <span class="doccomment">/// found, then it is returned. Otherwise, `None` is returned.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="comment">// This is safe because the only way we can construct a Teddy type</span>
+        <span class="comment">// is if SSSE3 is available.</span>
+        <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">find_impl</span>(<span class="ident">haystack</span>) }
+    }
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_attributes</span>)]</span>
+    <span class="attribute">#[<span class="ident">target_feature</span>(<span class="ident">enable</span> <span class="op">=</span> <span class="string">&quot;ssse3&quot;</span>)]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">find_impl</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="comment">// If our haystack is smaller than the block size, then fall back to</span>
+        <span class="comment">// a naive brute force search.</span>
+        <span class="kw">if</span> <span class="ident">haystack</span>.<span class="ident">is_empty</span>() <span class="op">||</span> <span class="ident">haystack</span>.<span class="ident">len</span>() <span class="op">&lt;</span> (<span class="ident">BLOCK_SIZE</span> <span class="op">+</span> <span class="number">2</span>) {
+            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">slow</span>(<span class="ident">haystack</span>, <span class="number">0</span>);
+        }
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">masks</span>.<span class="ident">len</span>() {
+            <span class="number">0</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="number">1</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">find1</span>(<span class="ident">haystack</span>),
+            <span class="number">2</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">find2</span>(<span class="ident">haystack</span>),
+            <span class="number">3</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">find3</span>(<span class="ident">haystack</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+        }
+    }
+
+    <span class="doccomment">/// `find1` is used when there is only 1 mask. This is the easy case and is</span>
+    <span class="doccomment">/// pretty much as described in the module documentation.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">find1</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">zero</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0</span>);
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">len</span>();
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">len</span> <span class="op">&gt;=</span> <span class="ident">BLOCK_SIZE</span>);
+        <span class="kw">while</span> <span class="ident">pos</span> <span class="op">&lt;=</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">BLOCK_SIZE</span> {
+            <span class="kw">let</span> <span class="ident">h</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                <span class="comment">// I tried and failed to eliminate bounds checks in safe code.</span>
+                <span class="comment">// This is safe because of our loop invariant: pos is always</span>
+                <span class="comment">// &lt;= len-16.</span>
+                <span class="kw">let</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">get_unchecked</span>(<span class="ident">pos</span>..);
+                <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_load_unchecked_unaligned</span>(<span class="ident">p</span>)
+            };
+            <span class="comment">// N.B. `res0` is our `C` in the module documentation.</span>
+            <span class="kw">let</span> <span class="ident">res0</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">masks</span>.<span class="ident">members1</span>(<span class="ident">h</span>);
+            <span class="comment">// Only do expensive verification if there are any non-zero bits.</span>
+            <span class="kw">let</span> <span class="ident">bitfield</span> <span class="op">=</span> <span class="ident">res0</span>.<span class="ident">ne</span>(<span class="ident">zero</span>).<span class="ident">movemask</span>();
+            <span class="kw">if</span> <span class="ident">bitfield</span> <span class="op">!=</span> <span class="number">0</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>, <span class="ident">res0</span>, <span class="ident">bitfield</span>) {
+                    <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>);
+                }
+            }
+            <span class="ident">pos</span> <span class="op">+=</span> <span class="ident">BLOCK_SIZE</span>;
+        }
+        <span class="self">self</span>.<span class="ident">slow</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>)
+    }
+
+    <span class="doccomment">/// `find2` is used when there are 2 masks, e.g., the fingerprint is 2 bytes</span>
+    <span class="doccomment">/// long.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">find2</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="comment">// This is an exotic way to right shift a SIMD vector across lanes.</span>
+        <span class="comment">// See below at use for more details.</span>
+        <span class="kw">let</span> <span class="ident">zero</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0</span>);
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">len</span>();
+        <span class="comment">// The previous value of `C` (from the module documentation) for the</span>
+        <span class="comment">// *first* byte in the fingerprint. On subsequent iterations, we take</span>
+        <span class="comment">// the last bitset from the previous `C` and insert it into the first</span>
+        <span class="comment">// position of the current `C`, shifting all other bitsets to the right</span>
+        <span class="comment">// one lane. This causes `C` for the first byte to line up with `C` for</span>
+        <span class="comment">// the second byte, so that they can be `AND`&#39;d together.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev0</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xFF</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">1</span>;
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">len</span> <span class="op">&gt;=</span> <span class="ident">BLOCK_SIZE</span>);
+        <span class="kw">while</span> <span class="ident">pos</span> <span class="op">&lt;=</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">BLOCK_SIZE</span> {
+            <span class="kw">let</span> <span class="ident">h</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                <span class="comment">// I tried and failed to eliminate bounds checks in safe code.</span>
+                <span class="comment">// This is safe because of our loop invariant: pos is always</span>
+                <span class="comment">// &lt;= len-16.</span>
+                <span class="kw">let</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">get_unchecked</span>(<span class="ident">pos</span>..);
+                <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_load_unchecked_unaligned</span>(<span class="ident">p</span>)
+            };
+            <span class="kw">let</span> (<span class="ident">res0</span>, <span class="ident">res1</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">masks</span>.<span class="ident">members2</span>(<span class="ident">h</span>);
+
+            <span class="comment">// Do this:</span>
+            <span class="comment">//</span>
+            <span class="comment">//     (prev0 &lt;&lt; 15) | (res0 &gt;&gt; 1)</span>
+            <span class="comment">//</span>
+            <span class="comment">// This lets us line up our C values for each byte.</span>
+            <span class="kw">let</span> <span class="ident">res0prev0</span> <span class="op">=</span> <span class="ident">res0</span>.<span class="ident">alignr_15</span>(<span class="ident">prev0</span>);
+
+            <span class="comment">// `AND`&#39;s our `C` values together.</span>
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">res0prev0</span>.<span class="ident">and</span>(<span class="ident">res1</span>);
+            <span class="ident">prev0</span> <span class="op">=</span> <span class="ident">res0</span>;
+
+            <span class="kw">let</span> <span class="ident">bitfield</span> <span class="op">=</span> <span class="ident">res</span>.<span class="ident">ne</span>(<span class="ident">zero</span>).<span class="ident">movemask</span>();
+            <span class="kw">if</span> <span class="ident">bitfield</span> <span class="op">!=</span> <span class="number">0</span> {
+                <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">pos</span>.<span class="ident">checked_sub</span>(<span class="number">1</span>).<span class="ident">unwrap</span>();
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>, <span class="ident">res</span>, <span class="ident">bitfield</span>) {
+                    <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>);
+                }
+            }
+            <span class="ident">pos</span> <span class="op">+=</span> <span class="ident">BLOCK_SIZE</span>;
+        }
+        <span class="comment">// The windowing above doesn&#39;t check the last byte in the last</span>
+        <span class="comment">// window, so start the slow search at the last byte of the last</span>
+        <span class="comment">// window.</span>
+        <span class="self">self</span>.<span class="ident">slow</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>.<span class="ident">checked_sub</span>(<span class="number">1</span>).<span class="ident">unwrap</span>())
+    }
+
+    <span class="doccomment">/// `find3` is used when there are 3 masks, e.g., the fingerprint is 3 bytes</span>
+    <span class="doccomment">/// long.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// N.B. This is a straight-forward extrapolation of `find2`. The only</span>
+    <span class="doccomment">/// difference is that we need to keep track of two previous values of `C`,</span>
+    <span class="doccomment">/// since we now need to align for three bytes.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">find3</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">zero</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0</span>);
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev0</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xFF</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev1</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xFF</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">2</span>;
+        <span class="kw">while</span> <span class="ident">pos</span> <span class="op">&lt;=</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">BLOCK_SIZE</span> {
+            <span class="kw">let</span> <span class="ident">h</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                <span class="comment">// I tried and failed to eliminate bounds checks in safe code.</span>
+                <span class="comment">// This is safe because of our loop invariant: pos is always</span>
+                <span class="comment">// &lt;= len-16.</span>
+                <span class="kw">let</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">haystack</span>.<span class="ident">get_unchecked</span>(<span class="ident">pos</span>..);
+                <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_load_unchecked_unaligned</span>(<span class="ident">p</span>)
+            };
+            <span class="kw">let</span> (<span class="ident">res0</span>, <span class="ident">res1</span>, <span class="ident">res2</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">masks</span>.<span class="ident">members3</span>(<span class="ident">h</span>);
+
+            <span class="kw">let</span> <span class="ident">res0prev0</span> <span class="op">=</span> <span class="ident">res0</span>.<span class="ident">alignr_14</span>(<span class="ident">prev0</span>);
+            <span class="kw">let</span> <span class="ident">res1prev1</span> <span class="op">=</span> <span class="ident">res1</span>.<span class="ident">alignr_15</span>(<span class="ident">prev1</span>);
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">res0prev0</span>.<span class="ident">and</span>(<span class="ident">res1prev1</span>).<span class="ident">and</span>(<span class="ident">res2</span>);
+
+            <span class="ident">prev0</span> <span class="op">=</span> <span class="ident">res0</span>;
+            <span class="ident">prev1</span> <span class="op">=</span> <span class="ident">res1</span>;
+
+            <span class="kw">let</span> <span class="ident">bitfield</span> <span class="op">=</span> <span class="ident">res</span>.<span class="ident">ne</span>(<span class="ident">zero</span>).<span class="ident">movemask</span>();
+            <span class="kw">if</span> <span class="ident">bitfield</span> <span class="op">!=</span> <span class="number">0</span> {
+                <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">pos</span>.<span class="ident">checked_sub</span>(<span class="number">2</span>).<span class="ident">unwrap</span>();
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>, <span class="ident">res</span>, <span class="ident">bitfield</span>) {
+                    <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>);
+                }
+            }
+            <span class="ident">pos</span> <span class="op">+=</span> <span class="ident">BLOCK_SIZE</span>;
+        }
+        <span class="comment">// The windowing above doesn&#39;t check the last two bytes in the last</span>
+        <span class="comment">// window, so start the slow search at the penultimate byte of the</span>
+        <span class="comment">// last window.</span>
+        <span class="comment">// self.slow(haystack, pos.saturating_sub(2))</span>
+        <span class="self">self</span>.<span class="ident">slow</span>(<span class="ident">haystack</span>, <span class="ident">pos</span>.<span class="ident">checked_sub</span>(<span class="number">2</span>).<span class="ident">unwrap</span>())
+    }
+
+    <span class="doccomment">/// Runs the verification procedure on `res` (i.e., `C` from the module</span>
+    <span class="doccomment">/// documentation), where the haystack block starts at `pos` in</span>
+    <span class="doccomment">/// `haystack`. `bitfield` has ones in the bit positions that `res` has</span>
+    <span class="doccomment">/// non-zero bytes.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If a match exists, it returns the first one.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">verify</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">pos</span>: <span class="ident">usize</span>,
+        <span class="ident">res</span>: <span class="ident">u8x16</span>,
+        <span class="kw-2">mut</span> <span class="ident">bitfield</span>: <span class="ident">u32</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="kw">while</span> <span class="ident">bitfield</span> <span class="op">!=</span> <span class="number">0</span> {
+            <span class="comment">// The next offset, relative to pos, where some fingerprint</span>
+            <span class="comment">// matched.</span>
+            <span class="kw">let</span> <span class="ident">byte_pos</span> <span class="op">=</span> <span class="ident">bitfield</span>.<span class="ident">trailing_zeros</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+            <span class="ident">bitfield</span> <span class="op">&amp;=</span> <span class="op">!</span>(<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">byte_pos</span>);
+
+            <span class="comment">// Offset relative to the beginning of the haystack.</span>
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">pos</span> <span class="op">+</span> <span class="ident">byte_pos</span>;
+
+            <span class="comment">// The bitfield telling us which patterns had fingerprints that</span>
+            <span class="comment">// match at this starting position.</span>
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">patterns</span> <span class="op">=</span> <span class="ident">res</span>.<span class="ident">extract</span>(<span class="ident">byte_pos</span>);
+            <span class="kw">while</span> <span class="ident">patterns</span> <span class="op">!=</span> <span class="number">0</span> {
+                <span class="kw">let</span> <span class="ident">bucket</span> <span class="op">=</span> <span class="ident">patterns</span>.<span class="ident">trailing_zeros</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+                <span class="ident">patterns</span> <span class="op">&amp;=</span> <span class="op">!</span>(<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">bucket</span>);
+
+                <span class="comment">// Actual substring search verification.</span>
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">verify_bucket</span>(<span class="ident">haystack</span>, <span class="ident">bucket</span>, <span class="ident">start</span>) {
+                    <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">m</span>);
+                }
+            }
+        }
+
+        <span class="prelude-val">None</span>
+    }
+
+    <span class="doccomment">/// Verifies whether any substring in the given bucket matches in haystack</span>
+    <span class="doccomment">/// at the given starting position.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">verify_bucket</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">bucket</span>: <span class="ident">usize</span>,
+        <span class="ident">start</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="comment">// This cycles through the patterns in the bucket in the order that</span>
+        <span class="comment">// the patterns were given. Therefore, we guarantee leftmost-first</span>
+        <span class="comment">// semantics.</span>
+        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">pati</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">buckets</span>[<span class="ident">bucket</span>] {
+            <span class="kw">let</span> <span class="ident">pat</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">pats</span>[<span class="ident">pati</span>];
+            <span class="kw">if</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">pat</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">haystack</span>.<span class="ident">len</span>() {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if</span> <span class="ident">pat</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">haystack</span>[<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">pat</span>.<span class="ident">len</span>()] {
+                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">Match</span> {
+                    <span class="ident">pat</span>: <span class="ident">pati</span>,
+                    <span class="ident">start</span>: <span class="ident">start</span>,
+                    <span class="ident">end</span>: <span class="ident">start</span> <span class="op">+</span> <span class="ident">pat</span>.<span class="ident">len</span>(),
+                });
+            }
+        }
+        <span class="prelude-val">None</span>
+    }
+
+    <span class="doccomment">/// Slow substring search through all patterns in this matcher.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is used when we don&#39;t have enough bytes in the haystack for our</span>
+    <span class="doccomment">/// block based approach.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">never</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">slow</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">pos</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Match</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">ac</span>.<span class="ident">find</span>(<span class="kw-2">&amp;</span><span class="ident">haystack</span>[<span class="ident">pos</span>..]).<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> {
+            <span class="ident">Match</span> {
+                <span class="ident">pat</span>: <span class="ident">m</span>.<span class="ident">pattern</span>(),
+                <span class="ident">start</span>: <span class="ident">pos</span> <span class="op">+</span> <span class="ident">m</span>.<span class="ident">start</span>(),
+                <span class="ident">end</span>: <span class="ident">pos</span> <span class="op">+</span> <span class="ident">m</span>.<span class="ident">end</span>(),
+            }
+        })
+    }
+}
+
+<span class="doccomment">/// A list of masks. This has length equal to the length of the fingerprint.</span>
+<span class="doccomment">/// The length of the fingerprint is always `min(3, len(smallest_substring))`.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="kw">struct</span> <span class="ident">Masks</span> {
+    <span class="ident">vb</span>: <span class="ident">SSSE3VectorBuilder</span>,
+    <span class="ident">masks</span>: [<span class="ident">Mask</span>; <span class="number">3</span>],
+    <span class="ident">size</span>: <span class="ident">usize</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Masks</span> {
+    <span class="doccomment">/// Create a new set of masks of size `n`, where `n` corresponds to the</span>
+    <span class="doccomment">/// number of bytes in a fingerprint.</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">vb</span>: <span class="ident">SSSE3VectorBuilder</span>, <span class="ident">n</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Masks</span> {
+        <span class="ident">Masks</span> {
+            <span class="ident">vb</span>: <span class="ident">vb</span>,
+            <span class="ident">masks</span>: [<span class="ident">Mask</span>::<span class="ident">new</span>(<span class="ident">vb</span>), <span class="ident">Mask</span>::<span class="ident">new</span>(<span class="ident">vb</span>), <span class="ident">Mask</span>::<span class="ident">new</span>(<span class="ident">vb</span>)],
+            <span class="ident">size</span>: <span class="ident">n</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the number of masks.</span>
+    <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">size</span>
+    }
+
+    <span class="doccomment">/// Adds the given pattern to the given bucket. The bucket should be a</span>
+    <span class="doccomment">/// power of `2 &lt;= 2^7`.</span>
+    <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">bucket</span>: <span class="ident">u8</span>, <span class="ident">pat</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) {
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">len</span>() {
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="ident">i</span>].<span class="ident">add</span>(<span class="ident">bucket</span>, <span class="ident">pat</span>[<span class="ident">i</span>]);
+        }
+    }
+
+    <span class="doccomment">/// Finds the fingerprints that are in the given haystack block. i.e., this</span>
+    <span class="doccomment">/// returns `C` as described in the module documentation.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// More specifically, `for i in 0..16` and `j in 0..8, C[i][j] == 1` if and</span>
+    <span class="doccomment">/// only if `haystack_block[i]` corresponds to a fingerprint that is part</span>
+    <span class="doccomment">/// of a pattern in bucket `j`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">members1</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack_block</span>: <span class="ident">u8x16</span>) <span class="op">-&gt;</span> <span class="ident">u8x16</span> {
+        <span class="kw">let</span> <span class="ident">masklo</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xF</span>);
+        <span class="kw">let</span> <span class="ident">hlo</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">and</span>(<span class="ident">masklo</span>);
+        <span class="kw">let</span> <span class="ident">hhi</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">bit_shift_right_4</span>().<span class="ident">and</span>(<span class="ident">masklo</span>);
+
+        <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>))
+    }
+
+    <span class="doccomment">/// Like members1, but computes C for the first and second bytes in the</span>
+    <span class="doccomment">/// fingerprint.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">members2</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack_block</span>: <span class="ident">u8x16</span>) <span class="op">-&gt;</span> (<span class="ident">u8x16</span>, <span class="ident">u8x16</span>) {
+        <span class="kw">let</span> <span class="ident">masklo</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xF</span>);
+        <span class="kw">let</span> <span class="ident">hlo</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">and</span>(<span class="ident">masklo</span>);
+        <span class="kw">let</span> <span class="ident">hhi</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">bit_shift_right_4</span>().<span class="ident">and</span>(<span class="ident">masklo</span>);
+
+        <span class="kw">let</span> <span class="ident">res0</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>));
+        <span class="kw">let</span> <span class="ident">res1</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">1</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">1</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>));
+        (<span class="ident">res0</span>, <span class="ident">res1</span>)
+    }
+
+    <span class="doccomment">/// Like `members1`, but computes `C` for the first, second and third bytes</span>
+    <span class="doccomment">/// in the fingerprint.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">members3</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">haystack_block</span>: <span class="ident">u8x16</span>) <span class="op">-&gt;</span> (<span class="ident">u8x16</span>, <span class="ident">u8x16</span>, <span class="ident">u8x16</span>) {
+        <span class="kw">let</span> <span class="ident">masklo</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0xF</span>);
+        <span class="kw">let</span> <span class="ident">hlo</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">and</span>(<span class="ident">masklo</span>);
+        <span class="kw">let</span> <span class="ident">hhi</span> <span class="op">=</span> <span class="ident">haystack_block</span>.<span class="ident">bit_shift_right_4</span>().<span class="ident">and</span>(<span class="ident">masklo</span>);
+
+        <span class="kw">let</span> <span class="ident">res0</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">0</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>));
+        <span class="kw">let</span> <span class="ident">res1</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">1</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">1</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>));
+        <span class="kw">let</span> <span class="ident">res2</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">masks</span>[<span class="number">2</span>].<span class="ident">lo</span>.<span class="ident">shuffle</span>(<span class="ident">hlo</span>).<span class="ident">and</span>(<span class="self">self</span>.<span class="ident">masks</span>[<span class="number">2</span>].<span class="ident">hi</span>.<span class="ident">shuffle</span>(<span class="ident">hhi</span>));
+        (<span class="ident">res0</span>, <span class="ident">res1</span>, <span class="ident">res2</span>)
+    }
+}
+
+<span class="doccomment">/// A single mask.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="kw">struct</span> <span class="ident">Mask</span> {
+    <span class="doccomment">/// Bitsets for the low nybbles in a fingerprint.</span>
+    <span class="ident">lo</span>: <span class="ident">u8x16</span>,
+    <span class="doccomment">/// Bitsets for the high nybbles in a fingerprint.</span>
+    <span class="ident">hi</span>: <span class="ident">u8x16</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Mask</span> {
+    <span class="doccomment">/// Create a new mask with no members.</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">vb</span>: <span class="ident">SSSE3VectorBuilder</span>) <span class="op">-&gt;</span> <span class="ident">Mask</span> {
+        <span class="ident">Mask</span> {
+            <span class="ident">lo</span>: <span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0</span>),
+            <span class="ident">hi</span>: <span class="ident">vb</span>.<span class="ident">u8x16_splat</span>(<span class="number">0</span>),
+        }
+    }
+
+    <span class="doccomment">/// Adds the given byte to the given bucket.</span>
+    <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">bucket</span>: <span class="ident">u8</span>, <span class="ident">byte</span>: <span class="ident">u8</span>) {
+        <span class="comment">// Split our byte into two nybbles, and add each nybble to our</span>
+        <span class="comment">// mask.</span>
+        <span class="kw">let</span> <span class="ident">byte_lo</span> <span class="op">=</span> (<span class="ident">byte</span> <span class="op">&amp;</span> <span class="number">0xF</span>) <span class="kw">as</span> <span class="ident">usize</span>;
+        <span class="kw">let</span> <span class="ident">byte_hi</span> <span class="op">=</span> (<span class="ident">byte</span> <span class="op">&gt;&gt;</span> <span class="number">4</span>) <span class="kw">as</span> <span class="ident">usize</span>;
+
+        <span class="kw">let</span> <span class="ident">lo</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">lo</span>.<span class="ident">extract</span>(<span class="ident">byte_lo</span>);
+        <span class="self">self</span>.<span class="ident">lo</span>.<span class="ident">replace</span>(<span class="ident">byte_lo</span>, ((<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">bucket</span>) <span class="kw">as</span> <span class="ident">u8</span>) <span class="op">|</span> <span class="ident">lo</span>);
+
+        <span class="kw">let</span> <span class="ident">hi</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">hi</span>.<span class="ident">extract</span>(<span class="ident">byte_hi</span>);
+        <span class="self">self</span>.<span class="ident">hi</span>.<span class="ident">replace</span>(<span class="ident">byte_hi</span>, ((<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">bucket</span>) <span class="kw">as</span> <span class="ident">u8</span>) <span class="op">|</span> <span class="ident">hi</span>);
+    }
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "regex";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>

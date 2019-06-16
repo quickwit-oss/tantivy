@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.4.2/src/distributions/normal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>normal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/normal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>normal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -195,57 +195,54 @@
 <span id="195">195</span>
 <span id="196">196</span>
 <span id="197">197</span>
-<span id="198">198</span>
-<span id="199">199</span>
-<span id="200">200</span>
-<span id="201">201</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2013 The Rust Project Developers. See the COPYRIGHT</span>
-<span class="comment">// file at the top-level directory of this distribution and at</span>
-<span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="comment">// Copyright 2018 Developers of the Rand project.</span>
+<span class="comment">// Copyright 2013 The Rust Project Developers.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
+<span class="comment">// https://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
+<span class="comment">// &lt;LICENSE-MIT or https://opensource.org/licenses/MIT&gt;, at your</span>
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
 
 <span class="doccomment">//! The normal and derived distributions.</span>
 
-<span class="kw">use</span> {<span class="ident">Rng</span>, <span class="ident">Rand</span>, <span class="ident">Open01</span>};
-<span class="kw">use</span> <span class="ident">distributions</span>::{<span class="ident">ziggurat</span>, <span class="ident">ziggurat_tables</span>, <span class="ident">Sample</span>, <span class="ident">IndependentSample</span>};
+<span class="kw">use</span> <span class="ident">Rng</span>;
+<span class="kw">use</span> <span class="ident">distributions</span>::{<span class="ident">ziggurat_tables</span>, <span class="ident">Distribution</span>, <span class="ident">Open01</span>};
+<span class="kw">use</span> <span class="ident">distributions</span>::<span class="ident">utils</span>::<span class="ident">ziggurat</span>;
 
-<span class="doccomment">/// A wrapper around an `f64` to generate N(0, 1) random numbers</span>
-<span class="doccomment">/// (a.k.a.  a standard normal, or Gaussian).</span>
+<span class="doccomment">/// Samples floating-point numbers according to the normal distribution</span>
+<span class="doccomment">/// `N(0, 1)` (a.k.a. a standard normal, or Gaussian). This is equivalent to</span>
+<span class="doccomment">/// `Normal::new(0.0, 1.0)` but faster.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// See `Normal` for the general normal distribution.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Implemented via the ZIGNOR variant[1] of the Ziggurat method.</span>
+<span class="doccomment">/// Implemented via the ZIGNOR variant[^1] of the Ziggurat method.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [1]: Jurgen A. Doornik (2005). [*An Improved Ziggurat Method to</span>
-<span class="doccomment">/// Generate Normal Random</span>
-<span class="doccomment">/// Samples*](http://www.doornik.com/research/ziggurat.pdf). Nuffield</span>
-<span class="doccomment">/// College, Oxford</span>
+<span class="doccomment">/// [^1]: Jurgen A. Doornik (2005). [*An Improved Ziggurat Method to</span>
+<span class="doccomment">///       Generate Normal Random Samples*](</span>
+<span class="doccomment">///       https://www.doornik.com/research/ziggurat.pdf).</span>
+<span class="doccomment">///       Nuffield College, Oxford</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::prelude::*;</span>
+<span class="doccomment">/// use rand::distributions::StandardNormal;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::normal::StandardNormal;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let StandardNormal(x) = rand::random();</span>
-<span class="doccomment">/// println!(&quot;{}&quot;, x);</span>
+<span class="doccomment">/// let val: f64 = SmallRng::from_entropy().sample(StandardNormal);</span>
+<span class="doccomment">/// println!(&quot;{}&quot;, val);</span>
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StandardNormal</span>(<span class="kw">pub</span> <span class="ident">f64</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">StandardNormal</span>;
 
-<span class="kw">impl</span> <span class="ident">Rand</span> <span class="kw">for</span> <span class="ident">StandardNormal</span> {
-    <span class="kw">fn</span> <span class="ident">rand</span><span class="op">&lt;</span><span class="ident">R</span>:<span class="ident">Rng</span><span class="op">&gt;</span>(<span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">StandardNormal</span> {
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StandardNormal</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
         <span class="attribute">#[<span class="ident">inline</span>]</span>
         <span class="kw">fn</span> <span class="ident">pdf</span>(<span class="ident">x</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
             (<span class="op">-</span><span class="ident">x</span><span class="kw-2">*</span><span class="ident">x</span><span class="op">/</span><span class="number">2.0</span>).<span class="ident">exp</span>()
         }
         <span class="attribute">#[<span class="ident">inline</span>]</span>
-        <span class="kw">fn</span> <span class="ident">zero_case</span><span class="op">&lt;</span><span class="ident">R</span>:<span class="ident">Rng</span><span class="op">&gt;</span>(<span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>, <span class="ident">u</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">fn</span> <span class="ident">zero_case</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>, <span class="ident">u</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
             <span class="comment">// compute a random number in the tail by hand</span>
 
             <span class="comment">// strange initial conditions, because the loop is not</span>
@@ -256,8 +253,8 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">y</span> <span class="op">=</span> <span class="number">0.0f64</span>;
 
             <span class="kw">while</span> <span class="op">-</span><span class="number">2.0</span> <span class="op">*</span> <span class="ident">y</span> <span class="op">&lt;</span> <span class="ident">x</span> <span class="op">*</span> <span class="ident">x</span> {
-                <span class="kw">let</span> <span class="ident">Open01</span>(<span class="ident">x_</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">Open01</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;&gt;</span>();
-                <span class="kw">let</span> <span class="ident">Open01</span>(<span class="ident">y_</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">Open01</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;&gt;</span>();
+                <span class="kw">let</span> <span class="ident">x_</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">Open01</span>);
+                <span class="kw">let</span> <span class="ident">y_</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">Open01</span>);
 
                 <span class="ident">x</span> <span class="op">=</span> <span class="ident">x_</span>.<span class="ident">ln</span>() <span class="op">/</span> <span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_R</span>;
                 <span class="ident">y</span> <span class="op">=</span> <span class="ident">y_</span>.<span class="ident">ln</span>();
@@ -266,30 +263,33 @@
             <span class="kw">if</span> <span class="ident">u</span> <span class="op">&lt;</span> <span class="number">0.0</span> { <span class="ident">x</span> <span class="op">-</span> <span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_R</span> } <span class="kw">else</span> { <span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_R</span> <span class="op">-</span> <span class="ident">x</span> }
         }
 
-        <span class="ident">StandardNormal</span>(<span class="ident">ziggurat</span>(
-            <span class="ident">rng</span>,
-            <span class="bool-val">true</span>, <span class="comment">// this is symmetric</span>
-            <span class="kw-2">&amp;</span><span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_X</span>,
-            <span class="kw-2">&amp;</span><span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_F</span>,
-            <span class="ident">pdf</span>, <span class="ident">zero_case</span>))
+        <span class="ident">ziggurat</span>(<span class="ident">rng</span>, <span class="bool-val">true</span>, <span class="comment">// this is symmetric</span>
+                 <span class="kw-2">&amp;</span><span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_X</span>,
+                 <span class="kw-2">&amp;</span><span class="ident">ziggurat_tables</span>::<span class="ident">ZIG_NORM_F</span>,
+                 <span class="ident">pdf</span>, <span class="ident">zero_case</span>)
     }
 }
 
 <span class="doccomment">/// The normal distribution `N(mean, std_dev**2)`.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This uses the ZIGNOR variant of the Ziggurat method, see</span>
-<span class="doccomment">/// `StandardNormal` for more details.</span>
+<span class="doccomment">/// This uses the ZIGNOR variant of the Ziggurat method, see [`StandardNormal`]</span>
+<span class="doccomment">/// for more details.</span>
+<span class="doccomment">/// </span>
+<span class="doccomment">/// Note that [`StandardNormal`] is an optimised implementation for mean 0, and</span>
+<span class="doccomment">/// standard deviation 1.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{Normal, IndependentSample};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{Normal, Distribution};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // mean 2, standard deviation 3</span>
 <span class="doccomment">/// let normal = Normal::new(2.0, 3.0);</span>
-<span class="doccomment">/// let v = normal.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = normal.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from a N(2, 9) distribution&quot;, v)</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`StandardNormal`]: crate::distributions::StandardNormal</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Normal</span> {
     <span class="ident">mean</span>: <span class="ident">f64</span>,
@@ -307,17 +307,14 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">mean</span>: <span class="ident">f64</span>, <span class="ident">std_dev</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">Normal</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">std_dev</span> <span class="op">&gt;=</span> <span class="number">0.0</span>, <span class="string">&quot;Normal::new called with `std_dev` &lt; 0&quot;</span>);
         <span class="ident">Normal</span> {
-            <span class="ident">mean</span>: <span class="ident">mean</span>,
-            <span class="ident">std_dev</span>: <span class="ident">std_dev</span>
+            <span class="ident">mean</span>,
+            <span class="ident">std_dev</span>
         }
     }
 }
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Normal</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Normal</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="kw">let</span> <span class="ident">StandardNormal</span>(<span class="ident">n</span>) <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">StandardNormal</span><span class="op">&gt;</span>();
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Normal</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">sample</span>(<span class="ident">StandardNormal</span>);
         <span class="self">self</span>.<span class="ident">mean</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">std_dev</span> <span class="op">*</span> <span class="ident">n</span>
     }
 }
@@ -325,17 +322,17 @@
 
 <span class="doccomment">/// The log-normal distribution `ln N(mean, std_dev**2)`.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// If `X` is log-normal distributed, then `ln(X)` is `N(mean,</span>
-<span class="doccomment">/// std_dev**2)` distributed.</span>
+<span class="doccomment">/// If `X` is log-normal distributed, then `ln(X)` is `N(mean, std_dev**2)`</span>
+<span class="doccomment">/// distributed.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use rand::distributions::{LogNormal, IndependentSample};</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// use rand::distributions::{LogNormal, Distribution};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // mean 2, standard deviation 3</span>
 <span class="doccomment">/// let log_normal = LogNormal::new(2.0, 3.0);</span>
-<span class="doccomment">/// let v = log_normal.ind_sample(&amp;mut rand::thread_rng());</span>
+<span class="doccomment">/// let v = log_normal.sample(&amp;mut rand::thread_rng());</span>
 <span class="doccomment">/// println!(&quot;{} is from an ln N(2, 9) distribution&quot;, v)</span>
 <span class="doccomment">/// ```</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
@@ -356,27 +353,23 @@
         <span class="ident">LogNormal</span> { <span class="ident">norm</span>: <span class="ident">Normal</span>::<span class="ident">new</span>(<span class="ident">mean</span>, <span class="ident">std_dev</span>) }
     }
 }
-<span class="kw">impl</span> <span class="ident">Sample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LogNormal</span> {
-    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> { <span class="self">self</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>) }
-}
-<span class="kw">impl</span> <span class="ident">IndependentSample</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LogNormal</span> {
-    <span class="kw">fn</span> <span class="ident">ind_sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="self">self</span>.<span class="ident">norm</span>.<span class="ident">ind_sample</span>(<span class="ident">rng</span>).<span class="ident">exp</span>()
+<span class="kw">impl</span> <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LogNormal</span> {
+    <span class="kw">fn</span> <span class="ident">sample</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rng</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">rng</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
+        <span class="self">self</span>.<span class="ident">norm</span>.<span class="ident">sample</span>(<span class="ident">rng</span>).<span class="ident">exp</span>()
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">distributions</span>::{<span class="ident">Sample</span>, <span class="ident">IndependentSample</span>};
+    <span class="kw">use</span> <span class="ident">distributions</span>::<span class="ident">Distribution</span>;
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Normal</span>, <span class="ident">LogNormal</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_normal</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">norm</span> <span class="op">=</span> <span class="ident">Normal</span>::<span class="ident">new</span>(<span class="number">10.0</span>, <span class="number">10.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">norm</span> <span class="op">=</span> <span class="ident">Normal</span>::<span class="ident">new</span>(<span class="number">10.0</span>, <span class="number">10.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">210</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">norm</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">norm</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -388,11 +381,10 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_log_normal</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lnorm</span> <span class="op">=</span> <span class="ident">LogNormal</span>::<span class="ident">new</span>(<span class="number">10.0</span>, <span class="number">10.0</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
+        <span class="kw">let</span> <span class="ident">lnorm</span> <span class="op">=</span> <span class="ident">LogNormal</span>::<span class="ident">new</span>(<span class="number">10.0</span>, <span class="number">10.0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>(<span class="number">211</span>);
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="ident">lnorm</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
-            <span class="ident">lnorm</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -401,5 +393,5 @@
         <span class="ident">LogNormal</span>::<span class="ident">new</span>(<span class="number">10.0</span>, <span class="op">-</span><span class="number">1.0</span>);
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "rand";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

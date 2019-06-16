@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.11/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.1.7/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../regex/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -670,7 +670,24 @@
 <span id="670">670</span>
 <span id="671">671</span>
 <span id="672">672</span>
-</pre><pre class="rust ">
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
 <span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
@@ -702,7 +719,7 @@ used by adding `regex` to your dependencies in your project&#39;s `Cargo.toml`.
 
 ```toml
 [dependencies]
-regex = &quot;0.2&quot;
+regex = &quot;1&quot;
 ```
 
 and this to your crate root:
@@ -816,7 +833,7 @@ provides more flexibility than is seen here. (See the documentation for
 `Regex::replace` for more details.)
 
 Note that if your regex gets complicated, you can use the `x` flag to
-enable insigificant whitespace mode, which also lets you write comments:
+enable insignificant whitespace mode, which also lets you write comments:
 
 ```rust
 # extern crate regex; use regex::Regex;
@@ -960,7 +977,7 @@ regexes.
 The syntax supported in this crate is documented below.
 
 Note that the regular expression parser and abstract syntax are exposed in
-a separate crate, [`regex-syntax`](../regex_syntax/index.html).
+a separate crate, [`regex-syntax`](https://docs.rs/regex-syntax).
 
 ## Matching one character
 
@@ -1118,7 +1135,7 @@ assert_eq!(&amp;cap[0], &quot;abc&quot;);
 \n          new line
 \r          carriage return
 \v          vertical tab (\x0B)
-\123        octal character code (up to three digits)
+\123        octal character code (up to three digits) (when enabled)
 \x7F        hex character code (exactly two digits)
 \x{10FFFF}  any hex character code corresponding to a Unicode code point
 \u007F      hex character code (exactly four digits)
@@ -1177,10 +1194,10 @@ text`), which means there&#39;s no way to cause exponential blow-up like with
 some other regular expression engines. (We pay for this by disallowing
 features like arbitrary look-ahead and backreferences.)
 
-When a DFA is used, pathological cases with exponential state blow up are
+When a DFA is used, pathological cases with exponential state blow-up are
 avoided by constructing the DFA lazily or in an &quot;online&quot; manner. Therefore,
 at most one new state can be created for each byte of input. This satisfies
-our time complexity guarantees, but can lead to unbounded memory growth
+our time complexity guarantees, but can lead to memory growth
 proportional to the size of the input. As a stopgap, the DFA is only
 allowed to store a fixed number of states. When the limit is reached, its
 states are wiped and continues on, possibly duplicating previous work. If
@@ -1191,8 +1208,12 @@ another matching engine with fixed memory requirements.
 */</span>
 
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">ellipsis_inclusive_range_patterns</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;pattern&quot;</span>, <span class="ident">feature</span>(<span class="ident">pattern</span>))]</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>))]</span>
+<span class="macro">compile_error</span><span class="macro">!</span>(<span class="string">&quot;`use_std` feature is currently required to build this crate&quot;</span>);
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">aho_corasick</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">memchr</span>;
@@ -1202,15 +1223,26 @@ another matching engine with fixed memory requirements.
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quickcheck</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">regex_syntax</span> <span class="kw">as</span> <span class="ident">syntax</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">utf8_ranges</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">doc_comment</span>;
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="ident">doc_comment</span>::<span class="macro">doctest</span><span class="macro">!</span>(<span class="string">&quot;../README.md&quot;</span>);
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">Error</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">unicode</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">set_unicode</span>::<span class="kw-2">*</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_set</span>::<span class="ident">unicode</span>::<span class="kw-2">*</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_trait</span>::<span class="ident">Locations</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_unicode</span>::{
     <span class="ident">Regex</span>, <span class="ident">Match</span>, <span class="ident">Captures</span>,
     <span class="ident">CaptureNames</span>, <span class="ident">Matches</span>, <span class="ident">CaptureMatches</span>, <span class="ident">SubCaptureMatches</span>,
+    <span class="ident">CaptureLocations</span>, <span class="ident">Locations</span>,
     <span class="ident">Replacer</span>, <span class="ident">ReplacerRef</span>, <span class="ident">NoExpand</span>, <span class="ident">Split</span>, <span class="ident">SplitN</span>,
     <span class="ident">escape</span>,
 };
@@ -1292,7 +1324,8 @@ determine whether a byte is a word byte or not.
 5. Hexadecimal notation can be used to specify arbitrary bytes instead of
 Unicode codepoints. For example, in ASCII compatible mode, `\xFF` matches the
 literal byte `\xFF`, while in Unicode mode, `\xFF` is a Unicode codepoint that
-matches its UTF-8 encoding of `\xC3\xBF`. Similarly for octal notation.
+matches its UTF-8 encoding of `\xC3\xBF`. Similarly for octal notation when
+enabled.
 6. `.` matches any *byte* except for `\n` instead of any Unicode scalar value.
 When the `s` flag is enabled, `.` matches any byte.
 
@@ -1301,12 +1334,12 @@ When the `s` flag is enabled, `.` matches any byte.
 In general, one should expect performance on `&amp;[u8]` to be roughly similar to
 performance on `&amp;str`.
 */</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bytes</span> {
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">bytes</span>::<span class="kw-2">*</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_builder</span>::<span class="ident">set_bytes</span>::<span class="kw-2">*</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_bytes</span>::<span class="kw-2">*</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_set</span>::<span class="ident">bytes</span>::<span class="kw-2">*</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">re_trait</span>::<span class="ident">Locations</span>;
 }
 
 <span class="kw">mod</span> <span class="ident">backtrack</span>;
@@ -1329,13 +1362,14 @@ performance on `&amp;str`.
 <span class="kw">mod</span> <span class="ident">re_trait</span>;
 <span class="kw">mod</span> <span class="ident">re_unicode</span>;
 <span class="kw">mod</span> <span class="ident">sparse</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">regex_runtime_teddy_ssse3</span>, <span class="ident">regex_runtime_teddy_avx2</span>))]</span>
 <span class="kw">mod</span> <span class="ident">vector</span>;
 
 <span class="doccomment">/// The `internal` module exists to support suspicious activity, such as</span>
 <span class="doccomment">/// testing different matching engines and supporting the `regex-debug` CLI</span>
 <span class="doccomment">/// utility.</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;use_std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">internal</span> {
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">compile</span>::<span class="ident">Compiler</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">exec</span>::{<span class="ident">Exec</span>, <span class="ident">ExecBuilder</span>};
@@ -1343,5 +1377,5 @@ performance on `&amp;str`.
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">literal</span>::<span class="ident">LiteralSearcher</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">prog</span>::{<span class="ident">Program</span>, <span class="ident">Inst</span>, <span class="ident">EmptyLook</span>, <span class="ident">InstRanges</span>};
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "regex";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

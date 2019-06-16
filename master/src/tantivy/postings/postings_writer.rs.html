@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/postings/postings_writer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>postings_writer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/postings/postings_writer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>postings_writer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -281,10 +281,32 @@
 <span id="281">281</span>
 <span id="282">282</span>
 <span id="283">283</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">TermHashMap</span>, <span class="ident">Addr</span>, <span class="ident">MemoryArena</span>};
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">Addr</span>, <span class="ident">MemoryArena</span>, <span class="ident">TermHashMap</span>};
 
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">recorder</span>::{
+    <span class="ident">BufferLender</span>, <span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>,
+};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
@@ -294,12 +316,12 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">Token</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenStream</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">MAX_TOKEN_LEN</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
-<span class="kw">fn</span> <span class="ident">posting_from_field_entry</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">posting_from_field_entry</span>(<span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
         <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">text_options</span>) <span class="op">=&gt;</span> <span class="ident">text_options</span>
             .<span class="ident">get_indexing_options</span>()
@@ -315,9 +337,10 @@
                 }
             })
             .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()),
-        <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
-            <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
-        }
+        <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>)
+        <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>)
+        <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw">_</span>)
+        <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(),
         <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {
             <span class="comment">// FieldType::Bytes cannot actually be indexed.</span>
             <span class="comment">// TODO fix during the indexer refactoring described in #276</span>
@@ -333,6 +356,30 @@
     <span class="ident">per_field_postings_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;&gt;</span>,
 }
 
+<span class="kw">fn</span> <span class="ident">make_field_partition</span>(
+    <span class="ident">term_offsets</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)],
+) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Field</span>, <span class="ident">usize</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">term_offsets_it</span> <span class="op">=</span> <span class="ident">term_offsets</span>
+        .<span class="ident">iter</span>()
+        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">Term</span>::<span class="ident">wrap</span>(<span class="ident">key</span>).<span class="ident">field</span>())
+        .<span class="ident">enumerate</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">u32</span>::<span class="ident">max_value</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offsets</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+    <span class="kw">for</span> (<span class="ident">offset</span>, <span class="ident">field</span>) <span class="kw">in</span> <span class="ident">term_offsets_it</span> {
+        <span class="kw">if</span> <span class="ident">field</span> <span class="op">!=</span> <span class="ident">prev_field</span> {
+            <span class="ident">prev_field</span> <span class="op">=</span> <span class="ident">field</span>;
+            <span class="ident">fields</span>.<span class="ident">push</span>(<span class="ident">field</span>);
+            <span class="ident">offsets</span>.<span class="ident">push</span>(<span class="ident">offset</span>);
+        }
+    }
+    <span class="ident">offsets</span>.<span class="ident">push</span>(<span class="ident">term_offsets</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_offsets</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">fields</span>.<span class="ident">len</span>() {
+        <span class="ident">field_offsets</span>.<span class="ident">push</span>((<span class="ident">fields</span>[<span class="ident">i</span>], <span class="ident">offsets</span>[<span class="ident">i</span>], <span class="ident">offsets</span>[<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>]));
+    }
+    <span class="ident">field_offsets</span>
+}
 
 <span class="kw">impl</span> <span class="ident">MultiFieldPostingsWriter</span> {
     <span class="doccomment">/// Create a new `MultiFieldPostingsWriter` given</span>
@@ -358,7 +405,13 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index_text</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">token_stream</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">field</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>].<span class="ident">deref_mut</span>();
-        <span class="ident">postings_writer</span>.<span class="ident">index_text</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>, <span class="ident">doc</span>, <span class="ident">field</span>, <span class="ident">token_stream</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">heap</span>)
+        <span class="ident">postings_writer</span>.<span class="ident">index_text</span>(
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>,
+            <span class="ident">doc</span>,
+            <span class="ident">field</span>,
+            <span class="ident">token_stream</span>,
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">heap</span>,
+        )
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">subscribe</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span> {
@@ -373,40 +426,20 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="ident">bucket_id</span>)<span class="op">|</span> (<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="ident">bucket_id</span> <span class="kw">as</span> <span class="ident">UnorderedTermId</span>) )
-            .<span class="ident">collect</span>();
-        <span class="ident">term_offsets</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">k</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)<span class="op">&gt;</span> <span class="op">=</span>
+            <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="ident">term_offsets</span>.<span class="ident">sort_unstable_by_key</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">k</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Field</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">let</span> <span class="ident">term_offsets_it</span> <span class="op">=</span> <span class="ident">term_offsets</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">Term</span>::<span class="ident">wrap</span>(<span class="ident">key</span>).<span class="ident">field</span>())
-            .<span class="ident">enumerate</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
+            <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span>
-            <span class="ident">Field</span>,
-            <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;</span>,
-        <span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="ident">field_offsets</span> <span class="op">=</span> <span class="ident">make_field_partition</span>(<span class="kw-2">&amp;</span><span class="ident">term_offsets</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">u32</span>::<span class="ident">max_value</span>());
-        <span class="kw">for</span> (<span class="ident">offset</span>, <span class="ident">field</span>) <span class="kw">in</span> <span class="ident">term_offsets_it</span> {
-            <span class="kw">if</span> <span class="ident">field</span> <span class="op">!=</span> <span class="ident">prev_field</span> {
-                <span class="ident">offsets</span>.<span class="ident">push</span>((<span class="ident">field</span>, <span class="ident">offset</span>));
-                <span class="ident">prev_field</span> <span class="op">=</span> <span class="ident">field</span>;
-            }
-        }
-        <span class="ident">offsets</span>.<span class="ident">push</span>((<span class="ident">Field</span>(<span class="number">0</span>), <span class="ident">term_offsets</span>.<span class="ident">len</span>()));
-
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..(<span class="ident">offsets</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>) {
-            <span class="kw">let</span> (<span class="ident">field</span>, <span class="ident">start</span>) <span class="op">=</span> <span class="ident">offsets</span>[<span class="ident">i</span>];
-            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">stop</span>) <span class="op">=</span> <span class="ident">offsets</span>[<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>];
-
+        <span class="kw">for</span> (<span class="ident">field</span>, <span class="ident">start</span>, <span class="ident">stop</span>) <span class="kw">in</span> <span class="ident">field_offsets</span> {
             <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
 
-            <span class="kw">match</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
-                <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
+            <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
+                <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
                     <span class="comment">// populating the (unordered term ord) -&gt; (ordered term ord) mapping</span>
                     <span class="comment">// for the field.</span>
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_ids</span> <span class="op">=</span> <span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>]
@@ -420,8 +453,8 @@
                         .<span class="ident">collect</span>();
                     <span class="ident">unordered_term_mappings</span>.<span class="ident">insert</span>(<span class="ident">field</span>, <span class="ident">mapping</span>);
                 }
-                <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
-                <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {}
+                <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
+                <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {}
             }
 
             <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">field</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>];
@@ -431,7 +464,7 @@
                 <span class="kw-2">&amp;</span><span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>],
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">field_serializer</span>,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">heap</span>,
-                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">heap</span>
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">heap</span>,
             )<span class="question-mark">?</span>;
             <span class="ident">field_serializer</span>.<span class="ident">close</span>()<span class="question-mark">?</span>;
         }
@@ -467,7 +500,7 @@
         <span class="ident">term_addrs</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)],
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
         <span class="ident">term_heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
 
     <span class="doccomment">/// Tokenize a text and subscribe all of its token.</span>
@@ -480,14 +513,21 @@
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">for_field</span>(<span class="ident">field</span>);
-        <span class="kw">let</span> <span class="ident">num_tokens</span> <span class="op">=</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sink</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sink</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
+            <span class="comment">// We skip all tokens with a len greater than u16.</span>
+            <span class="kw">if</span> <span class="ident">token</span>.<span class="ident">text</span>.<span class="ident">len</span>() <span class="op">&lt;=</span> <span class="ident">MAX_TOKEN_LEN</span> {
                 <span class="ident">term</span>.<span class="ident">set_text</span>(<span class="ident">token</span>.<span class="ident">text</span>.<span class="ident">as_str</span>());
                 <span class="self">self</span>.<span class="ident">subscribe</span>(<span class="ident">term_index</span>, <span class="ident">doc_id</span>, <span class="ident">token</span>.<span class="ident">position</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">heap</span>);
-            };
-            <span class="ident">token_stream</span>.<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sink</span>)
+            } <span class="kw">else</span> {
+                <span class="macro">info</span><span class="macro">!</span>(
+                    <span class="string">&quot;A token exceeding MAX_TOKEN_LEN ({}&gt;{}) was dropped. Search for \
+                     MAX_TOKEN_LEN in the documentation for more information.&quot;</span>,
+                    <span class="ident">token</span>.<span class="ident">text</span>.<span class="ident">len</span>(),
+                    <span class="ident">MAX_TOKEN_LEN</span>
+                );
+            }
         };
-        <span class="ident">num_tokens</span>
+        <span class="ident">token_stream</span>.<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sink</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">total_num_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
@@ -495,7 +535,7 @@
 
 <span class="doccomment">/// The `SpecializedPostingsWriter` is just here to remove dynamic</span>
 <span class="doccomment">/// dispatch to the recorder information.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
     <span class="ident">total_num_tokens</span>: <span class="ident">u64</span>,
     <span class="ident">_recorder_type</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span>,
 }
@@ -522,13 +562,12 @@
         <span class="ident">doc</span>: <span class="ident">DocId</span>,
         <span class="ident">position</span>: <span class="ident">u32</span>,
         <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span> {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">term</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">4</span>);
         <span class="self">self</span>.<span class="ident">total_num_tokens</span> <span class="op">+=</span> <span class="number">1</span>;
         <span class="ident">term_index</span>.<span class="ident">mutate_or_create</span>(<span class="ident">term</span>, <span class="op">|</span><span class="ident">opt_recorder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span><span class="op">|</span> {
-            <span class="kw">if</span> <span class="ident">opt_recorder</span>.<span class="ident">is_some</span>() {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">recorder</span> <span class="op">=</span> <span class="ident">opt_recorder</span>.<span class="ident">unwrap</span>();
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">recorder</span>) <span class="op">=</span> <span class="ident">opt_recorder</span> {
                 <span class="kw">let</span> <span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">recorder</span>.<span class="ident">current_doc</span>();
                 <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">doc</span> {
                     <span class="ident">recorder</span>.<span class="ident">close_doc</span>(<span class="ident">heap</span>);
@@ -537,7 +576,7 @@
                 <span class="ident">recorder</span>.<span class="ident">record_position</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
                 <span class="ident">recorder</span>
             } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">recorder</span> <span class="op">=</span> <span class="ident">Rec</span>::<span class="ident">new</span>(<span class="ident">heap</span>);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">recorder</span> <span class="op">=</span> <span class="ident">Rec</span>::<span class="ident">new</span>();
                 <span class="ident">recorder</span>.<span class="ident">new_doc</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
                 <span class="ident">recorder</span>.<span class="ident">record_position</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
                 <span class="ident">recorder</span>
@@ -552,10 +591,11 @@
         <span class="ident">termdict_heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer_lender</span> <span class="op">=</span> <span class="ident">BufferLender</span>::<span class="ident">default</span>();
         <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="kw">_</span>) <span class="kw">in</span> <span class="ident">term_addrs</span> {
-            <span class="kw">let</span> <span class="ident">recorder</span>: <span class="ident">Rec</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">termdict_heap</span>.<span class="ident">read</span>(<span class="ident">addr</span>) };
+            <span class="kw">let</span> <span class="ident">recorder</span>: <span class="ident">Rec</span> <span class="op">=</span> <span class="ident">termdict_heap</span>.<span class="ident">read</span>(<span class="ident">addr</span>);
             <span class="ident">serializer</span>.<span class="ident">new_term</span>(<span class="kw-2">&amp;</span><span class="ident">term_bytes</span>[<span class="number">4</span>..])<span class="question-mark">?</span>;
-            <span class="ident">recorder</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>, <span class="ident">heap</span>)<span class="question-mark">?</span>;
+            <span class="ident">recorder</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer_lender</span>, <span class="ident">serializer</span>, <span class="ident">heap</span>)<span class="question-mark">?</span>;
             <span class="ident">serializer</span>.<span class="ident">close_term</span>()<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -565,5 +605,5 @@
         <span class="self">self</span>.<span class="ident">total_num_tokens</span>
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/ascii-0.7.1/src/ascii_str.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ascii_str.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/ascii-0.9.1/src/ascii_str.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ascii_str.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../ascii/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -523,26 +523,391 @@
 <span id="523">523</span>
 <span id="524">524</span>
 <span id="525">525</span>
-</pre><pre class="rust ">
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">core</span>;
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">rustfmt</span>, <span class="ident">rustfmt_skip</span>)]</span>
 
-<span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">fmt</span>, <span class="ident">mem</span>};
-<span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::<span class="ident">ops</span>::{<span class="ident">Index</span>, <span class="ident">IndexMut</span>, <span class="ident">Range</span>, <span class="ident">RangeTo</span>, <span class="ident">RangeFrom</span>, <span class="ident">RangeFull</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="comment">// #[allow(deprecated)] doesn&#39;t silence warnings on the method invocations,</span>
+<span class="comment">// which would call the inherent methods if AsciiExt wasn&#39;t in scope.</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">allow</span>(<span class="ident">deprecated</span>))]</span>
+
+<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">fmt</span>, <span class="ident">mem</span>};
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ops</span>::{<span class="ident">Index</span>, <span class="ident">IndexMut</span>, <span class="ident">Range</span>, <span class="ident">RangeTo</span>, <span class="ident">RangeFrom</span>, <span class="ident">RangeFull</span>};
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">slice</span>::{<span class="ident">Iter</span>, <span class="ident">IterMut</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ascii</span>::<span class="ident">AsciiExt</span>;
 
 <span class="kw">use</span> <span class="ident">ascii_char</span>::<span class="ident">AsciiChar</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">ascii_string</span>::<span class="ident">AsciiString</span>;
 
 <span class="doccomment">/// AsciiStr represents a byte or string slice that only contains ASCII characters.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// It wraps an `[AsciiChar]` and implements many of `str`s methods and traits.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// It can be created by a checked conversion from a `str` or `[u8]`,</span>
-<span class="doccomment">/// or borrowed from an `AsciiString`.</span>
+<span class="doccomment">/// It can be created by a checked conversion from a `str` or `[u8]`, or borrowed from an</span>
+<span class="doccomment">/// `AsciiString`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AsciiStr</span> {
     <span class="ident">slice</span>: [<span class="ident">AsciiChar</span>],
@@ -555,21 +920,27 @@
     }
 
     <span class="doccomment">/// Converts `&amp;self` to a `&amp;str` slice.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>) }
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">str</span>;
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span> }
     }
 
     <span class="doccomment">/// Converts `&amp;self` into a byte slice.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>) }
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>];
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span> }
     }
 
     <span class="doccomment">/// Returns the entire string as slice of `AsciiChar`s.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">AsciiChar</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>
     }
 
     <span class="doccomment">/// Returns the entire string as mutable slice of `AsciiChar`s.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_mut_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>] {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span>
     }
@@ -579,6 +950,7 @@
     <span class="doccomment">/// The caller must ensure that the slice outlives the pointer this function returns, or else it</span>
     <span class="doccomment">/// will end up pointing to garbage. Modifying the `AsciiStr` may cause it&#39;s buffer to be</span>
     <span class="doccomment">/// reallocated, which would also make any pointers to it invalid.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiChar</span> {
         <span class="self">self</span>.<span class="ident">as_slice</span>().<span class="ident">as_ptr</span>()
     }
@@ -588,12 +960,13 @@
     <span class="doccomment">/// The caller must ensure that the slice outlives the pointer this function returns, or else it</span>
     <span class="doccomment">/// will end up pointing to garbage. Modifying the `AsciiStr` may cause it&#39;s buffer to be</span>
     <span class="doccomment">/// reallocated, which would also make any pointers to it invalid.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_mut_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiChar</span> {
         <span class="self">self</span>.<span class="ident">as_mut_slice</span>().<span class="ident">as_mut_ptr</span>()
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
     <span class="doccomment">/// Copies the content of this `AsciiStr` into an owned `AsciiString`.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_ascii_string</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">AsciiString</span> {
         <span class="ident">AsciiString</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">to_vec</span>())
     }
@@ -608,8 +981,10 @@
     <span class="doccomment">/// assert_eq!(foo.unwrap().as_str(), &quot;foo&quot;);</span>
     <span class="doccomment">/// assert_eq!(err.unwrap_err().valid_up_to(), 0);</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_ascii</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span><span class="ident">B</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
     {
         <span class="ident">bytes</span>.<span class="ident">as_ref</span>().<span class="ident">as_ascii_str</span>()
     }
@@ -623,8 +998,10 @@
     <span class="doccomment">/// let foo = unsafe{ AsciiStr::from_ascii_unchecked(&quot;foo&quot;) };</span>
     <span class="doccomment">/// assert_eq!(foo.as_str(), &quot;foo&quot;);</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_ascii_unchecked</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span><span class="ident">B</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>
-        <span class="kw">where</span> <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
     {
         <span class="ident">bytes</span>.<span class="ident">as_ref</span>().<span class="ident">as_ascii_str_unchecked</span>()
     }
@@ -637,6 +1014,7 @@
     <span class="doccomment">/// let s = AsciiStr::from_ascii(&quot;foo&quot;).unwrap();</span>
     <span class="doccomment">/// assert_eq!(s.len(), 3);</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">len</span>()
     }
@@ -651,8 +1029,34 @@
     <span class="doccomment">/// assert!(empty.is_empty());</span>
     <span class="doccomment">/// assert!(!full.is_empty());</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span>
+    }
+
+    <span class="doccomment">/// Returns an iterator over the characters of the `AsciiStr`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">chars</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Chars</span> {
+        <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">iter</span>()
+    }
+
+    <span class="doccomment">/// Returns an iterator over the characters of the `AsciiStr` which allows you to modify the</span>
+    <span class="doccomment">/// value of each `AsciiChar`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">chars_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">CharsMut</span> {
+        <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">iter_mut</span>()
+    }
+
+    <span class="doccomment">/// Returns an iterator over the lines of the `AsciiStr`, which are themselves `AsciiStr`s.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Lines are ended with either `LineFeed` (`\n`), or `CarriageReturn` then `LineFeed` (`\r\n`).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The final line ending is optional.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lines</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Lines</span> {
+        <span class="ident">Lines</span> {
+            <span class="ident">string</span>: <span class="self">self</span>,
+        }
     }
 
     <span class="doccomment">/// Returns an ASCII string slice with leading and trailing whitespace removed.</span>
@@ -676,7 +1080,7 @@
     <span class="doccomment">/// assert_eq!(&quot;white \tspace  \t&quot;, example.trim_left());</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">trim_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>[<span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">iter</span>().<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">is_whitespace</span>() ).<span class="ident">count</span>()..]
+        <span class="kw-2">&amp;</span><span class="self">self</span>[<span class="self">self</span>.<span class="ident">chars</span>().<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">is_whitespace</span>()).<span class="ident">count</span>()..]
     }
 
     <span class="doccomment">/// Returns an ASCII string slice with trailing whitespace removed.</span>
@@ -688,92 +1092,152 @@
     <span class="doccomment">/// assert_eq!(&quot;  \twhite \tspace&quot;, example.trim_right());</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">trim_right</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span> {
-        <span class="kw">let</span> <span class="ident">trimmed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">into_iter</span>()
-                          .<span class="ident">rev</span>().<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">is_whitespace</span>() ).<span class="ident">count</span>();
-        <span class="kw-2">&amp;</span><span class="self">self</span>[..<span class="self">self</span>.<span class="ident">len</span>()<span class="op">-</span><span class="ident">trimmed</span>]
+        <span class="kw">let</span> <span class="ident">trimmed</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">chars</span>()
+            .<span class="ident">rev</span>()
+            .<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span>.<span class="ident">is_whitespace</span>())
+            .<span class="ident">count</span>();
+        <span class="kw-2">&amp;</span><span class="self">self</span>[..<span class="self">self</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">trimmed</span>]
+    }
+
+    <span class="doccomment">/// Compares two strings case-insensitively.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">eq_ignore_ascii_case</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">len</span>() <span class="op">&amp;&amp;</span>
+            <span class="self">self</span>.<span class="ident">chars</span>().<span class="ident">zip</span>(<span class="ident">other</span>.<span class="ident">chars</span>()).<span class="ident">all</span>(<span class="op">|</span>(<span class="ident">a</span>, <span class="ident">b</span>)<span class="op">|</span> {
+                <span class="ident">a</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">b</span>)
+            })
+    }
+
+    <span class="doccomment">/// Replaces lowercase letters with their uppercase equivalent.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_ascii_uppercase</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">for</span> <span class="ident">a</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">chars_mut</span>() {
+            <span class="kw-2">*</span><span class="ident">a</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">to_ascii_uppercase</span>();
+        }
+    }
+
+    <span class="doccomment">/// Replaces uppercase letters with their lowercase equivalent.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_ascii_lowercase</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">for</span> <span class="ident">a</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">chars_mut</span>() {
+            <span class="kw-2">*</span><span class="ident">a</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">to_ascii_lowercase</span>();
+        }
+    }
+
+    <span class="doccomment">/// Returns a copy of this string where letters &#39;a&#39; to &#39;z&#39; are mapped to &#39;A&#39; to &#39;Z&#39;.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_ascii_uppercase</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">AsciiString</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ascii_string</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">to_ascii_string</span>();
+        <span class="ident">ascii_string</span>.<span class="ident">make_ascii_uppercase</span>();
+        <span class="ident">ascii_string</span>
+    }
+
+    <span class="doccomment">/// Returns a copy of this string where letters &#39;A&#39; to &#39;Z&#39; are mapped to &#39;a&#39; to &#39;z&#39;.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;std&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_ascii_lowercase</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">AsciiString</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ascii_string</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">to_ascii_string</span>();
+        <span class="ident">ascii_string</span>.<span class="ident">make_ascii_lowercase</span>();
+        <span class="ident">ascii_string</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">as_str</span>() <span class="op">==</span> <span class="ident">other</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span><span class="op">&lt;</span><span class="ident">AsciiStr</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">str</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="ident">other</span>.<span class="ident">as_str</span>() <span class="op">==</span> <span class="self">self</span>
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">ToOwned</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
     <span class="kw">type</span> <span class="ident">Owned</span> <span class="op">=</span> <span class="ident">AsciiString</span>;
 
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">to_owned</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">AsciiString</span> {
         <span class="self">self</span>.<span class="ident">to_ascii_string</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="self">self</span>.<span class="ident">as_bytes</span>()
     }
 }
 <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="self">self</span>.<span class="ident">as_str</span>()
     }
 }
 <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">AsciiChar</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">AsciiChar</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>
     }
 }
 <span class="kw">impl</span> <span class="ident">AsMut</span><span class="op">&lt;</span>[<span class="ident">AsciiChar</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
-    <span class="kw">fn</span> <span class="ident">as_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span>[<span class="ident">AsciiChar</span>] {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>] {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">AsciiStr</span> {
-        <span class="kw">unsafe</span>{ <span class="string">&quot;&quot;</span>.<span class="ident">as_ascii_str_unchecked</span>() }
+        <span class="kw">unsafe</span> { <span class="string">&quot;&quot;</span>.<span class="ident">as_ascii_str_unchecked</span>() }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span>[<span class="ident">AsciiChar</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">AsciiChar</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">AsciiChar</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
-        <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">slice</span>) }
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">slice</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">AsciiChar</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span>;
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span> }
     }
 }
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span>[<span class="ident">AsciiChar</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
-        <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">slice</span>) }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">slice</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
+        <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ptr</span> }
     }
 }
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span>[<span class="ident">AsciiChar</span>]<span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AsciiStr</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">owned</span>: <span class="ident">Box</span><span class="op">&lt;</span>[<span class="ident">AsciiChar</span>]<span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AsciiStr</span><span class="op">&gt;</span> {
-        <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">owned</span>) }
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="ident">owned</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
+        <span class="kw">unsafe</span> { <span class="ident">Box</span>::<span class="ident">from_raw</span>(<span class="ident">ptr</span>) }
     }
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_into</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span>: <span class="ident">ty</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span> {
+            <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span> {
-                <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">slice</span>) }
+                <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">slice</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span>;
+                <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span> }
             }
         }
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">AsciiStr</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span> {
+            <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span> {
-                <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">slice</span>) }
+                <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">slice</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span>;
+                <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ptr</span> }
             }
         }
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
         <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AsciiStr</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span><span class="op">&gt;</span> {
+            <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">owned</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">AsciiStr</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span><span class="op">&gt;</span> {
-                <span class="kw">unsafe</span>{ <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">owned</span>) }
+                <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="ident">owned</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">wider</span>;
+                <span class="kw">unsafe</span> { <span class="ident">Box</span>::<span class="ident">from_raw</span>(<span class="ident">ptr</span>) }
             }
         }
     }
@@ -783,44 +1247,63 @@
 <span class="macro">impl_into</span><span class="macro">!</span> {<span class="ident">str</span>}
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="ident">fmt</span>::<span class="ident">Display</span>::<span class="ident">fmt</span>(<span class="self">self</span>.<span class="ident">as_str</span>(), <span class="ident">f</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
-   <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-       <span class="ident">fmt</span>::<span class="ident">Debug</span>::<span class="ident">fmt</span>(<span class="self">self</span>.<span class="ident">as_str</span>(), <span class="ident">f</span>)
-   }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt</span>::<span class="ident">Debug</span>::<span class="ident">fmt</span>(<span class="self">self</span>.<span class="ident">as_str</span>(), <span class="ident">f</span>)
+    }
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_index</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">lhs</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rhs</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
-        <span class="kw">impl</span> <span class="ident">Index</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">lhs</span> {
-            <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rhs</span>;
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
+        <span class="kw">impl</span> <span class="ident">Index</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+            <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">AsciiStr</span>;
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">rhs</span> {
-                <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>]) }
+            <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
+                <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">AsciiChar</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span>;
+                <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="op">*</span> <span class="ident">ptr</span> }
             }
         }
 
-        <span class="kw">impl</span> <span class="ident">IndexMut</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">lhs</span> {
+        <span class="kw">impl</span> <span class="ident">IndexMut</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
-            <span class="kw">fn</span> <span class="ident">index_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">rhs</span> {
-                <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>]) }
+            <span class="kw">fn</span> <span class="ident">index_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">idx</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
+                <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> [<span class="ident">AsciiChar</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
+                <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ptr</span> }
             }
         }
     }
 }
 
-<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">AsciiStr</span>, <span class="ident">usize</span>, <span class="ident">AsciiChar</span> }
-<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">AsciiStr</span>, <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">AsciiStr</span> }
-<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">AsciiStr</span>, <span class="ident">RangeTo</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">AsciiStr</span> }
-<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">AsciiStr</span>, <span class="ident">RangeFrom</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">AsciiStr</span> }
-<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">AsciiStr</span>, <span class="ident">RangeFull</span>, <span class="ident">AsciiStr</span> }
+<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> }
+<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">RangeTo</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> }
+<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">RangeFrom</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> }
+<span class="macro">impl_index</span><span class="macro">!</span> { <span class="ident">RangeFull</span> }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="kw">impl</span> <span class="ident">Index</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">AsciiChar</span>;
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiChar</span> {
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>]) }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">IndexMut</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">index_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiChar</span> {
+        <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span>[<span class="ident">index</span>]) }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">AsciiExt</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
     <span class="kw">type</span> <span class="ident">Owned</span> <span class="op">=</span> <span class="ident">AsciiString</span>;
 
@@ -837,63 +1320,133 @@
 
     <span class="kw">fn</span> <span class="ident">to_ascii_lowercase</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">AsciiString</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ascii_string</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">to_ascii_string</span>();
-        <span class="ident">ascii_string</span>.<span class="ident">make_ascii_uppercase</span>();
+        <span class="ident">ascii_string</span>.<span class="ident">make_ascii_lowercase</span>();
         <span class="ident">ascii_string</span>
     }
 
     <span class="kw">fn</span> <span class="ident">eq_ignore_ascii_case</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="ident">other</span>.<span class="ident">len</span>() <span class="op">&amp;&amp;</span>
-        <span class="self">self</span>.<span class="ident">slice</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">other</span>.<span class="ident">slice</span>.<span class="ident">iter</span>()).<span class="ident">all</span>(<span class="op">|</span>(<span class="ident">a</span>, <span class="ident">b</span>)<span class="op">|</span> <span class="ident">a</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">b</span>))
+            <span class="self">self</span>.<span class="ident">chars</span>().<span class="ident">zip</span>(<span class="ident">other</span>.<span class="ident">chars</span>()).<span class="ident">all</span>(<span class="op">|</span>(<span class="ident">a</span>, <span class="ident">b</span>)<span class="op">|</span> {
+                <span class="ident">a</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">b</span>)
+            })
     }
 
     <span class="kw">fn</span> <span class="ident">make_ascii_uppercase</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">for</span> <span class="ident">ascii</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span> {
+        <span class="kw">for</span> <span class="ident">ascii</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">chars_mut</span>() {
             <span class="ident">ascii</span>.<span class="ident">make_ascii_uppercase</span>();
         }
     }
 
     <span class="kw">fn</span> <span class="ident">make_ascii_lowercase</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">for</span> <span class="ident">ascii</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">slice</span> {
+        <span class="kw">for</span> <span class="ident">ascii</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">chars_mut</span>() {
             <span class="ident">ascii</span>.<span class="ident">make_ascii_lowercase</span>();
         }
     }
 }
 
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiChar</span>;
+    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">Chars</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
+        <span class="self">self</span>.<span class="ident">chars</span>()
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">AsciiChar</span>;
+    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">CharsMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
+        <span class="self">self</span>.<span class="ident">chars_mut</span>()
+    }
+}
+
+<span class="doccomment">/// An immutable iterator over the characters of an `AsciiStr`.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Chars</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">AsciiChar</span><span class="op">&gt;</span>;
+
+<span class="doccomment">/// A mutable iterator over the characters of an `AsciiStr`.</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CharsMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">IterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">AsciiChar</span><span class="op">&gt;</span>;
+
+<span class="doccomment">/// An iterator over the lines of the internal character array.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Lines</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">Lines</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span>;
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">AsciiStr</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">string</span>.<span class="ident">is_empty</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">idx</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">string</span>
+            .<span class="ident">chars</span>()
+            .<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">chr</span><span class="op">|</span> <span class="ident">chr</span> <span class="op">==</span> <span class="ident">AsciiChar</span>::<span class="ident">LineFeed</span>)
+        {
+            <span class="kw">let</span> <span class="ident">line</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">string</span>[<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>] <span class="op">==</span> <span class="ident">AsciiChar</span>::<span class="ident">CarriageReturn</span> {
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">string</span>[..<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>]
+            } <span class="kw">else</span> {
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">string</span>[..<span class="ident">idx</span>]
+            };
+            <span class="self">self</span>.<span class="ident">string</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">string</span>[<span class="ident">idx</span> <span class="op">+</span> <span class="number">1</span>..];
+            <span class="prelude-val">Some</span>(<span class="ident">line</span>)
+        } <span class="kw">else</span> {
+            <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">string</span>.<span class="ident">is_empty</span>() {
+                <span class="kw">let</span> <span class="ident">line</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">string</span>;
+                <span class="self">self</span>.<span class="ident">string</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">string</span>[..<span class="number">0</span>];
+                <span class="prelude-val">Some</span>(<span class="ident">line</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
+            }
+        }
+    }
+}
 
 <span class="doccomment">/// Error that is returned when a sequence of `u8` are not all ASCII.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Is used by `As[Mut]AsciiStr` and the `from_ascii` method on `AsciiStr` and `AsciiString`.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>,<span class="ident">Copy</span>, <span class="ident">PartialEq</span>,<span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AsAsciiStrError</span> (<span class="ident">usize</span>);
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AsAsciiStrError</span>(<span class="ident">usize</span>);
+
+<span class="kw">const</span> <span class="ident">ERRORMSG_STR</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;one or more bytes are not ASCII&quot;</span>;
 
 <span class="kw">impl</span> <span class="ident">AsAsciiStrError</span> {
     <span class="doccomment">/// Returns the index of the first non-ASCII byte.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// It is the maximum index such that `from_ascii(input[..index])` would return `Ok(_)`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">valid_up_to</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="doccomment">/// Returns a description for this error, like `std::error::Error::description`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="ident">ERRORMSG_STR</span>
+    }
 }
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">AsAsciiStrError</span> {
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,  <span class="ident">fmtr</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmtr</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmtr</span>, <span class="string">&quot;the byte at index {} is not ASCII&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
     }
 }
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">Error</span> <span class="kw">for</span> <span class="ident">AsAsciiStrError</span> {
-    <span class="doccomment">/// Returns &quot;one or more bytes are not ASCII&quot;</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">description</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="string">&quot;one or more bytes are not ASCII&quot;</span>
+        <span class="ident">ERRORMSG_STR</span>
     }
 }
-
 
 <span class="doccomment">/// Convert slices of bytes to `AsciiStr`.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">AsAsciiStr</span> {
     <span class="doccomment">/// Convert to an ASCII slice without checking for non-ASCII characters.</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>;
     <span class="doccomment">/// Convert to an ASCII slice.</span>
-    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span>;
 }
 
 <span class="doccomment">/// Convert mutable slices of bytes to `AsciiStr`.</span>
@@ -901,83 +1454,135 @@
     <span class="doccomment">/// Convert to a mutable ASCII slice without checking for non-ASCII characters.</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
     <span class="doccomment">/// Convert to a mutable ASCII slice.</span>
-    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span>;
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span>;
+}
+
+<span class="comment">// These generic implementations mirror the generic implementations for AsRef&lt;T&gt; in core.</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">AsAsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_ascii_str</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">AsAsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_ascii_str</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">AsMutAsciiStr</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">AsMutAsciiStr</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsMutAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_mut_ascii_str</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
+        <span class="op">&lt;</span><span class="ident">T</span> <span class="kw">as</span> <span class="ident">AsMutAsciiStr</span><span class="op">&gt;</span>::<span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">*</span><span class="self">self</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
-    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
         <span class="self">self</span>
     }
 }
 <span class="kw">impl</span> <span class="ident">AsMutAsciiStr</span> <span class="kw">for</span> <span class="ident">AsciiStr</span> {
-    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
         <span class="self">self</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> [<span class="ident">AsciiChar</span>] {
-    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">into</span>())
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
         <span class="self">self</span>.<span class="ident">into</span>()
     }
 }
 <span class="kw">impl</span> <span class="ident">AsMutAsciiStr</span> <span class="kw">for</span> [<span class="ident">AsciiChar</span>] {
-    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">into</span>())
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
         <span class="self">self</span>.<span class="ident">into</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> [<span class="ident">u8</span>] {
-    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span> ) {
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span>) {
             <span class="prelude-val">Some</span>(<span class="ident">index</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">AsAsciiStrError</span>(<span class="ident">index</span>)),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span>{ <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_ascii_str_unchecked</span>()) },
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_ascii_str_unchecked</span>()) },
         }
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>)
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">AsciiStr</span>;
+        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">ptr</span>
     }
 }
 <span class="kw">impl</span> <span class="ident">AsMutAsciiStr</span> <span class="kw">for</span> [<span class="ident">u8</span>] {
-    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span> ) {
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span>) {
             <span class="prelude-val">Some</span>(<span class="ident">index</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">AsAsciiStrError</span>(<span class="ident">index</span>)),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span>{ <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_mut_ascii_str_unchecked</span>()) },
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_mut_ascii_str_unchecked</span>()) },
         }
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>)
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ptr</span>
     }
 }
 
 <span class="kw">impl</span> <span class="ident">AsAsciiStr</span> <span class="kw">for</span> <span class="ident">str</span> {
-    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">as_ascii_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ascii_str</span>()
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">AsciiStr</span> {
         <span class="self">self</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ascii_str_unchecked</span>()
     }
 }
 <span class="kw">impl</span> <span class="ident">AsMutAsciiStr</span> <span class="kw">for</span> <span class="ident">str</span> {
-    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">bytes</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span> ) {
+    <span class="kw">fn</span> <span class="ident">as_mut_ascii_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">bytes</span>().<span class="ident">position</span>(<span class="op">|</span><span class="ident">b</span><span class="op">|</span> <span class="ident">b</span> <span class="op">&gt;</span> <span class="number">127</span>) {
             <span class="prelude-val">Some</span>(<span class="ident">index</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">AsAsciiStrError</span>(<span class="ident">index</span>)),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span>{ <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_mut_ascii_str_unchecked</span>()) },
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">as_mut_ascii_str_unchecked</span>()) },
         }
     }
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">as_mut_ascii_str_unchecked</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>)
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">str</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>;
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ptr</span>
     }
 }
 
@@ -985,13 +1590,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">AsciiChar</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStr</span>, <span class="ident">AsAsciiStrError</span>};
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">AsMutAsciiStr</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStr</span>, <span class="ident">AsMutAsciiStr</span>, <span class="ident">AsAsciiStrError</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">generic_as_ascii_str</span>() {
-        <span class="kw">fn</span> <span class="ident">generic</span><span class="op">&lt;</span><span class="ident">C</span>:<span class="ident">AsAsciiStr</span><span class="op">+</span><span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">c</span>: <span class="kw-2">&amp;</span><span class="ident">C</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>,<span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">generic</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">AsAsciiStr</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="ident">c</span>: <span class="kw-2">&amp;</span><span class="ident">C</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
             <span class="ident">c</span>.<span class="ident">as_ascii_str</span>()
         }
         <span class="kw">let</span> <span class="ident">arr</span> <span class="op">=</span> [<span class="ident">AsciiChar</span>::<span class="ident">A</span>];
@@ -999,10 +1602,30 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="string">&quot;A&quot;</span>), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;A&quot;</span>[..]), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="ident">ascii_str</span>), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="kw-2">&amp;</span><span class="string">&quot;A&quot;</span>), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="kw-2">&amp;</span><span class="ident">ascii_str</span>), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="string">&quot;A&quot;</span>), <span class="prelude-val">Ok</span>(<span class="ident">ascii_str</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">generic_as_mut_ascii_str</span>() {
+        <span class="kw">fn</span> <span class="ident">generic_mut</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">AsMutAsciiStr</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
+            <span class="ident">c</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">C</span>,
+        ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span>, <span class="ident">AsAsciiStrError</span><span class="op">&gt;</span> {
+            <span class="ident">c</span>.<span class="ident">as_mut_ascii_str</span>()
+        }
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr_mut</span> <span class="op">=</span> [<span class="ident">AsciiChar</span>::<span class="ident">B</span>];
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ascii_str_mut</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> <span class="op">=</span> <span class="ident">arr_mut</span>.<span class="ident">as_mut</span>().<span class="ident">into</span>();
+        <span class="comment">// Need a second reference to prevent overlapping mutable borrows</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr_mut_2</span> <span class="op">=</span> [<span class="ident">AsciiChar</span>::<span class="ident">B</span>];
+        <span class="kw">let</span> <span class="ident">ascii_str_mut_2</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">AsciiStr</span> <span class="op">=</span> <span class="ident">arr_mut_2</span>.<span class="ident">as_mut</span>().<span class="ident">into</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ascii_str_mut</span>), <span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ascii_str_mut_2</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generic_mut</span>(<span class="ident">ascii_str_mut</span>), <span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="ident">ascii_str_mut_2</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">as_ascii_str</span>() {
         <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">err</span> {{<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>} <span class="op">=&gt;</span> {<span class="prelude-val">Err</span>(<span class="ident">AsAsciiStrError</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>))}}
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span>: <span class="ident">String</span> <span class="op">=</span> <span class="string">&quot;abčd&quot;</span>.<span class="ident">to_string</span>();
@@ -1042,12 +1665,109 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no_std&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">make_ascii_case</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> ([<span class="string">b&#39;a&#39;</span>, <span class="string">b&#39;@&#39;</span>, <span class="string">b&#39;A&#39;</span>], [<span class="string">b&#39;A&#39;</span>, <span class="string">b&#39;@&#39;</span>, <span class="string">b&#39;a&#39;</span>]);
+        <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">bytes</span>.<span class="number">0</span>.<span class="ident">as_mut_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">bytes</span>.<span class="number">1</span>.<span class="ident">as_mut_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">b</span>));
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">a</span>));
+        <span class="ident">a</span>.<span class="ident">make_ascii_lowercase</span>();
+        <span class="ident">b</span>.<span class="ident">make_ascii_uppercase</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">a</span>, <span class="string">&quot;a@a&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>, <span class="string">&quot;A@A&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">to_ascii_case</span>() {
+        <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> ([<span class="string">b&#39;a&#39;</span>, <span class="string">b&#39;@&#39;</span>, <span class="string">b&#39;A&#39;</span>], [<span class="string">b&#39;A&#39;</span>, <span class="string">b&#39;@&#39;</span>, <span class="string">b&#39;a&#39;</span>]);
+        <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">bytes</span>.<span class="number">0</span>.<span class="ident">as_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">bytes</span>.<span class="number">1</span>.<span class="ident">as_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">a</span>.<span class="ident">to_ascii_lowercase</span>().<span class="ident">as_str</span>(), <span class="string">&quot;a@a&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">a</span>.<span class="ident">to_ascii_uppercase</span>().<span class="ident">as_str</span>(), <span class="string">&quot;A@A&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">to_ascii_lowercase</span>().<span class="ident">as_str</span>(), <span class="string">&quot;a@a&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">to_ascii_uppercase</span>().<span class="ident">as_str</span>(), <span class="string">&quot;A@A&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">ascii_ext</span>() {
+        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
+        <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ascii</span>::<span class="ident">AsciiExt</span>;
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">AsciiExt</span>::<span class="ident">is_ascii</span>(<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">AsciiStr</span><span class="op">&gt;</span>::<span class="ident">default</span>()));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mutable</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from</span>(<span class="string">&quot;a@AA@a&quot;</span>);
+        <span class="kw">let</span> <span class="ident">parts</span> <span class="op">=</span> <span class="ident">mutable</span>.<span class="ident">split_at_mut</span>(<span class="number">3</span>);
+        <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">parts</span>.<span class="number">0</span>.<span class="ident">as_mut_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">parts</span>.<span class="number">1</span>.<span class="ident">as_mut_ascii_str</span>().<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">AsciiExt</span>::<span class="ident">eq_ignore_ascii_case</span>(<span class="ident">a</span>, <span class="ident">b</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">AsciiExt</span>::<span class="ident">to_ascii_lowercase</span>(<span class="ident">a</span>).<span class="ident">as_str</span>(), <span class="string">&quot;a@a&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">AsciiExt</span>::<span class="ident">to_ascii_uppercase</span>(<span class="ident">b</span>).<span class="ident">as_str</span>(), <span class="string">&quot;A@A&quot;</span>);
+        <span class="ident">AsciiExt</span>::<span class="ident">make_ascii_uppercase</span>(<span class="ident">a</span>);
+        <span class="ident">AsciiExt</span>::<span class="ident">make_ascii_lowercase</span>(<span class="ident">b</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">a</span>, <span class="string">&quot;A@A&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">b</span>, <span class="string">&quot;a@a&quot;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">chars_iter</span>() {
+        <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="string">b&#39;h&#39;</span>, <span class="string">b&#39;e&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;o&#39;</span>, <span class="string">b&#39; &#39;</span>, <span class="string">b&#39;w&#39;</span>, <span class="string">b&#39;o&#39;</span>, <span class="string">b&#39;r&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;d&#39;</span>, <span class="string">b&#39;\0&#39;</span>];
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="ident">chars</span>).<span class="ident">unwrap</span>();
+        <span class="kw">for</span> (<span class="ident">achar</span>, <span class="ident">byte</span>) <span class="kw">in</span> <span class="ident">ascii</span>.<span class="ident">chars</span>().<span class="ident">zip</span>(<span class="ident">chars</span>.<span class="ident">iter</span>()) {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">achar</span>, <span class="ident">byte</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">chars_iter_mut</span>() {
+        <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="string">b&#39;h&#39;</span>, <span class="string">b&#39;e&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;o&#39;</span>, <span class="string">b&#39; &#39;</span>, <span class="string">b&#39;w&#39;</span>, <span class="string">b&#39;o&#39;</span>, <span class="string">b&#39;r&#39;</span>, <span class="string">b&#39;l&#39;</span>, <span class="string">b&#39;d&#39;</span>, <span class="string">b&#39;\0&#39;</span>];
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">chars</span>.<span class="ident">as_mut_ascii_str</span>().<span class="ident">unwrap</span>();
+
+        <span class="kw-2">*</span><span class="ident">ascii</span>.<span class="ident">chars_mut</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>() <span class="op">=</span> <span class="ident">AsciiChar</span>::<span class="ident">H</span>;
+
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">ascii</span>[<span class="number">0</span>], <span class="string">b&#39;H&#39;</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">lines_iter</span>() {
+        <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">iter</span>::<span class="ident">Iterator</span>;
+
+        <span class="kw">let</span> <span class="ident">lines</span>: [<span class="kw-2">&amp;</span><span class="ident">str</span>; <span class="number">4</span>] <span class="op">=</span> [<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;&quot;</span>, <span class="string">&quot;baz&quot;</span>];
+        <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="string">&quot;foo\r\nbar\n\nbaz\n&quot;</span>;
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="ident">joined</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">for</span> (<span class="ident">asciiline</span>, <span class="ident">line</span>) <span class="kw">in</span> <span class="ident">ascii</span>.<span class="ident">lines</span>().<span class="ident">zip</span>(<span class="kw-2">&amp;</span><span class="ident">lines</span>) {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">asciiline</span>, <span class="kw-2">*</span><span class="ident">line</span>);
+        }
+
+        <span class="kw">let</span> <span class="ident">lines</span>: [<span class="kw-2">&amp;</span><span class="ident">str</span>; <span class="number">4</span>] <span class="op">=</span> [<span class="string">&quot;foo&quot;</span>, <span class="string">&quot;bar&quot;</span>, <span class="string">&quot;&quot;</span>, <span class="string">&quot;baz&quot;</span>];
+        <span class="kw">let</span> <span class="ident">joined</span> <span class="op">=</span> <span class="string">&quot;foo\r\nbar\n\nbaz&quot;</span>;
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="ident">joined</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">for</span> (<span class="ident">asciiline</span>, <span class="ident">line</span>) <span class="kw">in</span> <span class="ident">ascii</span>.<span class="ident">lines</span>().<span class="ident">zip</span>(<span class="kw-2">&amp;</span><span class="ident">lines</span>) {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">asciiline</span>, <span class="kw-2">*</span><span class="ident">line</span>);
+        }
+
+        <span class="kw">let</span> <span class="ident">trailing_line_break</span> <span class="op">=</span> <span class="string">b&quot;\n&quot;</span>;
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="kw-2">&amp;</span><span class="ident">trailing_line_break</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">line_iter</span> <span class="op">=</span> <span class="ident">ascii</span>.<span class="ident">lines</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">line_iter</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="string">&quot;&quot;</span>).<span class="ident">unwrap</span>()));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">line_iter</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
+
+        <span class="kw">let</span> <span class="ident">empty_lines</span> <span class="op">=</span> <span class="string">b&quot;\n\r\n\n\r\n&quot;</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter_count</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="ident">ascii</span> <span class="op">=</span> <span class="ident">AsciiStr</span>::<span class="ident">from_ascii</span>(<span class="kw-2">&amp;</span><span class="ident">empty_lines</span>).<span class="ident">unwrap</span>();
+        <span class="kw">for</span> <span class="ident">line</span> <span class="kw">in</span> <span class="ident">ascii</span>.<span class="ident">lines</span>() {
+            <span class="ident">iter_count</span> <span class="op">+=</span> <span class="number">1</span>;
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">line</span>.<span class="ident">is_empty</span>());
+        }
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="number">4</span>, <span class="ident">iter_count</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">fmt_ascii_str</span>() {
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="string">&quot;abc&quot;</span>.<span class="ident">as_ascii_str</span>().<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>), <span class="string">&quot;abc&quot;</span>.<span class="ident">to_string</span>());
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">s</span>), <span class="string">&quot;\&quot;abc\&quot;&quot;</span>.<span class="ident">to_string</span>());
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "ascii";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "ascii";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

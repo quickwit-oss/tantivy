@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/sys/signal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>signal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/sys/signal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>signal.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../nix/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -735,68 +735,429 @@
 <span id="735">735</span>
 <span id="736">736</span>
 <span id="737">737</span>
-</pre><pre class="rust ">
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
+<span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
+<span id="970">970</span>
+<span id="971">971</span>
+<span id="972">972</span>
+<span id="973">973</span>
+<span id="974">974</span>
+<span id="975">975</span>
+<span id="976">976</span>
+<span id="977">977</span>
+<span id="978">978</span>
+<span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
+<span id="990">990</span>
+<span id="991">991</span>
+<span id="992">992</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Portions of this file are Copyright 2014 The Rust Project Developers.</span>
 <span class="comment">// See http://rust-lang.org/COPYRIGHT.</span>
 
+<span class="doccomment">///! Operating system signals.</span>
+
 <span class="kw">use</span> <span class="ident">libc</span>;
-<span class="kw">use</span> {<span class="ident">Errno</span>, <span class="ident">Error</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
+<span class="kw">use</span> {<span class="ident">Error</span>, <span class="prelude-ty">Result</span>};
+<span class="kw">use</span> <span class="ident">errno</span>::<span class="ident">Errno</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">io</span>::<span class="ident">RawFd</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
 
-<span class="comment">// Currently there is only one definition of c_int in libc, as well as only one</span>
-<span class="comment">// type for signal constants.</span>
-<span class="comment">// We would prefer to use the libc::c_int alias in the repr attribute. Unfortunately</span>
-<span class="comment">// this is not (yet) possible.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i32</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Signal</span> {
-    <span class="ident">SIGHUP</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGHUP</span>,
-    <span class="ident">SIGINT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGINT</span>,
-    <span class="ident">SIGQUIT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGQUIT</span>,
-    <span class="ident">SIGILL</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGILL</span>,
-    <span class="ident">SIGTRAP</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGTRAP</span>,
-    <span class="ident">SIGABRT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGABRT</span>,
-    <span class="ident">SIGBUS</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGBUS</span>,
-    <span class="ident">SIGFPE</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGFPE</span>,
-    <span class="ident">SIGKILL</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGKILL</span>,
-    <span class="ident">SIGUSR1</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGUSR1</span>,
-    <span class="ident">SIGSEGV</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGSEGV</span>,
-    <span class="ident">SIGUSR2</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGUSR2</span>,
-    <span class="ident">SIGPIPE</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGPIPE</span>,
-    <span class="ident">SIGALRM</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGALRM</span>,
-    <span class="ident">SIGTERM</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGTERM</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>), <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>))))]</span>
-    <span class="ident">SIGSTKFLT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGSTKFLT</span>,
-    <span class="ident">SIGCHLD</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGCHLD</span>,
-    <span class="ident">SIGCONT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGCONT</span>,
-    <span class="ident">SIGSTOP</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGSTOP</span>,
-    <span class="ident">SIGTSTP</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGTSTP</span>,
-    <span class="ident">SIGTTIN</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGTTIN</span>,
-    <span class="ident">SIGTTOU</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGTTOU</span>,
-    <span class="ident">SIGURG</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGURG</span>,
-    <span class="ident">SIGXCPU</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGXCPU</span>,
-    <span class="ident">SIGXFSZ</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGXFSZ</span>,
-    <span class="ident">SIGVTALRM</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGVTALRM</span>,
-    <span class="ident">SIGPROF</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGPROF</span>,
-    <span class="ident">SIGWINCH</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGWINCH</span>,
-    <span class="ident">SIGIO</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGIO</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>))]</span>
-    <span class="ident">SIGPWR</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGPWR</span>,
-    <span class="ident">SIGSYS</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGSYS</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>)))]</span>
-    <span class="ident">SIGEMT</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGEMT</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>)))]</span>
-    <span class="ident">SIGINFO</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIGINFO</span>,
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">sigevent</span>::<span class="kw-2">*</span>;
+
+<span class="macro">libc_enum</span><span class="macro">!</span>{
+    <span class="comment">// Currently there is only one definition of c_int in libc, as well as only one</span>
+    <span class="comment">// type for signal constants.</span>
+    <span class="comment">// We would prefer to use the libc::c_int alias in the repr attribute. Unfortunately</span>
+    <span class="comment">// this is not (yet) possible.</span>
+    <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i32</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Signal</span> {
+        <span class="ident">SIGHUP</span>,
+        <span class="ident">SIGINT</span>,
+        <span class="ident">SIGQUIT</span>,
+        <span class="ident">SIGILL</span>,
+        <span class="ident">SIGTRAP</span>,
+        <span class="ident">SIGABRT</span>,
+        <span class="ident">SIGBUS</span>,
+        <span class="ident">SIGFPE</span>,
+        <span class="ident">SIGKILL</span>,
+        <span class="ident">SIGUSR1</span>,
+        <span class="ident">SIGSEGV</span>,
+        <span class="ident">SIGUSR2</span>,
+        <span class="ident">SIGPIPE</span>,
+        <span class="ident">SIGALRM</span>,
+        <span class="ident">SIGTERM</span>,
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>),
+                  <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;sparc64&quot;</span>))))]</span>
+        <span class="ident">SIGSTKFLT</span>,
+        <span class="ident">SIGCHLD</span>,
+        <span class="ident">SIGCONT</span>,
+        <span class="ident">SIGSTOP</span>,
+        <span class="ident">SIGTSTP</span>,
+        <span class="ident">SIGTTIN</span>,
+        <span class="ident">SIGTTOU</span>,
+        <span class="ident">SIGURG</span>,
+        <span class="ident">SIGXCPU</span>,
+        <span class="ident">SIGXFSZ</span>,
+        <span class="ident">SIGVTALRM</span>,
+        <span class="ident">SIGPROF</span>,
+        <span class="ident">SIGWINCH</span>,
+        <span class="ident">SIGIO</span>,
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="ident">SIGPWR</span>,
+        <span class="ident">SIGSYS</span>,
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+        <span class="ident">SIGEMT</span>,
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+        <span class="ident">SIGINFO</span>,
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">Signal</span> {
+    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Error</span>;
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="ident">s</span> {
+            <span class="string">&quot;SIGHUP&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGHUP</span>,
+            <span class="string">&quot;SIGINT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGINT</span>,
+            <span class="string">&quot;SIGQUIT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGQUIT</span>,
+            <span class="string">&quot;SIGILL&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGILL</span>,
+            <span class="string">&quot;SIGTRAP&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGTRAP</span>,
+            <span class="string">&quot;SIGABRT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGABRT</span>,
+            <span class="string">&quot;SIGBUS&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGBUS</span>,
+            <span class="string">&quot;SIGFPE&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGFPE</span>,
+            <span class="string">&quot;SIGKILL&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGKILL</span>,
+            <span class="string">&quot;SIGUSR1&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGUSR1</span>,
+            <span class="string">&quot;SIGSEGV&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGSEGV</span>,
+            <span class="string">&quot;SIGUSR2&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGUSR2</span>,
+            <span class="string">&quot;SIGPIPE&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGPIPE</span>,
+            <span class="string">&quot;SIGALRM&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGALRM</span>,
+            <span class="string">&quot;SIGTERM&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGTERM</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>),
+                      <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;sparc64&quot;</span>))))]</span>
+            <span class="string">&quot;SIGSTKFLT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGSTKFLT</span>,
+            <span class="string">&quot;SIGCHLD&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGCHLD</span>,
+            <span class="string">&quot;SIGCONT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGCONT</span>,
+            <span class="string">&quot;SIGSTOP&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGSTOP</span>,
+            <span class="string">&quot;SIGTSTP&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGTSTP</span>,
+            <span class="string">&quot;SIGTTIN&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGTTIN</span>,
+            <span class="string">&quot;SIGTTOU&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGTTOU</span>,
+            <span class="string">&quot;SIGURG&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGURG</span>,
+            <span class="string">&quot;SIGXCPU&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGXCPU</span>,
+            <span class="string">&quot;SIGXFSZ&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGXFSZ</span>,
+            <span class="string">&quot;SIGVTALRM&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGVTALRM</span>,
+            <span class="string">&quot;SIGPROF&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGPROF</span>,
+            <span class="string">&quot;SIGWINCH&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGWINCH</span>,
+            <span class="string">&quot;SIGIO&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGIO</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+            <span class="string">&quot;SIGPWR&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGPWR</span>,
+            <span class="string">&quot;SIGSYS&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGSYS</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+            <span class="string">&quot;SIGEMT&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGEMT</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+            <span class="string">&quot;SIGINFO&quot;</span> <span class="op">=&gt;</span> <span class="ident">Signal</span>::<span class="ident">SIGINFO</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_argument</span>()),
+        })
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Signal</span> {
+    <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">Signal</span>::<span class="ident">SIGHUP</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGHUP&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGINT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGINT&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGQUIT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGQUIT&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGILL</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGILL&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGTRAP</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGTRAP&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGABRT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGABRT&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGBUS</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGBUS&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGFPE</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGFPE&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGKILL</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGKILL&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGUSR1</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGUSR1&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGSEGV</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGSEGV&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGUSR2</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGUSR2&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGPIPE</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGPIPE&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGALRM</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGALRM&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGTERM</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGTERM&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>),
+                      <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;sparc64&quot;</span>))))]</span>
+            <span class="ident">Signal</span>::<span class="ident">SIGSTKFLT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGSTKFLT&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGCHLD</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGCHLD&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGCONT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGCONT&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGSTOP</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGSTOP&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGTSTP</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGTSTP&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGTTIN</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGTTIN&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGTTOU</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGTTOU&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGURG</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGURG&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGXCPU</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGXCPU&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGXFSZ</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGXFSZ&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGVTALRM</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGVTALRM&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGPROF</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGPROF&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGWINCH</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGWINCH&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGIO</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGIO&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+            <span class="ident">Signal</span>::<span class="ident">SIGPWR</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGPWR&quot;</span>,
+            <span class="ident">Signal</span>::<span class="ident">SIGSYS</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGSYS&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+            <span class="ident">Signal</span>::<span class="ident">SIGEMT</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGEMT&quot;</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+            <span class="ident">Signal</span>::<span class="ident">SIGINFO</span> <span class="op">=&gt;</span> <span class="string">&quot;SIGINFO&quot;</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Signal</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="self">self</span>.<span class="ident">as_ref</span>())
+    }
 }
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">Signal</span>::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>), <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>))))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>), <span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;sparc64&quot;</span>))))]</span>
 <span class="kw">const</span> <span class="ident">SIGNALS</span>: [<span class="ident">Signal</span>; <span class="number">31</span>] <span class="op">=</span> [
     <span class="ident">SIGHUP</span>,
     <span class="ident">SIGINT</span>,
@@ -829,7 +1190,7 @@
     <span class="ident">SIGIO</span>,
     <span class="ident">SIGPWR</span>,
     <span class="ident">SIGSYS</span>];
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>), <span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>)))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;emscripten&quot;</span>), <span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips64&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;sparc64&quot;</span>)))]</span>
 <span class="kw">const</span> <span class="ident">SIGNALS</span>: [<span class="ident">Signal</span>; <span class="number">30</span>] <span class="op">=</span> [
     <span class="ident">SIGHUP</span>,
     <span class="ident">SIGINT</span>,
@@ -897,6 +1258,8 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NSIG</span>: <span class="ident">libc</span>::<span class="ident">c_int</span> <span class="op">=</span> <span class="number">32</span>;
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SignalIterator</span> {
     <span class="ident">next</span>: <span class="ident">usize</span>,
 }
@@ -925,9 +1288,10 @@
     <span class="comment">// implemented, we&#39;ll replace this function.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_c_int</span>(<span class="ident">signum</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="number">0</span> <span class="op">&lt;</span> <span class="ident">signum</span> <span class="op">&amp;&amp;</span> <span class="ident">signum</span> <span class="op">&lt;</span> <span class="ident">NSIG</span> {
-            <span class="bool-val">true</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">signum</span>) }),
-            <span class="bool-val">false</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_argument</span>()),
+        <span class="kw">if</span> <span class="number">0</span> <span class="op">&lt;</span> <span class="ident">signum</span> <span class="op">&amp;&amp;</span> <span class="ident">signum</span> <span class="op">&lt;</span> <span class="ident">NSIG</span> {
+            <span class="prelude-val">Ok</span>(<span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">signum</span>) })
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_argument</span>())
         }
     }
 }
@@ -936,57 +1300,29 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGPOLL</span> : <span class="ident">Signal</span> <span class="op">=</span> <span class="ident">SIGIO</span>;
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SIGUNUSED</span> : <span class="ident">Signal</span> <span class="op">=</span> <span class="ident">SIGSYS</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
 <span class="macro">libc_bitflags</span><span class="macro">!</span>{
-    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">SaFlags</span>: <span class="ident">libc</span>::<span class="ident">c_int</span> {
-        <span class="ident">SA_NOCLDSTOP</span>,
-        <span class="ident">SA_NOCLDWAIT</span>,
-        <span class="ident">SA_NODEFER</span>,
-        <span class="ident">SA_ONSTACK</span>,
-        <span class="ident">SA_RESETHAND</span>,
-        <span class="ident">SA_RESTART</span>,
-        <span class="ident">SA_SIGINFO</span>,
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SaFlags</span>: <span class="ident">libc</span>::<span class="ident">c_int</span> {
+        <span class="ident">SA_NOCLDSTOP</span>;
+        <span class="ident">SA_NOCLDWAIT</span>;
+        <span class="ident">SA_NODEFER</span>;
+        <span class="ident">SA_ONSTACK</span>;
+        <span class="ident">SA_RESETHAND</span>;
+        <span class="ident">SA_RESTART</span>;
+        <span class="ident">SA_SIGINFO</span>;
     }
 }
 
-<span class="comment">// On 64-bit android, sa_flags is c_uint while on 32-bit android, it is</span>
-<span class="comment">// c_ulong.</span>
-<span class="comment">// FIXME: https://github.com/rust-lang/libc/pull/511</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;32&quot;</span>))]</span>
-<span class="macro">libc_bitflags</span><span class="macro">!</span>{
-    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">SaFlags</span>: <span class="ident">libc</span>::<span class="ident">c_ulong</span> {
-        <span class="ident">SA_NOCLDSTOP</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_NOCLDWAIT</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_NODEFER</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_ONSTACK</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_RESETHAND</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_RESTART</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
-        <span class="ident">SA_SIGINFO</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_ulong</span>,
+<span class="macro">libc_enum</span><span class="macro">!</span> {
+    <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i32</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SigmaskHow</span> {
+        <span class="ident">SIG_BLOCK</span>,
+        <span class="ident">SIG_UNBLOCK</span>,
+        <span class="ident">SIG_SETMASK</span>,
     }
-}
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>))]</span>
-<span class="macro">libc_bitflags</span><span class="macro">!</span>{
-    <span class="kw">pub</span> <span class="ident">flags</span> <span class="ident">SaFlags</span>: <span class="ident">libc</span>::<span class="ident">c_uint</span> {
-        <span class="ident">SA_NOCLDSTOP</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_NOCLDWAIT</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_NODEFER</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_ONSTACK</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_RESETHAND</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_RESTART</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-        <span class="ident">SA_SIGINFO</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-    }
-}
-
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">i32</span>)]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SigmaskHow</span> {
-    <span class="ident">SIG_BLOCK</span>   <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIG_BLOCK</span>,
-    <span class="ident">SIG_UNBLOCK</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIG_UNBLOCK</span>,
-    <span class="ident">SIG_SETMASK</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">SIG_SETMASK</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SigSet</span> {
     <span class="ident">sigset</span>: <span class="ident">libc</span>::<span class="ident">sigset_t</span>
 }
@@ -1040,7 +1376,7 @@
     <span class="doccomment">/// Gets the currently blocked (masked) set of signals for the calling thread.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">thread_get_mask</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SigSet</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">oldmask</span>: <span class="ident">SigSet</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pthread_sigmask</span>(<span class="ident">SigmaskHow</span>::<span class="ident">SIG_SETMASK</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldmask</span>)));
+        <span class="ident">pthread_sigmask</span>(<span class="ident">SigmaskHow</span>::<span class="ident">SIG_SETMASK</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldmask</span>))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">oldmask</span>)
     }
 
@@ -1062,7 +1398,7 @@
     <span class="doccomment">/// Sets the set of signals as the signal mask, and returns the old mask.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">thread_swap_mask</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">how</span>: <span class="ident">SigmaskHow</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SigSet</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">oldmask</span>: <span class="ident">SigSet</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pthread_sigmask</span>(<span class="ident">how</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldmask</span>)));
+        <span class="ident">pthread_sigmask</span>(<span class="ident">how</span>, <span class="prelude-val">Some</span>(<span class="self">self</span>), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldmask</span>))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">oldmask</span>)
     }
 
@@ -1082,58 +1418,84 @@
     }
 }
 
+<span class="doccomment">/// A signal handler.</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unknown_lints</span>)]</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">SigHandler</span> {
+    <span class="doccomment">/// Default signal handling.</span>
     <span class="ident">SigDfl</span>,
+    <span class="doccomment">/// Request that the signal be ignored.</span>
     <span class="ident">SigIgn</span>,
+    <span class="doccomment">/// Use the given signal-catching function, which takes in the signal.</span>
     <span class="ident">Handler</span>(<span class="kw">extern</span> <span class="kw">fn</span>(<span class="ident">libc</span>::<span class="ident">c_int</span>)),
+    <span class="doccomment">/// Use the given signal-catching function, which takes in the signal, information about how</span>
+    <span class="doccomment">/// the signal was generated, and a pointer to the threads `ucontext_t`.</span>
     <span class="ident">SigAction</span>(<span class="kw">extern</span> <span class="kw">fn</span>(<span class="ident">libc</span>::<span class="ident">c_int</span>, <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>))
 }
 
+<span class="doccomment">/// Action to take on receipt of a signal. Corresponds to `sigaction`.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_debug_implementations</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SigAction</span> {
     <span class="ident">sigaction</span>: <span class="ident">libc</span>::<span class="ident">sigaction</span>
 }
 
 <span class="kw">impl</span> <span class="ident">SigAction</span> {
-    <span class="doccomment">/// This function will set or unset the flag `SA_SIGINFO` depending on the</span>
-    <span class="doccomment">/// type of the `handler` argument.</span>
+    <span class="doccomment">/// Creates a new action.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The `SA_SIGINFO` bit in the `flags` argument is ignored (it will be set only if `handler`</span>
+    <span class="doccomment">/// is the `SigAction` variant). `mask` specifies other signals to block during execution of</span>
+    <span class="doccomment">/// the signal-catching function.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">handler</span>: <span class="ident">SigHandler</span>, <span class="ident">flags</span>: <span class="ident">SaFlags</span>, <span class="ident">mask</span>: <span class="ident">SigSet</span>) <span class="op">-&gt;</span> <span class="ident">SigAction</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigaction</span><span class="op">&gt;</span>() };
         <span class="ident">s</span>.<span class="ident">sa_sigaction</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">handler</span> {
-            <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">libc</span>::<span class="ident">SIG_DFL</span>) },
-            <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span> <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">libc</span>::<span class="ident">SIG_IGN</span>) },
-            <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) },
-            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) },
+            <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIG_DFL</span>,
+            <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIG_IGN</span>,
+            <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">extern</span> <span class="kw">fn</span>(<span class="ident">libc</span>::<span class="ident">c_int</span>) <span class="kw">as</span> <span class="ident">usize</span>,
+            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">extern</span> <span class="kw">fn</span>(<span class="ident">libc</span>::<span class="ident">c_int</span>, <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) <span class="kw">as</span> <span class="ident">usize</span>,
         };
         <span class="ident">s</span>.<span class="ident">sa_flags</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">handler</span> {
-            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">|</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
-            <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">-</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
+            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">|</span> <span class="ident">SaFlags</span>::<span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">-</span> <span class="ident">SaFlags</span>::<span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
         };
         <span class="ident">s</span>.<span class="ident">sa_mask</span> <span class="op">=</span> <span class="ident">mask</span>.<span class="ident">sigset</span>;
 
         <span class="ident">SigAction</span> { <span class="ident">sigaction</span>: <span class="ident">s</span> }
     }
 
+    <span class="doccomment">/// Returns the flags set on the action.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SaFlags</span> {
-        <span class="ident">SaFlags</span>::<span class="ident">from_bits</span>(<span class="self">self</span>.<span class="ident">sigaction</span>.<span class="ident">sa_flags</span>).<span class="ident">unwrap</span>()
+        <span class="ident">SaFlags</span>::<span class="ident">from_bits_truncate</span>(<span class="self">self</span>.<span class="ident">sigaction</span>.<span class="ident">sa_flags</span>)
     }
 
+    <span class="doccomment">/// Returns the set of signals that are blocked during execution of the action&#39;s</span>
+    <span class="doccomment">/// signal-catching function.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">mask</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SigSet</span> {
         <span class="ident">SigSet</span> { <span class="ident">sigset</span>: <span class="self">self</span>.<span class="ident">sigaction</span>.<span class="ident">sa_mask</span> }
     }
 
+    <span class="doccomment">/// Returns the action&#39;s handler.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">handler</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">SigHandler</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">sigaction</span>.<span class="ident">sa_sigaction</span> {
             <span class="ident">libc</span>::<span class="ident">SIG_DFL</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>,
             <span class="ident">libc</span>::<span class="ident">SIG_IGN</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>,
-            <span class="ident">f</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flags</span>().<span class="ident">contains</span>(<span class="ident">SA_SIGINFO</span>) <span class="op">=&gt;</span>
+            <span class="ident">f</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">flags</span>().<span class="ident">contains</span>(<span class="ident">SaFlags</span>::<span class="ident">SA_SIGINFO</span>) <span class="op">=&gt;</span>
                 <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>( <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) } ),
             <span class="ident">f</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">Handler</span>( <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) } ),
         }
     }
 }
 
+<span class="doccomment">/// Changes the action taken by a process on receipt of a specific signal.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `signal` can be any signal except `SIGKILL` or `SIGSTOP`. On success, it returns the previous</span>
+<span class="doccomment">/// action for the given signal. If `sigaction` fails, no new signal handler is installed.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Safety</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Signal handlers may be called at any point during execution, which limits what is safe to do in</span>
+<span class="doccomment">/// the body of the signal-catching function. Be certain to only make syscalls that are explicitly</span>
+<span class="doccomment">/// marked safe for signal handlers and only share global data using atomics.</span>
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">sigaction</span>(<span class="ident">signal</span>: <span class="ident">Signal</span>, <span class="ident">sigaction</span>: <span class="kw-2">&amp;</span><span class="ident">SigAction</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SigAction</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">oldact</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">uninitialized</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigaction</span><span class="op">&gt;</span>();
 
@@ -1141,6 +1503,79 @@
         <span class="ident">libc</span>::<span class="ident">sigaction</span>(<span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>, <span class="kw-2">&amp;</span><span class="ident">sigaction</span>.<span class="ident">sigaction</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">sigaction</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldact</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigaction</span>);
 
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SigAction</span> { <span class="ident">sigaction</span>: <span class="ident">oldact</span> })
+}
+
+<span class="doccomment">/// Signal management (see [signal(3p)](http://pubs.opengroup.org/onlinepubs/9699919799/functions/signal.html))</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Installs `handler` for the given `signal`, returning the previous signal</span>
+<span class="doccomment">/// handler. `signal` should only be used following another call to `signal` or</span>
+<span class="doccomment">/// if the current handler is the default. The return value of `signal` is</span>
+<span class="doccomment">/// undefined after setting the handler with [`sigaction`][SigActionFn].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Safety</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the pointer to the previous signal handler is invalid, undefined</span>
+<span class="doccomment">/// behavior could be invoked when casting it back to a [`SigAction`][SigActionStruct].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Examples</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Ignore `SIGINT`:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```no_run</span>
+<span class="doccomment">/// # use nix::sys::signal::{self, Signal, SigHandler};</span>
+<span class="doccomment">/// unsafe { signal::signal(Signal::SIGINT, SigHandler::SigIgn) }.unwrap();</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Use a signal handler to set a flag variable:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```no_run</span>
+<span class="doccomment">/// # #[macro_use] extern crate lazy_static;</span>
+<span class="doccomment">/// # extern crate libc;</span>
+<span class="doccomment">/// # extern crate nix;</span>
+<span class="doccomment">/// # use std::sync::atomic::{AtomicBool, Ordering};</span>
+<span class="doccomment">/// # use nix::sys::signal::{self, Signal, SigHandler};</span>
+<span class="doccomment">/// lazy_static! {</span>
+<span class="doccomment">///    static ref SIGNALED: AtomicBool = AtomicBool::new(false);</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// extern fn handle_sigint(signal: libc::c_int) {</span>
+<span class="doccomment">///     let signal = Signal::from_c_int(signal).unwrap();</span>
+<span class="doccomment">///     SIGNALED.store(signal == Signal::SIGINT, Ordering::Relaxed);</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// fn main() {</span>
+<span class="doccomment">///     let handler = SigHandler::Handler(handle_sigint);</span>
+<span class="doccomment">///     unsafe { signal::signal(Signal::SIGINT, handler) }.unwrap();</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Errors</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Returns [`Error::UnsupportedOperation`] if `handler` is</span>
+<span class="doccomment">/// [`SigAction`][SigActionStruct]. Use [`sigaction`][SigActionFn] instead.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `signal` also returns any error from `libc::signal`, such as when an attempt</span>
+<span class="doccomment">/// is made to catch a signal that cannot be caught or to ignore a signal that</span>
+<span class="doccomment">/// cannot be ignored.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`Error::UnsupportedOperation`]: ../../enum.Error.html#variant.UnsupportedOperation</span>
+<span class="doccomment">/// [SigActionStruct]: struct.SigAction.html</span>
+<span class="doccomment">/// [sigactionFn]: fn.sigaction.html</span>
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">signal</span>(<span class="ident">signal</span>: <span class="ident">Signal</span>, <span class="ident">handler</span>: <span class="ident">SigHandler</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SigHandler</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>;
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">handler</span> {
+        <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">signal</span>(<span class="ident">signal</span>, <span class="ident">libc</span>::<span class="ident">SIG_DFL</span>),
+        <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">signal</span>(<span class="ident">signal</span>, <span class="ident">libc</span>::<span class="ident">SIG_IGN</span>),
+        <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">handler</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">signal</span>(<span class="ident">signal</span>, <span class="ident">handler</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">sighandler_t</span>),
+        <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">UnsupportedOperation</span>),
+    };
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">oldhandler</span><span class="op">|</span> {
+        <span class="kw">match</span> <span class="ident">oldhandler</span> {
+            <span class="ident">libc</span>::<span class="ident">SIG_DFL</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>,
+            <span class="ident">libc</span>::<span class="ident">SIG_IGN</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>,
+            <span class="ident">f</span> <span class="op">=&gt;</span> <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>)),
+        }
+    })
 }
 
 <span class="doccomment">/// Manages the signal mask (set of blocked signals) for the calling thread.</span>
@@ -1156,8 +1591,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// If both `set` and `oldset` is None, this function is a no-op.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// For more information, visit the [pthread_sigmask](http://man7.org/linux/man-pages/man3/pthread_sigmask.3.html),</span>
-<span class="doccomment">/// or [sigprocmask](http://man7.org/linux/man-pages/man2/sigprocmask.2.html) man pages.</span>
+<span class="doccomment">/// For more information, visit the [`pthread_sigmask`](http://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_sigmask.html),</span>
+<span class="doccomment">/// or [`sigprocmask`](http://pubs.opengroup.org/onlinepubs/9699919799/functions/sigprocmask.html) man pages.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pthread_sigmask</span>(<span class="ident">how</span>: <span class="ident">SigmaskHow</span>,
                        <span class="ident">set</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">SigSet</span><span class="op">&gt;</span>,
                        <span class="ident">oldset</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SigSet</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
@@ -1168,10 +1603,31 @@
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> {
         <span class="comment">// if set or oldset is None, pass in null pointers instead</span>
         <span class="ident">libc</span>::<span class="ident">pthread_sigmask</span>(<span class="ident">how</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
-                             <span class="ident">set</span>.<span class="ident">map_or_else</span>(<span class="op">||</span> <span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>(),
+                             <span class="ident">set</span>.<span class="ident">map_or_else</span>(<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>,
                                              <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>),
-                             <span class="ident">oldset</span>.<span class="ident">map_or_else</span>(<span class="op">||</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>(),
+                             <span class="ident">oldset</span>.<span class="ident">map_or_else</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>,
                                                 <span class="op">|</span><span class="ident">os</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>.<span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>))
+    };
+
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+}
+
+<span class="doccomment">/// Examine and change blocked signals.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For more informations see the [`sigprocmask` man</span>
+<span class="doccomment">/// pages](http://pubs.opengroup.org/onlinepubs/9699919799/functions/sigprocmask.html).</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigprocmask</span>(<span class="ident">how</span>: <span class="ident">SigmaskHow</span>, <span class="ident">set</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">SigSet</span><span class="op">&gt;</span>, <span class="ident">oldset</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SigSet</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="ident">set</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">oldset</span>.<span class="ident">is_none</span>() {
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+        <span class="comment">// if set or oldset is None, pass in null pointers instead</span>
+        <span class="ident">libc</span>::<span class="ident">sigprocmask</span>(<span class="ident">how</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                          <span class="ident">set</span>.<span class="ident">map_or_else</span>(<span class="ident">ptr</span>::<span class="ident">null</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>,
+                                          <span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>),
+                          <span class="ident">oldset</span>.<span class="ident">map_or_else</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigset_t</span><span class="op">&gt;</span>,
+                                             <span class="op">|</span><span class="ident">os</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">os</span>.<span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>))
     };
 
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
@@ -1179,6 +1635,22 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">kill</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>(<span class="ident">pid</span>: ::<span class="ident">unistd</span>::<span class="ident">Pid</span>, <span class="ident">signal</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">kill</span>(<span class="ident">pid</span>.<span class="ident">into</span>(),
+                                  <span class="kw">match</span> <span class="ident">signal</span>.<span class="ident">into</span>() {
+                                      <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                                      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="number">0</span>,
+                                  }) };
+
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+}
+
+<span class="doccomment">/// Send a signal to a process group [(see</span>
+<span class="doccomment">/// killpg(3))](http://pubs.opengroup.org/onlinepubs/9699919799/functions/killpg.html).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If `pgrp` less then or equal 1, the behavior is platform-specific.</span>
+<span class="doccomment">/// If `signal` is `None`, `killpg` will only preform error checking and won&#39;t</span>
+<span class="doccomment">/// send any signal.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">killpg</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>(<span class="ident">pgrp</span>: ::<span class="ident">unistd</span>::<span class="ident">Pid</span>, <span class="ident">signal</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">killpg</span>(<span class="ident">pgrp</span>.<span class="ident">into</span>(),
                                   <span class="kw">match</span> <span class="ident">signal</span>.<span class="ident">into</span>() {
                                       <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
                                       <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="number">0</span>,
@@ -1226,107 +1698,121 @@
                     <span class="ident">si_value</span>: <span class="ident">libc</span>::<span class="ident">intptr_t</span> },
 }
 
-<span class="doccomment">/// Used to request asynchronous notification of the completion of certain</span>
-<span class="doccomment">/// events, such as POSIX AIO and timers.</span>
-<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SigEvent</span> {
-    <span class="ident">sigevent</span>: <span class="ident">libc</span>::<span class="ident">sigevent</span>
-}
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">sigevent</span> {
+    <span class="kw">use</span> <span class="ident">libc</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">SigevNotify</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">type_of_thread_id</span>;
 
-<span class="kw">impl</span> <span class="ident">SigEvent</span> {
-    <span class="comment">// Note: this constructor does not allow the user to set the</span>
-    <span class="comment">// sigev_notify_kevent_flags field.  That&#39;s considered ok because on FreeBSD</span>
-    <span class="comment">// at least those flags don&#39;t do anything useful.  That field is part of a</span>
-    <span class="comment">// union that shares space with the more genuinely useful</span>
-    <span class="comment">// Note: This constructor also doesn&#39;t allow the caller to set the</span>
-    <span class="comment">// sigev_notify_function or sigev_notify_attributes fields, which are</span>
-    <span class="comment">// required for SIGEV_THREAD.  That&#39;s considered ok because on no operating</span>
-    <span class="comment">// system is SIGEV_THREAD the most efficient way to deliver AIO</span>
-    <span class="comment">// notification.  FreeBSD and Dragonfly programs should prefer SIGEV_KEVENT.</span>
-    <span class="comment">// Linux, Solaris, and portable programs should prefer SIGEV_THREAD_ID or</span>
-    <span class="comment">// SIGEV_SIGNAL.  That field is part of a union that shares space with the</span>
-    <span class="comment">// more genuinely useful sigev_notify_thread_id</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sigev_notify</span>: <span class="ident">SigevNotify</span>) <span class="op">-&gt;</span> <span class="ident">SigEvent</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sev</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">zeroed</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigevent</span><span class="op">&gt;</span>()};
-        <span class="ident">sev</span>.<span class="ident">sigev_notify</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevNone</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_NONE</span>,
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_SIGNAL</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_KEVENT</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_THREAD_ID</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;gnu&quot;</span>, <span class="ident">not</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>)))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_THREAD_ID</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;musl&quot;</span>), <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="number">4</span>  <span class="comment">// No SIGEV_THREAD_ID defined</span>
-        };
-        <span class="ident">sev</span>.<span class="ident">sigev_signo</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{ <span class="ident">signal</span>, .. } <span class="op">=&gt;</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{ <span class="ident">kq</span>, ..} <span class="op">=&gt;</span> <span class="ident">kq</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{ <span class="ident">signal</span>, .. } <span class="op">=&gt;</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span>
-        };
-        <span class="ident">sev</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevNone</span> <span class="op">=&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">c_void</span><span class="op">&gt;</span>(),
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{ <span class="ident">si_value</span>, .. } <span class="op">=&gt;</span> <span class="ident">si_value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{ <span class="ident">udata</span>, .. } <span class="op">=&gt;</span> <span class="ident">udata</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-            <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{ <span class="ident">si_value</span>, .. } <span class="op">=&gt;</span> <span class="ident">si_value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
-        };
-        <span class="ident">SigEvent</span>::<span class="ident">set_tid</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sev</span>, <span class="kw-2">&amp;</span><span class="ident">sigev_notify</span>);
-        <span class="ident">SigEvent</span>{<span class="ident">sigevent</span>: <span class="ident">sev</span>}
+    <span class="doccomment">/// Used to request asynchronous notification of the completion of certain</span>
+    <span class="doccomment">/// events, such as POSIX AIO and timers.</span>
+    <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SigEvent</span> {
+        <span class="ident">sigevent</span>: <span class="ident">libc</span>::<span class="ident">sigevent</span>
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-    <span class="kw">fn</span> <span class="ident">set_tid</span>(<span class="ident">sev</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigevent</span>, <span class="ident">sigev_notify</span>: <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>) {
-        <span class="ident">sev</span>.<span class="ident">sigev_notify_thread_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
-            <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span> { <span class="ident">thread_id</span>, .. } <span class="op">=&gt;</span> <span class="ident">thread_id</span>,
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span> <span class="kw">as</span> <span class="ident">type_of_thread_id</span>
-        };
+    <span class="kw">impl</span> <span class="ident">SigEvent</span> {
+        <span class="doccomment">/// **Note:** this constructor does not allow the user to set the</span>
+        <span class="doccomment">/// `sigev_notify_kevent_flags` field.  That&#39;s considered ok because on FreeBSD</span>
+        <span class="doccomment">/// at least those flags don&#39;t do anything useful.  That field is part of a</span>
+        <span class="doccomment">/// union that shares space with the more genuinely useful fields.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// **Note:** This constructor also doesn&#39;t allow the caller to set the</span>
+        <span class="doccomment">/// `sigev_notify_function` or `sigev_notify_attributes` fields, which are</span>
+        <span class="doccomment">/// required for `SIGEV_THREAD`.  That&#39;s considered ok because on no operating</span>
+        <span class="doccomment">/// system is `SIGEV_THREAD` the most efficient way to deliver AIO</span>
+        <span class="doccomment">/// notification.  FreeBSD and DragonFly BSD programs should prefer `SIGEV_KEVENT`.</span>
+        <span class="doccomment">/// Linux, Solaris, and portable programs should prefer `SIGEV_THREAD_ID` or</span>
+        <span class="doccomment">/// `SIGEV_SIGNAL`.  That field is part of a union that shares space with the</span>
+        <span class="doccomment">/// more genuinely useful `sigev_notify_thread_id`</span>
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sigev_notify</span>: <span class="ident">SigevNotify</span>) <span class="op">-&gt;</span> <span class="ident">SigEvent</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sev</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">zeroed</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">sigevent</span><span class="op">&gt;</span>()};
+            <span class="ident">sev</span>.<span class="ident">sigev_notify</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevNone</span> <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_NONE</span>,
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_SIGNAL</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_KEVENT</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_THREAD_ID</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;gnu&quot;</span>, <span class="ident">not</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>)))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">SIGEV_THREAD_ID</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;musl&quot;</span>), <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;mips&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{..} <span class="op">=&gt;</span> <span class="number">4</span>  <span class="comment">// No SIGEV_THREAD_ID defined</span>
+            };
+            <span class="ident">sev</span>.<span class="ident">sigev_signo</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{ <span class="ident">signal</span>, .. } <span class="op">=&gt;</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{ <span class="ident">kq</span>, ..} <span class="op">=&gt;</span> <span class="ident">kq</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{ <span class="ident">signal</span>, .. } <span class="op">=&gt;</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span>
+            };
+            <span class="ident">sev</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevNone</span> <span class="op">=&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">c_void</span><span class="op">&gt;</span>(),
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevSignal</span>{ <span class="ident">si_value</span>, .. } <span class="op">=&gt;</span> <span class="ident">si_value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{ <span class="ident">udata</span>, .. } <span class="op">=&gt;</span> <span class="ident">udata</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{ <span class="ident">si_value</span>, .. } <span class="op">=&gt;</span> <span class="ident">si_value</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>,
+            };
+            <span class="ident">SigEvent</span>::<span class="ident">set_tid</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sev</span>, <span class="kw-2">&amp;</span><span class="ident">sigev_notify</span>);
+            <span class="ident">SigEvent</span>{<span class="ident">sigevent</span>: <span class="ident">sev</span>}
+        }
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="kw">fn</span> <span class="ident">set_tid</span>(<span class="ident">sev</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigevent</span>, <span class="ident">sigev_notify</span>: <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>) {
+            <span class="ident">sev</span>.<span class="ident">sigev_notify_thread_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">sigev_notify</span> {
+                <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span> { <span class="ident">thread_id</span>, .. } <span class="op">=&gt;</span> <span class="ident">thread_id</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span> <span class="kw">as</span> <span class="ident">type_of_thread_id</span>
+            };
+        }
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+        <span class="kw">fn</span> <span class="ident">set_tid</span>(<span class="ident">_sev</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigevent</span>, <span class="ident">_sigev_notify</span>: <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>) {
+        }
+
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigevent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">sigevent</span> {
+            <span class="self">self</span>.<span class="ident">sigevent</span>
+        }
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
-    <span class="kw">fn</span> <span class="ident">set_tid</span>(<span class="ident">_sev</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigevent</span>, <span class="ident">_sigev_notify</span>: <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>) {
+    <span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">SigEvent</span> {
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+        <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+            <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;SigEvent&quot;</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_notify&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_signo&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_signo</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_notify_thread_id&quot;</span>,
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify_thread_id</span>)
+                .<span class="ident">finish</span>()
+        }
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)))]</span>
+        <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+            <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;SigEvent&quot;</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_notify&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_signo&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_signo</span>)
+                .<span class="ident">field</span>(<span class="string">&quot;sigev_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span>)
+                .<span class="ident">finish</span>()
+        }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sigevent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">libc</span>::<span class="ident">sigevent</span> {
-        <span class="self">self</span>.<span class="ident">sigevent</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">SigEvent</span> {
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;SigEvent&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_notify&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_signo&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_signo</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_notify_thread_id&quot;</span>,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify_thread_id</span>)
-            .<span class="ident">finish</span>()
-    }
-
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)))]</span>
-    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;SigEvent&quot;</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_notify&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_notify</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_signo&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_signo</span>)
-            .<span class="ident">field</span>(<span class="string">&quot;sigev_value&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigevent</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span>)
-            .<span class="ident">finish</span>()
-    }
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">libc</span>::<span class="ident">sigevent</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SigEvent</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">sigevent</span>: <span class="kw-2">&amp;</span><span class="ident">libc</span>::<span class="ident">sigevent</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">SigEvent</span>{ <span class="ident">sigevent</span>: <span class="ident">sigevent</span>.<span class="ident">clone</span>() }
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">libc</span>::<span class="ident">sigevent</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SigEvent</span> {
+        <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">sigevent</span>: <span class="kw-2">&amp;</span><span class="ident">libc</span>::<span class="ident">sigevent</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+            <span class="ident">SigEvent</span>{ <span class="ident">sigevent</span>: <span class="kw-2">*</span><span class="ident">sigevent</span> }
+        }
     }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1352,6 +1838,22 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_str_round_trips</span>() {
+        <span class="kw">for</span> <span class="ident">signal</span> <span class="kw">in</span> <span class="ident">Signal</span>::<span class="ident">iterator</span>() {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">signal</span>.<span class="ident">as_ref</span>().<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>(), <span class="ident">signal</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">signal</span>.<span class="ident">to_string</span>().<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>(), <span class="ident">signal</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_str_invalid_value</span>() {
+        <span class="kw">let</span> <span class="ident">errval</span> <span class="op">=</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">Sys</span>(<span class="ident">Errno</span>::<span class="ident">EINVAL</span>));
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;NOSIGNAL&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span>(), <span class="ident">errval</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;kill&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span>(), <span class="ident">errval</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;9&quot;</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">Signal</span><span class="op">&gt;</span>(), <span class="ident">errval</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_extend</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">one_signal</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
         <span class="ident">one_signal</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
@@ -1364,114 +1866,122 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">two_signals</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
     }
 
-    <span class="comment">// This test doesn&#39;t actually test get_mask functionality, see the set_mask test for that.</span>
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_thread_signal_get_mask</span>() {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">is_ok</span>());
-    }
-
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_thread_signal_set_mask</span>() {
-        <span class="kw">let</span> <span class="ident">prev_mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to get existing signal mask!&quot;</span>);
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="ident">prev_mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>()
+                .<span class="ident">expect</span>(<span class="string">&quot;Failed to get existing signal mask!&quot;</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_mask</span> <span class="op">=</span> <span class="ident">prev_mask</span>;
-        <span class="ident">test_mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_mask</span> <span class="op">=</span> <span class="ident">prev_mask</span>;
+            <span class="ident">test_mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">test_mask</span>.<span class="ident">thread_set_mask</span>().<span class="ident">is_ok</span>());
-        <span class="kw">let</span> <span class="ident">new_mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to get new mask!&quot;</span>);
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">test_mask</span>.<span class="ident">thread_set_mask</span>().<span class="ident">is_ok</span>());
+            <span class="kw">let</span> <span class="ident">new_mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>()
+                .<span class="ident">expect</span>(<span class="string">&quot;Failed to get new mask!&quot;</span>);
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">new_mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">new_mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">new_mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">new_mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
 
-        <span class="ident">prev_mask</span>.<span class="ident">thread_set_mask</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to revert signal mask!&quot;</span>);
+            <span class="ident">prev_mask</span>.<span class="ident">thread_set_mask</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to revert signal mask!&quot;</span>);
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_thread_signal_block</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">is_ok</span>());
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">is_ok</span>());
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_thread_signal_unblock</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">thread_unblock</span>().<span class="ident">is_ok</span>());
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">thread_unblock</span>().<span class="ident">is_ok</span>());
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_thread_signal_swap</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
-        <span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">unwrap</span>();
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+            <span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">unwrap</span>();
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask2</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask2</span>.<span class="ident">add</span>(<span class="ident">SIGUSR2</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask2</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask2</span>.<span class="ident">add</span>(<span class="ident">SIGUSR2</span>);
 
-        <span class="kw">let</span> <span class="ident">oldmask</span> <span class="op">=</span> <span class="ident">mask2</span>.<span class="ident">thread_swap_mask</span>(<span class="ident">SigmaskHow</span>::<span class="ident">SIG_SETMASK</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">oldmask</span> <span class="op">=</span> <span class="ident">mask2</span>.<span class="ident">thread_swap_mask</span>(<span class="ident">SigmaskHow</span>::<span class="ident">SIG_SETMASK</span>)
+                .<span class="ident">unwrap</span>();
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">oldmask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">oldmask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">oldmask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">oldmask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
 
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">SigSet</span>::<span class="ident">thread_get_mask</span>().<span class="ident">unwrap</span>().<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sigaction</span>() {
         <span class="kw">use</span> <span class="ident">libc</span>;
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_handler</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>) {}
+            <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_action</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
+                <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) {}
 
-        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_handler</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>) {}
-        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_action</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
-            <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) {}
+            <span class="kw">let</span> <span class="ident">handler_sig</span> <span class="op">=</span> <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">test_sigaction_handler</span>);
 
-        <span class="kw">let</span> <span class="ident">handler_sig</span> <span class="op">=</span> <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">test_sigaction_handler</span>);
+            <span class="kw">let</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">SaFlags</span>::<span class="ident">SA_ONSTACK</span> <span class="op">|</span> <span class="ident">SaFlags</span>::<span class="ident">SA_RESTART</span> <span class="op">|</span>
+                        <span class="ident">SaFlags</span>::<span class="ident">SA_SIGINFO</span>;
 
-        <span class="kw">let</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">SA_ONSTACK</span> <span class="op">|</span> <span class="ident">SA_RESTART</span> <span class="op">|</span> <span class="ident">SA_SIGINFO</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+            <span class="kw">let</span> <span class="ident">action_sig</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">handler_sig</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
 
-        <span class="kw">let</span> <span class="ident">action_sig</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">handler_sig</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_sig</span>.<span class="ident">flags</span>(),
+                       <span class="ident">SaFlags</span>::<span class="ident">SA_ONSTACK</span> <span class="op">|</span> <span class="ident">SaFlags</span>::<span class="ident">SA_RESTART</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_sig</span>.<span class="ident">handler</span>(), <span class="ident">handler_sig</span>);
 
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_sig</span>.<span class="ident">flags</span>(), <span class="ident">SA_ONSTACK</span> <span class="op">|</span> <span class="ident">SA_RESTART</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_sig</span>.<span class="ident">handler</span>(), <span class="ident">handler_sig</span>);
+            <span class="ident">mask</span> <span class="op">=</span> <span class="ident">action_sig</span>.<span class="ident">mask</span>();
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
+            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
 
-        <span class="ident">mask</span> <span class="op">=</span> <span class="ident">action_sig</span>.<span class="ident">mask</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR1</span>));
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">mask</span>.<span class="ident">contains</span>(<span class="ident">SIGUSR2</span>));
+            <span class="kw">let</span> <span class="ident">handler_act</span> <span class="op">=</span> <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="ident">test_sigaction_action</span>);
+            <span class="kw">let</span> <span class="ident">action_act</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">handler_act</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_act</span>.<span class="ident">handler</span>(), <span class="ident">handler_act</span>);
 
-        <span class="kw">let</span> <span class="ident">handler_act</span> <span class="op">=</span> <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="ident">test_sigaction_action</span>);
-        <span class="kw">let</span> <span class="ident">action_act</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">handler_act</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_act</span>.<span class="ident">handler</span>(), <span class="ident">handler_act</span>);
+            <span class="kw">let</span> <span class="ident">action_dfl</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_dfl</span>.<span class="ident">handler</span>(), <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>);
 
-        <span class="kw">let</span> <span class="ident">action_dfl</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_dfl</span>.<span class="ident">handler</span>(), <span class="ident">SigHandler</span>::<span class="ident">SigDfl</span>);
-
-        <span class="kw">let</span> <span class="ident">action_ign</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_ign</span>.<span class="ident">handler</span>(), <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>);
+            <span class="kw">let</span> <span class="ident">action_ign</span> <span class="op">=</span> <span class="ident">SigAction</span>::<span class="ident">new</span>(<span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>, <span class="ident">flags</span>, <span class="ident">mask</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">action_ign</span>.<span class="ident">handler</span>(), <span class="ident">SigHandler</span>::<span class="ident">SigIgn</span>);
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 
-    <span class="comment">// TODO(#251): Re-enable after figuring out flakiness.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>)))]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_sigwait</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
-        <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR2</span>);
-        <span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">unwrap</span>();
+        <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mask</span> <span class="op">=</span> <span class="ident">SigSet</span>::<span class="ident">empty</span>();
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR1</span>);
+            <span class="ident">mask</span>.<span class="ident">add</span>(<span class="ident">SIGUSR2</span>);
+            <span class="ident">mask</span>.<span class="ident">thread_block</span>().<span class="ident">unwrap</span>();
 
-        <span class="ident">raise</span>(<span class="ident">SIGUSR1</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">wait</span>().<span class="ident">unwrap</span>(), <span class="ident">SIGUSR1</span>);
+            <span class="ident">raise</span>(<span class="ident">SIGUSR1</span>).<span class="ident">unwrap</span>();
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">mask</span>.<span class="ident">wait</span>().<span class="ident">unwrap</span>(), <span class="ident">SIGUSR1</span>);
+        }).<span class="ident">join</span>().<span class="ident">unwrap</span>();
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

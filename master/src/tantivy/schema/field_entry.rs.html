@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/schema/field_entry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>field_entry.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/schema/field_entry.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>field_entry.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -261,7 +261,25 @@
 <span id="261">261</span>
 <span id="262">262</span>
 <span id="263">263</span>
-</pre><pre class="rust ">
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IntOptions</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
 
@@ -278,7 +296,7 @@
 <span class="doccomment">/// - a field name</span>
 <span class="doccomment">/// - a field type, itself wrapping up options describing</span>
 <span class="doccomment">/// how the field should be indexed.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FieldEntry</span> {
     <span class="ident">name</span>: <span class="ident">String</span>,
     <span class="ident">field_type</span>: <span class="ident">FieldType</span>,
@@ -312,6 +330,15 @@
         }
     }
 
+    <span class="doccomment">/// Creates a new date field entry in the schema, given</span>
+    <span class="doccomment">/// a name, and some options.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_date</span>(<span class="ident">field_name</span>: <span class="ident">String</span>, <span class="ident">field_type</span>: <span class="ident">IntOptions</span>) <span class="op">-&gt;</span> <span class="ident">FieldEntry</span> {
+        <span class="ident">FieldEntry</span> {
+            <span class="ident">name</span>: <span class="ident">field_name</span>,
+            <span class="ident">field_type</span>: <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="ident">field_type</span>),
+        }
+    }
+
     <span class="doccomment">/// Creates a field entry for a facet.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_facet</span>(<span class="ident">field_name</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">FieldEntry</span> {
         <span class="ident">FieldEntry</span> {
@@ -342,7 +369,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_indexed</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">field_type</span> {
             <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">get_indexing_options</span>().<span class="ident">is_some</span>(),
-            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_indexed</span>(),
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>)
+            <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>)
+            <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_indexed</span>(),
             <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
@@ -359,7 +388,9 @@
     <span class="doccomment">/// Returns true iff the field is stored</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_stored</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">field_type</span> {
-            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_stored</span>(),
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>)
+            <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>)
+            <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_stored</span>(),
             <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_stored</span>(),
             <span class="comment">// TODO make stored hierarchical facet optional</span>
             <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
@@ -387,6 +418,10 @@
             }
             <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> {
                 <span class="ident">s</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;type&quot;</span>, <span class="string">&quot;i64&quot;</span>)<span class="question-mark">?</span>;
+                <span class="ident">s</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;options&quot;</span>, <span class="ident">options</span>)<span class="question-mark">?</span>;
+            }
+            <span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> {
+                <span class="ident">s</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;type&quot;</span>, <span class="string">&quot;date&quot;</span>)<span class="question-mark">?</span>;
                 <span class="ident">s</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;options&quot;</span>, <span class="ident">options</span>)<span class="question-mark">?</span>;
             }
             <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
@@ -452,7 +487,7 @@
                                 <span class="string">&quot;bytes&quot;</span> <span class="op">=&gt;</span> {
                                     <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">Bytes</span>);
                                 }
-                                <span class="string">&quot;text&quot;</span> <span class="op">|</span> <span class="string">&quot;u64&quot;</span> <span class="op">|</span> <span class="string">&quot;i64&quot;</span> <span class="op">=&gt;</span> {
+                                <span class="string">&quot;text&quot;</span> <span class="op">|</span> <span class="string">&quot;u64&quot;</span> <span class="op">|</span> <span class="string">&quot;i64&quot;</span> <span class="op">|</span> <span class="string">&quot;date&quot;</span> <span class="op">=&gt;</span> {
                                     <span class="comment">// These types require additional options to create a field_type</span>
                                 }
                                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;unhandled type&quot;</span>),
@@ -469,6 +504,7 @@
                                 <span class="string">&quot;text&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
                                 <span class="string">&quot;u64&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
                                 <span class="string">&quot;i64&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
+                                <span class="string">&quot;date&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">Date</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
                                 <span class="kw">_</span> <span class="op">=&gt;</span> {
                                     <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unrecognised type {}&quot;</span>, <span class="ident">ty</span>);
                                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="ident">msg</span>));
@@ -525,5 +561,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

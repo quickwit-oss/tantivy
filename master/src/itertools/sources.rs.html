@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.5.10/src/sources.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sources.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/itertools-0.8.0/src/sources.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sources.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../itertools/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -182,14 +182,22 @@
 <span id="182">182</span>
 <span id="183">183</span>
 <span id="184">184</span>
-</pre><pre class="rust ">
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Iterators that are sources (produce elements from parameters,</span>
 <span class="doccomment">//! not from another iterator).</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 
 <span class="doccomment">/// See [`repeat_call`](../fn.repeat_call.html) for more information.</span>
+<span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span><span class="op">=</span><span class="string">&quot;Use std repeat_with() instead&quot;</span>, <span class="ident">since</span><span class="op">=</span><span class="string">&quot;0.8&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RepeatCall</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
     <span class="ident">f</span>: <span class="ident">F</span>,
 }
@@ -221,7 +229,10 @@
 <span class="doccomment">///     vec![1, 1, 1, 1, 1]</span>
 <span class="doccomment">/// );</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">repeat_call</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="ident">function</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">RepeatCall</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
+<span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span><span class="op">=</span><span class="string">&quot;Use std repeat_with() instead&quot;</span>, <span class="ident">since</span><span class="op">=</span><span class="string">&quot;0.8&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">repeat_call</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">A</span><span class="op">&gt;</span>(<span class="ident">function</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">RepeatCall</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>() <span class="op">-&gt;</span> <span class="ident">A</span>
+{
     <span class="ident">RepeatCall</span> { <span class="ident">f</span>: <span class="ident">function</span> }
 }
 
@@ -255,19 +266,18 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// use itertools::unfold;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// let mut fibonacci = unfold((1_u32, 1_u32), |state| {</span>
-<span class="doccomment">///     let (ref mut x1, ref mut x2) = *state;</span>
-<span class="doccomment">///</span>
+<span class="doccomment">/// let (mut x1, mut x2) = (1u32, 1u32);</span>
+<span class="doccomment">/// let mut fibonacci = unfold((), move |_| {</span>
 <span class="doccomment">///     // Attempt to get the next Fibonacci number</span>
-<span class="doccomment">///     let next = x1.saturating_add(*x2);</span>
+<span class="doccomment">///     let next = x1.saturating_add(x2);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     // Shift left: ret &lt;- x1 &lt;- x2 &lt;- next</span>
-<span class="doccomment">///     let ret = *x1;</span>
-<span class="doccomment">///     *x1 = *x2;</span>
-<span class="doccomment">///     *x2 = next;</span>
+<span class="doccomment">///     let ret = x1;</span>
+<span class="doccomment">///     x1 = x2;</span>
+<span class="doccomment">///     x2 = next;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     // If addition has saturated at the maximum, we are finished</span>
-<span class="doccomment">///     if ret == *x1 &amp;&amp; ret &gt; 1 {</span>
+<span class="doccomment">///     if ret == x1 &amp;&amp; ret &gt; 1 {</span>
 <span class="doccomment">///         return None;</span>
 <span class="doccomment">///     }</span>
 <span class="doccomment">///</span>
@@ -295,6 +305,7 @@
 
 <span class="doccomment">/// See [`unfold`](../fn.unfold.html) for more information.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterators are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Unfold</span><span class="op">&lt;</span><span class="ident">St</span>, <span class="ident">F</span><span class="op">&gt;</span> {
     <span class="ident">f</span>: <span class="ident">F</span>,
     <span class="doccomment">/// Internal state that will be passed to the closure on the next iteration</span>
@@ -324,6 +335,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// [`iterate()`]: ../fn.iterate.html</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">must_use</span> <span class="op">=</span> <span class="string">&quot;iterators are lazy and do nothing unless consumed&quot;</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Iterate</span><span class="op">&lt;</span><span class="ident">St</span>, <span class="ident">F</span><span class="op">&gt;</span> {
     <span class="ident">state</span>: <span class="ident">St</span>,
     <span class="ident">f</span>: <span class="ident">F</span>,
@@ -367,5 +379,5 @@
         <span class="ident">f</span>: <span class="ident">f</span>,
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "itertools";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "itertools";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

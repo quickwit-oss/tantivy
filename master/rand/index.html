@@ -1,211 +1,55 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `rand` crate."><meta name="keywords" content="rust, rustlang, rust-lang, rand"><title>rand - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Crate rand</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'rand', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>rand</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/rand/lib.rs.html#11-297' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Utilities for random number generation</p>
-<p>This release is a compatibility wrapper around <code>rand</code> version 0.4. Please
-upgrade.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `rand` crate."><meta name="keywords" content="rust, rustlang, rust-lang, rand"><title>rand - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../rand/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo' width='100'></a><p class='location'>Crate rand</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all rand's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'rand', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/rand/lib.rs.html#10-830' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>rand</a></span></h1><div class='docblock'><p>Utilities for random number generation</p>
+<p>Rand provides utilities to generate random numbers, to convert them to
+useful types and distributions, and some randomness-related algorithms.</p>
+<h1 id="quick-start" class="section-header"><a href="#quick-start">Quick Start</a></h1>
+<p>To get you started quickly, the easiest and highest-level way to get
+a random value is to use [<code>random()</code>]; alternatively you can use
+[<code>thread_rng()</code>]. The [<code>Rng</code>] trait provides a useful API on all RNGs, while
+the [<code>distributions</code>] and [<code>seq</code>] modules provide further
+functionality on top of RNGs.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
+
+<span class="kw">if</span> <span class="ident">rand</span>::<span class="ident">random</span>() { <span class="comment">// generates a boolean</span>
+    <span class="comment">// Try printing a random unicode code point (probably a bad idea)!</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;char: {}&quot;</span>, <span class="ident">rand</span>::<span class="ident">random</span>::<span class="op">&lt;</span><span class="ident">char</span><span class="op">&gt;</span>());
+}
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>();
+<span class="kw">let</span> <span class="ident">y</span>: <span class="ident">f64</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">gen</span>(); <span class="comment">// generates a float between 0 and 1</span>
+
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">nums</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">100</span>).<span class="ident">collect</span>();
+<span class="ident">nums</span>.<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>);</pre></div>
+<h1 id="the-book" class="section-header"><a href="#the-book">The Book</a></h1>
+<p>For the user guide and futher documentation, please read
+<a href="https://rust-random.github.io/book">The Rust Rand Book</a>.</p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="chacha/index.html"
-                                  title='mod rand::chacha'>chacha</a></td>
-                           <td class='docblock-short'>
-                                <p>The ChaCha random number generator.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="distributions/index.html"
-                                  title='mod rand::distributions'>distributions</a></td>
-                           <td class='docblock-short'>
-                                <p>Sampling from random distributions.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="isaac/index.html"
-                                  title='mod rand::isaac'>isaac</a></td>
-                           <td class='docblock-short'>
-                                <p>The ISAAC random number generator.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="os/index.html"
-                                  title='mod rand::os'>os</a></td>
-                           <td class='docblock-short'>
-                                <p>Interfaces to the operating system provided random number
-generators.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="read/index.html"
-                                  title='mod rand::read'>read</a></td>
-                           <td class='docblock-short'>
-                                <p>A wrapper around any Read to treat it as an RNG.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="reseeding/index.html"
-                                  title='mod rand::reseeding'>reseeding</a></td>
-                           <td class='docblock-short'>
-                                <p>A wrapper around another RNG that reseeds it after it
-generates a certain number of random bytes.</p>
-
-                           </td>
-                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.AsciiGenerator.html"
-                                  title='struct rand::AsciiGenerator'>AsciiGenerator</a></td>
-                           <td class='docblock-short'>
-                                <p>Iterator which will continuously generate random ascii characters.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ChaChaRng.html"
-                                  title='struct rand::ChaChaRng'>ChaChaRng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator that uses the ChaCha20 algorithm [1].</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Closed01.html"
-                                  title='struct rand::Closed01'>Closed01</a></td>
-                           <td class='docblock-short'>
-                                <p>A wrapper for generating floating point numbers uniformly in the
-closed interval <code>[0,1]</code> (including both endpoints).</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Generator.html"
-                                  title='struct rand::Generator'>Generator</a></td>
-                           <td class='docblock-short'>
-                                <p>Iterator which will generate a stream of random items.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Isaac64Rng.html"
-                                  title='struct rand::Isaac64Rng'>Isaac64Rng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator that uses ISAAC-64[1], the 64-bit
-variant of the ISAAC algorithm.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.IsaacRng.html"
-                                  title='struct rand::IsaacRng'>IsaacRng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator that uses the ISAAC algorithm[1].</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Open01.html"
-                                  title='struct rand::Open01'>Open01</a></td>
-                           <td class='docblock-short'>
-                                <p>A wrapper for generating floating point numbers uniformly in the
-open interval <code>(0,1)</code> (not including either endpoint).</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.OsRng.html"
-                                  title='struct rand::OsRng'>OsRng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator that retrieves randomness straight from
-the operating system. Platform sources:</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.StdRng.html"
-                                  title='struct rand::StdRng'>StdRng</a></td>
-                           <td class='docblock-short'>
-                                <p>The standard RNG. This is designed to be efficient on the current
-platform.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ThreadRng.html"
-                                  title='struct rand::ThreadRng'>ThreadRng</a></td>
-                           <td class='docblock-short'>
-                                <p>The thread-local RNG.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.XorShiftRng.html"
-                                  title='struct rand::XorShiftRng'>XorShiftRng</a></td>
-                           <td class='docblock-short'>
-                                <p>An Xorshift[1] random number
-generator.</p>
-
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Rand.html"
-                                  title='trait rand::Rand'>Rand</a></td>
-                           <td class='docblock-short'>
-                                <p>A type that can be randomly generated using an <code>Rng</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.Rng.html"
-                                  title='trait rand::Rng'>Rng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.SeedableRng.html"
-                                  title='trait rand::SeedableRng'>SeedableRng</a></td>
-                           <td class='docblock-short'>
-                                <p>A random number generator that can be explicitly seeded to produce
-the same stream of randomness multiple times.</p>
-
-                           </td>
-                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.random.html"
-                                  title='fn rand::random'>random</a></td>
-                           <td class='docblock-short'>
-                                <p>Generates a random value using the thread-local random number generator.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.sample.html"
-                                  title='fn rand::sample'>sample</a></td>
-                           <td class='docblock-short'>
-                               [<div class='stab deprecated'>Deprecated</div>] <p>DEPRECATED: use <code>seq::sample_iter</code> instead.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.thread_rng.html"
-                                  title='fn rand::thread_rng'>thread_rng</a></td>
-                           <td class='docblock-short'>
-                                <p>Retrieve the lazily-initialized thread-local random number
-generator, seeded by the system. Intended to be used in method
-chaining style, e.g. <code>thread_rng().gen::&lt;i32&gt;()</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.weak_rng.html"
-                                  title='fn rand::weak_rng'>weak_rng</a></td>
-                           <td class='docblock-short'>
-                                <p>Create a weak random number generator with a default algorithm and seed.</p>
-
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "rand";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>
+<table><tr class='module-item'><td><a class="mod" href="distributions/index.html" title='rand::distributions mod'>distributions</a></td><td class='docblock-short'><p>Generating random samples from probability distributions.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="prelude/index.html" title='rand::prelude mod'>prelude</a></td><td class='docblock-short'><p>Convenience re-export of common members</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="prng/index.html" title='rand::prng mod'>prng</a></td><td class='docblock-short'><span class="stab deprecated">Deprecated</span><p>Pseudo-random number generators.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="rngs/index.html" title='rand::rngs mod'>rngs</a></td><td class='docblock-short'><p>Random number generators and adapters for common usage:</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="seq/index.html" title='rand::seq mod'>seq</a></td><td class='docblock-short'><p>Functions for randomly accessing and sampling sequences.</p>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.Error.html" title='rand::Error struct'>Error</a></td><td class='docblock-short'><p>Error type of random number generators</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.ErrorKind.html" title='rand::ErrorKind enum'>ErrorKind</a></td><td class='docblock-short'><p>Error kind which can be matched over.</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.AsByteSliceMut.html" title='rand::AsByteSliceMut trait'>AsByteSliceMut</a></td><td class='docblock-short'><p>Trait for casting types to byte slices</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.CryptoRng.html" title='rand::CryptoRng trait'>CryptoRng</a></td><td class='docblock-short'><p>A marker trait used to indicate that an [<code>RngCore</code>] or <a href="block::BlockRngCore"><code>BlockRngCore</code></a>
+implementation is supposed to be cryptographically secure.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.FromEntropy.html" title='rand::FromEntropy trait'>FromEntropy</a></td><td class='docblock-short'><p>A convenience extension to [<code>SeedableRng</code>] allowing construction from fresh
+entropy. This trait is automatically implemented for any PRNG implementing
+[<code>SeedableRng</code>] and is not intended to be implemented by users.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Rng.html" title='rand::Rng trait'>Rng</a></td><td class='docblock-short'><p>An automatically-implemented extension trait on [<code>RngCore</code>] providing high-level
+generic methods for sampling values and other convenience methods.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.RngCore.html" title='rand::RngCore trait'>RngCore</a></td><td class='docblock-short'><p>The core of a random number generator.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.SeedableRng.html" title='rand::SeedableRng trait'>SeedableRng</a></td><td class='docblock-short'><p>A random number generator that can be explicitly seeded.</p>
+</td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.random.html" title='rand::random fn'>random</a></td><td class='docblock-short'><p>Generates a random value using the thread-local random number generator.</p>
+</td></tr><tr class='module-item'><td><a class="fn" href="fn.thread_rng.html" title='rand::thread_rng fn'>thread_rng</a></td><td class='docblock-short'><p>Retrieve the lazily-initialized thread-local random number generator,
+seeded by the system. Intended to be used in method chaining style,
+e.g. <code>thread_rng().gen::&lt;i32&gt;()</code>, or cached locally, e.g.
+<code>let mut rng = thread_rng();</code>.  Invoked by the <code>Default</code> trait, making
+<code>ThreadRng::default()</code> equivelent.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "rand";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

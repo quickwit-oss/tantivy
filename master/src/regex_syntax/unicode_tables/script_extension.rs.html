@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.6/src/unicode_tables/script_extension.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>script_extension.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.6.7/src/unicode_tables/script_extension.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>script_extension.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../regex_syntax/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -783,10 +783,54 @@
 <span id="783">783</span>
 <span id="784">784</span>
 <span id="785">785</span>
-</pre><pre class="rust ">
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// DO NOT EDIT THIS FILE. IT WAS AUTOMATICALLY GENERATED BY:</span>
 <span class="comment">//</span>
-<span class="comment">//  ucd-generate script-extension tmp/ucd-10.0.0/ --chars</span>
+<span class="comment">//  ucd-generate script-extension tmp/ucd-11.0.0/ --chars</span>
 <span class="comment">//</span>
 <span class="comment">// ucd-generate is available on crates.io.</span>
 
@@ -802,13 +846,14 @@
   (<span class="string">&quot;Chakma&quot;</span>, <span class="ident">CHAKMA</span>), (<span class="string">&quot;Cham&quot;</span>, <span class="ident">CHAM</span>), (<span class="string">&quot;Cherokee&quot;</span>, <span class="ident">CHEROKEE</span>),
   (<span class="string">&quot;Common&quot;</span>, <span class="ident">COMMON</span>), (<span class="string">&quot;Coptic&quot;</span>, <span class="ident">COPTIC</span>), (<span class="string">&quot;Cuneiform&quot;</span>, <span class="ident">CUNEIFORM</span>),
   (<span class="string">&quot;Cypriot&quot;</span>, <span class="ident">CYPRIOT</span>), (<span class="string">&quot;Cyrillic&quot;</span>, <span class="ident">CYRILLIC</span>), (<span class="string">&quot;Deseret&quot;</span>, <span class="ident">DESERET</span>),
-  (<span class="string">&quot;Devanagari&quot;</span>, <span class="ident">DEVANAGARI</span>), (<span class="string">&quot;Duployan&quot;</span>, <span class="ident">DUPLOYAN</span>),
+  (<span class="string">&quot;Devanagari&quot;</span>, <span class="ident">DEVANAGARI</span>), (<span class="string">&quot;Dogra&quot;</span>, <span class="ident">DOGRA</span>), (<span class="string">&quot;Duployan&quot;</span>, <span class="ident">DUPLOYAN</span>),
   (<span class="string">&quot;Egyptian_Hieroglyphs&quot;</span>, <span class="ident">EGYPTIAN_HIEROGLYPHS</span>), (<span class="string">&quot;Elbasan&quot;</span>, <span class="ident">ELBASAN</span>),
   (<span class="string">&quot;Ethiopic&quot;</span>, <span class="ident">ETHIOPIC</span>), (<span class="string">&quot;Georgian&quot;</span>, <span class="ident">GEORGIAN</span>), (<span class="string">&quot;Glagolitic&quot;</span>, <span class="ident">GLAGOLITIC</span>),
   (<span class="string">&quot;Gothic&quot;</span>, <span class="ident">GOTHIC</span>), (<span class="string">&quot;Grantha&quot;</span>, <span class="ident">GRANTHA</span>), (<span class="string">&quot;Greek&quot;</span>, <span class="ident">GREEK</span>),
-  (<span class="string">&quot;Gujarati&quot;</span>, <span class="ident">GUJARATI</span>), (<span class="string">&quot;Gurmukhi&quot;</span>, <span class="ident">GURMUKHI</span>), (<span class="string">&quot;Han&quot;</span>, <span class="ident">HAN</span>),
-  (<span class="string">&quot;Hangul&quot;</span>, <span class="ident">HANGUL</span>), (<span class="string">&quot;Hanunoo&quot;</span>, <span class="ident">HANUNOO</span>), (<span class="string">&quot;Hatran&quot;</span>, <span class="ident">HATRAN</span>),
-  (<span class="string">&quot;Hebrew&quot;</span>, <span class="ident">HEBREW</span>), (<span class="string">&quot;Hiragana&quot;</span>, <span class="ident">HIRAGANA</span>),
+  (<span class="string">&quot;Gujarati&quot;</span>, <span class="ident">GUJARATI</span>), (<span class="string">&quot;Gunjala_Gondi&quot;</span>, <span class="ident">GUNJALA_GONDI</span>),
+  (<span class="string">&quot;Gurmukhi&quot;</span>, <span class="ident">GURMUKHI</span>), (<span class="string">&quot;Han&quot;</span>, <span class="ident">HAN</span>), (<span class="string">&quot;Hangul&quot;</span>, <span class="ident">HANGUL</span>),
+  (<span class="string">&quot;Hanifi_Rohingya&quot;</span>, <span class="ident">HANIFI_ROHINGYA</span>), (<span class="string">&quot;Hanunoo&quot;</span>, <span class="ident">HANUNOO</span>),
+  (<span class="string">&quot;Hatran&quot;</span>, <span class="ident">HATRAN</span>), (<span class="string">&quot;Hebrew&quot;</span>, <span class="ident">HEBREW</span>), (<span class="string">&quot;Hiragana&quot;</span>, <span class="ident">HIRAGANA</span>),
   (<span class="string">&quot;Imperial_Aramaic&quot;</span>, <span class="ident">IMPERIAL_ARAMAIC</span>), (<span class="string">&quot;Inherited&quot;</span>, <span class="ident">INHERITED</span>),
   (<span class="string">&quot;Inscriptional_Pahlavi&quot;</span>, <span class="ident">INSCRIPTIONAL_PAHLAVI</span>),
   (<span class="string">&quot;Inscriptional_Parthian&quot;</span>, <span class="ident">INSCRIPTIONAL_PARTHIAN</span>), (<span class="string">&quot;Javanese&quot;</span>, <span class="ident">JAVANESE</span>),
@@ -818,8 +863,9 @@
   (<span class="string">&quot;Latin&quot;</span>, <span class="ident">LATIN</span>), (<span class="string">&quot;Lepcha&quot;</span>, <span class="ident">LEPCHA</span>), (<span class="string">&quot;Limbu&quot;</span>, <span class="ident">LIMBU</span>),
   (<span class="string">&quot;Linear_A&quot;</span>, <span class="ident">LINEAR_A</span>), (<span class="string">&quot;Linear_B&quot;</span>, <span class="ident">LINEAR_B</span>), (<span class="string">&quot;Lisu&quot;</span>, <span class="ident">LISU</span>),
   (<span class="string">&quot;Lycian&quot;</span>, <span class="ident">LYCIAN</span>), (<span class="string">&quot;Lydian&quot;</span>, <span class="ident">LYDIAN</span>), (<span class="string">&quot;Mahajani&quot;</span>, <span class="ident">MAHAJANI</span>),
-  (<span class="string">&quot;Malayalam&quot;</span>, <span class="ident">MALAYALAM</span>), (<span class="string">&quot;Mandaic&quot;</span>, <span class="ident">MANDAIC</span>), (<span class="string">&quot;Manichaean&quot;</span>, <span class="ident">MANICHAEAN</span>),
-  (<span class="string">&quot;Marchen&quot;</span>, <span class="ident">MARCHEN</span>), (<span class="string">&quot;Masaram_Gondi&quot;</span>, <span class="ident">MASARAM_GONDI</span>),
+  (<span class="string">&quot;Makasar&quot;</span>, <span class="ident">MAKASAR</span>), (<span class="string">&quot;Malayalam&quot;</span>, <span class="ident">MALAYALAM</span>), (<span class="string">&quot;Mandaic&quot;</span>, <span class="ident">MANDAIC</span>),
+  (<span class="string">&quot;Manichaean&quot;</span>, <span class="ident">MANICHAEAN</span>), (<span class="string">&quot;Marchen&quot;</span>, <span class="ident">MARCHEN</span>),
+  (<span class="string">&quot;Masaram_Gondi&quot;</span>, <span class="ident">MASARAM_GONDI</span>), (<span class="string">&quot;Medefaidrin&quot;</span>, <span class="ident">MEDEFAIDRIN</span>),
   (<span class="string">&quot;Meetei_Mayek&quot;</span>, <span class="ident">MEETEI_MAYEK</span>), (<span class="string">&quot;Mende_Kikakui&quot;</span>, <span class="ident">MENDE_KIKAKUI</span>),
   (<span class="string">&quot;Meroitic_Cursive&quot;</span>, <span class="ident">MEROITIC_CURSIVE</span>),
   (<span class="string">&quot;Meroitic_Hieroglyphs&quot;</span>, <span class="ident">MEROITIC_HIEROGLYPHS</span>), (<span class="string">&quot;Miao&quot;</span>, <span class="ident">MIAO</span>),
@@ -829,15 +875,16 @@
   (<span class="string">&quot;Nushu&quot;</span>, <span class="ident">NUSHU</span>), (<span class="string">&quot;Ogham&quot;</span>, <span class="ident">OGHAM</span>), (<span class="string">&quot;Ol_Chiki&quot;</span>, <span class="ident">OL_CHIKI</span>),
   (<span class="string">&quot;Old_Hungarian&quot;</span>, <span class="ident">OLD_HUNGARIAN</span>), (<span class="string">&quot;Old_Italic&quot;</span>, <span class="ident">OLD_ITALIC</span>),
   (<span class="string">&quot;Old_North_Arabian&quot;</span>, <span class="ident">OLD_NORTH_ARABIAN</span>), (<span class="string">&quot;Old_Permic&quot;</span>, <span class="ident">OLD_PERMIC</span>),
-  (<span class="string">&quot;Old_Persian&quot;</span>, <span class="ident">OLD_PERSIAN</span>), (<span class="string">&quot;Old_South_Arabian&quot;</span>, <span class="ident">OLD_SOUTH_ARABIAN</span>),
-  (<span class="string">&quot;Old_Turkic&quot;</span>, <span class="ident">OLD_TURKIC</span>), (<span class="string">&quot;Oriya&quot;</span>, <span class="ident">ORIYA</span>), (<span class="string">&quot;Osage&quot;</span>, <span class="ident">OSAGE</span>),
-  (<span class="string">&quot;Osmanya&quot;</span>, <span class="ident">OSMANYA</span>), (<span class="string">&quot;Pahawh_Hmong&quot;</span>, <span class="ident">PAHAWH_HMONG</span>),
-  (<span class="string">&quot;Palmyrene&quot;</span>, <span class="ident">PALMYRENE</span>), (<span class="string">&quot;Pau_Cin_Hau&quot;</span>, <span class="ident">PAU_CIN_HAU</span>),
-  (<span class="string">&quot;Phags_Pa&quot;</span>, <span class="ident">PHAGS_PA</span>), (<span class="string">&quot;Phoenician&quot;</span>, <span class="ident">PHOENICIAN</span>),
-  (<span class="string">&quot;Psalter_Pahlavi&quot;</span>, <span class="ident">PSALTER_PAHLAVI</span>), (<span class="string">&quot;Rejang&quot;</span>, <span class="ident">REJANG</span>), (<span class="string">&quot;Runic&quot;</span>, <span class="ident">RUNIC</span>),
-  (<span class="string">&quot;Samaritan&quot;</span>, <span class="ident">SAMARITAN</span>), (<span class="string">&quot;Saurashtra&quot;</span>, <span class="ident">SAURASHTRA</span>), (<span class="string">&quot;Sharada&quot;</span>, <span class="ident">SHARADA</span>),
-  (<span class="string">&quot;Shavian&quot;</span>, <span class="ident">SHAVIAN</span>), (<span class="string">&quot;Siddham&quot;</span>, <span class="ident">SIDDHAM</span>), (<span class="string">&quot;SignWriting&quot;</span>, <span class="ident">SIGNWRITING</span>),
-  (<span class="string">&quot;Sinhala&quot;</span>, <span class="ident">SINHALA</span>), (<span class="string">&quot;Sora_Sompeng&quot;</span>, <span class="ident">SORA_SOMPENG</span>), (<span class="string">&quot;Soyombo&quot;</span>, <span class="ident">SOYOMBO</span>),
+  (<span class="string">&quot;Old_Persian&quot;</span>, <span class="ident">OLD_PERSIAN</span>), (<span class="string">&quot;Old_Sogdian&quot;</span>, <span class="ident">OLD_SOGDIAN</span>),
+  (<span class="string">&quot;Old_South_Arabian&quot;</span>, <span class="ident">OLD_SOUTH_ARABIAN</span>), (<span class="string">&quot;Old_Turkic&quot;</span>, <span class="ident">OLD_TURKIC</span>),
+  (<span class="string">&quot;Oriya&quot;</span>, <span class="ident">ORIYA</span>), (<span class="string">&quot;Osage&quot;</span>, <span class="ident">OSAGE</span>), (<span class="string">&quot;Osmanya&quot;</span>, <span class="ident">OSMANYA</span>),
+  (<span class="string">&quot;Pahawh_Hmong&quot;</span>, <span class="ident">PAHAWH_HMONG</span>), (<span class="string">&quot;Palmyrene&quot;</span>, <span class="ident">PALMYRENE</span>),
+  (<span class="string">&quot;Pau_Cin_Hau&quot;</span>, <span class="ident">PAU_CIN_HAU</span>), (<span class="string">&quot;Phags_Pa&quot;</span>, <span class="ident">PHAGS_PA</span>),
+  (<span class="string">&quot;Phoenician&quot;</span>, <span class="ident">PHOENICIAN</span>), (<span class="string">&quot;Psalter_Pahlavi&quot;</span>, <span class="ident">PSALTER_PAHLAVI</span>),
+  (<span class="string">&quot;Rejang&quot;</span>, <span class="ident">REJANG</span>), (<span class="string">&quot;Runic&quot;</span>, <span class="ident">RUNIC</span>), (<span class="string">&quot;Samaritan&quot;</span>, <span class="ident">SAMARITAN</span>),
+  (<span class="string">&quot;Saurashtra&quot;</span>, <span class="ident">SAURASHTRA</span>), (<span class="string">&quot;Sharada&quot;</span>, <span class="ident">SHARADA</span>), (<span class="string">&quot;Shavian&quot;</span>, <span class="ident">SHAVIAN</span>),
+  (<span class="string">&quot;Siddham&quot;</span>, <span class="ident">SIDDHAM</span>), (<span class="string">&quot;SignWriting&quot;</span>, <span class="ident">SIGNWRITING</span>), (<span class="string">&quot;Sinhala&quot;</span>, <span class="ident">SINHALA</span>),
+  (<span class="string">&quot;Sogdian&quot;</span>, <span class="ident">SOGDIAN</span>), (<span class="string">&quot;Sora_Sompeng&quot;</span>, <span class="ident">SORA_SOMPENG</span>), (<span class="string">&quot;Soyombo&quot;</span>, <span class="ident">SOYOMBO</span>),
   (<span class="string">&quot;Sundanese&quot;</span>, <span class="ident">SUNDANESE</span>), (<span class="string">&quot;Syloti_Nagri&quot;</span>, <span class="ident">SYLOTI_NAGRI</span>),
   (<span class="string">&quot;Syriac&quot;</span>, <span class="ident">SYRIAC</span>), (<span class="string">&quot;Tagalog&quot;</span>, <span class="ident">TAGALOG</span>), (<span class="string">&quot;Tagbanwa&quot;</span>, <span class="ident">TAGBANWA</span>),
   (<span class="string">&quot;Tai_Le&quot;</span>, <span class="ident">TAI_LE</span>), (<span class="string">&quot;Tai_Tham&quot;</span>, <span class="ident">TAI_THAM</span>), (<span class="string">&quot;Tai_Viet&quot;</span>, <span class="ident">TAI_VIET</span>),
@@ -853,7 +900,7 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">AHOM</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;𑜀&#39;</span>, <span class="string">&#39;𑜙&#39;</span>), (<span class="string">&#39;𑜝&#39;</span>, <span class="string">&#39;𑜫&#39;</span>), (<span class="string">&#39;𑜰&#39;</span>, <span class="string">&#39;𑜿&#39;</span>),
+  (<span class="string">&#39;𑜀&#39;</span>, <span class="string">&#39;\u{1171a}&#39;</span>), (<span class="string">&#39;𑜝&#39;</span>, <span class="string">&#39;𑜫&#39;</span>), (<span class="string">&#39;𑜰&#39;</span>, <span class="string">&#39;𑜿&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ANATOLIAN_HIEROGLYPHS</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -862,7 +909,7 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ARABIC</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;\u{600}&#39;</span>, <span class="string">&#39;\u{604}&#39;</span>), (<span class="string">&#39;؆&#39;</span>, <span class="string">&#39;\u{61c}&#39;</span>), (<span class="string">&#39;؞&#39;</span>, <span class="string">&#39;ۜ&#39;</span>), (<span class="string">&#39;۞&#39;</span>, <span class="string">&#39;ۿ&#39;</span>),
-  (<span class="string">&#39;ݐ&#39;</span>, <span class="string">&#39;ݿ&#39;</span>), (<span class="string">&#39;ࢠ&#39;</span>, <span class="string">&#39;ࢴ&#39;</span>), (<span class="string">&#39;ࢶ&#39;</span>, <span class="string">&#39;ࢽ&#39;</span>), (<span class="string">&#39;ࣔ&#39;</span>, <span class="string">&#39;࣡&#39;</span>),
+  (<span class="string">&#39;ݐ&#39;</span>, <span class="string">&#39;ݿ&#39;</span>), (<span class="string">&#39;ࢠ&#39;</span>, <span class="string">&#39;ࢴ&#39;</span>), (<span class="string">&#39;ࢶ&#39;</span>, <span class="string">&#39;ࢽ&#39;</span>), (<span class="string">&#39;\u{8d3}&#39;</span>, <span class="string">&#39;࣡&#39;</span>),
   (<span class="string">&#39;ࣣ&#39;</span>, <span class="string">&#39;ࣿ&#39;</span>), (<span class="string">&#39;ﭐ&#39;</span>, <span class="string">&#39;﯁&#39;</span>), (<span class="string">&#39;ﯓ&#39;</span>, <span class="string">&#39;ﴽ&#39;</span>), (<span class="string">&#39;ﵐ&#39;</span>, <span class="string">&#39;ﶏ&#39;</span>),
   (<span class="string">&#39;ﶒ&#39;</span>, <span class="string">&#39;ﷇ&#39;</span>), (<span class="string">&#39;ﷰ&#39;</span>, <span class="string">&#39;﷽&#39;</span>), (<span class="string">&#39;ﹰ&#39;</span>, <span class="string">&#39;ﹴ&#39;</span>), (<span class="string">&#39;ﹶ&#39;</span>, <span class="string">&#39;ﻼ&#39;</span>),
   (<span class="string">&#39;𐋠&#39;</span>, <span class="string">&#39;𐋻&#39;</span>), (<span class="string">&#39;𐹠&#39;</span>, <span class="string">&#39;𐹾&#39;</span>), (<span class="string">&#39;𞸀&#39;</span>, <span class="string">&#39;𞸃&#39;</span>), (<span class="string">&#39;𞸅&#39;</span>, <span class="string">&#39;𞸟&#39;</span>),
@@ -877,8 +924,7 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ARMENIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;Ա&#39;</span>, <span class="string">&#39;Ֆ&#39;</span>), (<span class="string">&#39;ՙ&#39;</span>, <span class="string">&#39;՟&#39;</span>), (<span class="string">&#39;ա&#39;</span>, <span class="string">&#39;և&#39;</span>), (<span class="string">&#39;։&#39;</span>, <span class="string">&#39;֊&#39;</span>), (<span class="string">&#39;֍&#39;</span>, <span class="string">&#39;֏&#39;</span>),
-  (<span class="string">&#39;ﬓ&#39;</span>, <span class="string">&#39;ﬗ&#39;</span>),
+  (<span class="string">&#39;Ա&#39;</span>, <span class="string">&#39;Ֆ&#39;</span>), (<span class="string">&#39;ՙ&#39;</span>, <span class="string">&#39;֊&#39;</span>), (<span class="string">&#39;֍&#39;</span>, <span class="string">&#39;֏&#39;</span>), (<span class="string">&#39;ﬓ&#39;</span>, <span class="string">&#39;ﬗ&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">AVESTAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -905,8 +951,10 @@
   (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ঀ&#39;</span>, <span class="string">&#39;ঃ&#39;</span>), (<span class="string">&#39;অ&#39;</span>, <span class="string">&#39;ঌ&#39;</span>),
   (<span class="string">&#39;এ&#39;</span>, <span class="string">&#39;ঐ&#39;</span>), (<span class="string">&#39;ও&#39;</span>, <span class="string">&#39;ন&#39;</span>), (<span class="string">&#39;প&#39;</span>, <span class="string">&#39;র&#39;</span>), (<span class="string">&#39;ল&#39;</span>, <span class="string">&#39;ল&#39;</span>),
   (<span class="string">&#39;শ&#39;</span>, <span class="string">&#39;হ&#39;</span>), (<span class="string">&#39;়&#39;</span>, <span class="string">&#39;ৄ&#39;</span>), (<span class="string">&#39;ে&#39;</span>, <span class="string">&#39;ৈ&#39;</span>), (<span class="string">&#39;ো&#39;</span>, <span class="string">&#39;ৎ&#39;</span>),
-  (<span class="string">&#39;ৗ&#39;</span>, <span class="string">&#39;ৗ&#39;</span>), (<span class="string">&#39;ড়&#39;</span>, <span class="string">&#39;ঢ়&#39;</span>), (<span class="string">&#39;য়&#39;</span>, <span class="string">&#39;ৣ&#39;</span>), (<span class="string">&#39;০&#39;</span>, <span class="string">&#39;৽&#39;</span>),
-  (<span class="string">&#39;᳷&#39;</span>, <span class="string">&#39;᳷&#39;</span>), (<span class="string">&#39;꣱&#39;</span>, <span class="string">&#39;꣱&#39;</span>),
+  (<span class="string">&#39;ৗ&#39;</span>, <span class="string">&#39;ৗ&#39;</span>), (<span class="string">&#39;ড়&#39;</span>, <span class="string">&#39;ঢ়&#39;</span>), (<span class="string">&#39;য়&#39;</span>, <span class="string">&#39;ৣ&#39;</span>), (<span class="string">&#39;০&#39;</span>, <span class="string">&#39;\u{9fe}&#39;</span>),
+  (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;᳐&#39;</span>), (<span class="string">&#39;᳒&#39;</span>, <span class="string">&#39;᳒&#39;</span>), (<span class="string">&#39;᳕&#39;</span>, <span class="string">&#39;᳖&#39;</span>), (<span class="string">&#39;᳘&#39;</span>, <span class="string">&#39;᳘&#39;</span>),
+  (<span class="string">&#39;᳡&#39;</span>, <span class="string">&#39;᳡&#39;</span>), (<span class="string">&#39;ᳪ&#39;</span>, <span class="string">&#39;ᳪ&#39;</span>), (<span class="string">&#39;᳭&#39;</span>, <span class="string">&#39;᳭&#39;</span>), (<span class="string">&#39;ᳵ&#39;</span>, <span class="string">&#39;᳷&#39;</span>),
+  (<span class="string">&#39;꣱&#39;</span>, <span class="string">&#39;꣱&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BHAIKSUKI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -916,7 +964,7 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BOPOMOFO</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;˪&#39;</span>, <span class="string">&#39;˫&#39;</span>), (<span class="string">&#39;、&#39;</span>, <span class="string">&#39;〃&#39;</span>), (<span class="string">&#39;〈&#39;</span>, <span class="string">&#39;】&#39;</span>), (<span class="string">&#39;〓&#39;</span>, <span class="string">&#39;〟&#39;</span>),
   (<span class="string">&#39;〪&#39;</span>, <span class="string">&#39;〭&#39;</span>), (<span class="string">&#39;〰&#39;</span>, <span class="string">&#39;〰&#39;</span>), (<span class="string">&#39;〷&#39;</span>, <span class="string">&#39;〷&#39;</span>), (<span class="string">&#39;・&#39;</span>, <span class="string">&#39;・&#39;</span>),
-  (<span class="string">&#39;ㄅ&#39;</span>, <span class="string">&#39;ㄮ&#39;</span>), (<span class="string">&#39;ㆠ&#39;</span>, <span class="string">&#39;ㆺ&#39;</span>), (<span class="string">&#39;﹅&#39;</span>, <span class="string">&#39;﹆&#39;</span>), (<span class="string">&#39;｡&#39;</span>, <span class="string">&#39;･&#39;</span>),
+  (<span class="string">&#39;ㄅ&#39;</span>, <span class="string">&#39;\u{312f}&#39;</span>), (<span class="string">&#39;ㆠ&#39;</span>, <span class="string">&#39;ㆺ&#39;</span>), (<span class="string">&#39;﹅&#39;</span>, <span class="string">&#39;﹆&#39;</span>), (<span class="string">&#39;｡&#39;</span>, <span class="string">&#39;･&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">BRAHMI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -948,7 +996,7 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CHAKMA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;০&#39;</span>, <span class="string">&#39;৯&#39;</span>), (<span class="string">&#39;၀&#39;</span>, <span class="string">&#39;၉&#39;</span>), (<span class="string">&#39;𑄀&#39;</span>, <span class="string">&#39;𑄴&#39;</span>), (<span class="string">&#39;𑄶&#39;</span>, <span class="string">&#39;𑅃&#39;</span>),
+  (<span class="string">&#39;০&#39;</span>, <span class="string">&#39;৯&#39;</span>), (<span class="string">&#39;၀&#39;</span>, <span class="string">&#39;၉&#39;</span>), (<span class="string">&#39;𑄀&#39;</span>, <span class="string">&#39;𑄴&#39;</span>), (<span class="string">&#39;𑄶&#39;</span>, <span class="string">&#39;\u{11146}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CHAM</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -969,32 +1017,36 @@
   (<span class="string">&#39;₀&#39;</span>, <span class="string">&#39;₎&#39;</span>), (<span class="string">&#39;₠&#39;</span>, <span class="string">&#39;₿&#39;</span>), (<span class="string">&#39;℀&#39;</span>, <span class="string">&#39;℥&#39;</span>), (<span class="string">&#39;℧&#39;</span>, <span class="string">&#39;℩&#39;</span>),
   (<span class="string">&#39;ℬ&#39;</span>, <span class="string">&#39;ℱ&#39;</span>), (<span class="string">&#39;ℳ&#39;</span>, <span class="string">&#39;⅍&#39;</span>), (<span class="string">&#39;⅏&#39;</span>, <span class="string">&#39;⅟&#39;</span>), (<span class="string">&#39;↉&#39;</span>, <span class="string">&#39;↋&#39;</span>),
   (<span class="string">&#39;←&#39;</span>, <span class="string">&#39;␦&#39;</span>), (<span class="string">&#39;⑀&#39;</span>, <span class="string">&#39;⑊&#39;</span>), (<span class="string">&#39;①&#39;</span>, <span class="string">&#39;⟿&#39;</span>), (<span class="string">&#39;⤀&#39;</span>, <span class="string">&#39;⭳&#39;</span>),
-  (<span class="string">&#39;⭶&#39;</span>, <span class="string">&#39;⮕&#39;</span>), (<span class="string">&#39;⮘&#39;</span>, <span class="string">&#39;⮹&#39;</span>), (<span class="string">&#39;⮽&#39;</span>, <span class="string">&#39;⯈&#39;</span>), (<span class="string">&#39;⯊&#39;</span>, <span class="string">&#39;⯒&#39;</span>),
-  (<span class="string">&#39;⯬&#39;</span>, <span class="string">&#39;⯯&#39;</span>), (<span class="string">&#39;⸀&#39;</span>, <span class="string">&#39;⹂&#39;</span>), (<span class="string">&#39;⹄&#39;</span>, <span class="string">&#39;⹉&#39;</span>), (<span class="string">&#39;⿰&#39;</span>, <span class="string">&#39;⿻&#39;</span>),
-  (<span class="string">&#39;\u{3000}&#39;</span>, <span class="string">&#39;\u{3000}&#39;</span>), (<span class="string">&#39;〄&#39;</span>, <span class="string">&#39;〄&#39;</span>), (<span class="string">&#39;〒&#39;</span>, <span class="string">&#39;〒&#39;</span>), (<span class="string">&#39;〠&#39;</span>, <span class="string">&#39;〠&#39;</span>),
-  (<span class="string">&#39;〶&#39;</span>, <span class="string">&#39;〶&#39;</span>), (<span class="string">&#39;㉈&#39;</span>, <span class="string">&#39;㉟&#39;</span>), (<span class="string">&#39;㉿&#39;</span>, <span class="string">&#39;㉿&#39;</span>), (<span class="string">&#39;㊱&#39;</span>, <span class="string">&#39;㊿&#39;</span>),
-  (<span class="string">&#39;㋌&#39;</span>, <span class="string">&#39;㋏&#39;</span>), (<span class="string">&#39;㍱&#39;</span>, <span class="string">&#39;㍺&#39;</span>), (<span class="string">&#39;㎀&#39;</span>, <span class="string">&#39;㏟&#39;</span>), (<span class="string">&#39;㏿&#39;</span>, <span class="string">&#39;㏿&#39;</span>),
-  (<span class="string">&#39;䷀&#39;</span>, <span class="string">&#39;䷿&#39;</span>), (<span class="string">&#39;꜀&#39;</span>, <span class="string">&#39;꜡&#39;</span>), (<span class="string">&#39;ꞈ&#39;</span>, <span class="string">&#39;꞊&#39;</span>), (<span class="string">&#39;꭛&#39;</span>, <span class="string">&#39;꭛&#39;</span>),
-  (<span class="string">&#39;﴾&#39;</span>, <span class="string">&#39;﴿&#39;</span>), (<span class="string">&#39;︐&#39;</span>, <span class="string">&#39;︙&#39;</span>), (<span class="string">&#39;︰&#39;</span>, <span class="string">&#39;﹄&#39;</span>), (<span class="string">&#39;﹇&#39;</span>, <span class="string">&#39;﹒&#39;</span>),
-  (<span class="string">&#39;﹔&#39;</span>, <span class="string">&#39;﹦&#39;</span>), (<span class="string">&#39;﹨&#39;</span>, <span class="string">&#39;﹫&#39;</span>), (<span class="string">&#39;\u{feff}&#39;</span>, <span class="string">&#39;\u{feff}&#39;</span>), (<span class="string">&#39;！&#39;</span>, <span class="string">&#39;＠&#39;</span>),
-  (<span class="string">&#39;［&#39;</span>, <span class="string">&#39;｀&#39;</span>), (<span class="string">&#39;｛&#39;</span>, <span class="string">&#39;｠&#39;</span>), (<span class="string">&#39;￠&#39;</span>, <span class="string">&#39;￦&#39;</span>), (<span class="string">&#39;￨&#39;</span>, <span class="string">&#39;￮&#39;</span>),
-  (<span class="string">&#39;\u{fff9}&#39;</span>, <span class="string">&#39;�&#39;</span>), (<span class="string">&#39;𐆐&#39;</span>, <span class="string">&#39;𐆛&#39;</span>), (<span class="string">&#39;𐇐&#39;</span>, <span class="string">&#39;𐇼&#39;</span>), (<span class="string">&#39;𝀀&#39;</span>, <span class="string">&#39;𝃵&#39;</span>),
-  (<span class="string">&#39;𝄀&#39;</span>, <span class="string">&#39;𝄦&#39;</span>), (<span class="string">&#39;𝄩&#39;</span>, <span class="string">&#39;𝅦&#39;</span>), (<span class="string">&#39;𝅪&#39;</span>, <span class="string">&#39;\u{1d17a}&#39;</span>), (<span class="string">&#39;𝆃&#39;</span>, <span class="string">&#39;𝆄&#39;</span>),
-  (<span class="string">&#39;𝆌&#39;</span>, <span class="string">&#39;𝆩&#39;</span>), (<span class="string">&#39;𝆮&#39;</span>, <span class="string">&#39;𝇨&#39;</span>), (<span class="string">&#39;𝌀&#39;</span>, <span class="string">&#39;𝍖&#39;</span>), (<span class="string">&#39;𝐀&#39;</span>, <span class="string">&#39;𝑔&#39;</span>),
-  (<span class="string">&#39;𝑖&#39;</span>, <span class="string">&#39;𝒜&#39;</span>), (<span class="string">&#39;𝒞&#39;</span>, <span class="string">&#39;𝒟&#39;</span>), (<span class="string">&#39;𝒢&#39;</span>, <span class="string">&#39;𝒢&#39;</span>), (<span class="string">&#39;𝒥&#39;</span>, <span class="string">&#39;𝒦&#39;</span>),
-  (<span class="string">&#39;𝒩&#39;</span>, <span class="string">&#39;𝒬&#39;</span>), (<span class="string">&#39;𝒮&#39;</span>, <span class="string">&#39;𝒹&#39;</span>), (<span class="string">&#39;𝒻&#39;</span>, <span class="string">&#39;𝒻&#39;</span>), (<span class="string">&#39;𝒽&#39;</span>, <span class="string">&#39;𝓃&#39;</span>),
-  (<span class="string">&#39;𝓅&#39;</span>, <span class="string">&#39;𝔅&#39;</span>), (<span class="string">&#39;𝔇&#39;</span>, <span class="string">&#39;𝔊&#39;</span>), (<span class="string">&#39;𝔍&#39;</span>, <span class="string">&#39;𝔔&#39;</span>), (<span class="string">&#39;𝔖&#39;</span>, <span class="string">&#39;𝔜&#39;</span>),
-  (<span class="string">&#39;𝔞&#39;</span>, <span class="string">&#39;𝔹&#39;</span>), (<span class="string">&#39;𝔻&#39;</span>, <span class="string">&#39;𝔾&#39;</span>), (<span class="string">&#39;𝕀&#39;</span>, <span class="string">&#39;𝕄&#39;</span>), (<span class="string">&#39;𝕆&#39;</span>, <span class="string">&#39;𝕆&#39;</span>),
-  (<span class="string">&#39;𝕊&#39;</span>, <span class="string">&#39;𝕐&#39;</span>), (<span class="string">&#39;𝕒&#39;</span>, <span class="string">&#39;𝚥&#39;</span>), (<span class="string">&#39;𝚨&#39;</span>, <span class="string">&#39;𝟋&#39;</span>), (<span class="string">&#39;𝟎&#39;</span>, <span class="string">&#39;𝟿&#39;</span>),
-  (<span class="string">&#39;🀀&#39;</span>, <span class="string">&#39;🀫&#39;</span>), (<span class="string">&#39;🀰&#39;</span>, <span class="string">&#39;🂓&#39;</span>), (<span class="string">&#39;🂠&#39;</span>, <span class="string">&#39;🂮&#39;</span>), (<span class="string">&#39;🂱&#39;</span>, <span class="string">&#39;🂿&#39;</span>),
-  (<span class="string">&#39;🃁&#39;</span>, <span class="string">&#39;🃏&#39;</span>), (<span class="string">&#39;🃑&#39;</span>, <span class="string">&#39;🃵&#39;</span>), (<span class="string">&#39;🄀&#39;</span>, <span class="string">&#39;🄌&#39;</span>), (<span class="string">&#39;🄐&#39;</span>, <span class="string">&#39;🄮&#39;</span>),
-  (<span class="string">&#39;🄰&#39;</span>, <span class="string">&#39;🅫&#39;</span>), (<span class="string">&#39;🅰&#39;</span>, <span class="string">&#39;🆬&#39;</span>), (<span class="string">&#39;🇦&#39;</span>, <span class="string">&#39;🇿&#39;</span>), (<span class="string">&#39;🈁&#39;</span>, <span class="string">&#39;🈂&#39;</span>),
-  (<span class="string">&#39;🈐&#39;</span>, <span class="string">&#39;🈻&#39;</span>), (<span class="string">&#39;🉀&#39;</span>, <span class="string">&#39;🉈&#39;</span>), (<span class="string">&#39;🉠&#39;</span>, <span class="string">&#39;🉥&#39;</span>), (<span class="string">&#39;🌀&#39;</span>, <span class="string">&#39;🛔&#39;</span>),
-  (<span class="string">&#39;🛠&#39;</span>, <span class="string">&#39;🛬&#39;</span>), (<span class="string">&#39;🛰&#39;</span>, <span class="string">&#39;🛸&#39;</span>), (<span class="string">&#39;🜀&#39;</span>, <span class="string">&#39;🝳&#39;</span>), (<span class="string">&#39;🞀&#39;</span>, <span class="string">&#39;🟔&#39;</span>),
-  (<span class="string">&#39;🠀&#39;</span>, <span class="string">&#39;🠋&#39;</span>), (<span class="string">&#39;🠐&#39;</span>, <span class="string">&#39;🡇&#39;</span>), (<span class="string">&#39;🡐&#39;</span>, <span class="string">&#39;🡙&#39;</span>), (<span class="string">&#39;🡠&#39;</span>, <span class="string">&#39;🢇&#39;</span>),
-  (<span class="string">&#39;🢐&#39;</span>, <span class="string">&#39;🢭&#39;</span>), (<span class="string">&#39;🤀&#39;</span>, <span class="string">&#39;🤋&#39;</span>), (<span class="string">&#39;🤐&#39;</span>, <span class="string">&#39;🤾&#39;</span>), (<span class="string">&#39;🥀&#39;</span>, <span class="string">&#39;🥌&#39;</span>),
-  (<span class="string">&#39;🥐&#39;</span>, <span class="string">&#39;🥫&#39;</span>), (<span class="string">&#39;🦀&#39;</span>, <span class="string">&#39;🦗&#39;</span>), (<span class="string">&#39;🧀&#39;</span>, <span class="string">&#39;🧀&#39;</span>), (<span class="string">&#39;🧐&#39;</span>, <span class="string">&#39;🧦&#39;</span>),
-  (<span class="string">&#39;\u{e0001}&#39;</span>, <span class="string">&#39;\u{e0001}&#39;</span>), (<span class="string">&#39;\u{e0020}&#39;</span>, <span class="string">&#39;\u{e007f}&#39;</span>),
+  (<span class="string">&#39;⭶&#39;</span>, <span class="string">&#39;⮕&#39;</span>), (<span class="string">&#39;⮘&#39;</span>, <span class="string">&#39;⯈&#39;</span>), (<span class="string">&#39;⯊&#39;</span>, <span class="string">&#39;\u{2bfe}&#39;</span>), (<span class="string">&#39;⸀&#39;</span>, <span class="string">&#39;⹂&#39;</span>),
+  (<span class="string">&#39;⹄&#39;</span>, <span class="string">&#39;\u{2e4e}&#39;</span>), (<span class="string">&#39;⿰&#39;</span>, <span class="string">&#39;⿻&#39;</span>), (<span class="string">&#39;\u{3000}&#39;</span>, <span class="string">&#39;\u{3000}&#39;</span>),
+  (<span class="string">&#39;〄&#39;</span>, <span class="string">&#39;〄&#39;</span>), (<span class="string">&#39;〒&#39;</span>, <span class="string">&#39;〒&#39;</span>), (<span class="string">&#39;〠&#39;</span>, <span class="string">&#39;〠&#39;</span>), (<span class="string">&#39;〶&#39;</span>, <span class="string">&#39;〶&#39;</span>),
+  (<span class="string">&#39;㉈&#39;</span>, <span class="string">&#39;㉟&#39;</span>), (<span class="string">&#39;㉿&#39;</span>, <span class="string">&#39;㉿&#39;</span>), (<span class="string">&#39;㊱&#39;</span>, <span class="string">&#39;㊿&#39;</span>), (<span class="string">&#39;㋌&#39;</span>, <span class="string">&#39;㋏&#39;</span>),
+  (<span class="string">&#39;㍱&#39;</span>, <span class="string">&#39;㍺&#39;</span>), (<span class="string">&#39;㎀&#39;</span>, <span class="string">&#39;㏟&#39;</span>), (<span class="string">&#39;㏿&#39;</span>, <span class="string">&#39;㏿&#39;</span>), (<span class="string">&#39;䷀&#39;</span>, <span class="string">&#39;䷿&#39;</span>),
+  (<span class="string">&#39;꜀&#39;</span>, <span class="string">&#39;꜡&#39;</span>), (<span class="string">&#39;ꞈ&#39;</span>, <span class="string">&#39;꞊&#39;</span>), (<span class="string">&#39;꭛&#39;</span>, <span class="string">&#39;꭛&#39;</span>), (<span class="string">&#39;﴾&#39;</span>, <span class="string">&#39;﴿&#39;</span>),
+  (<span class="string">&#39;︐&#39;</span>, <span class="string">&#39;︙&#39;</span>), (<span class="string">&#39;︰&#39;</span>, <span class="string">&#39;﹄&#39;</span>), (<span class="string">&#39;﹇&#39;</span>, <span class="string">&#39;﹒&#39;</span>), (<span class="string">&#39;﹔&#39;</span>, <span class="string">&#39;﹦&#39;</span>),
+  (<span class="string">&#39;﹨&#39;</span>, <span class="string">&#39;﹫&#39;</span>), (<span class="string">&#39;\u{feff}&#39;</span>, <span class="string">&#39;\u{feff}&#39;</span>), (<span class="string">&#39;！&#39;</span>, <span class="string">&#39;＠&#39;</span>), (<span class="string">&#39;［&#39;</span>, <span class="string">&#39;｀&#39;</span>),
+  (<span class="string">&#39;｛&#39;</span>, <span class="string">&#39;｠&#39;</span>), (<span class="string">&#39;￠&#39;</span>, <span class="string">&#39;￦&#39;</span>), (<span class="string">&#39;￨&#39;</span>, <span class="string">&#39;￮&#39;</span>), (<span class="string">&#39;\u{fff9}&#39;</span>, <span class="string">&#39;�&#39;</span>),
+  (<span class="string">&#39;𐆐&#39;</span>, <span class="string">&#39;𐆛&#39;</span>), (<span class="string">&#39;𐇐&#39;</span>, <span class="string">&#39;𐇼&#39;</span>), (<span class="string">&#39;𝀀&#39;</span>, <span class="string">&#39;𝃵&#39;</span>), (<span class="string">&#39;𝄀&#39;</span>, <span class="string">&#39;𝄦&#39;</span>),
+  (<span class="string">&#39;𝄩&#39;</span>, <span class="string">&#39;𝅦&#39;</span>), (<span class="string">&#39;𝅪&#39;</span>, <span class="string">&#39;\u{1d17a}&#39;</span>), (<span class="string">&#39;𝆃&#39;</span>, <span class="string">&#39;𝆄&#39;</span>), (<span class="string">&#39;𝆌&#39;</span>, <span class="string">&#39;𝆩&#39;</span>),
+  (<span class="string">&#39;𝆮&#39;</span>, <span class="string">&#39;𝇨&#39;</span>), (<span class="string">&#39;\u{1d2e0}&#39;</span>, <span class="string">&#39;\u{1d2f3}&#39;</span>), (<span class="string">&#39;𝌀&#39;</span>, <span class="string">&#39;𝍖&#39;</span>),
+  (<span class="string">&#39;\u{1d372}&#39;</span>, <span class="string">&#39;\u{1d378}&#39;</span>), (<span class="string">&#39;𝐀&#39;</span>, <span class="string">&#39;𝑔&#39;</span>), (<span class="string">&#39;𝑖&#39;</span>, <span class="string">&#39;𝒜&#39;</span>),
+  (<span class="string">&#39;𝒞&#39;</span>, <span class="string">&#39;𝒟&#39;</span>), (<span class="string">&#39;𝒢&#39;</span>, <span class="string">&#39;𝒢&#39;</span>), (<span class="string">&#39;𝒥&#39;</span>, <span class="string">&#39;𝒦&#39;</span>), (<span class="string">&#39;𝒩&#39;</span>, <span class="string">&#39;𝒬&#39;</span>),
+  (<span class="string">&#39;𝒮&#39;</span>, <span class="string">&#39;𝒹&#39;</span>), (<span class="string">&#39;𝒻&#39;</span>, <span class="string">&#39;𝒻&#39;</span>), (<span class="string">&#39;𝒽&#39;</span>, <span class="string">&#39;𝓃&#39;</span>), (<span class="string">&#39;𝓅&#39;</span>, <span class="string">&#39;𝔅&#39;</span>),
+  (<span class="string">&#39;𝔇&#39;</span>, <span class="string">&#39;𝔊&#39;</span>), (<span class="string">&#39;𝔍&#39;</span>, <span class="string">&#39;𝔔&#39;</span>), (<span class="string">&#39;𝔖&#39;</span>, <span class="string">&#39;𝔜&#39;</span>), (<span class="string">&#39;𝔞&#39;</span>, <span class="string">&#39;𝔹&#39;</span>),
+  (<span class="string">&#39;𝔻&#39;</span>, <span class="string">&#39;𝔾&#39;</span>), (<span class="string">&#39;𝕀&#39;</span>, <span class="string">&#39;𝕄&#39;</span>), (<span class="string">&#39;𝕆&#39;</span>, <span class="string">&#39;𝕆&#39;</span>), (<span class="string">&#39;𝕊&#39;</span>, <span class="string">&#39;𝕐&#39;</span>),
+  (<span class="string">&#39;𝕒&#39;</span>, <span class="string">&#39;𝚥&#39;</span>), (<span class="string">&#39;𝚨&#39;</span>, <span class="string">&#39;𝟋&#39;</span>), (<span class="string">&#39;𝟎&#39;</span>, <span class="string">&#39;𝟿&#39;</span>),
+  (<span class="string">&#39;\u{1ec71}&#39;</span>, <span class="string">&#39;\u{1ecb4}&#39;</span>), (<span class="string">&#39;🀀&#39;</span>, <span class="string">&#39;🀫&#39;</span>), (<span class="string">&#39;🀰&#39;</span>, <span class="string">&#39;🂓&#39;</span>),
+  (<span class="string">&#39;🂠&#39;</span>, <span class="string">&#39;🂮&#39;</span>), (<span class="string">&#39;🂱&#39;</span>, <span class="string">&#39;🂿&#39;</span>), (<span class="string">&#39;🃁&#39;</span>, <span class="string">&#39;🃏&#39;</span>), (<span class="string">&#39;🃑&#39;</span>, <span class="string">&#39;🃵&#39;</span>),
+  (<span class="string">&#39;🄀&#39;</span>, <span class="string">&#39;🄌&#39;</span>), (<span class="string">&#39;🄐&#39;</span>, <span class="string">&#39;🅫&#39;</span>), (<span class="string">&#39;🅰&#39;</span>, <span class="string">&#39;🆬&#39;</span>), (<span class="string">&#39;🇦&#39;</span>, <span class="string">&#39;🇿&#39;</span>),
+  (<span class="string">&#39;🈁&#39;</span>, <span class="string">&#39;🈂&#39;</span>), (<span class="string">&#39;🈐&#39;</span>, <span class="string">&#39;🈻&#39;</span>), (<span class="string">&#39;🉀&#39;</span>, <span class="string">&#39;🉈&#39;</span>), (<span class="string">&#39;🉠&#39;</span>, <span class="string">&#39;🉥&#39;</span>),
+  (<span class="string">&#39;🌀&#39;</span>, <span class="string">&#39;🛔&#39;</span>), (<span class="string">&#39;🛠&#39;</span>, <span class="string">&#39;🛬&#39;</span>), (<span class="string">&#39;🛰&#39;</span>, <span class="string">&#39;\u{1f6f9}&#39;</span>), (<span class="string">&#39;🜀&#39;</span>, <span class="string">&#39;🝳&#39;</span>),
+  (<span class="string">&#39;🞀&#39;</span>, <span class="string">&#39;\u{1f7d8}&#39;</span>), (<span class="string">&#39;🠀&#39;</span>, <span class="string">&#39;🠋&#39;</span>), (<span class="string">&#39;🠐&#39;</span>, <span class="string">&#39;🡇&#39;</span>), (<span class="string">&#39;🡐&#39;</span>, <span class="string">&#39;🡙&#39;</span>),
+  (<span class="string">&#39;🡠&#39;</span>, <span class="string">&#39;🢇&#39;</span>), (<span class="string">&#39;🢐&#39;</span>, <span class="string">&#39;🢭&#39;</span>), (<span class="string">&#39;🤀&#39;</span>, <span class="string">&#39;🤋&#39;</span>), (<span class="string">&#39;🤐&#39;</span>, <span class="string">&#39;🤾&#39;</span>),
+  (<span class="string">&#39;🥀&#39;</span>, <span class="string">&#39;\u{1f970}&#39;</span>), (<span class="string">&#39;\u{1f973}&#39;</span>, <span class="string">&#39;\u{1f976}&#39;</span>),
+  (<span class="string">&#39;\u{1f97a}&#39;</span>, <span class="string">&#39;\u{1f97a}&#39;</span>), (<span class="string">&#39;\u{1f97c}&#39;</span>, <span class="string">&#39;\u{1f9a2}&#39;</span>),
+  (<span class="string">&#39;\u{1f9b0}&#39;</span>, <span class="string">&#39;\u{1f9b9}&#39;</span>), (<span class="string">&#39;🧀&#39;</span>, <span class="string">&#39;\u{1f9c2}&#39;</span>), (<span class="string">&#39;🧐&#39;</span>, <span class="string">&#39;\u{1f9ff}&#39;</span>),
+  (<span class="string">&#39;\u{1fa60}&#39;</span>, <span class="string">&#39;\u{1fa6d}&#39;</span>), (<span class="string">&#39;\u{e0001}&#39;</span>, <span class="string">&#39;\u{e0001}&#39;</span>),
+  (<span class="string">&#39;\u{e0020}&#39;</span>, <span class="string">&#39;\u{e007f}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">COPTIC</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1022,7 +1074,11 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">DEVANAGARI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;ऀ&#39;</span>, <span class="string">&#39;ॿ&#39;</span>), (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;ᳶ&#39;</span>), (<span class="string">&#39;᳸&#39;</span>, <span class="string">&#39;᳹&#39;</span>), (<span class="string">&#39;⃰&#39;</span>, <span class="string">&#39;⃰&#39;</span>),
-  (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;꣠&#39;</span>, <span class="string">&#39;ꣽ&#39;</span>),
+  (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;꣠&#39;</span>, <span class="string">&#39;\u{a8ff}&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">DOGRA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;९&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;\u{11800}&#39;</span>, <span class="string">&#39;\u{1183b}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">DUPLOYAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1051,7 +1107,8 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GEORGIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;։&#39;</span>, <span class="string">&#39;։&#39;</span>), (<span class="string">&#39;Ⴀ&#39;</span>, <span class="string">&#39;Ⴥ&#39;</span>), (<span class="string">&#39;Ⴧ&#39;</span>, <span class="string">&#39;Ⴧ&#39;</span>), (<span class="string">&#39;Ⴭ&#39;</span>, <span class="string">&#39;Ⴭ&#39;</span>),
-  (<span class="string">&#39;ა&#39;</span>, <span class="string">&#39;ჿ&#39;</span>), (<span class="string">&#39;ⴀ&#39;</span>, <span class="string">&#39;ⴥ&#39;</span>), (<span class="string">&#39;ⴧ&#39;</span>, <span class="string">&#39;ⴧ&#39;</span>), (<span class="string">&#39;ⴭ&#39;</span>, <span class="string">&#39;ⴭ&#39;</span>),
+  (<span class="string">&#39;ა&#39;</span>, <span class="string">&#39;ჿ&#39;</span>), (<span class="string">&#39;\u{1c90}&#39;</span>, <span class="string">&#39;\u{1cba}&#39;</span>), (<span class="string">&#39;\u{1cbd}&#39;</span>, <span class="string">&#39;\u{1cbf}&#39;</span>),
+  (<span class="string">&#39;ⴀ&#39;</span>, <span class="string">&#39;ⴥ&#39;</span>), (<span class="string">&#39;ⴧ&#39;</span>, <span class="string">&#39;ⴧ&#39;</span>), (<span class="string">&#39;ⴭ&#39;</span>, <span class="string">&#39;ⴭ&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GLAGOLITIC</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1065,13 +1122,12 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GRANTHA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ப&#39;</span>, <span class="string">&#39;ப&#39;</span>), (<span class="string">&#39;வ&#39;</span>, <span class="string">&#39;வ&#39;</span>),
-  (<span class="string">&#39;௦&#39;</span>, <span class="string">&#39;௲&#39;</span>), (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;᳐&#39;</span>), (<span class="string">&#39;᳒&#39;</span>, <span class="string">&#39;᳓&#39;</span>), (<span class="string">&#39;ᳲ&#39;</span>, <span class="string">&#39;᳴&#39;</span>),
-  (<span class="string">&#39;᳸&#39;</span>, <span class="string">&#39;᳹&#39;</span>), (<span class="string">&#39;⃰&#39;</span>, <span class="string">&#39;⃰&#39;</span>), (<span class="string">&#39;𑌀&#39;</span>, <span class="string">&#39;𑌃&#39;</span>), (<span class="string">&#39;𑌅&#39;</span>, <span class="string">&#39;𑌌&#39;</span>),
-  (<span class="string">&#39;𑌏&#39;</span>, <span class="string">&#39;𑌐&#39;</span>), (<span class="string">&#39;𑌓&#39;</span>, <span class="string">&#39;𑌨&#39;</span>), (<span class="string">&#39;𑌪&#39;</span>, <span class="string">&#39;𑌰&#39;</span>), (<span class="string">&#39;𑌲&#39;</span>, <span class="string">&#39;𑌳&#39;</span>),
-  (<span class="string">&#39;𑌵&#39;</span>, <span class="string">&#39;𑌹&#39;</span>), (<span class="string">&#39;𑌼&#39;</span>, <span class="string">&#39;𑍄&#39;</span>), (<span class="string">&#39;𑍇&#39;</span>, <span class="string">&#39;𑍈&#39;</span>), (<span class="string">&#39;𑍋&#39;</span>, <span class="string">&#39;𑍍&#39;</span>),
-  (<span class="string">&#39;𑍐&#39;</span>, <span class="string">&#39;𑍐&#39;</span>), (<span class="string">&#39;𑍗&#39;</span>, <span class="string">&#39;𑍗&#39;</span>), (<span class="string">&#39;𑍝&#39;</span>, <span class="string">&#39;𑍣&#39;</span>), (<span class="string">&#39;𑍦&#39;</span>, <span class="string">&#39;𑍬&#39;</span>),
-  (<span class="string">&#39;𑍰&#39;</span>, <span class="string">&#39;𑍴&#39;</span>),
+  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;௦&#39;</span>, <span class="string">&#39;௳&#39;</span>), (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;᳐&#39;</span>),
+  (<span class="string">&#39;᳒&#39;</span>, <span class="string">&#39;᳓&#39;</span>), (<span class="string">&#39;ᳲ&#39;</span>, <span class="string">&#39;᳴&#39;</span>), (<span class="string">&#39;᳸&#39;</span>, <span class="string">&#39;᳹&#39;</span>), (<span class="string">&#39;⃰&#39;</span>, <span class="string">&#39;⃰&#39;</span>),
+  (<span class="string">&#39;𑌀&#39;</span>, <span class="string">&#39;𑌃&#39;</span>), (<span class="string">&#39;𑌅&#39;</span>, <span class="string">&#39;𑌌&#39;</span>), (<span class="string">&#39;𑌏&#39;</span>, <span class="string">&#39;𑌐&#39;</span>), (<span class="string">&#39;𑌓&#39;</span>, <span class="string">&#39;𑌨&#39;</span>),
+  (<span class="string">&#39;𑌪&#39;</span>, <span class="string">&#39;𑌰&#39;</span>), (<span class="string">&#39;𑌲&#39;</span>, <span class="string">&#39;𑌳&#39;</span>), (<span class="string">&#39;𑌵&#39;</span>, <span class="string">&#39;𑌹&#39;</span>), (<span class="string">&#39;\u{1133b}&#39;</span>, <span class="string">&#39;𑍄&#39;</span>),
+  (<span class="string">&#39;𑍇&#39;</span>, <span class="string">&#39;𑍈&#39;</span>), (<span class="string">&#39;𑍋&#39;</span>, <span class="string">&#39;𑍍&#39;</span>), (<span class="string">&#39;𑍐&#39;</span>, <span class="string">&#39;𑍐&#39;</span>), (<span class="string">&#39;𑍗&#39;</span>, <span class="string">&#39;𑍗&#39;</span>),
+  (<span class="string">&#39;𑍝&#39;</span>, <span class="string">&#39;𑍣&#39;</span>), (<span class="string">&#39;𑍦&#39;</span>, <span class="string">&#39;𑍬&#39;</span>), (<span class="string">&#39;𑍰&#39;</span>, <span class="string">&#39;𑍴&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GREEK</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1094,12 +1150,18 @@
   (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>),
 ];
 
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GUNJALA_GONDI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;\u{11d60}&#39;</span>, <span class="string">&#39;\u{11d65}&#39;</span>), (<span class="string">&#39;\u{11d67}&#39;</span>, <span class="string">&#39;\u{11d68}&#39;</span>),
+  (<span class="string">&#39;\u{11d6a}&#39;</span>, <span class="string">&#39;\u{11d8e}&#39;</span>), (<span class="string">&#39;\u{11d90}&#39;</span>, <span class="string">&#39;\u{11d91}&#39;</span>),
+  (<span class="string">&#39;\u{11d93}&#39;</span>, <span class="string">&#39;\u{11d98}&#39;</span>), (<span class="string">&#39;\u{11da0}&#39;</span>, <span class="string">&#39;\u{11da9}&#39;</span>),
+];
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">GURMUKHI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ਁ&#39;</span>, <span class="string">&#39;ਃ&#39;</span>), (<span class="string">&#39;ਅ&#39;</span>, <span class="string">&#39;ਊ&#39;</span>),
   (<span class="string">&#39;ਏ&#39;</span>, <span class="string">&#39;ਐ&#39;</span>), (<span class="string">&#39;ਓ&#39;</span>, <span class="string">&#39;ਨ&#39;</span>), (<span class="string">&#39;ਪ&#39;</span>, <span class="string">&#39;ਰ&#39;</span>), (<span class="string">&#39;ਲ&#39;</span>, <span class="string">&#39;ਲ਼&#39;</span>),
   (<span class="string">&#39;ਵ&#39;</span>, <span class="string">&#39;ਸ਼&#39;</span>), (<span class="string">&#39;ਸ&#39;</span>, <span class="string">&#39;ਹ&#39;</span>), (<span class="string">&#39;਼&#39;</span>, <span class="string">&#39;਼&#39;</span>), (<span class="string">&#39;ਾ&#39;</span>, <span class="string">&#39;ੂ&#39;</span>),
   (<span class="string">&#39;ੇ&#39;</span>, <span class="string">&#39;ੈ&#39;</span>), (<span class="string">&#39;ੋ&#39;</span>, <span class="string">&#39;੍&#39;</span>), (<span class="string">&#39;ੑ&#39;</span>, <span class="string">&#39;ੑ&#39;</span>), (<span class="string">&#39;ਖ਼&#39;</span>, <span class="string">&#39;ੜ&#39;</span>),
-  (<span class="string">&#39;ਫ਼&#39;</span>, <span class="string">&#39;ਫ਼&#39;</span>), (<span class="string">&#39;੦&#39;</span>, <span class="string">&#39;ੵ&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>),
+  (<span class="string">&#39;ਫ਼&#39;</span>, <span class="string">&#39;ਫ਼&#39;</span>), (<span class="string">&#39;੦&#39;</span>, <span class="string">&#39;\u{a76}&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">HAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1107,7 +1169,7 @@
   (<span class="string">&#39;々&#39;</span>, <span class="string">&#39;】&#39;</span>), (<span class="string">&#39;〓&#39;</span>, <span class="string">&#39;〟&#39;</span>), (<span class="string">&#39;〡&#39;</span>, <span class="string">&#39;〭&#39;</span>), (<span class="string">&#39;〰&#39;</span>, <span class="string">&#39;〰&#39;</span>),
   (<span class="string">&#39;〷&#39;</span>, <span class="string">&#39;〿&#39;</span>), (<span class="string">&#39;・&#39;</span>, <span class="string">&#39;・&#39;</span>), (<span class="string">&#39;㆐&#39;</span>, <span class="string">&#39;㆟&#39;</span>), (<span class="string">&#39;㇀&#39;</span>, <span class="string">&#39;㇣&#39;</span>),
   (<span class="string">&#39;㈠&#39;</span>, <span class="string">&#39;㉇&#39;</span>), (<span class="string">&#39;㊀&#39;</span>, <span class="string">&#39;㊰&#39;</span>), (<span class="string">&#39;㋀&#39;</span>, <span class="string">&#39;㋋&#39;</span>), (<span class="string">&#39;㍘&#39;</span>, <span class="string">&#39;㍰&#39;</span>),
-  (<span class="string">&#39;㍻&#39;</span>, <span class="string">&#39;㍿&#39;</span>), (<span class="string">&#39;㏠&#39;</span>, <span class="string">&#39;㏾&#39;</span>), (<span class="string">&#39;㐀&#39;</span>, <span class="string">&#39;䶵&#39;</span>), (<span class="string">&#39;一&#39;</span>, <span class="string">&#39;鿪&#39;</span>),
+  (<span class="string">&#39;㍻&#39;</span>, <span class="string">&#39;㍿&#39;</span>), (<span class="string">&#39;㏠&#39;</span>, <span class="string">&#39;㏾&#39;</span>), (<span class="string">&#39;㐀&#39;</span>, <span class="string">&#39;䶵&#39;</span>), (<span class="string">&#39;一&#39;</span>, <span class="string">&#39;\u{9fef}&#39;</span>),
   (<span class="string">&#39;豈&#39;</span>, <span class="string">&#39;舘&#39;</span>), (<span class="string">&#39;並&#39;</span>, <span class="string">&#39;龎&#39;</span>), (<span class="string">&#39;﹅&#39;</span>, <span class="string">&#39;﹆&#39;</span>), (<span class="string">&#39;｡&#39;</span>, <span class="string">&#39;･&#39;</span>),
   (<span class="string">&#39;𝍠&#39;</span>, <span class="string">&#39;𝍱&#39;</span>), (<span class="string">&#39;🉐&#39;</span>, <span class="string">&#39;🉑&#39;</span>), (<span class="string">&#39;𠀀&#39;</span>, <span class="string">&#39;𪛖&#39;</span>), (<span class="string">&#39;𪜀&#39;</span>, <span class="string">&#39;𫜴&#39;</span>),
   (<span class="string">&#39;𫝀&#39;</span>, <span class="string">&#39;𫠝&#39;</span>), (<span class="string">&#39;𫠠&#39;</span>, <span class="string">&#39;𬺡&#39;</span>), (<span class="string">&#39;𬺰&#39;</span>, <span class="string">&#39;𮯠&#39;</span>), (<span class="string">&#39;丽&#39;</span>, <span class="string">&#39;𪘀&#39;</span>),
@@ -1122,6 +1184,11 @@
   (<span class="string">&#39;ￚ&#39;</span>, <span class="string">&#39;ￜ&#39;</span>),
 ];
 
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">HANIFI_ROHINGYA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;،&#39;</span>, <span class="string">&#39;،&#39;</span>), (<span class="string">&#39;؛&#39;</span>, <span class="string">&#39;؛&#39;</span>), (<span class="string">&#39;؟&#39;</span>, <span class="string">&#39;؟&#39;</span>), (<span class="string">&#39;ـ&#39;</span>, <span class="string">&#39;ـ&#39;</span>), (<span class="string">&#39;۔&#39;</span>, <span class="string">&#39;۔&#39;</span>),
+  (<span class="string">&#39;\u{10d00}&#39;</span>, <span class="string">&#39;\u{10d27}&#39;</span>), (<span class="string">&#39;\u{10d30}&#39;</span>, <span class="string">&#39;\u{10d39}&#39;</span>),
+];
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">HANUNOO</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;ᜠ&#39;</span>, <span class="string">&#39;᜶&#39;</span>),
 ];
@@ -1131,8 +1198,9 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">HEBREW</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;֑&#39;</span>, <span class="string">&#39;ׇ&#39;</span>), (<span class="string">&#39;א&#39;</span>, <span class="string">&#39;ת&#39;</span>), (<span class="string">&#39;װ&#39;</span>, <span class="string">&#39;״&#39;</span>), (<span class="string">&#39;יִ&#39;</span>, <span class="string">&#39;זּ&#39;</span>), (<span class="string">&#39;טּ&#39;</span>, <span class="string">&#39;לּ&#39;</span>),
-  (<span class="string">&#39;מּ&#39;</span>, <span class="string">&#39;מּ&#39;</span>), (<span class="string">&#39;נּ&#39;</span>, <span class="string">&#39;סּ&#39;</span>), (<span class="string">&#39;ףּ&#39;</span>, <span class="string">&#39;פּ&#39;</span>), (<span class="string">&#39;צּ&#39;</span>, <span class="string">&#39;ﭏ&#39;</span>),
+  (<span class="string">&#39;֑&#39;</span>, <span class="string">&#39;ׇ&#39;</span>), (<span class="string">&#39;א&#39;</span>, <span class="string">&#39;ת&#39;</span>), (<span class="string">&#39;\u{5ef}&#39;</span>, <span class="string">&#39;״&#39;</span>), (<span class="string">&#39;יִ&#39;</span>, <span class="string">&#39;זּ&#39;</span>),
+  (<span class="string">&#39;טּ&#39;</span>, <span class="string">&#39;לּ&#39;</span>), (<span class="string">&#39;מּ&#39;</span>, <span class="string">&#39;מּ&#39;</span>), (<span class="string">&#39;נּ&#39;</span>, <span class="string">&#39;סּ&#39;</span>), (<span class="string">&#39;ףּ&#39;</span>, <span class="string">&#39;פּ&#39;</span>),
+  (<span class="string">&#39;צּ&#39;</span>, <span class="string">&#39;ﭏ&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">HIRAGANA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1167,14 +1235,15 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KAITHI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;०&#39;</span>, <span class="string">&#39;९&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;𑂀&#39;</span>, <span class="string">&#39;𑃁&#39;</span>),
+  (<span class="string">&#39;\u{110cd}&#39;</span>, <span class="string">&#39;\u{110cd}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KANNADA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ಀ&#39;</span>, <span class="string">&#39;ಃ&#39;</span>), (<span class="string">&#39;ಅ&#39;</span>, <span class="string">&#39;ಌ&#39;</span>),
-  (<span class="string">&#39;ಎ&#39;</span>, <span class="string">&#39;ಐ&#39;</span>), (<span class="string">&#39;ಒ&#39;</span>, <span class="string">&#39;ನ&#39;</span>), (<span class="string">&#39;ಪ&#39;</span>, <span class="string">&#39;ಳ&#39;</span>), (<span class="string">&#39;ವ&#39;</span>, <span class="string">&#39;ಹ&#39;</span>),
-  (<span class="string">&#39;಼&#39;</span>, <span class="string">&#39;ೄ&#39;</span>), (<span class="string">&#39;ೆ&#39;</span>, <span class="string">&#39;ೈ&#39;</span>), (<span class="string">&#39;ೊ&#39;</span>, <span class="string">&#39;್&#39;</span>), (<span class="string">&#39;ೕ&#39;</span>, <span class="string">&#39;ೖ&#39;</span>),
-  (<span class="string">&#39;ೞ&#39;</span>, <span class="string">&#39;ೞ&#39;</span>), (<span class="string">&#39;ೠ&#39;</span>, <span class="string">&#39;ೣ&#39;</span>), (<span class="string">&#39;೦&#39;</span>, <span class="string">&#39;೯&#39;</span>), (<span class="string">&#39;ೱ&#39;</span>, <span class="string">&#39;ೲ&#39;</span>),
-  (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>), (<span class="string">&#39;ᳵ&#39;</span>, <span class="string">&#39;ᳵ&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠵&#39;</span>),
+  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ಀ&#39;</span>, <span class="string">&#39;ಌ&#39;</span>), (<span class="string">&#39;ಎ&#39;</span>, <span class="string">&#39;ಐ&#39;</span>),
+  (<span class="string">&#39;ಒ&#39;</span>, <span class="string">&#39;ನ&#39;</span>), (<span class="string">&#39;ಪ&#39;</span>, <span class="string">&#39;ಳ&#39;</span>), (<span class="string">&#39;ವ&#39;</span>, <span class="string">&#39;ಹ&#39;</span>), (<span class="string">&#39;಼&#39;</span>, <span class="string">&#39;ೄ&#39;</span>),
+  (<span class="string">&#39;ೆ&#39;</span>, <span class="string">&#39;ೈ&#39;</span>), (<span class="string">&#39;ೊ&#39;</span>, <span class="string">&#39;್&#39;</span>), (<span class="string">&#39;ೕ&#39;</span>, <span class="string">&#39;ೖ&#39;</span>), (<span class="string">&#39;ೞ&#39;</span>, <span class="string">&#39;ೞ&#39;</span>),
+  (<span class="string">&#39;ೠ&#39;</span>, <span class="string">&#39;ೣ&#39;</span>), (<span class="string">&#39;೦&#39;</span>, <span class="string">&#39;೯&#39;</span>), (<span class="string">&#39;ೱ&#39;</span>, <span class="string">&#39;ೲ&#39;</span>), (<span class="string">&#39;᳐&#39;</span>, <span class="string">&#39;᳐&#39;</span>),
+  (<span class="string">&#39;᳒&#39;</span>, <span class="string">&#39;᳒&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>), (<span class="string">&#39;᳴&#39;</span>, <span class="string">&#39;᳴&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠵&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KATAKANA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1190,7 +1259,8 @@
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KHAROSHTHI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;𐨀&#39;</span>, <span class="string">&#39;𐨃&#39;</span>), (<span class="string">&#39;𐨅&#39;</span>, <span class="string">&#39;𐨆&#39;</span>), (<span class="string">&#39;𐨌&#39;</span>, <span class="string">&#39;𐨓&#39;</span>), (<span class="string">&#39;𐨕&#39;</span>, <span class="string">&#39;𐨗&#39;</span>),
-  (<span class="string">&#39;𐨙&#39;</span>, <span class="string">&#39;𐨳&#39;</span>), (<span class="string">&#39;𐨸&#39;</span>, <span class="string">&#39;𐨺&#39;</span>), (<span class="string">&#39;𐨿&#39;</span>, <span class="string">&#39;𐩇&#39;</span>), (<span class="string">&#39;𐩐&#39;</span>, <span class="string">&#39;𐩘&#39;</span>),
+  (<span class="string">&#39;𐨙&#39;</span>, <span class="string">&#39;\u{10a35}&#39;</span>), (<span class="string">&#39;𐨸&#39;</span>, <span class="string">&#39;𐨺&#39;</span>), (<span class="string">&#39;𐨿&#39;</span>, <span class="string">&#39;\u{10a48}&#39;</span>),
+  (<span class="string">&#39;𐩐&#39;</span>, <span class="string">&#39;𐩘&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KHMER</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1198,7 +1268,7 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KHOJKI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;૦&#39;</span>, <span class="string">&#39;૯&#39;</span>), (<span class="string">&#39;𑈀&#39;</span>, <span class="string">&#39;𑈑&#39;</span>), (<span class="string">&#39;𑈓&#39;</span>, <span class="string">&#39;𑈾&#39;</span>),
+  (<span class="string">&#39;૦&#39;</span>, <span class="string">&#39;૯&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;𑈀&#39;</span>, <span class="string">&#39;𑈑&#39;</span>), (<span class="string">&#39;𑈓&#39;</span>, <span class="string">&#39;𑈾&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">KHUDAWADI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1220,9 +1290,9 @@
   (<span class="string">&#39;ᵢ&#39;</span>, <span class="string">&#39;ᵥ&#39;</span>), (<span class="string">&#39;ᵫ&#39;</span>, <span class="string">&#39;ᵷ&#39;</span>), (<span class="string">&#39;ᵹ&#39;</span>, <span class="string">&#39;ᶾ&#39;</span>), (<span class="string">&#39;Ḁ&#39;</span>, <span class="string">&#39;ỿ&#39;</span>),
   (<span class="string">&#39;ⁱ&#39;</span>, <span class="string">&#39;ⁱ&#39;</span>), (<span class="string">&#39;ⁿ&#39;</span>, <span class="string">&#39;ⁿ&#39;</span>), (<span class="string">&#39;ₐ&#39;</span>, <span class="string">&#39;ₜ&#39;</span>), (<span class="string">&#39;⃰&#39;</span>, <span class="string">&#39;⃰&#39;</span>),
   (<span class="string">&#39;K&#39;</span>, <span class="string">&#39;Å&#39;</span>), (<span class="string">&#39;Ⅎ&#39;</span>, <span class="string">&#39;Ⅎ&#39;</span>), (<span class="string">&#39;ⅎ&#39;</span>, <span class="string">&#39;ⅎ&#39;</span>), (<span class="string">&#39;Ⅰ&#39;</span>, <span class="string">&#39;ↈ&#39;</span>),
-  (<span class="string">&#39;Ⱡ&#39;</span>, <span class="string">&#39;Ɀ&#39;</span>), (<span class="string">&#39;Ꜣ&#39;</span>, <span class="string">&#39;ꞇ&#39;</span>), (<span class="string">&#39;Ꞌ&#39;</span>, <span class="string">&#39;Ɪ&#39;</span>), (<span class="string">&#39;Ʞ&#39;</span>, <span class="string">&#39;ꞷ&#39;</span>),
-  (<span class="string">&#39;ꟷ&#39;</span>, <span class="string">&#39;ꟿ&#39;</span>), (<span class="string">&#39;꤮&#39;</span>, <span class="string">&#39;꤮&#39;</span>), (<span class="string">&#39;ꬰ&#39;</span>, <span class="string">&#39;ꭚ&#39;</span>), (<span class="string">&#39;ꭜ&#39;</span>, <span class="string">&#39;ꭤ&#39;</span>),
-  (<span class="string">&#39;ﬀ&#39;</span>, <span class="string">&#39;ﬆ&#39;</span>), (<span class="string">&#39;Ａ&#39;</span>, <span class="string">&#39;Ｚ&#39;</span>), (<span class="string">&#39;ａ&#39;</span>, <span class="string">&#39;ｚ&#39;</span>),
+  (<span class="string">&#39;Ⱡ&#39;</span>, <span class="string">&#39;Ɀ&#39;</span>), (<span class="string">&#39;Ꜣ&#39;</span>, <span class="string">&#39;ꞇ&#39;</span>), (<span class="string">&#39;Ꞌ&#39;</span>, <span class="string">&#39;\u{a7b9}&#39;</span>), (<span class="string">&#39;ꟷ&#39;</span>, <span class="string">&#39;ꟿ&#39;</span>),
+  (<span class="string">&#39;꤮&#39;</span>, <span class="string">&#39;꤮&#39;</span>), (<span class="string">&#39;ꬰ&#39;</span>, <span class="string">&#39;ꭚ&#39;</span>), (<span class="string">&#39;ꭜ&#39;</span>, <span class="string">&#39;ꭤ&#39;</span>), (<span class="string">&#39;ﬀ&#39;</span>, <span class="string">&#39;ﬆ&#39;</span>),
+  (<span class="string">&#39;Ａ&#39;</span>, <span class="string">&#39;Ｚ&#39;</span>), (<span class="string">&#39;ａ&#39;</span>, <span class="string">&#39;ｚ&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">LEPCHA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1260,10 +1330,14 @@
   (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;९&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;𑅐&#39;</span>, <span class="string">&#39;𑅶&#39;</span>),
 ];
 
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MAKASAR</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;\u{11ee0}&#39;</span>, <span class="string">&#39;\u{11ef8}&#39;</span>),
+];
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MALAYALAM</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ഀ&#39;</span>, <span class="string">&#39;ഃ&#39;</span>), (<span class="string">&#39;അ&#39;</span>, <span class="string">&#39;ഌ&#39;</span>),
   (<span class="string">&#39;എ&#39;</span>, <span class="string">&#39;ഐ&#39;</span>), (<span class="string">&#39;ഒ&#39;</span>, <span class="string">&#39;ൄ&#39;</span>), (<span class="string">&#39;െ&#39;</span>, <span class="string">&#39;ൈ&#39;</span>), (<span class="string">&#39;ൊ&#39;</span>, <span class="string">&#39;൏&#39;</span>),
-  (<span class="string">&#39;ൔ&#39;</span>, <span class="string">&#39;ൣ&#39;</span>), (<span class="string">&#39;൦&#39;</span>, <span class="string">&#39;ൿ&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>),
+  (<span class="string">&#39;ൔ&#39;</span>, <span class="string">&#39;ൣ&#39;</span>), (<span class="string">&#39;൦&#39;</span>, <span class="string">&#39;ൿ&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠲&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MANDAIC</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1281,6 +1355,10 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MASARAM_GONDI</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;𑴀&#39;</span>, <span class="string">&#39;𑴆&#39;</span>), (<span class="string">&#39;𑴈&#39;</span>, <span class="string">&#39;𑴉&#39;</span>), (<span class="string">&#39;𑴋&#39;</span>, <span class="string">&#39;𑴶&#39;</span>), (<span class="string">&#39;𑴺&#39;</span>, <span class="string">&#39;𑴺&#39;</span>),
   (<span class="string">&#39;𑴼&#39;</span>, <span class="string">&#39;𑴽&#39;</span>), (<span class="string">&#39;𑴿&#39;</span>, <span class="string">&#39;𑵇&#39;</span>), (<span class="string">&#39;𑵐&#39;</span>, <span class="string">&#39;𑵙&#39;</span>),
+];
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MEDEFAIDRIN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;\u{16e40}&#39;</span>, <span class="string">&#39;\u{16e9a}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MEETEI_MAYEK</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1308,7 +1386,7 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MONGOLIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;᠀&#39;</span>, <span class="string">&#39;\u{180e}&#39;</span>), (<span class="string">&#39;᠐&#39;</span>, <span class="string">&#39;᠙&#39;</span>), (<span class="string">&#39;ᠠ&#39;</span>, <span class="string">&#39;ᡷ&#39;</span>), (<span class="string">&#39;ᢀ&#39;</span>, <span class="string">&#39;ᢪ&#39;</span>),
+  (<span class="string">&#39;᠀&#39;</span>, <span class="string">&#39;\u{180e}&#39;</span>), (<span class="string">&#39;᠐&#39;</span>, <span class="string">&#39;᠙&#39;</span>), (<span class="string">&#39;ᠠ&#39;</span>, <span class="string">&#39;\u{1878}&#39;</span>), (<span class="string">&#39;ᢀ&#39;</span>, <span class="string">&#39;ᢪ&#39;</span>),
   (<span class="string">&#39;𑙠&#39;</span>, <span class="string">&#39;𑙬&#39;</span>),
 ];
 
@@ -1334,11 +1412,11 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NEWA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;𑐀&#39;</span>, <span class="string">&#39;𑑙&#39;</span>), (<span class="string">&#39;𑑛&#39;</span>, <span class="string">&#39;𑑛&#39;</span>), (<span class="string">&#39;𑑝&#39;</span>, <span class="string">&#39;𑑝&#39;</span>),
+  (<span class="string">&#39;𑐀&#39;</span>, <span class="string">&#39;𑑙&#39;</span>), (<span class="string">&#39;𑑛&#39;</span>, <span class="string">&#39;𑑛&#39;</span>), (<span class="string">&#39;𑑝&#39;</span>, <span class="string">&#39;\u{1145e}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NKO</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;߀&#39;</span>, <span class="string">&#39;ߺ&#39;</span>),
+  (<span class="string">&#39;߀&#39;</span>, <span class="string">&#39;ߺ&#39;</span>), (<span class="string">&#39;\u{7fd}&#39;</span>, <span class="string">&#39;\u{7ff}&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NUSHU</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1373,6 +1451,10 @@
   (<span class="string">&#39;𐎠&#39;</span>, <span class="string">&#39;𐏃&#39;</span>), (<span class="string">&#39;𐏈&#39;</span>, <span class="string">&#39;𐏕&#39;</span>),
 ];
 
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">OLD_SOGDIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;\u{10f00}&#39;</span>, <span class="string">&#39;\u{10f27}&#39;</span>),
+];
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">OLD_SOUTH_ARABIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;𐩠&#39;</span>, <span class="string">&#39;𐩿&#39;</span>),
 ];
@@ -1386,6 +1468,7 @@
   (<span class="string">&#39;ଏ&#39;</span>, <span class="string">&#39;ଐ&#39;</span>), (<span class="string">&#39;ଓ&#39;</span>, <span class="string">&#39;ନ&#39;</span>), (<span class="string">&#39;ପ&#39;</span>, <span class="string">&#39;ର&#39;</span>), (<span class="string">&#39;ଲ&#39;</span>, <span class="string">&#39;ଳ&#39;</span>),
   (<span class="string">&#39;ଵ&#39;</span>, <span class="string">&#39;ହ&#39;</span>), (<span class="string">&#39;଼&#39;</span>, <span class="string">&#39;ୄ&#39;</span>), (<span class="string">&#39;େ&#39;</span>, <span class="string">&#39;ୈ&#39;</span>), (<span class="string">&#39;ୋ&#39;</span>, <span class="string">&#39;୍&#39;</span>),
   (<span class="string">&#39;ୖ&#39;</span>, <span class="string">&#39;ୗ&#39;</span>), (<span class="string">&#39;ଡ଼&#39;</span>, <span class="string">&#39;ଢ଼&#39;</span>), (<span class="string">&#39;ୟ&#39;</span>, <span class="string">&#39;ୣ&#39;</span>), (<span class="string">&#39;୦&#39;</span>, <span class="string">&#39;୷&#39;</span>),
+  (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">OSAGE</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1461,12 +1544,16 @@
   (<span class="string">&#39;ෲ&#39;</span>, <span class="string">&#39;෴&#39;</span>), (<span class="string">&#39;𑇡&#39;</span>, <span class="string">&#39;𑇴&#39;</span>),
 ];
 
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SOGDIAN</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+  (<span class="string">&#39;ـ&#39;</span>, <span class="string">&#39;ـ&#39;</span>), (<span class="string">&#39;\u{10f30}&#39;</span>, <span class="string">&#39;\u{10f59}&#39;</span>),
+];
+
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SORA_SOMPENG</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;𑃐&#39;</span>, <span class="string">&#39;𑃨&#39;</span>), (<span class="string">&#39;𑃰&#39;</span>, <span class="string">&#39;𑃹&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SOYOMBO</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;𑩐&#39;</span>, <span class="string">&#39;𑪃&#39;</span>), (<span class="string">&#39;𑪆&#39;</span>, <span class="string">&#39;𑪜&#39;</span>), (<span class="string">&#39;𑪞&#39;</span>, <span class="string">&#39;𑪢&#39;</span>),
+  (<span class="string">&#39;𑩐&#39;</span>, <span class="string">&#39;𑪃&#39;</span>), (<span class="string">&#39;𑪆&#39;</span>, <span class="string">&#39;𑪢&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">SUNDANESE</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1513,18 +1600,18 @@
   (<span class="string">&#39;ஞ&#39;</span>, <span class="string">&#39;ட&#39;</span>), (<span class="string">&#39;ண&#39;</span>, <span class="string">&#39;த&#39;</span>), (<span class="string">&#39;ந&#39;</span>, <span class="string">&#39;ப&#39;</span>), (<span class="string">&#39;ம&#39;</span>, <span class="string">&#39;ஹ&#39;</span>),
   (<span class="string">&#39;ா&#39;</span>, <span class="string">&#39;ூ&#39;</span>), (<span class="string">&#39;ெ&#39;</span>, <span class="string">&#39;ை&#39;</span>), (<span class="string">&#39;ொ&#39;</span>, <span class="string">&#39;்&#39;</span>), (<span class="string">&#39;ௐ&#39;</span>, <span class="string">&#39;ௐ&#39;</span>),
   (<span class="string">&#39;ௗ&#39;</span>, <span class="string">&#39;ௗ&#39;</span>), (<span class="string">&#39;௦&#39;</span>, <span class="string">&#39;௺&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>), (<span class="string">&#39;ꣳ&#39;</span>, <span class="string">&#39;ꣳ&#39;</span>),
-  (<span class="string">&#39;𑌁&#39;</span>, <span class="string">&#39;𑌁&#39;</span>), (<span class="string">&#39;𑌃&#39;</span>, <span class="string">&#39;𑌃&#39;</span>), (<span class="string">&#39;𑌼&#39;</span>, <span class="string">&#39;𑌼&#39;</span>),
+  (<span class="string">&#39;𑌁&#39;</span>, <span class="string">&#39;𑌁&#39;</span>), (<span class="string">&#39;𑌃&#39;</span>, <span class="string">&#39;𑌃&#39;</span>), (<span class="string">&#39;\u{1133b}&#39;</span>, <span class="string">&#39;𑌼&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TANGUT</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;𖿠&#39;</span>, <span class="string">&#39;𖿠&#39;</span>), (<span class="string">&#39;𗀀&#39;</span>, <span class="string">&#39;𘟬&#39;</span>), (<span class="string">&#39;𘠀&#39;</span>, <span class="string">&#39;𘫲&#39;</span>),
+  (<span class="string">&#39;𖿠&#39;</span>, <span class="string">&#39;𖿠&#39;</span>), (<span class="string">&#39;𗀀&#39;</span>, <span class="string">&#39;\u{187f1}&#39;</span>), (<span class="string">&#39;𘠀&#39;</span>, <span class="string">&#39;𘫲&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TELUGU</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ఀ&#39;</span>, <span class="string">&#39;ః&#39;</span>), (<span class="string">&#39;అ&#39;</span>, <span class="string">&#39;ఌ&#39;</span>),
-  (<span class="string">&#39;ఎ&#39;</span>, <span class="string">&#39;ఐ&#39;</span>), (<span class="string">&#39;ఒ&#39;</span>, <span class="string">&#39;న&#39;</span>), (<span class="string">&#39;ప&#39;</span>, <span class="string">&#39;హ&#39;</span>), (<span class="string">&#39;ఽ&#39;</span>, <span class="string">&#39;ౄ&#39;</span>),
-  (<span class="string">&#39;ె&#39;</span>, <span class="string">&#39;ై&#39;</span>), (<span class="string">&#39;ొ&#39;</span>, <span class="string">&#39;్&#39;</span>), (<span class="string">&#39;ౕ&#39;</span>, <span class="string">&#39;ౖ&#39;</span>), (<span class="string">&#39;ౘ&#39;</span>, <span class="string">&#39;ౚ&#39;</span>),
-  (<span class="string">&#39;ౠ&#39;</span>, <span class="string">&#39;ౣ&#39;</span>), (<span class="string">&#39;౦&#39;</span>, <span class="string">&#39;౯&#39;</span>), (<span class="string">&#39;౸&#39;</span>, <span class="string">&#39;౿&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>),
+  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;ఀ&#39;</span>, <span class="string">&#39;ఌ&#39;</span>), (<span class="string">&#39;ఎ&#39;</span>, <span class="string">&#39;ఐ&#39;</span>),
+  (<span class="string">&#39;ఒ&#39;</span>, <span class="string">&#39;న&#39;</span>), (<span class="string">&#39;ప&#39;</span>, <span class="string">&#39;హ&#39;</span>), (<span class="string">&#39;ఽ&#39;</span>, <span class="string">&#39;ౄ&#39;</span>), (<span class="string">&#39;ె&#39;</span>, <span class="string">&#39;ై&#39;</span>),
+  (<span class="string">&#39;ొ&#39;</span>, <span class="string">&#39;్&#39;</span>), (<span class="string">&#39;ౕ&#39;</span>, <span class="string">&#39;ౖ&#39;</span>), (<span class="string">&#39;ౘ&#39;</span>, <span class="string">&#39;ౚ&#39;</span>), (<span class="string">&#39;ౠ&#39;</span>, <span class="string">&#39;ౣ&#39;</span>),
+  (<span class="string">&#39;౦&#39;</span>, <span class="string">&#39;౯&#39;</span>), (<span class="string">&#39;౸&#39;</span>, <span class="string">&#39;౿&#39;</span>), (<span class="string">&#39;᳚&#39;</span>, <span class="string">&#39;᳚&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">THAANA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1546,7 +1633,8 @@
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">TIRHUTA</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-  (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;𑒀&#39;</span>, <span class="string">&#39;𑓇&#39;</span>), (<span class="string">&#39;𑓐&#39;</span>, <span class="string">&#39;𑓙&#39;</span>),
+  (<span class="string">&#39;॑&#39;</span>, <span class="string">&#39;॒&#39;</span>), (<span class="string">&#39;।&#39;</span>, <span class="string">&#39;॥&#39;</span>), (<span class="string">&#39;꠰&#39;</span>, <span class="string">&#39;꠹&#39;</span>), (<span class="string">&#39;𑒀&#39;</span>, <span class="string">&#39;𑓇&#39;</span>),
+  (<span class="string">&#39;𑓐&#39;</span>, <span class="string">&#39;𑓙&#39;</span>),
 ];
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">UGARITIC</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
@@ -1569,5 +1657,5 @@
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">ZANABAZAR_SQUARE</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [(<span class="ident">char</span>, <span class="ident">char</span>)] <span class="op">=</span> <span class="kw-2">&amp;</span>[
   (<span class="string">&#39;𑨀&#39;</span>, <span class="string">&#39;𑩇&#39;</span>),
 ];
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

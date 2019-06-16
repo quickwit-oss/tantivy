@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/termdict/termdict.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>termdict.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/termdict/termdict.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>termdict.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -202,27 +202,21 @@
 <span id="202">202</span>
 <span id="203">203</span>
 <span id="204">204</span>
-<span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">term_info_store</span>::{<span class="ident">TermInfoStore</span>, <span class="ident">TermInfoStoreWriter</span>};
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">TermStreamer</span>, <span class="ident">TermStreamerBuilder</span>};
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
-<span class="kw">use</span> <span class="ident">fst</span>;
-<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">raw</span>::<span class="ident">Fst</span>;
-<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Automaton</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">TermInfo</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
+<span class="kw">use</span> <span class="ident">tantivy_fst</span>;
+<span class="kw">use</span> <span class="ident">tantivy_fst</span>::<span class="ident">raw</span>::<span class="ident">Fst</span>;
+<span class="kw">use</span> <span class="ident">tantivy_fst</span>::<span class="ident">Automaton</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
 
-<span class="kw">fn</span> <span class="ident">convert_fst_error</span>(<span class="ident">e</span>: <span class="ident">fst</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="ident">Error</span> {
+<span class="kw">fn</span> <span class="ident">convert_fst_error</span>(<span class="ident">e</span>: <span class="ident">tantivy_fst</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="ident">Error</span> {
     <span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="ident">e</span>)
 }
 
@@ -230,7 +224,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Inserting must be done in the order of the `keys`.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermDictionaryBuilder</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span> {
-    <span class="ident">fst_builder</span>: <span class="ident">fst</span>::<span class="ident">MapBuilder</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>,
+    <span class="ident">fst_builder</span>: <span class="ident">tantivy_fst</span>::<span class="ident">MapBuilder</span><span class="op">&lt;</span><span class="ident">W</span><span class="op">&gt;</span>,
     <span class="ident">term_info_store_writer</span>: <span class="ident">TermInfoStoreWriter</span>,
     <span class="ident">term_ord</span>: <span class="ident">u64</span>,
 }
@@ -240,8 +234,8 @@
     <span class="ident">W</span>: <span class="ident">Write</span>,
 {
     <span class="doccomment">/// Creates a new `TermDictionaryBuilder`</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">w</span>: <span class="ident">W</span>, <span class="ident">_field_type</span>: <span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">fst_builder</span> <span class="op">=</span> <span class="ident">fst</span>::<span class="ident">MapBuilder</span>::<span class="ident">new</span>(<span class="ident">w</span>).<span class="ident">map_err</span>(<span class="ident">convert_fst_error</span>)<span class="question-mark">?</span>;
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">w</span>: <span class="ident">W</span>, <span class="ident">_field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">fst_builder</span> <span class="op">=</span> <span class="ident">tantivy_fst</span>::<span class="ident">MapBuilder</span>::<span class="ident">new</span>(<span class="ident">w</span>).<span class="ident">map_err</span>(<span class="ident">convert_fst_error</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">TermDictionaryBuilder</span> {
             <span class="ident">fst_builder</span>,
             <span class="ident">term_info_store_writer</span>: <span class="ident">TermInfoStoreWriter</span>::<span class="ident">new</span>(),
@@ -288,7 +282,8 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fst_builder</span>.<span class="ident">into_inner</span>().<span class="ident">map_err</span>(<span class="ident">convert_fst_error</span>)<span class="question-mark">?</span>;
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">counting_writer</span> <span class="op">=</span> <span class="ident">CountingWriter</span>::<span class="ident">wrap</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">file</span>);
-            <span class="self">self</span>.<span class="ident">term_info_store_writer</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">counting_writer</span>)<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">term_info_store_writer</span>
+                .<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">counting_writer</span>)<span class="question-mark">?</span>;
             <span class="kw">let</span> <span class="ident">footer_size</span> <span class="op">=</span> <span class="ident">counting_writer</span>.<span class="ident">written_bytes</span>();
             (<span class="ident">footer_size</span> <span class="kw">as</span> <span class="ident">u64</span>).<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">counting_writer</span>)<span class="question-mark">?</span>;
             <span class="ident">counting_writer</span>.<span class="ident">flush</span>()<span class="question-mark">?</span>;
@@ -297,17 +292,9 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">open_fst_index</span>(<span class="ident">source</span>: <span class="ident">ReadOnlySource</span>) <span class="op">-&gt;</span> <span class="ident">fst</span>::<span class="ident">Map</span> {
-    <span class="kw">let</span> <span class="ident">fst</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">source</span> {
-        <span class="ident">ReadOnlySource</span>::<span class="ident">Anonymous</span>(<span class="ident">data</span>) <span class="op">=&gt;</span> {
-            <span class="ident">Fst</span>::<span class="ident">from_shared_bytes</span>(<span class="ident">data</span>.<span class="ident">data</span>, <span class="ident">data</span>.<span class="ident">start</span>, <span class="ident">data</span>.<span class="ident">len</span>).<span class="ident">expect</span>(<span class="string">&quot;FST data is corrupted&quot;</span>)
-        }
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
-        <span class="ident">ReadOnlySource</span>::<span class="ident">Mmap</span>(<span class="ident">mmap_readonly</span>) <span class="op">=&gt;</span> {
-            <span class="ident">Fst</span>::<span class="ident">from_mmap</span>(<span class="ident">mmap_readonly</span>).<span class="ident">expect</span>(<span class="string">&quot;FST data is corrupted&quot;</span>)
-        }
-    };
-    <span class="ident">fst</span>::<span class="ident">Map</span>::<span class="ident">from</span>(<span class="ident">fst</span>)
+<span class="kw">fn</span> <span class="ident">open_fst_index</span>(<span class="ident">source</span>: <span class="ident">ReadOnlySource</span>) <span class="op">-&gt;</span> <span class="ident">tantivy_fst</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">fst</span> <span class="op">=</span> <span class="ident">Fst</span>::<span class="ident">new</span>(<span class="ident">source</span>).<span class="ident">expect</span>(<span class="string">&quot;FST data is corrupted&quot;</span>);
+    <span class="ident">tantivy_fst</span>::<span class="ident">Map</span>::<span class="ident">from</span>(<span class="ident">fst</span>)
 }
 
 <span class="doccomment">/// The term dictionary contains all of the terms in</span>
@@ -317,13 +304,13 @@
 <span class="doccomment">/// respective `TermOrdinal`. The `TermInfoStore` then makes it</span>
 <span class="doccomment">/// possible to fetch the associated `TermInfo`.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermDictionary</span> {
-    <span class="ident">fst_index</span>: <span class="ident">fst</span>::<span class="ident">Map</span>,
+    <span class="ident">fst_index</span>: <span class="ident">tantivy_fst</span>::<span class="ident">Map</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span><span class="op">&gt;</span>,
     <span class="ident">term_info_store</span>: <span class="ident">TermInfoStore</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TermDictionary</span> {
     <span class="doccomment">/// Opens a `TermDictionary` given a data source.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_source</span>(<span class="ident">source</span>: <span class="ident">ReadOnlySource</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_source</span>(<span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">ReadOnlySource</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">total_len</span> <span class="op">=</span> <span class="ident">source</span>.<span class="ident">len</span>();
         <span class="kw">let</span> <span class="ident">length_offset</span> <span class="op">=</span> <span class="ident">total_len</span> <span class="op">-</span> <span class="number">8</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">split_len_buffer</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">source</span>.<span class="ident">as_slice</span>()[<span class="ident">length_offset</span>..];
@@ -340,14 +327,14 @@
     }
 
     <span class="doccomment">/// Creates an empty term dictionary which contains no terms.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>(<span class="ident">field_type</span>: <span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>(<span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">term_dictionary_data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span>
-            <span class="ident">TermDictionaryBuilder</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>::<span class="ident">new</span>(), <span class="ident">field_type</span>)
+            <span class="ident">TermDictionaryBuilder</span>::<span class="ident">create</span>(<span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>::<span class="ident">new</span>(), <span class="kw-2">&amp;</span><span class="ident">field_type</span>)
                 .<span class="ident">expect</span>(<span class="string">&quot;Creating a TermDictionaryBuilder in a Vec&lt;u8&gt; should never fail&quot;</span>)
                 .<span class="ident">finish</span>()
                 .<span class="ident">expect</span>(<span class="string">&quot;Writing in a Vec&lt;u8&gt; should never fail&quot;</span>);
         <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">ReadOnlySource</span>::<span class="ident">from</span>(<span class="ident">term_dictionary_data</span>);
-        <span class="self">Self</span>::<span class="ident">from_source</span>(<span class="ident">source</span>)
+        <span class="self">Self</span>::<span class="ident">from_source</span>(<span class="kw-2">&amp;</span><span class="ident">source</span>)
     }
 
     <span class="doccomment">/// Returns the number of terms in the dictionary.</span>
@@ -375,7 +362,8 @@
         <span class="kw">let</span> <span class="ident">fst</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fst_index</span>.<span class="ident">as_fst</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">fst</span>.<span class="ident">root</span>();
         <span class="kw">while</span> <span class="ident">ord</span> <span class="op">!=</span> <span class="number">0</span> <span class="op">||</span> <span class="op">!</span><span class="ident">node</span>.<span class="ident">is_final</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">transition</span>) <span class="op">=</span> <span class="ident">node</span>.<span class="ident">transitions</span>()
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">transition</span>) <span class="op">=</span> <span class="ident">node</span>
+                .<span class="ident">transitions</span>()
                 .<span class="ident">take_while</span>(<span class="op">|</span><span class="ident">transition</span><span class="op">|</span> <span class="ident">transition</span>.<span class="ident">out</span>.<span class="ident">value</span>() <span class="op">&lt;=</span> <span class="ident">ord</span>)
                 .<span class="ident">last</span>()
             {
@@ -403,21 +391,21 @@
 
     <span class="doccomment">/// Returns a range builder, to stream all of the terms</span>
     <span class="doccomment">/// within an interval.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamerBuilder</span> {
         <span class="ident">TermStreamerBuilder</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="self">self</span>.<span class="ident">fst_index</span>.<span class="ident">range</span>())
     }
 
     <span class="doccomment">/// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stream</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stream</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamer</span> {
         <span class="self">self</span>.<span class="ident">range</span>().<span class="ident">into_stream</span>()
     }
 
     <span class="doccomment">/// Returns a search builder, to stream all of the terms</span>
     <span class="doccomment">/// within the Automaton</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">search</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span>: <span class="ident">Automaton</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">automaton</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">search</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span>: <span class="ident">Automaton</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">automaton</span>: <span class="ident">A</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">stream_builder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fst_index</span>.<span class="ident">search</span>(<span class="ident">automaton</span>);
         <span class="ident">TermStreamerBuilder</span>::<span class="op">&lt;</span><span class="ident">A</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">stream_builder</span>)
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

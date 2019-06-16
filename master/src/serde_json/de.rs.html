@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.19/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.39/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../serde_json/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2254,15 +2254,68 @@
 <span id="2254">2254</span>
 <span id="2255">2255</span>
 <span id="2256">2256</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2017 Serde Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+<span id="2257">2257</span>
+<span id="2258">2258</span>
+<span id="2259">2259</span>
+<span id="2260">2260</span>
+<span id="2261">2261</span>
+<span id="2262">2262</span>
+<span id="2263">2263</span>
+<span id="2264">2264</span>
+<span id="2265">2265</span>
+<span id="2266">2266</span>
+<span id="2267">2267</span>
+<span id="2268">2268</span>
+<span id="2269">2269</span>
+<span id="2270">2270</span>
+<span id="2271">2271</span>
+<span id="2272">2272</span>
+<span id="2273">2273</span>
+<span id="2274">2274</span>
+<span id="2275">2275</span>
+<span id="2276">2276</span>
+<span id="2277">2277</span>
+<span id="2278">2278</span>
+<span id="2279">2279</span>
+<span id="2280">2280</span>
+<span id="2281">2281</span>
+<span id="2282">2282</span>
+<span id="2283">2283</span>
+<span id="2284">2284</span>
+<span id="2285">2285</span>
+<span id="2286">2286</span>
+<span id="2287">2287</span>
+<span id="2288">2288</span>
+<span id="2289">2289</span>
+<span id="2290">2290</span>
+<span id="2291">2291</span>
+<span id="2292">2292</span>
+<span id="2293">2293</span>
+<span id="2294">2294</span>
+<span id="2295">2295</span>
+<span id="2296">2296</span>
+<span id="2297">2297</span>
+<span id="2298">2298</span>
+<span id="2299">2299</span>
+<span id="2300">2300</span>
+<span id="2301">2301</span>
+<span id="2302">2302</span>
+<span id="2303">2303</span>
+<span id="2304">2304</span>
+<span id="2305">2305</span>
+<span id="2306">2306</span>
+<span id="2307">2307</span>
+<span id="2308">2308</span>
+<span id="2309">2309</span>
+<span id="2310">2310</span>
+<span id="2311">2311</span>
+<span id="2312">2312</span>
+<span id="2313">2313</span>
+<span id="2314">2314</span>
+<span id="2315">2315</span>
+<span id="2316">2316</span>
+<span id="2317">2317</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Deserialize JSON data to a Rust data structure.</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
@@ -2288,8 +2341,10 @@
 <span class="doccomment">/// A structure that deserializes JSON into Rust values.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
     <span class="ident">read</span>: <span class="ident">R</span>,
-    <span class="ident">str_buf</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+    <span class="ident">scratch</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="ident">remaining_depth</span>: <span class="ident">u8</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>)]</span>
+    <span class="ident">disable_recursion_limit</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">R</span><span class="op">&gt;</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>
@@ -2305,10 +2360,23 @@
     <span class="doccomment">///   - Deserializer::from_bytes</span>
     <span class="doccomment">///   - Deserializer::from_reader</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">read</span>: <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Deserializer</span> {
-            <span class="ident">read</span>: <span class="ident">read</span>,
-            <span class="ident">str_buf</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">128</span>),
-            <span class="ident">remaining_depth</span>: <span class="number">128</span>,
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>))]</span>
+        {
+            <span class="ident">Deserializer</span> {
+                <span class="ident">read</span>: <span class="ident">read</span>,
+                <span class="ident">scratch</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+                <span class="ident">remaining_depth</span>: <span class="number">128</span>,
+            }
+        }
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>)]</span>
+        {
+            <span class="ident">Deserializer</span> {
+                <span class="ident">read</span>: <span class="ident">read</span>,
+                <span class="ident">scratch</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+                <span class="ident">remaining_depth</span>: <span class="number">128</span>,
+                <span class="ident">disable_recursion_limit</span>: <span class="bool-val">false</span>,
+            }
         }
     }
 }
@@ -2405,8 +2473,56 @@
         }
     }
 
+    <span class="doccomment">/// Parse arbitrarily deep JSON structures without any consideration for</span>
+    <span class="doccomment">/// overflowing the stack.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// You will want to provide some other way to protect against stack</span>
+    <span class="doccomment">/// overflows, such as by wrapping your Deserializer in the dynamically</span>
+    <span class="doccomment">/// growing stack adapter provided by the serde_stacker crate. Additionally</span>
+    <span class="doccomment">/// you will need to be careful around other recursive operations on the</span>
+    <span class="doccomment">/// parsed result which may overflow the stack after deserialization has</span>
+    <span class="doccomment">/// completed, including, but not limited to, Display and Debug and Drop</span>
+    <span class="doccomment">/// impls.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// *This method is only available if serde_json is built with the</span>
+    <span class="doccomment">/// `&quot;unbounded_depth&quot;` feature.*</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::Deserialize;</span>
+    <span class="doccomment">/// use serde_json::Value;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// fn main() {</span>
+    <span class="doccomment">///     let mut json = String::new();</span>
+    <span class="doccomment">///     for _ in 0..10000 {</span>
+    <span class="doccomment">///         json = format!(&quot;[{}]&quot;, json);</span>
+    <span class="doccomment">///     }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///     let mut deserializer = serde_json::Deserializer::from_str(&amp;json);</span>
+    <span class="doccomment">///     deserializer.disable_recursion_limit();</span>
+    <span class="doccomment">///     let deserializer = serde_stacker::Deserializer::new(&amp;mut deserializer);</span>
+    <span class="doccomment">///     let value = Value::deserialize(deserializer).unwrap();</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///     carefully_drop_nested_arrays(value);</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// fn carefully_drop_nested_arrays(value: Value) {</span>
+    <span class="doccomment">///     let mut stack = vec![value];</span>
+    <span class="doccomment">///     while let Some(value) = stack.pop() {</span>
+    <span class="doccomment">///         if let Value::Array(array) = value {</span>
+    <span class="doccomment">///             stack.extend(array);</span>
+    <span class="doccomment">///         }</span>
+    <span class="doccomment">///     }</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disable_recursion_limit</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">disable_recursion_limit</span> <span class="op">=</span> <span class="bool-val">true</span>;
+    }
+
     <span class="kw">fn</span> <span class="ident">peek</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">peek</span>().<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">peek</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">peek_or_null</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
@@ -2418,7 +2534,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">next_char</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
-        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">next</span>().<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">next</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">next_char_or_null</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
@@ -2491,8 +2607,8 @@
             },
             <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">str_buf</span>) {
+                <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">scratch</span>) {
                     <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>), <span class="ident">exp</span>),
                     <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">err</span>,
                 }
@@ -2565,9 +2681,16 @@
     }
 
     <span class="kw">fn</span> <span class="ident">parse_ident</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ident</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">c</span> <span class="kw">in</span> <span class="ident">ident</span> {
-            <span class="kw">if</span> <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="ident">c</span>) <span class="op">!=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char</span>()) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeIdent</span>));
+        <span class="kw">for</span> <span class="ident">expected</span> <span class="kw">in</span> <span class="ident">ident</span> {
+            <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char</span>()) {
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>));
+                }
+                <span class="prelude-val">Some</span>(<span class="ident">next</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">if</span> <span class="ident">next</span> <span class="op">!=</span> <span class="kw-2">*</span><span class="ident">expected</span> {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeIdent</span>));
+                    }
+                }
             }
         }
 
@@ -2924,7 +3047,7 @@
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">significand</span> <span class="kw">as</span> <span class="ident">f64</span>;
         <span class="kw">loop</span> {
-            <span class="kw">match</span> <span class="ident">POW10</span>.<span class="ident">get</span>(<span class="ident">exponent</span>.<span class="ident">abs</span>() <span class="kw">as</span> <span class="ident">usize</span>) {
+            <span class="kw">match</span> <span class="ident">POW10</span>.<span class="ident">get</span>(<span class="ident">exponent</span>.<span class="ident">wrapping_abs</span>() <span class="kw">as</span> <span class="ident">usize</span>) {
                 <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">pow</span>) <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">exponent</span> <span class="op">&gt;=</span> <span class="number">0</span> {
                         <span class="ident">f</span> <span class="op">*=</span> <span class="ident">pow</span>;
@@ -2993,58 +3116,117 @@
     }
 
     <span class="kw">fn</span> <span class="ident">ignore_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">peek</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
-            <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">b</span>,
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>));
-            }
-        };
+        <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">enclosing</span> <span class="op">=</span> <span class="prelude-val">None</span>;
 
-        <span class="kw">match</span> <span class="ident">peek</span> {
-            <span class="string">b&#39;n&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;ull&quot;</span>)
-            }
-            <span class="string">b&#39;t&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;rue&quot;</span>)
-            }
-            <span class="string">b&#39;f&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;alse&quot;</span>)
-            }
-            <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">ignore_integer</span>()
-            }
-            <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">ignore_integer</span>(),
-            <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">ignore_str</span>()
-            }
-            <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">peek</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
+                <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">b</span>,
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>));
+                }
+            };
+
+            <span class="kw">let</span> <span class="ident">frame</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
+                <span class="string">b&#39;n&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;ull&quot;</span>));
+                    <span class="prelude-val">None</span>
+                }
+                <span class="string">b&#39;t&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;rue&quot;</span>));
+                    <span class="prelude-val">None</span>
+                }
+                <span class="string">b&#39;f&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;alse&quot;</span>));
+                    <span class="prelude-val">None</span>
+                }
+                <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">ignore_integer</span>());
+                    <span class="prelude-val">None</span>
+                }
+                <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">ignore_integer</span>());
+                    <span class="prelude-val">None</span>
+                }
+                <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">ignore_str</span>());
+                    <span class="prelude-val">None</span>
+                }
+                <span class="ident">frame</span> @ <span class="string">b&#39;[&#39;</span> <span class="op">|</span> <span class="ident">frame</span> @ <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
+                    <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">extend</span>(<span class="ident">enclosing</span>.<span class="ident">take</span>());
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="prelude-val">Some</span>(<span class="ident">frame</span>)
+                }
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
+            };
+
+            <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">accept_comma</span>, <span class="kw-2">mut</span> <span class="ident">frame</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">frame</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=&gt;</span> (<span class="bool-val">false</span>, <span class="ident">frame</span>),
+                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">enclosing</span>.<span class="ident">take</span>() {
+                    <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=&gt;</span> (<span class="bool-val">true</span>, <span class="ident">frame</span>),
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">pop</span>() {
+                        <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=&gt;</span> (<span class="bool-val">true</span>, <span class="ident">frame</span>),
+                        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+                    },
+                },
+            };
+
+            <span class="kw">loop</span> {
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
+                    <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="kw">if</span> <span class="ident">accept_comma</span> <span class="op">=&gt;</span> {
+                        <span class="self">self</span>.<span class="ident">eat_char</span>();
+                        <span class="kw">break</span>;
+                    }
+                    <span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>) <span class="kw">if</span> <span class="ident">frame</span> <span class="op">==</span> <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> {}
+                    <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="kw">if</span> <span class="ident">frame</span> <span class="op">==</span> <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {}
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
+                        <span class="kw">if</span> <span class="ident">accept_comma</span> {
+                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="kw">match</span> <span class="ident">frame</span> {
+                                <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedListCommaOrEnd</span>,
+                                <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectCommaOrEnd</span>,
+                                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                            }));
+                        } <span class="kw">else</span> {
+                            <span class="kw">break</span>;
+                        }
+                    }
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="kw">match</span> <span class="ident">frame</span> {
+                            <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingList</span>,
+                            <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>,
+                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                        }));
+                    }
                 }
 
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">ignore_seq</span>();
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
-                <span class="ident">res</span>
+                <span class="ident">frame</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">pop</span>() {
+                    <span class="prelude-val">Some</span>(<span class="ident">frame</span>) <span class="op">=&gt;</span> <span class="ident">frame</span>,
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(()),
+                };
+                <span class="ident">accept_comma</span> <span class="op">=</span> <span class="bool-val">true</span>;
             }
-            <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
-                }
 
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">ignore_map</span>();
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
-                <span class="ident">res</span>
+            <span class="kw">if</span> <span class="ident">frame</span> <span class="op">==</span> <span class="string">b&#39;{&#39;</span> {
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
+                    <span class="prelude-val">Some</span>(<span class="string">b&#39;&quot;&#39;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">eat_char</span>(),
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>)),
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>)),
+                }
+                <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">ignore_str</span>());
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
+                    <span class="prelude-val">Some</span>(<span class="string">b&#39;:&#39;</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">eat_char</span>(),
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>)),
+                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>)),
+                }
             }
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
+
+            <span class="ident">enclosing</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">frame</span>);
         }
     }
 
@@ -3056,9 +3238,11 @@
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
                 }
             }
-            <span class="string">b&#39;1&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="kw">while</span> <span class="kw">let</span> <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-            },
+            <span class="string">b&#39;1&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                <span class="kw">while</span> <span class="kw">let</span> <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                }
+            }
             <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
             }
@@ -3113,86 +3297,15 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">ignore_seq</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
-
-        <span class="kw">loop</span> {
-            <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>) <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
-                }
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                }
-                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">if</span> <span class="ident">first</span> {
-                        <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
-                    } <span class="kw">else</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedListCommaOrEnd</span>));
-                    }
-                }
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingList</span>));
-                }
-            }
-
-            <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">ignore_value</span>());
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">ignore_map</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
-
-        <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">peek</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
-                }
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>())
-                }
-                <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">if</span> <span class="ident">first</span> {
-                        <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
-                        <span class="prelude-val">Some</span>(<span class="ident">b</span>)
-                    } <span class="kw">else</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectCommaOrEnd</span>));
-                    }
-                }
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>));
-                }
-            };
-
-            <span class="kw">match</span> <span class="ident">peek</span> {
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;&quot;&#39;</span>) <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">ignore_str</span>());
-                }
-                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>));
-                }
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>));
-                }
-            }
-
-            <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
-                <span class="prelude-val">Some</span>(<span class="string">b&#39;:&#39;</span>) <span class="op">=&gt;</span> {
-                    <span class="self">self</span>.<span class="ident">eat_char</span>();
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">ignore_value</span>());
-                }
-                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>));
-                }
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>));
-                }
-            }
-        }
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;raw_value&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">deserialize_raw_value</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="self">self</span>.<span class="ident">parse_whitespace</span>()<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">begin_raw_buffering</span>();
+        <span class="self">self</span>.<span class="ident">ignore_value</span>()<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">read</span>.<span class="ident">end_raw_buffering</span>(<span class="ident">visitor</span>)
     }
 }
 
@@ -3206,39 +3319,39 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">rustfmt</span>, <span class="ident">rustfmt_skip</span>)]</span>
-<span class="kw">static</span> <span class="ident">POW10</span>: [<span class="ident">f64</span>; <span class="number">309</span>] <span class="op">=</span>
-    [<span class="number">1e000</span>, <span class="number">1e001</span>, <span class="number">1e002</span>, <span class="number">1e003</span>, <span class="number">1e004</span>, <span class="number">1e005</span>, <span class="number">1e006</span>, <span class="number">1e007</span>, <span class="number">1e008</span>, <span class="number">1e009</span>,
-     <span class="number">1e010</span>, <span class="number">1e011</span>, <span class="number">1e012</span>, <span class="number">1e013</span>, <span class="number">1e014</span>, <span class="number">1e015</span>, <span class="number">1e016</span>, <span class="number">1e017</span>, <span class="number">1e018</span>, <span class="number">1e019</span>,
-     <span class="number">1e020</span>, <span class="number">1e021</span>, <span class="number">1e022</span>, <span class="number">1e023</span>, <span class="number">1e024</span>, <span class="number">1e025</span>, <span class="number">1e026</span>, <span class="number">1e027</span>, <span class="number">1e028</span>, <span class="number">1e029</span>,
-     <span class="number">1e030</span>, <span class="number">1e031</span>, <span class="number">1e032</span>, <span class="number">1e033</span>, <span class="number">1e034</span>, <span class="number">1e035</span>, <span class="number">1e036</span>, <span class="number">1e037</span>, <span class="number">1e038</span>, <span class="number">1e039</span>,
-     <span class="number">1e040</span>, <span class="number">1e041</span>, <span class="number">1e042</span>, <span class="number">1e043</span>, <span class="number">1e044</span>, <span class="number">1e045</span>, <span class="number">1e046</span>, <span class="number">1e047</span>, <span class="number">1e048</span>, <span class="number">1e049</span>,
-     <span class="number">1e050</span>, <span class="number">1e051</span>, <span class="number">1e052</span>, <span class="number">1e053</span>, <span class="number">1e054</span>, <span class="number">1e055</span>, <span class="number">1e056</span>, <span class="number">1e057</span>, <span class="number">1e058</span>, <span class="number">1e059</span>,
-     <span class="number">1e060</span>, <span class="number">1e061</span>, <span class="number">1e062</span>, <span class="number">1e063</span>, <span class="number">1e064</span>, <span class="number">1e065</span>, <span class="number">1e066</span>, <span class="number">1e067</span>, <span class="number">1e068</span>, <span class="number">1e069</span>,
-     <span class="number">1e070</span>, <span class="number">1e071</span>, <span class="number">1e072</span>, <span class="number">1e073</span>, <span class="number">1e074</span>, <span class="number">1e075</span>, <span class="number">1e076</span>, <span class="number">1e077</span>, <span class="number">1e078</span>, <span class="number">1e079</span>,
-     <span class="number">1e080</span>, <span class="number">1e081</span>, <span class="number">1e082</span>, <span class="number">1e083</span>, <span class="number">1e084</span>, <span class="number">1e085</span>, <span class="number">1e086</span>, <span class="number">1e087</span>, <span class="number">1e088</span>, <span class="number">1e089</span>,
-     <span class="number">1e090</span>, <span class="number">1e091</span>, <span class="number">1e092</span>, <span class="number">1e093</span>, <span class="number">1e094</span>, <span class="number">1e095</span>, <span class="number">1e096</span>, <span class="number">1e097</span>, <span class="number">1e098</span>, <span class="number">1e099</span>,
-     <span class="number">1e100</span>, <span class="number">1e101</span>, <span class="number">1e102</span>, <span class="number">1e103</span>, <span class="number">1e104</span>, <span class="number">1e105</span>, <span class="number">1e106</span>, <span class="number">1e107</span>, <span class="number">1e108</span>, <span class="number">1e109</span>,
-     <span class="number">1e110</span>, <span class="number">1e111</span>, <span class="number">1e112</span>, <span class="number">1e113</span>, <span class="number">1e114</span>, <span class="number">1e115</span>, <span class="number">1e116</span>, <span class="number">1e117</span>, <span class="number">1e118</span>, <span class="number">1e119</span>,
-     <span class="number">1e120</span>, <span class="number">1e121</span>, <span class="number">1e122</span>, <span class="number">1e123</span>, <span class="number">1e124</span>, <span class="number">1e125</span>, <span class="number">1e126</span>, <span class="number">1e127</span>, <span class="number">1e128</span>, <span class="number">1e129</span>,
-     <span class="number">1e130</span>, <span class="number">1e131</span>, <span class="number">1e132</span>, <span class="number">1e133</span>, <span class="number">1e134</span>, <span class="number">1e135</span>, <span class="number">1e136</span>, <span class="number">1e137</span>, <span class="number">1e138</span>, <span class="number">1e139</span>,
-     <span class="number">1e140</span>, <span class="number">1e141</span>, <span class="number">1e142</span>, <span class="number">1e143</span>, <span class="number">1e144</span>, <span class="number">1e145</span>, <span class="number">1e146</span>, <span class="number">1e147</span>, <span class="number">1e148</span>, <span class="number">1e149</span>,
-     <span class="number">1e150</span>, <span class="number">1e151</span>, <span class="number">1e152</span>, <span class="number">1e153</span>, <span class="number">1e154</span>, <span class="number">1e155</span>, <span class="number">1e156</span>, <span class="number">1e157</span>, <span class="number">1e158</span>, <span class="number">1e159</span>,
-     <span class="number">1e160</span>, <span class="number">1e161</span>, <span class="number">1e162</span>, <span class="number">1e163</span>, <span class="number">1e164</span>, <span class="number">1e165</span>, <span class="number">1e166</span>, <span class="number">1e167</span>, <span class="number">1e168</span>, <span class="number">1e169</span>,
-     <span class="number">1e170</span>, <span class="number">1e171</span>, <span class="number">1e172</span>, <span class="number">1e173</span>, <span class="number">1e174</span>, <span class="number">1e175</span>, <span class="number">1e176</span>, <span class="number">1e177</span>, <span class="number">1e178</span>, <span class="number">1e179</span>,
-     <span class="number">1e180</span>, <span class="number">1e181</span>, <span class="number">1e182</span>, <span class="number">1e183</span>, <span class="number">1e184</span>, <span class="number">1e185</span>, <span class="number">1e186</span>, <span class="number">1e187</span>, <span class="number">1e188</span>, <span class="number">1e189</span>,
-     <span class="number">1e190</span>, <span class="number">1e191</span>, <span class="number">1e192</span>, <span class="number">1e193</span>, <span class="number">1e194</span>, <span class="number">1e195</span>, <span class="number">1e196</span>, <span class="number">1e197</span>, <span class="number">1e198</span>, <span class="number">1e199</span>,
-     <span class="number">1e200</span>, <span class="number">1e201</span>, <span class="number">1e202</span>, <span class="number">1e203</span>, <span class="number">1e204</span>, <span class="number">1e205</span>, <span class="number">1e206</span>, <span class="number">1e207</span>, <span class="number">1e208</span>, <span class="number">1e209</span>,
-     <span class="number">1e210</span>, <span class="number">1e211</span>, <span class="number">1e212</span>, <span class="number">1e213</span>, <span class="number">1e214</span>, <span class="number">1e215</span>, <span class="number">1e216</span>, <span class="number">1e217</span>, <span class="number">1e218</span>, <span class="number">1e219</span>,
-     <span class="number">1e220</span>, <span class="number">1e221</span>, <span class="number">1e222</span>, <span class="number">1e223</span>, <span class="number">1e224</span>, <span class="number">1e225</span>, <span class="number">1e226</span>, <span class="number">1e227</span>, <span class="number">1e228</span>, <span class="number">1e229</span>,
-     <span class="number">1e230</span>, <span class="number">1e231</span>, <span class="number">1e232</span>, <span class="number">1e233</span>, <span class="number">1e234</span>, <span class="number">1e235</span>, <span class="number">1e236</span>, <span class="number">1e237</span>, <span class="number">1e238</span>, <span class="number">1e239</span>,
-     <span class="number">1e240</span>, <span class="number">1e241</span>, <span class="number">1e242</span>, <span class="number">1e243</span>, <span class="number">1e244</span>, <span class="number">1e245</span>, <span class="number">1e246</span>, <span class="number">1e247</span>, <span class="number">1e248</span>, <span class="number">1e249</span>,
-     <span class="number">1e250</span>, <span class="number">1e251</span>, <span class="number">1e252</span>, <span class="number">1e253</span>, <span class="number">1e254</span>, <span class="number">1e255</span>, <span class="number">1e256</span>, <span class="number">1e257</span>, <span class="number">1e258</span>, <span class="number">1e259</span>,
-     <span class="number">1e260</span>, <span class="number">1e261</span>, <span class="number">1e262</span>, <span class="number">1e263</span>, <span class="number">1e264</span>, <span class="number">1e265</span>, <span class="number">1e266</span>, <span class="number">1e267</span>, <span class="number">1e268</span>, <span class="number">1e269</span>,
-     <span class="number">1e270</span>, <span class="number">1e271</span>, <span class="number">1e272</span>, <span class="number">1e273</span>, <span class="number">1e274</span>, <span class="number">1e275</span>, <span class="number">1e276</span>, <span class="number">1e277</span>, <span class="number">1e278</span>, <span class="number">1e279</span>,
-     <span class="number">1e280</span>, <span class="number">1e281</span>, <span class="number">1e282</span>, <span class="number">1e283</span>, <span class="number">1e284</span>, <span class="number">1e285</span>, <span class="number">1e286</span>, <span class="number">1e287</span>, <span class="number">1e288</span>, <span class="number">1e289</span>,
-     <span class="number">1e290</span>, <span class="number">1e291</span>, <span class="number">1e292</span>, <span class="number">1e293</span>, <span class="number">1e294</span>, <span class="number">1e295</span>, <span class="number">1e296</span>, <span class="number">1e297</span>, <span class="number">1e298</span>, <span class="number">1e299</span>,
-     <span class="number">1e300</span>, <span class="number">1e301</span>, <span class="number">1e302</span>, <span class="number">1e303</span>, <span class="number">1e304</span>, <span class="number">1e305</span>, <span class="number">1e306</span>, <span class="number">1e307</span>, <span class="number">1e308</span>];
+<span class="kw">static</span> <span class="ident">POW10</span>: [<span class="ident">f64</span>; <span class="number">309</span>] <span class="op">=</span> [
+    <span class="number">1e000</span>, <span class="number">1e001</span>, <span class="number">1e002</span>, <span class="number">1e003</span>, <span class="number">1e004</span>, <span class="number">1e005</span>, <span class="number">1e006</span>, <span class="number">1e007</span>, <span class="number">1e008</span>, <span class="number">1e009</span>, <span class="comment">//</span>
+    <span class="number">1e010</span>, <span class="number">1e011</span>, <span class="number">1e012</span>, <span class="number">1e013</span>, <span class="number">1e014</span>, <span class="number">1e015</span>, <span class="number">1e016</span>, <span class="number">1e017</span>, <span class="number">1e018</span>, <span class="number">1e019</span>, <span class="comment">//</span>
+    <span class="number">1e020</span>, <span class="number">1e021</span>, <span class="number">1e022</span>, <span class="number">1e023</span>, <span class="number">1e024</span>, <span class="number">1e025</span>, <span class="number">1e026</span>, <span class="number">1e027</span>, <span class="number">1e028</span>, <span class="number">1e029</span>, <span class="comment">//</span>
+    <span class="number">1e030</span>, <span class="number">1e031</span>, <span class="number">1e032</span>, <span class="number">1e033</span>, <span class="number">1e034</span>, <span class="number">1e035</span>, <span class="number">1e036</span>, <span class="number">1e037</span>, <span class="number">1e038</span>, <span class="number">1e039</span>, <span class="comment">//</span>
+    <span class="number">1e040</span>, <span class="number">1e041</span>, <span class="number">1e042</span>, <span class="number">1e043</span>, <span class="number">1e044</span>, <span class="number">1e045</span>, <span class="number">1e046</span>, <span class="number">1e047</span>, <span class="number">1e048</span>, <span class="number">1e049</span>, <span class="comment">//</span>
+    <span class="number">1e050</span>, <span class="number">1e051</span>, <span class="number">1e052</span>, <span class="number">1e053</span>, <span class="number">1e054</span>, <span class="number">1e055</span>, <span class="number">1e056</span>, <span class="number">1e057</span>, <span class="number">1e058</span>, <span class="number">1e059</span>, <span class="comment">//</span>
+    <span class="number">1e060</span>, <span class="number">1e061</span>, <span class="number">1e062</span>, <span class="number">1e063</span>, <span class="number">1e064</span>, <span class="number">1e065</span>, <span class="number">1e066</span>, <span class="number">1e067</span>, <span class="number">1e068</span>, <span class="number">1e069</span>, <span class="comment">//</span>
+    <span class="number">1e070</span>, <span class="number">1e071</span>, <span class="number">1e072</span>, <span class="number">1e073</span>, <span class="number">1e074</span>, <span class="number">1e075</span>, <span class="number">1e076</span>, <span class="number">1e077</span>, <span class="number">1e078</span>, <span class="number">1e079</span>, <span class="comment">//</span>
+    <span class="number">1e080</span>, <span class="number">1e081</span>, <span class="number">1e082</span>, <span class="number">1e083</span>, <span class="number">1e084</span>, <span class="number">1e085</span>, <span class="number">1e086</span>, <span class="number">1e087</span>, <span class="number">1e088</span>, <span class="number">1e089</span>, <span class="comment">//</span>
+    <span class="number">1e090</span>, <span class="number">1e091</span>, <span class="number">1e092</span>, <span class="number">1e093</span>, <span class="number">1e094</span>, <span class="number">1e095</span>, <span class="number">1e096</span>, <span class="number">1e097</span>, <span class="number">1e098</span>, <span class="number">1e099</span>, <span class="comment">//</span>
+    <span class="number">1e100</span>, <span class="number">1e101</span>, <span class="number">1e102</span>, <span class="number">1e103</span>, <span class="number">1e104</span>, <span class="number">1e105</span>, <span class="number">1e106</span>, <span class="number">1e107</span>, <span class="number">1e108</span>, <span class="number">1e109</span>, <span class="comment">//</span>
+    <span class="number">1e110</span>, <span class="number">1e111</span>, <span class="number">1e112</span>, <span class="number">1e113</span>, <span class="number">1e114</span>, <span class="number">1e115</span>, <span class="number">1e116</span>, <span class="number">1e117</span>, <span class="number">1e118</span>, <span class="number">1e119</span>, <span class="comment">//</span>
+    <span class="number">1e120</span>, <span class="number">1e121</span>, <span class="number">1e122</span>, <span class="number">1e123</span>, <span class="number">1e124</span>, <span class="number">1e125</span>, <span class="number">1e126</span>, <span class="number">1e127</span>, <span class="number">1e128</span>, <span class="number">1e129</span>, <span class="comment">//</span>
+    <span class="number">1e130</span>, <span class="number">1e131</span>, <span class="number">1e132</span>, <span class="number">1e133</span>, <span class="number">1e134</span>, <span class="number">1e135</span>, <span class="number">1e136</span>, <span class="number">1e137</span>, <span class="number">1e138</span>, <span class="number">1e139</span>, <span class="comment">//</span>
+    <span class="number">1e140</span>, <span class="number">1e141</span>, <span class="number">1e142</span>, <span class="number">1e143</span>, <span class="number">1e144</span>, <span class="number">1e145</span>, <span class="number">1e146</span>, <span class="number">1e147</span>, <span class="number">1e148</span>, <span class="number">1e149</span>, <span class="comment">//</span>
+    <span class="number">1e150</span>, <span class="number">1e151</span>, <span class="number">1e152</span>, <span class="number">1e153</span>, <span class="number">1e154</span>, <span class="number">1e155</span>, <span class="number">1e156</span>, <span class="number">1e157</span>, <span class="number">1e158</span>, <span class="number">1e159</span>, <span class="comment">//</span>
+    <span class="number">1e160</span>, <span class="number">1e161</span>, <span class="number">1e162</span>, <span class="number">1e163</span>, <span class="number">1e164</span>, <span class="number">1e165</span>, <span class="number">1e166</span>, <span class="number">1e167</span>, <span class="number">1e168</span>, <span class="number">1e169</span>, <span class="comment">//</span>
+    <span class="number">1e170</span>, <span class="number">1e171</span>, <span class="number">1e172</span>, <span class="number">1e173</span>, <span class="number">1e174</span>, <span class="number">1e175</span>, <span class="number">1e176</span>, <span class="number">1e177</span>, <span class="number">1e178</span>, <span class="number">1e179</span>, <span class="comment">//</span>
+    <span class="number">1e180</span>, <span class="number">1e181</span>, <span class="number">1e182</span>, <span class="number">1e183</span>, <span class="number">1e184</span>, <span class="number">1e185</span>, <span class="number">1e186</span>, <span class="number">1e187</span>, <span class="number">1e188</span>, <span class="number">1e189</span>, <span class="comment">//</span>
+    <span class="number">1e190</span>, <span class="number">1e191</span>, <span class="number">1e192</span>, <span class="number">1e193</span>, <span class="number">1e194</span>, <span class="number">1e195</span>, <span class="number">1e196</span>, <span class="number">1e197</span>, <span class="number">1e198</span>, <span class="number">1e199</span>, <span class="comment">//</span>
+    <span class="number">1e200</span>, <span class="number">1e201</span>, <span class="number">1e202</span>, <span class="number">1e203</span>, <span class="number">1e204</span>, <span class="number">1e205</span>, <span class="number">1e206</span>, <span class="number">1e207</span>, <span class="number">1e208</span>, <span class="number">1e209</span>, <span class="comment">//</span>
+    <span class="number">1e210</span>, <span class="number">1e211</span>, <span class="number">1e212</span>, <span class="number">1e213</span>, <span class="number">1e214</span>, <span class="number">1e215</span>, <span class="number">1e216</span>, <span class="number">1e217</span>, <span class="number">1e218</span>, <span class="number">1e219</span>, <span class="comment">//</span>
+    <span class="number">1e220</span>, <span class="number">1e221</span>, <span class="number">1e222</span>, <span class="number">1e223</span>, <span class="number">1e224</span>, <span class="number">1e225</span>, <span class="number">1e226</span>, <span class="number">1e227</span>, <span class="number">1e228</span>, <span class="number">1e229</span>, <span class="comment">//</span>
+    <span class="number">1e230</span>, <span class="number">1e231</span>, <span class="number">1e232</span>, <span class="number">1e233</span>, <span class="number">1e234</span>, <span class="number">1e235</span>, <span class="number">1e236</span>, <span class="number">1e237</span>, <span class="number">1e238</span>, <span class="number">1e239</span>, <span class="comment">//</span>
+    <span class="number">1e240</span>, <span class="number">1e241</span>, <span class="number">1e242</span>, <span class="number">1e243</span>, <span class="number">1e244</span>, <span class="number">1e245</span>, <span class="number">1e246</span>, <span class="number">1e247</span>, <span class="number">1e248</span>, <span class="number">1e249</span>, <span class="comment">//</span>
+    <span class="number">1e250</span>, <span class="number">1e251</span>, <span class="number">1e252</span>, <span class="number">1e253</span>, <span class="number">1e254</span>, <span class="number">1e255</span>, <span class="number">1e256</span>, <span class="number">1e257</span>, <span class="number">1e258</span>, <span class="number">1e259</span>, <span class="comment">//</span>
+    <span class="number">1e260</span>, <span class="number">1e261</span>, <span class="number">1e262</span>, <span class="number">1e263</span>, <span class="number">1e264</span>, <span class="number">1e265</span>, <span class="number">1e266</span>, <span class="number">1e267</span>, <span class="number">1e268</span>, <span class="number">1e269</span>, <span class="comment">//</span>
+    <span class="number">1e270</span>, <span class="number">1e271</span>, <span class="number">1e272</span>, <span class="number">1e273</span>, <span class="number">1e274</span>, <span class="number">1e275</span>, <span class="number">1e276</span>, <span class="number">1e277</span>, <span class="number">1e278</span>, <span class="number">1e279</span>, <span class="comment">//</span>
+    <span class="number">1e280</span>, <span class="number">1e281</span>, <span class="number">1e282</span>, <span class="number">1e283</span>, <span class="number">1e284</span>, <span class="number">1e285</span>, <span class="number">1e286</span>, <span class="number">1e287</span>, <span class="number">1e288</span>, <span class="number">1e289</span>, <span class="comment">//</span>
+    <span class="number">1e290</span>, <span class="number">1e291</span>, <span class="number">1e292</span>, <span class="number">1e293</span>, <span class="number">1e294</span>, <span class="number">1e295</span>, <span class="number">1e296</span>, <span class="number">1e297</span>, <span class="number">1e298</span>, <span class="number">1e299</span>, <span class="comment">//</span>
+    <span class="number">1e300</span>, <span class="number">1e301</span>, <span class="number">1e302</span>, <span class="number">1e303</span>, <span class="number">1e304</span>, <span class="number">1e305</span>, <span class="number">1e306</span>, <span class="number">1e307</span>, <span class="number">1e308</span>,
+];
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">deserialize_prim_number</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">method</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
@@ -3249,6 +3362,39 @@
             <span class="self">self</span>.<span class="ident">deserialize_prim_number</span>(<span class="ident">visitor</span>)
         }
     }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>))]</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">if_checking_recursion_limit</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+        $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>)<span class="op">*</span>
+    };
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unbounded_depth&quot;</span>)]</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">if_checking_recursion_limit</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>:<span class="ident">ident</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>.<span class="ident">disable_recursion_limit</span> {
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>)<span class="op">*</span>
+        }
+    };
+}
+
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">check_recursion</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>:<span class="ident">ident</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+        <span class="macro">if_checking_recursion_limit</span><span class="macro">!</span> {
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
+            <span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+            }
+        }
+
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>)<span class="op">*</span>
+
+        <span class="macro">if_checking_recursion_limit</span><span class="macro">!</span> {
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">this</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
+        }
+    };
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="ident">Read</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;&gt;</span> <span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
@@ -3289,22 +3435,17 @@
             <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">true</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>),
             <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">str_buf</span>)) {
+                <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">scratch</span>)) {
                     <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
                     <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
                 }
             }
             <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3312,15 +3453,10 @@
                 }
             }
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3468,8 +3604,8 @@
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">str_buf</span>)) {
+                <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">scratch</span>)) {
                     <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
                     <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
                 }
@@ -3525,10 +3661,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// You can use this to parse JSON strings containing invalid UTF-8 bytes.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// extern crate serde_json;</span>
-    <span class="doccomment">/// extern crate serde_bytes;</span>
-    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde_bytes::ByteBuf;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// fn look_at_bytes() -&gt; Result&lt;(), serde_json::Error&gt; {</span>
@@ -3551,10 +3684,7 @@
     <span class="doccomment">/// to be valid, and `\u` escape sequences are required to represent valid</span>
     <span class="doccomment">/// Unicode code points.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// extern crate serde_json;</span>
-    <span class="doccomment">/// extern crate serde_bytes;</span>
-    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde_bytes::ByteBuf;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// fn look_at_bytes() {</span>
@@ -3585,8 +3715,8 @@
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="self">self</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str_raw</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">str_buf</span>)) {
+                <span class="self">self</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">parse_str_raw</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">scratch</span>)) {
                     <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_bytes</span>(<span class="ident">b</span>),
                     <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_bytes</span>(<span class="ident">b</span>),
                 }
@@ -3660,10 +3790,18 @@
 
     <span class="doccomment">/// Parses a newtype struct as the underlying value.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">deserialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;raw_value&quot;</span>)]</span>
+        {
+            <span class="kw">if</span> <span class="ident">name</span> <span class="op">==</span> ::<span class="ident">raw</span>::<span class="ident">TOKEN</span> {
+                <span class="kw">return</span> <span class="self">self</span>.<span class="ident">deserialize_raw_value</span>(<span class="ident">visitor</span>);
+            }
+        }
+
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">name</span>;
         <span class="ident">visitor</span>.<span class="ident">visit_newtype_struct</span>(<span class="self">self</span>)
     }
 
@@ -3680,15 +3818,10 @@
 
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3736,15 +3869,10 @@
 
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3778,15 +3906,10 @@
 
         <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_seq</span>(<span class="ident">SeqAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3794,15 +3917,10 @@
                 }
             }
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">MapAccess</span>::<span class="ident">new</span>(<span class="self">self</span>));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
@@ -3832,15 +3950,10 @@
     {
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
             <span class="prelude-val">Some</span>(<span class="string">b&#39;{&#39;</span>) <span class="op">=&gt;</span> {
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">-=</span> <span class="number">1</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span>));
+                <span class="macro">check_recursion</span><span class="macro">!</span> {
+                    <span class="self">self</span>.<span class="ident">eat_char</span>();
+                    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">visitor</span>.<span class="ident">visit_enum</span>(<span class="ident">VariantAccess</span>::<span class="ident">new</span>(<span class="self">self</span>)));
                 }
-
-                <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">visitor</span>.<span class="ident">visit_enum</span>(<span class="ident">VariantAccess</span>::<span class="ident">new</span>(<span class="self">self</span>)));
-
-                <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
 
                 <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
                     <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="op">=&gt;</span> {
@@ -4110,8 +4223,8 @@
             <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
         {
             <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">eat_char</span>();
-            <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-            <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>));
+            <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+            <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">scratch</span>));
             <span class="kw">match</span> (<span class="ident">string</span>.<span class="ident">parse</span>(), <span class="ident">string</span>) {
                 (<span class="prelude-val">Ok</span>(<span class="ident">integer</span>), <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">visit</span>(<span class="ident">integer</span>),
                 (<span class="prelude-val">Err</span>(<span class="kw">_</span>), <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>)) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
@@ -4133,8 +4246,8 @@
         <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
         <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">eat_char</span>();
-        <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
-        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>)) {
+        <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">scratch</span>.<span class="ident">clear</span>();
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">scratch</span>)) {
             <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
             <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
         }
@@ -4216,9 +4329,7 @@
 <span class="doccomment">/// The data can consist of any JSON value. Values need to be a self-delineating value e.g.</span>
 <span class="doccomment">/// arrays, objects, or strings, or be followed by whitespace or a self-delineating value.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// extern crate serde_json;</span>
-<span class="doccomment">///</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// use serde_json::{Deserializer, Value};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// fn main() {</span>
@@ -4266,7 +4377,7 @@
     <span class="doccomment">/// If a stream deserializer returns an EOF error, new data can be joined to</span>
     <span class="doccomment">/// `old_data[stream.byte_offset()..]` to try again.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// let data = b&quot;[0] [1] [&quot;;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// let de = serde_json::Deserializer::from_slice(data);</span>
@@ -4373,25 +4484,25 @@
 
 <span class="doccomment">/// Deserialize an instance of type `T` from an IO stream of JSON.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// # Errors</span>
+<span class="doccomment">/// The content of the IO stream is deserialized directly from the stream</span>
+<span class="doccomment">/// without being buffered in memory by serde_json.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This conversion can fail if the structure of the input does not match the</span>
-<span class="doccomment">/// structure expected by `T`, for example if `T` is a struct type but the input</span>
-<span class="doccomment">/// contains something other than a JSON map. It can also fail if the structure</span>
-<span class="doccomment">/// is correct but `T`&#39;s implementation of `Deserialize` decides that something</span>
-<span class="doccomment">/// is wrong with the data, for example required struct fields are missing from</span>
-<span class="doccomment">/// the JSON map or some number is too big to fit in the expected primitive</span>
-<span class="doccomment">/// type.</span>
+<span class="doccomment">/// When reading from a source against which short reads are not efficient, such</span>
+<span class="doccomment">/// as a [`File`], you will want to apply your own buffering because serde_json</span>
+<span class="doccomment">/// will not buffer the input. See [`std::io::BufReader`].</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// #[macro_use]</span>
-<span class="doccomment">/// extern crate serde_derive;</span>
+<span class="doccomment">/// [`File`]: https://doc.rust-lang.org/std/fs/struct.File.html</span>
+<span class="doccomment">/// [`BufReader`]: https://doc.rust-lang.org/std/io/struct.BufReader.html</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// extern crate serde;</span>
-<span class="doccomment">/// extern crate serde_json;</span>
+<span class="doccomment">/// # Example</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// # use serde_derive::Deserialize;</span>
+<span class="doccomment">/// use serde::Deserialize;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// use std::error::Error;</span>
 <span class="doccomment">/// use std::fs::File;</span>
+<span class="doccomment">/// use std::io::BufReader;</span>
 <span class="doccomment">/// use std::path::Path;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #[derive(Deserialize, Debug)]</span>
@@ -4401,11 +4512,12 @@
 <span class="doccomment">/// }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// fn read_user_from_file&lt;P: AsRef&lt;Path&gt;&gt;(path: P) -&gt; Result&lt;User, Box&lt;Error&gt;&gt; {</span>
-<span class="doccomment">///     // Open the file in read-only mode.</span>
+<span class="doccomment">///     // Open the file in read-only mode with buffer.</span>
 <span class="doccomment">///     let file = File::open(path)?;</span>
+<span class="doccomment">///     let reader = BufReader::new(file);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     // Read the JSON contents of the file as an instance of `User`.</span>
-<span class="doccomment">///     let u = serde_json::from_reader(file)?;</span>
+<span class="doccomment">///     let u = serde_json::from_reader(reader)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     // Return the `User`.</span>
 <span class="doccomment">///     Ok(u)</span>
@@ -4418,6 +4530,16 @@
 <span class="doccomment">///     println!(&quot;{:#?}&quot;, u);</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Errors</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This conversion can fail if the structure of the input does not match the</span>
+<span class="doccomment">/// structure expected by `T`, for example if `T` is a struct type but the input</span>
+<span class="doccomment">/// contains something other than a JSON map. It can also fail if the structure</span>
+<span class="doccomment">/// is correct but `T`&#39;s implementation of `Deserialize` decides that something</span>
+<span class="doccomment">/// is wrong with the data, for example required struct fields are missing from</span>
+<span class="doccomment">/// the JSON map or some number is too big to fit in the expected primitive</span>
+<span class="doccomment">/// type.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_reader</span><span class="op">&lt;</span><span class="ident">R</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">rdr</span>: <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">R</span>: <span class="ident">io</span>::<span class="ident">Read</span>,
@@ -4428,22 +4550,11 @@
 
 <span class="doccomment">/// Deserialize an instance of type `T` from bytes of JSON text.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// # Errors</span>
+<span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This conversion can fail if the structure of the input does not match the</span>
-<span class="doccomment">/// structure expected by `T`, for example if `T` is a struct type but the input</span>
-<span class="doccomment">/// contains something other than a JSON map. It can also fail if the structure</span>
-<span class="doccomment">/// is correct but `T`&#39;s implementation of `Deserialize` decides that something</span>
-<span class="doccomment">/// is wrong with the data, for example required struct fields are missing from</span>
-<span class="doccomment">/// the JSON map or some number is too big to fit in the expected primitive</span>
-<span class="doccomment">/// type.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// #[macro_use]</span>
-<span class="doccomment">/// extern crate serde_derive;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// extern crate serde;</span>
-<span class="doccomment">/// extern crate serde_json;</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// # use serde_derive::Deserialize;</span>
+<span class="doccomment">/// use serde::Deserialize;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #[derive(Deserialize, Debug)]</span>
 <span class="doccomment">/// struct User {</span>
@@ -4453,23 +4564,16 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// fn main() {</span>
 <span class="doccomment">///     // The type of `j` is `&amp;[u8]`</span>
-<span class="doccomment">///     let j = b&quot;{</span>
-<span class="doccomment">///                 \&quot;fingerprint\&quot;: \&quot;0xF9BA143B95FF6D82\&quot;,</span>
-<span class="doccomment">///                 \&quot;location\&quot;: \&quot;Menlo Park, CA\&quot;</span>
-<span class="doccomment">///               }&quot;;</span>
+<span class="doccomment">///     let j = b&quot;</span>
+<span class="doccomment">///         {</span>
+<span class="doccomment">///             \&quot;fingerprint\&quot;: \&quot;0xF9BA143B95FF6D82\&quot;,</span>
+<span class="doccomment">///             \&quot;location\&quot;: \&quot;Menlo Park, CA\&quot;</span>
+<span class="doccomment">///         }&quot;;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     let u: User = serde_json::from_slice(j).unwrap();</span>
 <span class="doccomment">///     println!(&quot;{:#?}&quot;, u);</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_slice</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">de</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-{
-    <span class="ident">from_trait</span>(<span class="ident">read</span>::<span class="ident">SliceRead</span>::<span class="ident">new</span>(<span class="ident">v</span>))
-}
-
-<span class="doccomment">/// Deserialize an instance of type `T` from a string of JSON text.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Errors</span>
 <span class="doccomment">///</span>
@@ -4480,13 +4584,20 @@
 <span class="doccomment">/// is wrong with the data, for example required struct fields are missing from</span>
 <span class="doccomment">/// the JSON map or some number is too big to fit in the expected primitive</span>
 <span class="doccomment">/// type.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_slice</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">de</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+{
+    <span class="ident">from_trait</span>(<span class="ident">read</span>::<span class="ident">SliceRead</span>::<span class="ident">new</span>(<span class="ident">v</span>))
+}
+
+<span class="doccomment">/// Deserialize an instance of type `T` from a string of JSON text.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// #[macro_use]</span>
-<span class="doccomment">/// extern crate serde_derive;</span>
+<span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// extern crate serde;</span>
-<span class="doccomment">/// extern crate serde_json;</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// # use serde_derive::Deserialize;</span>
+<span class="doccomment">/// use serde::Deserialize;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #[derive(Deserialize, Debug)]</span>
 <span class="doccomment">/// struct User {</span>
@@ -4496,20 +4607,31 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// fn main() {</span>
 <span class="doccomment">///     // The type of `j` is `&amp;str`</span>
-<span class="doccomment">///     let j = &quot;{</span>
-<span class="doccomment">///                \&quot;fingerprint\&quot;: \&quot;0xF9BA143B95FF6D82\&quot;,</span>
-<span class="doccomment">///                \&quot;location\&quot;: \&quot;Menlo Park, CA\&quot;</span>
-<span class="doccomment">///              }&quot;;</span>
+<span class="doccomment">///     let j = &quot;</span>
+<span class="doccomment">///         {</span>
+<span class="doccomment">///             \&quot;fingerprint\&quot;: \&quot;0xF9BA143B95FF6D82\&quot;,</span>
+<span class="doccomment">///             \&quot;location\&quot;: \&quot;Menlo Park, CA\&quot;</span>
+<span class="doccomment">///         }&quot;;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     let u: User = serde_json::from_str(j).unwrap();</span>
 <span class="doccomment">///     println!(&quot;{:#?}&quot;, u);</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Errors</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This conversion can fail if the structure of the input does not match the</span>
+<span class="doccomment">/// structure expected by `T`, for example if `T` is a struct type but the input</span>
+<span class="doccomment">/// contains something other than a JSON map. It can also fail if the structure</span>
+<span class="doccomment">/// is correct but `T`&#39;s implementation of `Deserialize` decides that something</span>
+<span class="doccomment">/// is wrong with the data, for example required struct fields are missing from</span>
+<span class="doccomment">/// the JSON map or some number is too big to fit in the expected primitive</span>
+<span class="doccomment">/// type.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_str</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">de</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
 {
     <span class="ident">from_trait</span>(<span class="ident">read</span>::<span class="ident">StrRead</span>::<span class="ident">new</span>(<span class="ident">s</span>))
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "serde_json";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "serde_json";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

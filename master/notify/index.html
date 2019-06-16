@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `notify` crate."><meta name="keywords" content="rust, rustlang, rust-lang, notify"><title>notify - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../notify/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><p class='location'>Crate notify</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all notify's items</p></a><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'notify', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/notify/lib.rs.html#1-660' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>notify</a></span></h1><div class='docblock'><p>Cross-platform file system notification library</p>
+<p>Source is on GitHub: https://github.com/passcod/notify</p>
+<h1 id="installation" class="section-header"><a href="#installation">Installation</a></h1>
+<pre><code class="language-toml">[dependencies]
+notify = &quot;4.0.12&quot;
+</code></pre>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>
+<p>Notify provides two APIs. The default API <em>debounces</em> events (if the backend reports two
+similar events in close succession, Notify will only report one). The raw API emits file
+changes as soon as they happen. For more details, see
+<a href="trait.Watcher.html#tymethod.new_raw"><code>Watcher::new_raw</code></a> and
+<a href="trait.Watcher.html#tymethod.new"><code>Watcher::new</code></a>.</p>
+<h2 id="default-debounced-api" class="section-header"><a href="#default-debounced-api">Default (debounced) API</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">notify</span>;
+
+<span class="kw">use</span> <span class="ident">notify</span>::{<span class="ident">Watcher</span>, <span class="ident">RecursiveMode</span>, <span class="ident">watcher</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::<span class="ident">channel</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="comment">// Create a channel to receive the events.</span>
+    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>();
+
+    <span class="comment">// Create a watcher object, delivering debounced events.</span>
+    <span class="comment">// The notification back-end is selected based on the platform.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">watcher</span> <span class="op">=</span> <span class="ident">watcher</span>(<span class="ident">tx</span>, <span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">10</span>)).<span class="ident">unwrap</span>();
+
+    <span class="comment">// Add a path to be watched. All files and directories at that path and</span>
+    <span class="comment">// below will be monitored for changes.</span>
+    <span class="ident">watcher</span>.<span class="ident">watch</span>(<span class="string">&quot;/home/test/notify&quot;</span>, <span class="ident">RecursiveMode</span>::<span class="ident">Recursive</span>).<span class="ident">unwrap</span>();
+
+    <span class="kw">loop</span> {
+        <span class="kw">match</span> <span class="ident">rx</span>.<span class="ident">recv</span>() {
+           <span class="prelude-val">Ok</span>(<span class="ident">event</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">event</span>),
+           <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;watch error: {:?}&quot;</span>, <span class="ident">e</span>),
+        }
+    }
+}</pre></div>
+<p>Using the default API is easy, all possible events are described in the
+<a href="enum.DebouncedEvent.html"><code>DebouncedEvent</code></a> documentation. But in order to understand the
+subtleties of the event delivery, you should read the <a href="op/index.html"><code>op</code></a> documentation as
+well.</p>
+<h2 id="raw-api" class="section-header"><a href="#raw-api">Raw API</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">notify</span>;
+
+<span class="kw">use</span> <span class="ident">notify</span>::{<span class="ident">Watcher</span>, <span class="ident">RecursiveMode</span>, <span class="ident">RawEvent</span>, <span class="ident">raw_watcher</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::<span class="ident">channel</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="comment">// Create a channel to receive the events.</span>
+    <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>();
+
+    <span class="comment">// Create a watcher object, delivering raw events.</span>
+    <span class="comment">// The notification back-end is selected based on the platform.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">watcher</span> <span class="op">=</span> <span class="ident">raw_watcher</span>(<span class="ident">tx</span>).<span class="ident">unwrap</span>();
+
+    <span class="comment">// Add a path to be watched. All files and directories at that path and</span>
+    <span class="comment">// below will be monitored for changes.</span>
+    <span class="ident">watcher</span>.<span class="ident">watch</span>(<span class="string">&quot;/home/test/notify&quot;</span>, <span class="ident">RecursiveMode</span>::<span class="ident">Recursive</span>).<span class="ident">unwrap</span>();
+
+    <span class="kw">loop</span> {
+        <span class="kw">match</span> <span class="ident">rx</span>.<span class="ident">recv</span>() {
+           <span class="prelude-val">Ok</span>(<span class="ident">RawEvent</span>{<span class="ident">path</span>: <span class="prelude-val">Some</span>(<span class="ident">path</span>), <span class="ident">op</span>: <span class="prelude-val">Ok</span>(<span class="ident">op</span>), <span class="ident">cookie</span>}) <span class="op">=&gt;</span> {
+               <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?} {:?} ({:?})&quot;</span>, <span class="ident">op</span>, <span class="ident">path</span>, <span class="ident">cookie</span>)
+           },
+           <span class="prelude-val">Ok</span>(<span class="ident">event</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;broken event: {:?}&quot;</span>, <span class="ident">event</span>),
+           <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;watch error: {:?}&quot;</span>, <span class="ident">e</span>),
+        }
+    }
+}</pre></div>
+<p>The event structure is described in the <a href="struct.RawEvent.html"><code>RawEvent</code></a> documentation,
+all possible operations delivered in an event are described in the <a href="op/index.html"><code>op</code></a>
+documentation.</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use self::op::<a class="struct" href="../notify/op/struct.Op.html" title="struct notify::op::Op">Op</a>;</code></td></tr><tr><td><code>pub use self::inotify::<a class="struct" href="../notify/inotify/struct.INotifyWatcher.html" title="struct notify::inotify::INotifyWatcher">INotifyWatcher</a>;</code></td></tr><tr><td><code>pub use self::null::<a class="struct" href="../notify/null/struct.NullWatcher.html" title="struct notify::null::NullWatcher">NullWatcher</a>;</code></td></tr><tr><td><code>pub use self::poll::<a class="struct" href="../notify/poll/struct.PollWatcher.html" title="struct notify::poll::PollWatcher">PollWatcher</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="inotify/index.html" title='notify::inotify mod'>inotify</a></td><td class='docblock-short'><p>Watcher implementation for the inotify Linux API</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="null/index.html" title='notify::null mod'>null</a></td><td class='docblock-short'><p>Stub Watcher implementation</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="op/index.html" title='notify::op mod'>op</a></td><td class='docblock-short'><p>Contains the <code>Op</code> type which describes the actions for an event.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="poll/index.html" title='notify::poll mod'>poll</a></td><td class='docblock-short'><p>Generic Watcher implementation based on polling</p>
+</td></tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table><tr class='module-item'><td><a class="struct" href="struct.RawEvent.html" title='notify::RawEvent struct'>RawEvent</a></td><td class='docblock-short'><p>Event delivered when action occurs on a watched path in <em>raw</em> mode</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.DebouncedEvent.html" title='notify::DebouncedEvent enum'>DebouncedEvent</a></td><td class='docblock-short'><p>Event delivered when action occurs on a watched path in debounced mode</p>
+</td></tr><tr class='module-item'><td><a class="enum" href="enum.Error.html" title='notify::Error enum'>Error</a></td><td class='docblock-short'><p>Errors generated from the <code>notify</code> crate</p>
+</td></tr><tr class='module-item'><td><a class="enum" href="enum.RecursiveMode.html" title='notify::RecursiveMode enum'>RecursiveMode</a></td><td class='docblock-short'><p>Indicates whether only the provided directory or its sub-directories as well should be watched</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.Watcher.html" title='notify::Watcher trait'>Watcher</a></td><td class='docblock-short'><p>Type that can deliver file activity notifications</p>
+</td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.raw_watcher.html" title='notify::raw_watcher fn'>raw_watcher</a></td><td class='docblock-short'><p>Convenience method for creating the <code>RecommendedWatcher</code> for the current platform in <em>raw</em> mode.</p>
+</td></tr><tr class='module-item'><td><a class="fn" href="fn.watcher.html" title='notify::watcher fn'>watcher</a></td><td class='docblock-short'><p>Convenience method for creating the <code>RecommendedWatcher</code> for the current
+platform in default (debounced) mode.</p>
+</td></tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table><tr class='module-item'><td><a class="type" href="type.RecommendedWatcher.html" title='notify::RecommendedWatcher type'>RecommendedWatcher</a></td><td class='docblock-short'><p>The recommended <code>Watcher</code> implementation for the current platform</p>
+</td></tr><tr class='module-item'><td><a class="type" href="type.Result.html" title='notify::Result type'>Result</a></td><td class='docblock-short'><p>Type alias to use this library's <code>Error</code> type in a Result</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "notify";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

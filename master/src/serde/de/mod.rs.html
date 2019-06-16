@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.66/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.92/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../serde/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2267,21 +2267,7 @@
 <span id="2267">2267</span>
 <span id="2268">2268</span>
 <span id="2269">2269</span>
-<span id="2270">2270</span>
-<span id="2271">2271</span>
-<span id="2272">2272</span>
-<span id="2273">2273</span>
-<span id="2274">2274</span>
-<span id="2275">2275</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2017 Serde Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Generic data structure deserialization framework.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The two most important traits in this module are [`Deserialize`] and</span>
@@ -2300,8 +2286,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Additionally, Serde provides a procedural macro called [`serde_derive`] to</span>
 <span class="doccomment">//! automatically generate [`Deserialize`] implementations for structs and enums</span>
-<span class="doccomment">//! in your program. See the [codegen section of the manual] for how to use</span>
-<span class="doccomment">//! this.</span>
+<span class="doccomment">//! in your program. See the [derive section of the manual] for how to use this.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! In rare cases it may be necessary to implement [`Deserialize`] manually for</span>
 <span class="doccomment">//! some type in your program. See the [Implementing `Deserialize`] section of</span>
@@ -2344,13 +2329,13 @@
 <span class="doccomment">//!    - Box\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Box\&lt;\[T\]\&gt;</span>
 <span class="doccomment">//!    - Box\&lt;str\&gt;</span>
-<span class="doccomment">//!    - Rc\&lt;T\&gt;</span>
-<span class="doccomment">//!    - Arc\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Cow\&lt;&#39;a, T\&gt;</span>
 <span class="doccomment">//!    - Cell\&lt;T\&gt;</span>
 <span class="doccomment">//!    - RefCell\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Mutex\&lt;T\&gt;</span>
 <span class="doccomment">//!    - RwLock\&lt;T\&gt;</span>
+<span class="doccomment">//!    - Rc\&lt;T\&gt;&amp;emsp;*(if* features = [&quot;rc&quot;] *is enabled)*</span>
+<span class="doccomment">//!    - Arc\&lt;T\&gt;&amp;emsp;*(if* features = [&quot;rc&quot;] *is enabled)*</span>
 <span class="doccomment">//!  - **Collection types**:</span>
 <span class="doccomment">//!    - BTreeMap\&lt;K, V\&gt;</span>
 <span class="doccomment">//!    - BTreeSet\&lt;T\&gt;</span>
@@ -2373,6 +2358,8 @@
 <span class="doccomment">//!    - Path</span>
 <span class="doccomment">//!    - PathBuf</span>
 <span class="doccomment">//!    - Range\&lt;T\&gt;</span>
+<span class="doccomment">//!    - RangeInclusive\&lt;T\&gt;</span>
+<span class="doccomment">//!    - Bound\&lt;T\&gt;</span>
 <span class="doccomment">//!    - num::NonZero*</span>
 <span class="doccomment">//!    - `!` *(unstable)*</span>
 <span class="doccomment">//!  - **Net types**:</span>
@@ -2392,7 +2379,7 @@
 <span class="doccomment">//! [`serde_derive`]: https://crates.io/crates/serde_derive</span>
 <span class="doccomment">//! [`serde_json`]: https://github.com/serde-rs/json</span>
 <span class="doccomment">//! [`serde_yaml`]: https://github.com/dtolnay/serde-yaml</span>
-<span class="doccomment">//! [codegen section of the manual]: https://serde.rs/codegen.html</span>
+<span class="doccomment">//! [derive section of the manual]: https://serde.rs/derive.html</span>
 <span class="doccomment">//! [data formats]: https://serde.rs/#data-formats</span>
 
 <span class="kw">use</span> <span class="ident">lib</span>::<span class="kw-2">*</span>;
@@ -2437,7 +2424,7 @@
             <span class="doccomment">///</span>
             <span class="doccomment">/// The message should not be capitalized and should not end with a period.</span>
             <span class="doccomment">///</span>
-            <span class="doccomment">/// ```rust</span>
+            <span class="doccomment">/// ```edition2018</span>
             <span class="doccomment">/// # use std::str::FromStr;</span>
             <span class="doccomment">/// #</span>
             <span class="doccomment">/// # struct IpAddr;</span>
@@ -2457,7 +2444,7 @@
             <span class="doccomment">///     where</span>
             <span class="doccomment">///         D: Deserializer&lt;&#39;de&gt;,</span>
             <span class="doccomment">///     {</span>
-            <span class="doccomment">///         let s = try!(String::deserialize(deserializer));</span>
+            <span class="doccomment">///         let s = String::deserialize(deserializer)?;</span>
             <span class="doccomment">///         s.parse().map_err(de::Error::custom)</span>
             <span class="doccomment">///     }</span>
             <span class="doccomment">/// }</span>
@@ -2521,12 +2508,16 @@
             <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">unknown_variant</span>(<span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">expected</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="kw">if</span> <span class="ident">expected</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown variant `{}`, there are no variants&quot;</span>,
-                                               <span class="ident">variant</span>))
+                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(
+                        <span class="string">&quot;unknown variant `{}`, there are no variants&quot;</span>,
+                        <span class="ident">variant</span>
+                    ))
                 } <span class="kw">else</span> {
-                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown variant `{}`, expected {}&quot;</span>,
-                                               <span class="ident">variant</span>,
-                                               <span class="ident">OneOf</span> { <span class="ident">names</span>: <span class="ident">expected</span> }))
+                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(
+                        <span class="string">&quot;unknown variant `{}`, expected {}&quot;</span>,
+                        <span class="ident">variant</span>,
+                        <span class="ident">OneOf</span> { <span class="ident">names</span>: <span class="ident">expected</span> }
+                    ))
                 }
             }
 
@@ -2535,12 +2526,16 @@
             <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">unknown_field</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">expected</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="kw">if</span> <span class="ident">expected</span>.<span class="ident">is_empty</span>() {
-                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown field `{}`, there are no fields&quot;</span>,
-                                               <span class="ident">field</span>))
+                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(
+                        <span class="string">&quot;unknown field `{}`, there are no fields&quot;</span>,
+                        <span class="ident">field</span>
+                    ))
                 } <span class="kw">else</span> {
-                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown field `{}`, expected {}&quot;</span>,
-                                               <span class="ident">field</span>,
-                                               <span class="ident">OneOf</span> { <span class="ident">names</span>: <span class="ident">expected</span> }))
+                    <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(
+                        <span class="string">&quot;unknown field `{}`, expected {}&quot;</span>,
+                        <span class="ident">field</span>,
+                        <span class="ident">OneOf</span> { <span class="ident">names</span>: <span class="ident">expected</span> }
+                    ))
                 }
             }
 
@@ -2574,7 +2569,7 @@
 <span class="doccomment">/// This is used as an argument to the `invalid_type`, `invalid_value`, and</span>
 <span class="doccomment">/// `invalid_length` methods of the `Error` trait to build error messages.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::fmt;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # use serde::de::{self, Unexpected, Visitor};</span>
@@ -2699,7 +2694,7 @@
 <span class="doccomment">/// Within the context of a `Visitor` implementation, the `Visitor` itself</span>
 <span class="doccomment">/// (`&amp;self`) is an implementation of this trait.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::fmt;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # use serde::de::{self, Unexpected, Visitor};</span>
@@ -2724,7 +2719,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Outside of a `Visitor`, `&amp;&quot;...&quot;` can be used.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use serde::de::{self, Unexpected};</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # fn example&lt;E&gt;() -&gt; Result&lt;(), E&gt;</span>
@@ -2773,7 +2768,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Additionally, Serde provides a procedural macro called `serde_derive` to</span>
 <span class="doccomment">/// automatically generate `Deserialize` implementations for structs and enums</span>
-<span class="doccomment">/// in your program. See the [codegen section of the manual][codegen] for how to</span>
+<span class="doccomment">/// in your program. See the [derive section of the manual][derive] for how to</span>
 <span class="doccomment">/// use this.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// In rare cases it may be necessary to implement `Deserialize` manually for</span>
@@ -2786,7 +2781,7 @@
 <span class="doccomment">/// provides an implementation of `Deserialize` for it.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [de]: https://docs.serde.rs/serde/de/index.html</span>
-<span class="doccomment">/// [codegen]: https://serde.rs/codegen.html</span>
+<span class="doccomment">/// [derive]: https://serde.rs/derive.html</span>
 <span class="doccomment">/// [impl-deserialize]: https://serde.rs/impl-deserialize.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Lifetime</span>
@@ -2845,7 +2840,7 @@
 <span class="doccomment">/// from the input string, but a `from_reader` function may only deserialize</span>
 <span class="doccomment">/// owned data.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use serde::de::{Deserialize, DeserializeOwned};</span>
 <span class="doccomment">/// # use std::io::{Read, Result};</span>
 <span class="doccomment">/// #</span>
@@ -2869,11 +2864,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DeserializeOwned</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {}
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">DeserializeOwned</span> <span class="kw">for</span> <span class="ident">T</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-{
-}
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">DeserializeOwned</span> <span class="kw">for</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {}
 
 <span class="doccomment">/// `DeserializeSeed` is the stateful form of the `Deserialize` trait. If you</span>
 <span class="doccomment">/// ever find yourself looking for a way to pass data into a `Deserialize` impl,</span>
@@ -2888,7 +2879,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// The canonical API for stateless deserialization looks like this:</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use serde::Deserialize;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # enum Error {}</span>
@@ -2902,7 +2893,7 @@
 <span class="doccomment">/// Adjusting an API like this to support stateful deserialization is a matter</span>
 <span class="doccomment">/// of accepting a seed as input:</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use serde::de::DeserializeSeed;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # enum Error {}</span>
@@ -2935,11 +2926,11 @@
 <span class="doccomment">/// into it. This requires stateful deserialization using the `DeserializeSeed`</span>
 <span class="doccomment">/// trait.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// use std::fmt;</span>
 <span class="doccomment">/// use std::marker::PhantomData;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// use serde::de::{Deserialize, DeserializeSeed, Deserializer, Visitor, SeqAccess};</span>
+<span class="doccomment">/// use serde::de::{Deserialize, DeserializeSeed, Deserializer, SeqAccess, Visitor};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // A DeserializeSeed implementation that uses stateful deserialization to</span>
 <span class="doccomment">/// // append array elements onto the end of an existing vector. The preexisting</span>
@@ -3086,16 +3077,16 @@
 <span class="doccomment">///    - When serializing, all strings are handled equally. When deserializing,</span>
 <span class="doccomment">///      there are three flavors of strings: transient, owned, and borrowed.</span>
 <span class="doccomment">///  - **byte array** - \[u8\]</span>
-<span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be transient,</span>
-<span class="doccomment">///      owned, or borrowed.</span>
+<span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be</span>
+<span class="doccomment">///      transient, owned, or borrowed.</span>
 <span class="doccomment">///  - **option**</span>
 <span class="doccomment">///    - Either none or some value.</span>
 <span class="doccomment">///  - **unit**</span>
-<span class="doccomment">///    - The type of `()` in Rust. It represents an anonymous value containing no</span>
-<span class="doccomment">///      data.</span>
+<span class="doccomment">///    - The type of `()` in Rust. It represents an anonymous value containing</span>
+<span class="doccomment">///      no data.</span>
 <span class="doccomment">///  - **unit_struct**</span>
-<span class="doccomment">///    - For example `struct Unit` or `PhantomData&lt;T&gt;`. It represents a named value</span>
-<span class="doccomment">///      containing no data.</span>
+<span class="doccomment">///    - For example `struct Unit` or `PhantomData&lt;T&gt;`. It represents a named</span>
+<span class="doccomment">///      value containing no data.</span>
 <span class="doccomment">///  - **unit_variant**</span>
 <span class="doccomment">///    - For example the `E::A` and `E::B` in `enum E { A, B }`.</span>
 <span class="doccomment">///  - **newtype_struct**</span>
@@ -3103,14 +3094,15 @@
 <span class="doccomment">///  - **newtype_variant**</span>
 <span class="doccomment">///    - For example the `E::N` in `enum E { N(u8) }`.</span>
 <span class="doccomment">///  - **seq**</span>
-<span class="doccomment">///    - A variably sized heterogeneous sequence of values, for example `Vec&lt;T&gt;` or</span>
-<span class="doccomment">///      `HashSet&lt;T&gt;`. When serializing, the length may or may not be known before</span>
-<span class="doccomment">///      iterating through all the data. When deserializing, the length is determined</span>
-<span class="doccomment">///      by looking at the serialized data.</span>
+<span class="doccomment">///    - A variably sized heterogeneous sequence of values, for example `Vec&lt;T&gt;`</span>
+<span class="doccomment">///      or `HashSet&lt;T&gt;`. When serializing, the length may or may not be known</span>
+<span class="doccomment">///      before iterating through all the data. When deserializing, the length</span>
+<span class="doccomment">///      is determined by looking at the serialized data.</span>
 <span class="doccomment">///  - **tuple**</span>
-<span class="doccomment">///    - A statically sized heterogeneous sequence of values for which the length</span>
-<span class="doccomment">///      will be known at deserialization time without looking at the serialized</span>
-<span class="doccomment">///      data, for example `(u8,)` or `(String, u64, Vec&lt;T&gt;)` or `[u64; 10]`.</span>
+<span class="doccomment">///    - A statically sized heterogeneous sequence of values for which the</span>
+<span class="doccomment">///      length will be known at deserialization time without looking at the</span>
+<span class="doccomment">///      serialized data, for example `(u8,)` or `(String, u64, Vec&lt;T&gt;)` or</span>
+<span class="doccomment">///      `[u64; 10]`.</span>
 <span class="doccomment">///  - **tuple_struct**</span>
 <span class="doccomment">///    - A named tuple, for example `struct Rgb(u8, u8, u8)`.</span>
 <span class="doccomment">///  - **tuple_variant**</span>
@@ -3118,9 +3110,9 @@
 <span class="doccomment">///  - **map**</span>
 <span class="doccomment">///    - A heterogeneous key-value pairing, for example `BTreeMap&lt;K, V&gt;`.</span>
 <span class="doccomment">///  - **struct**</span>
-<span class="doccomment">///    - A heterogeneous key-value pairing in which the keys are strings and will be</span>
-<span class="doccomment">///      known at deserialization time without looking at the serialized data, for</span>
-<span class="doccomment">///      example `struct S { r: u8, g: u8, b: u8 }`.</span>
+<span class="doccomment">///    - A heterogeneous key-value pairing in which the keys are strings and</span>
+<span class="doccomment">///      will be known at deserialization time without looking at the serialized</span>
+<span class="doccomment">///      data, for example `struct S { r: u8, g: u8, b: u8 }`.</span>
 <span class="doccomment">///  - **struct_variant**</span>
 <span class="doccomment">///    - For example the `E::S` in `enum E { S { r: u8, g: u8, b: u8 } }`.</span>
 <span class="doccomment">///</span>
@@ -3135,7 +3127,8 @@
 <span class="doccomment">///    type it sees in the input. JSON uses this approach when deserializing</span>
 <span class="doccomment">///    `serde_json::Value` which is an enum that can represent any JSON</span>
 <span class="doccomment">///    document. Without knowing what is in a JSON document, we can deserialize</span>
-<span class="doccomment">///    it to `serde_json::Value` by going through `Deserializer::deserialize_any`.</span>
+<span class="doccomment">///    it to `serde_json::Value` by going through</span>
+<span class="doccomment">///    `Deserializer::deserialize_any`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// 2. The various `deserialize_*` methods. Non-self-describing formats like</span>
 <span class="doccomment">///    Bincode need to be told what is in the input in order to deserialize it.</span>
@@ -3145,10 +3138,11 @@
 <span class="doccomment">///    `Deserializer::deserialize_any`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// When implementing `Deserialize`, you should avoid relying on</span>
-<span class="doccomment">/// `Deserializer::deserialize_any` unless you need to be told by the Deserializer</span>
-<span class="doccomment">/// what type is in the input. Know that relying on `Deserializer::deserialize_any`</span>
-<span class="doccomment">/// means your data type will be able to deserialize from self-describing</span>
-<span class="doccomment">/// formats only, ruling out Bincode and many others.</span>
+<span class="doccomment">/// `Deserializer::deserialize_any` unless you need to be told by the</span>
+<span class="doccomment">/// Deserializer what type is in the input. Know that relying on</span>
+<span class="doccomment">/// `Deserializer::deserialize_any` means your data type will be able to</span>
+<span class="doccomment">/// deserialize from self-describing formats only, ruling out Bincode and many</span>
+<span class="doccomment">/// others.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Serde data model]: https://serde.rs/data-model.html</span>
 <span class="doccomment">///</span>
@@ -3422,7 +3416,7 @@
     <span class="doccomment">/// human-readable one and binary formats like Bincode will prefer the</span>
     <span class="doccomment">/// compact one.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use std::ops::Add;</span>
     <span class="doccomment">/// # use std::str::FromStr;</span>
     <span class="doccomment">/// #</span>
@@ -3499,7 +3493,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::fmt;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # use serde::de::{self, Unexpected, Visitor};</span>
@@ -3540,7 +3534,7 @@
     <span class="doccomment">/// &quot;an integer between 0 and 64&quot;. The message should not be capitalized and</span>
     <span class="doccomment">/// should not end with a period.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use std::fmt;</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct S {</span>
@@ -4281,7 +4275,7 @@
     <span class="doccomment">/// If the data contains a different type of variant, the following</span>
     <span class="doccomment">/// `invalid_type` error should be constructed:</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::de::{self, value, DeserializeSeed, Visitor, VariantAccess, Unexpected};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct X;</span>
@@ -4321,7 +4315,7 @@
     <span class="doccomment">/// If the data contains a different type of variant, the following</span>
     <span class="doccomment">/// `invalid_type` error should be constructed:</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::de::{self, value, DeserializeSeed, Visitor, VariantAccess, Unexpected};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct X;</span>
@@ -4377,7 +4371,7 @@
     <span class="doccomment">/// If the data contains a different type of variant, the following</span>
     <span class="doccomment">/// `invalid_type` error should be constructed:</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::de::{self, value, DeserializeSeed, Visitor, VariantAccess, Unexpected};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct X;</span>
@@ -4424,7 +4418,7 @@
     <span class="doccomment">/// If the data contains a different type of variant, the following</span>
     <span class="doccomment">/// `invalid_type` error should be constructed:</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::de::{self, value, DeserializeSeed, Visitor, VariantAccess, Unexpected};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct X;</span>
@@ -4484,14 +4478,10 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// #[macro_use]</span>
-<span class="doccomment">/// extern crate serde_derive;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// extern crate serde;</span>
-<span class="doccomment">///</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// use std::str::FromStr;</span>
-<span class="doccomment">/// use serde::de::{value, Deserialize, IntoDeserializer};</span>
+<span class="doccomment">/// use serde::Deserialize;</span>
+<span class="doccomment">/// use serde::de::{value, IntoDeserializer};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #[derive(Deserialize)]</span>
 <span class="doccomment">/// enum Setting {</span>
@@ -4506,8 +4496,6 @@
 <span class="doccomment">///         Self::deserialize(s.into_deserializer())</span>
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
-<span class="doccomment">/// #</span>
-<span class="doccomment">/// # fn main() {}</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">IntoDeserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">E</span>: <span class="ident">Error</span> <span class="op">=</span> <span class="ident">value</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The type of the deserializer being converted into.</span>
@@ -4549,5 +4537,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

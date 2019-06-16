@@ -1,38 +1,36 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `bitflags` crate."><meta name="keywords" content="rust, rustlang, rust-lang, bitflags"><title>bitflags - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate bitflags</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'bitflags', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>bitflags</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/bitflags/lib.rs.html#11-990' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A typesafe bitmask flag generator useful for sets of C-style bitmask flags.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `bitflags` crate."><meta name="keywords" content="rust, rustlang, rust-lang, bitflags"><title>bitflags - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../bitflags/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><p class='location'>Crate bitflags</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all bitflags's items</p></a><div class="block items"><ul><li><a href="#macros">Macros</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'bitflags', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/bitflags/lib.rs.html#11-1353' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>bitflags</a></span></h1><div class='docblock'><p>A typesafe bitmask flag generator useful for sets of C-style bitmask flags.
 It can be used for creating typesafe wrappers around C APIs.</p>
 <p>The <code>bitflags!</code> macro generates a <code>struct</code> that manages a set of flags. The
 flags should only be defined for integer types, otherwise unexpected type
 errors may occur at compile time.</p>
 <h1 id="example" class="section-header"><a href="#example">Example</a></h1>
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
 <span class="macro">bitflags</span><span class="macro">!</span> {
     <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
-        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_ABC</span>     <span class="op">=</span> <span class="ident">FLAG_A</span>.<span class="ident">bits</span>
-                           <span class="op">|</span> <span class="ident">FLAG_B</span>.<span class="ident">bits</span>
-                           <span class="op">|</span> <span class="ident">FLAG_C</span>.<span class="ident">bits</span>;
+        <span class="kw">const</span> <span class="ident">A</span> <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">B</span> <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">C</span> <span class="op">=</span> <span class="number">0b00000100</span>;
+        <span class="kw">const</span> <span class="ident">ABC</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">A</span>.<span class="ident">bits</span> <span class="op">|</span> <span class="self">Self</span>::<span class="ident">B</span>.<span class="ident">bits</span> <span class="op">|</span> <span class="self">Self</span>::<span class="ident">C</span>.<span class="ident">bits</span>;
     }
 }
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="kw">let</span> <span class="ident">e1</span> <span class="op">=</span> <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>;
-    <span class="kw">let</span> <span class="ident">e2</span> <span class="op">=</span> <span class="ident">FLAG_B</span> <span class="op">|</span> <span class="ident">FLAG_C</span>;
-    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">|</span> <span class="ident">e2</span>), <span class="ident">FLAG_ABC</span>);   <span class="comment">// union</span>
-    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">&amp;</span> <span class="ident">e2</span>), <span class="ident">FLAG_C</span>);     <span class="comment">// intersection</span>
-    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">-</span> <span class="ident">e2</span>), <span class="ident">FLAG_A</span>);     <span class="comment">// set difference</span>
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">e2</span>, <span class="ident">FLAG_A</span>);           <span class="comment">// set complement</span>
-}</pre>
+    <span class="kw">let</span> <span class="ident">e1</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">A</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">C</span>;
+    <span class="kw">let</span> <span class="ident">e2</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">B</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">C</span>;
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">|</span> <span class="ident">e2</span>), <span class="ident">Flags</span>::<span class="ident">ABC</span>);   <span class="comment">// union</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">&amp;</span> <span class="ident">e2</span>), <span class="ident">Flags</span>::<span class="ident">C</span>);     <span class="comment">// intersection</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="ident">e1</span> <span class="op">-</span> <span class="ident">e2</span>), <span class="ident">Flags</span>::<span class="ident">A</span>);     <span class="comment">// set difference</span>
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">e2</span>, <span class="ident">Flags</span>::<span class="ident">A</span>);           <span class="comment">// set complement</span>
+}</pre></div>
 <p>See <a href="./example_generated/struct.Flags.html"><code>example_generated::Flags</code></a> for documentation of code
 generated by the above <code>bitflags!</code> expansion.</p>
 <p>The generated <code>struct</code>s can also be extended with type and trait
 implementations:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
@@ -40,8 +38,8 @@ implementations:</p>
 
 <span class="macro">bitflags</span><span class="macro">!</span> {
     <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
-        <span class="kw">const</span> <span class="ident">FLAG_A</span>   <span class="op">=</span> <span class="number">0b00000001</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_B</span>   <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">A</span> <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">B</span> <span class="op">=</span> <span class="number">0b00000010</span>;
     }
 }
 
@@ -59,39 +57,39 @@ implementations:</p>
 }
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_B</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">flags</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">A</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">B</span>;
     <span class="ident">flags</span>.<span class="ident">clear</span>();
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">flags</span>.<span class="ident">is_empty</span>());
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">flags</span>), <span class="string">&quot;hi!&quot;</span>);
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_B</span>), <span class="string">&quot;FLAG_A | FLAG_B&quot;</span>);
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">FLAG_B</span>), <span class="string">&quot;FLAG_B&quot;</span>);
-}</pre>
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">Flags</span>::<span class="ident">A</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">B</span>), <span class="string">&quot;A | B&quot;</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">Flags</span>::<span class="ident">B</span>), <span class="string">&quot;B&quot;</span>);
+}</pre></div>
 <h1 id="visibility" class="section-header"><a href="#visibility">Visibility</a></h1>
 <p>The generated struct and its associated flag constants are not exported
 out of the current module by default. A definition can be exported out of
 the current module by adding <code>pub</code> before <code>flags</code>:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
 <span class="kw">mod</span> <span class="ident">example</span> {
     <span class="macro">bitflags</span><span class="macro">!</span> {
         <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Flags1</span>: <span class="ident">u32</span> {
-            <span class="kw">const</span> <span class="ident">FLAG_A</span>   <span class="op">=</span> <span class="number">0b00000001</span>;
+            <span class="kw">const</span> <span class="ident">A</span> <span class="op">=</span> <span class="number">0b00000001</span>;
         }
     }
     <span class="macro">bitflags</span><span class="macro">!</span> {
         <span class="kw">struct</span> <span class="ident">Flags2</span>: <span class="ident">u32</span> {
-            <span class="kw">const</span> <span class="ident">FLAG_B</span>   <span class="op">=</span> <span class="number">0b00000010</span>;
+            <span class="kw">const</span> <span class="ident">B</span> <span class="op">=</span> <span class="number">0b00000010</span>;
         }
     }
 }
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="kw">let</span> <span class="ident">flag1</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">FLAG_A</span>;
-    <span class="kw">let</span> <span class="ident">flag2</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">FLAG_B</span>; <span class="comment">// error: const `FLAG_B` is private</span>
-}</pre>
+    <span class="kw">let</span> <span class="ident">flag1</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">Flags1</span>::<span class="ident">A</span>;
+    <span class="kw">let</span> <span class="ident">flag2</span> <span class="op">=</span> <span class="ident">example</span>::<span class="ident">Flags2</span>::<span class="ident">B</span>; <span class="comment">// error: const `B` is private</span>
+}</pre></div>
 <h1 id="attributes" class="section-header"><a href="#attributes">Attributes</a></h1>
 <p>Attributes can be attached to the generated <code>struct</code> by placing them
 before the <code>flags</code> keyword.</p>
@@ -132,13 +130,14 @@ any bits that do not correspond to flags</li>
 <li><code>remove</code>: removes the specified flags in-place</li>
 <li><code>toggle</code>: the specified flags will be inserted if not present, and removed
 if they are.</li>
+<li><code>set</code>: inserts or removes the specified flags depending on the passed value</li>
 </ul>
 <h2 id="default" class="section-header"><a href="#default">Default</a></h2>
 <p>The <code>Default</code> trait is not automatically implemented for the generated struct.</p>
 <p>If your default value is equal to <code>0</code> (which is the same value as calling <code>empty()</code>
 on the generated struct), you can simply derive <code>Default</code>:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
@@ -146,58 +145,68 @@ on the generated struct), you can simply derive <code>Default</code>:</p>
     <span class="comment">// Results in default value with bits: 0</span>
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
     <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
-        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
+        <span class="kw">const</span> <span class="ident">A</span> <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">B</span> <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">C</span> <span class="op">=</span> <span class="number">0b00000100</span>;
     }
 }
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
     <span class="kw">let</span> <span class="ident">derived_default</span>: <span class="ident">Flags</span> <span class="op">=</span> <span class="ident">Default</span>::<span class="ident">default</span>();
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">derived_default</span>.<span class="ident">bits</span>(), <span class="number">0</span>);
-}</pre>
+}</pre></div>
 <p>If your default value is not equal to <code>0</code> you need to implement <code>Default</code> yourself:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
 <span class="macro">bitflags</span><span class="macro">!</span> {
     <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
-        <span class="kw">const</span> <span class="ident">FLAG_A</span>       <span class="op">=</span> <span class="number">0b00000001</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_B</span>       <span class="op">=</span> <span class="number">0b00000010</span>;
-        <span class="kw">const</span> <span class="ident">FLAG_C</span>       <span class="op">=</span> <span class="number">0b00000100</span>;
+        <span class="kw">const</span> <span class="ident">A</span> <span class="op">=</span> <span class="number">0b00000001</span>;
+        <span class="kw">const</span> <span class="ident">B</span> <span class="op">=</span> <span class="number">0b00000010</span>;
+        <span class="kw">const</span> <span class="ident">C</span> <span class="op">=</span> <span class="number">0b00000100</span>;
     }
 }
 
 <span class="comment">// explicit `Default` implementation</span>
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Flags</span> {
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Flags</span> {
-        <span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>
+        <span class="ident">Flags</span>::<span class="ident">A</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">C</span>
     }
 }
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
     <span class="kw">let</span> <span class="ident">implemented_default</span>: <span class="ident">Flags</span> <span class="op">=</span> <span class="ident">Default</span>::<span class="ident">default</span>();
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">implemented_default</span>, (<span class="ident">FLAG_A</span> <span class="op">|</span> <span class="ident">FLAG_C</span>));
-}</pre>
-</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="example_generated/index.html"
-                                  title='mod bitflags::example_generated'>example_generated</a></td>
-                           <td class='docblock-short'>
-                                <p>This module shows an example of code generated by the macro. <strong>IT MUST NOT BE USED OUTSIDE THIS
-CRATE</strong>.</p>
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">implemented_default</span>, (<span class="ident">Flags</span>::<span class="ident">A</span> <span class="op">|</span> <span class="ident">Flags</span>::<span class="ident">C</span>));
+}</pre></div>
+<h1 id="zero-flags" class="section-header"><a href="#zero-flags">Zero Flags</a></h1>
+<p>Flags with a value equal to zero will have some strange behavior that one should be aware of.</p>
 
-                           </td>
-                       </tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="macro" href="macro.bitflags.html"
-                                  title='macro bitflags::bitflags'>bitflags</a></td>
-                           <td class='docblock-short'>
-                                <p>The macro used to generate the flag structure.</p>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "bitflags";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>
+<span class="macro">bitflags</span><span class="macro">!</span> {
+    <span class="kw">struct</span> <span class="ident">Flags</span>: <span class="ident">u32</span> {
+        <span class="kw">const</span> <span class="ident">NONE</span> <span class="op">=</span> <span class="number">0b00000000</span>;
+        <span class="kw">const</span> <span class="ident">SOME</span> <span class="op">=</span> <span class="number">0b00000001</span>;
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">empty</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">empty</span>();
+    <span class="kw">let</span> <span class="ident">none</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">NONE</span>;
+    <span class="kw">let</span> <span class="ident">some</span> <span class="op">=</span> <span class="ident">Flags</span>::<span class="ident">SOME</span>;
+
+    <span class="comment">// Zero flags are treated as always present</span>
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">empty</span>.<span class="ident">contains</span>(<span class="ident">Flags</span>::<span class="ident">NONE</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">none</span>.<span class="ident">contains</span>(<span class="ident">Flags</span>::<span class="ident">NONE</span>));
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">some</span>.<span class="ident">contains</span>(<span class="ident">Flags</span>::<span class="ident">NONE</span>));
+
+    <span class="comment">// Zero flags will be ignored when testing for emptiness</span>
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">none</span>.<span class="ident">is_empty</span>());
+}</pre></div>
+</div><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table><tr class='module-item'><td><a class="macro" href="macro.bitflags.html" title='bitflags::bitflags macro'>bitflags</a></td><td class='docblock-short'><p>The macro used to generate the flag structure.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "bitflags";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `ioctl` mod in crate `nix`."><meta name="keywords" content="rust, rustlang, rust-lang, ioctl"><title>nix::sys::ioctl - Rust</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Module ioctl</p><div class="sidebar-elems"><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a></p><script>window.sidebarCurrent = {name: 'ioctl', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a class="mod" href=''>ioctl</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/nix/sys/ioctl/mod.rs.html#1-361' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Provide helpers for making ioctl system calls.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `ioctl` mod in crate `nix`."><meta name="keywords" content="rust, rustlang, rust-lang, ioctl"><title>nix::sys::ioctl - Rust</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../nix/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a><p class='location'>Module ioctl</p><div class="sidebar-elems"><p class='location'><a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a></p><script>window.sidebarCurrent = {name: 'ioctl', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/nix/sys/ioctl/mod.rs.html#1-778' title='goto source code'>[src]</a></span><span class='in-band'>Module <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a class="mod" href=''>ioctl</a></span></h1><div class='docblock'><p>Provide helpers for making ioctl system calls.</p>
 <p>This library is pretty low-level and messy. <code>ioctl</code> is not fun.</p>
 <h1 id="what-is-an-ioctl" class="section-header"><a href="#what-is-an-ioctl">What is an <code>ioctl</code>?</a></h1>
 <p>The <code>ioctl</code> syscall is the grab-bag syscall on POSIX systems. Don't want to add a new
@@ -34,71 +34,68 @@ subcomponents (For linux this is documented in
 preferring to use the 4 components above to generate the final ioctl identifier. Because of
 how old <code>ioctl</code>s are, however, there are many hard-coded <code>ioctl</code> identifiers. These are
 commonly referred to as &quot;bad&quot; in <code>ioctl</code> documentation.</p>
-<h1 id="defining-ioctls" class="section-header"><a href="#defining-ioctls">Defining ioctls</a></h1>
-<p>This library provides the <code>ioctl!</code> macro, for binding <code>ioctl</code>s. This macro generates public
+<h1 id="defining-ioctls" class="section-header"><a href="#defining-ioctls">Defining <code>ioctl</code>s</a></h1>
+<p>This library provides several <code>ioctl_*!</code> macros for binding <code>ioctl</code>s. These generate public
 unsafe functions that can then be used for calling the ioctl. This macro has a few different
 ways it can be used depending on the specific ioctl you're working with.</p>
 <p>A simple <code>ioctl</code> is <code>SPI_IOC_RD_MODE</code>. This ioctl works with the SPI interface on Linux. This
 specific <code>ioctl</code> reads the mode of the SPI device as a <code>u8</code>. It's declared in
 <code>/include/uapi/linux/spi/spidev.h</code> as <code>_IOR(SPI_IOC_MAGIC, 1, __u8)</code>. Since it uses the <code>_IOR</code>
-macro, we know it's a <code>read</code> ioctl and can use the <code>ioctl!</code> macro as follows:</p>
+macro, we know it's a <code>read</code> ioctl and can use the <code>ioctl_read!</code> macro as follows:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">const</span> <span class="ident">SPI_IOC_MAGIC</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="string">b&#39;k&#39;</span>; <span class="comment">// Defined in linux/spi/spidev.h</span>
 <span class="kw">const</span> <span class="ident">SPI_IOC_TYPE_MODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">1</span>;
-<span class="macro">ioctl</span><span class="macro">!</span>(<span class="ident">read</span> <span class="ident">spi_read_mode</span> <span class="ident">with</span> <span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MODE</span>; <span class="ident">u8</span>);</pre>
+<span class="macro">ioctl_read</span><span class="macro">!</span>(<span class="ident">spi_read_mode</span>, <span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MODE</span>, <span class="ident">u8</span>);</pre></div>
 <p>This generates the function:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">spi_read_mode</span>(<span class="ident">fd</span>: <span class="ident">c_int</span>, <span class="ident">data</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">ioctl</span>(<span class="ident">fd</span>, <span class="macro">ior</span><span class="macro">!</span>(<span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MODE</span>, <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>()), <span class="ident">data</span>);
+    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">ioctl</span>(<span class="ident">fd</span>, <span class="macro">request_code_read</span><span class="macro">!</span>(<span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MODE</span>, <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>()), <span class="ident">data</span>);
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>)
-}</pre>
-<p>The return value for <code>ioctl</code> functions generated by the <code>ioctl!</code> macro are <code>nix::Error</code>s.
+}</pre></div>
+<p>The return value for the wrapper functions generated by the <code>ioctl_*!</code> macros are <code>nix::Error</code>s.
 These are generated by assuming the return value of the ioctl is <code>-1</code> on error and everything
 else is a valid return value. If this is not the case, <code>Result::map</code> can be used to map some
 of the range of &quot;good&quot; values (-Inf..-2, 0..Inf) into a smaller range in a helper function.</p>
 <p>Writing <code>ioctl</code>s generally use pointers as their data source and these should use the
-<code>write_ptr</code> variant. But in some cases an <code>int</code> is passed directly. For these <code>ioctl</code>s use the
-<code>write_int</code> variant of the <code>ioctl!</code> macro. This variant does not take a type as the last argument:</p>
+<code>ioctl_write_ptr!</code>. But in some cases an <code>int</code> is passed directly. For these <code>ioctl</code>s use the
+<code>ioctl_write_int!</code> macro. This variant does not take a type as the last argument:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">const</span> <span class="ident">HCI_IOC_MAGIC</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="string">b&#39;k&#39;</span>;
 <span class="kw">const</span> <span class="ident">HCI_IOC_HCIDEVUP</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">1</span>;
-<span class="macro">ioctl</span><span class="macro">!</span>(<span class="ident">write_int</span> <span class="ident">hci_dev_up</span> <span class="ident">with</span> <span class="ident">HCI_IOC_MAGIC</span>, <span class="ident">HCI_IOC_HCIDEVUP</span>);</pre>
-<p>Some <code>ioctl</code>s don't transfer any data, and those should use the <code>none</code> variant. This variant
+<span class="macro">ioctl_write_int</span><span class="macro">!</span>(<span class="ident">hci_dev_up</span>, <span class="ident">HCI_IOC_MAGIC</span>, <span class="ident">HCI_IOC_HCIDEVUP</span>);</pre></div>
+<p>Some <code>ioctl</code>s don't transfer any data, and those should use <code>ioctl_none!</code>. This macro
 doesn't take a type and so it is declared similar to the <code>write_int</code> variant shown above.</p>
 <p>The mode for a given <code>ioctl</code> should be clear from the documentation if it has good
 documentation. Otherwise it will be clear based on the macro used to generate the <code>ioctl</code>
-number where <code>_IO</code>, <code>_IOR</code>, <code>_IOW</code>, and <code>_IORW</code> map to &quot;none&quot;, &quot;read&quot;, &quot;write_*&quot;, and &quot;readwrite&quot;
+number where <code>_IO</code>, <code>_IOR</code>, <code>_IOW</code>, and <code>_IOWR</code> map to &quot;none&quot;, &quot;read&quot;, &quot;write_*&quot;, and &quot;readwrite&quot;
 respectively. To determine the specific <code>write_</code> variant to use you'll need to find
 what the argument type is supposed to be. If it's an <code>int</code>, then <code>write_int</code> should be used,
 otherwise it should be a pointer and <code>write_ptr</code> should be used. On Linux the
 <a href="http://man7.org/linux/man-pages/man2/ioctl_list.2.html"><code>ioctl_list</code> man page</a> describes a
 large number of <code>ioctl</code>s and describes their argument data type.</p>
-<p>More examples on using <code>ioctl!</code> can be found in the <a href="https://github.com/rust-embedded/rust-spidev">rust-spidev crate</a>.</p>
-<h2 id="using-hard-coded-ioctl-numbers" class="section-header"><a href="#using-hard-coded-ioctl-numbers">Using hard-coded ioctl numbers</a></h2>
+<h2 id="using-bad-ioctls" class="section-header"><a href="#using-bad-ioctls">Using &quot;bad&quot; <code>ioctl</code>s</a></h2>
 <p>As mentioned earlier, there are many old <code>ioctl</code>s that do not use the newer method of
-generating <code>ioctl</code> numbers and instead use hardcoded values. These can be used with the <code>bad *</code>
-variants of the <code>ioctl!</code> macro. This naming comes from the Linux kernel which refers to these
+generating <code>ioctl</code> numbers and instead use hardcoded values. These can be used with the
+<code>ioctl_*_bad!</code> macros. This naming comes from the Linux kernel which refers to these
 <code>ioctl</code>s as &quot;bad&quot;. These are a different variant as they bypass calling the macro that generates
 the ioctl number and instead use the defined value directly.</p>
 <p>For example the <code>TCGETS</code> <code>ioctl</code> reads a <code>termios</code> data structure for a given file descriptor.
 It's defined as <code>0x5401</code> in <code>ioctls.h</code> on Linux and can be implemented as:</p>
 
-<pre class="rust rust-example-rendered">
-<span class="macro">ioctl</span><span class="macro">!</span>(<span class="ident">bad</span> <span class="ident">read</span> <span class="ident">tcgets</span> <span class="ident">with</span> <span class="ident">TCGETS</span>; <span class="ident">termios</span>);</pre>
-<p>The generated function has the same form as that generated by <code>read</code>:</p>
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="macro">ioctl_read_bad</span><span class="macro">!</span>(<span class="ident">tcgets</span>, <span class="ident">TCGETS</span>, <span class="ident">termios</span>);</pre></div>
+<p>The generated function has the same form as that generated by <code>ioctl_read!</code>:</p>
 <pre><code class="language-text">pub unsafe fn tcgets(fd: c_int, data: *mut termios) -&gt; Result&lt;c_int&gt;;
 </code></pre>
-<p>There is also a <code>bad none</code>, <code>bad write_int</code>/<code>bad write_ptr</code>, and <code>bad readwrite</code> variant that work
-similar to the standard <code>none</code>, <code>write_int</code>/<code>write_ptr</code>, and <code>readwrite</code> variants.</p>
-<h2 id="working-with-arrays" class="section-header"><a href="#working-with-arrays">Working with arrays</a></h2>
-<p>Some <code>ioctl</code>s work with entire arrays of elements. These are supported by the <code>*_buf</code> variants in
-the <code>ioctl!</code> macro which can be used by specifying <code>read_buf</code>, <code>write_buf</code>, and
-<code>readwrite_buf</code>. Note that there are no &quot;bad&quot; versions for working with buffers. The generated
-functions include a <code>len</code> argument to specify the number of elements (where the type of each
-element is specified in the macro).</p>
+<h2 id="working-with-arrays" class="section-header"><a href="#working-with-arrays">Working with Arrays</a></h2>
+<p>Some <code>ioctl</code>s work with entire arrays of elements. These are supported by the <code>ioctl_*_buf</code>
+family of macros: <code>ioctl_read_buf</code>, <code>ioctl_write_buf</code>, and <code>ioctl_readwrite_buf</code>. Note that
+there are no &quot;bad&quot; versions for working with buffers. The generated functions include a <code>len</code>
+argument to specify the number of elements (where the type of each element is specified in the
+macro).</p>
 <p>Again looking to the SPI <code>ioctl</code>s on Linux for an example, there is a <code>SPI_IOC_MESSAGE</code> <code>ioctl</code>
 that queues up multiple SPI messages by writing an entire array of <code>spi_ioc_transfer</code> structs.
 <code>linux/spi/spidev.h</code> defines a macro to calculate the <code>ioctl</code> number like:</p>
@@ -106,44 +103,44 @@ that queues up multiple SPI messages by writing an entire array of <code>spi_ioc
 #define SPI_MSGSIZE(N) ...
 #define SPI_IOC_MESSAGE(N) _IOW(SPI_IOC_MAGIC, 0, char[SPI_MSGSIZE(N)])
 </code></pre>
-<p>The <code>SPI_MSGSIZE(N)</code> calculation is already handled by the <code>ioctl!</code> macro, so all that's
+<p>The <code>SPI_MSGSIZE(N)</code> calculation is already handled by the <code>ioctl_*!</code> macros, so all that's
 needed to define this <code>ioctl</code> is:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">const</span> <span class="ident">SPI_IOC_MAGIC</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="string">b&#39;k&#39;</span>; <span class="comment">// Defined in linux/spi/spidev.h</span>
 <span class="kw">const</span> <span class="ident">SPI_IOC_TYPE_MESSAGE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">0</span>;
-<span class="macro">ioctl</span><span class="macro">!</span>(<span class="ident">write_buf</span> <span class="ident">spi_transfer</span> <span class="ident">with</span> <span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MESSAGE</span>; <span class="ident">spi_ioc_transfer</span>);</pre>
+<span class="macro">ioctl_write_buf</span><span class="macro">!</span>(<span class="ident">spi_transfer</span>, <span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MESSAGE</span>, <span class="ident">spi_ioc_transfer</span>);</pre></div>
 <p>This generates a function like:</p>
 
-<pre class="rust rust-example-rendered">
+<div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">spi_message</span>(<span class="ident">fd</span>: <span class="ident">c_int</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">spi_ioc_transfer</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">ioctl</span>(<span class="ident">fd</span>,
-                          <span class="macro">iow</span><span class="macro">!</span>(<span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MESSAGE</span>, <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">spi_ioc_transfer</span><span class="op">&gt;</span>()),
+                          <span class="macro">request_code_write</span><span class="macro">!</span>(<span class="ident">SPI_IOC_MAGIC</span>, <span class="ident">SPI_IOC_TYPE_MESSAGE</span>, <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">spi_ioc_transfer</span><span class="op">&gt;</span>()),
                           <span class="ident">data</span>);
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>)
-}</pre>
-<h2 id="finding-ioctl-documentation" class="section-header"><a href="#finding-ioctl-documentation">Finding ioctl documentation</a></h2>
+}</pre></div>
+<h2 id="finding-ioctl-documentation" class="section-header"><a href="#finding-ioctl-documentation">Finding <code>ioctl</code> Documentation</a></h2>
 <p>For Linux, look at your system's headers. For example, <code>/usr/include/linux/input.h</code> has a lot
-of lines defining macros which use <code>_IO</code>, <code>_IOR</code>, <code>_IOW</code>, <code>_IOC</code>, and <code>_IORW</code>. Some <code>ioctl</code>s are
+of lines defining macros which use <code>_IO</code>, <code>_IOR</code>, <code>_IOW</code>, <code>_IOC</code>, and <code>_IOWR</code>. Some <code>ioctl</code>s are
 documented directly in the headers defining their constants, but others have more extensive
 documentation in man pages (like termios' <code>ioctl</code>s which are in <code>tty_ioctl(4)</code>).</p>
-<h1 id="documenting-the-generated-functions" class="section-header"><a href="#documenting-the-generated-functions">Documenting the generated functions</a></h1>
+<h1 id="documenting-the-generated-functions" class="section-header"><a href="#documenting-the-generated-functions">Documenting the Generated Functions</a></h1>
 <p>In many cases, users will wish for the functions generated by the <code>ioctl</code>
 macro to be public and documented. For this reason, the generated functions
 are public by default. If you wish to hide the ioctl, you will need to put
 them in a private module.</p>
-<p>For documentation, it is possible to use doc comments inside the <code>ioctl!</code>
-macro. Here is an example :</p>
+<p>For documentation, it is possible to use doc comments inside the <code>ioctl_*!</code> macros. Here is an
+example :</p>
 
-<pre class="rust rust-example-rendered">
-<span class="macro">ioctl</span><span class="macro">!</span> {
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="macro">ioctl_read</span><span class="macro">!</span> {
     <span class="doccomment">/// Make the given terminal the controlling terminal of the calling process. The calling</span>
     <span class="doccomment">/// process must be a session leader and not have a controlling terminal already. If the</span>
     <span class="doccomment">/// terminal is already the controlling terminal of a different session group then the</span>
     <span class="doccomment">/// ioctl will fail with **EPERM**, unless the caller is root (more precisely: has the</span>
     <span class="doccomment">/// **CAP_SYS_ADMIN** capability) and arg equals 1, in which case the terminal is stolen</span>
     <span class="doccomment">/// and all processes that had it as controlling terminal lose it.</span>
-    <span class="ident">read</span> <span class="ident">tiocsctty</span> <span class="ident">with</span> <span class="string">b&#39;t&#39;</span>, <span class="number">19</span>; <span class="ident">c_int</span>
+    <span class="ident">tiocsctty</span>, <span class="string">b&#39;t&#39;</span>, <span class="number">19</span>, <span class="ident">c_int</span>
 }
-</pre>
-</div></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "nix";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

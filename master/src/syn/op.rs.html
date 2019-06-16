@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.14.2/src/op.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>op.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.15.36/src/op.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>op.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../syn/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -222,15 +222,14 @@
 <span id="222">222</span>
 <span id="223">223</span>
 <span id="224">224</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2018 Syn Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="macro">ast_enum</span><span class="macro">!</span> {
     <span class="doccomment">/// A binary operator: `+`, `+=`, `&amp;`.</span>
     <span class="doccomment">///</span>
@@ -316,82 +315,97 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">parsing</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">synom</span>::<span class="ident">Synom</span>;
 
-    <span class="kw">impl</span> <span class="ident">BinOp</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_binop</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&amp;&amp;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">And</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">||</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Or</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;&lt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Shl</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;&gt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Shr</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">==</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Eq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Le</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Ne</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Ge</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">+</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Add</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Sub</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">*</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Mul</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">/</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Div</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">%</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Rem</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">^</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitXor</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitAnd</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">|</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitOr</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Lt</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">Gt</span> }
-        ));
+    <span class="kw">use</span> <span class="ident">parse</span>::{<span class="ident">Parse</span>, <span class="ident">ParseStream</span>, <span class="prelude-ty">Result</span>};
 
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-        <span class="macro">named</span><span class="macro">!</span>(<span class="kw">pub</span> <span class="ident">parse_assign_op</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">+=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">AddEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">SubEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">*=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">MulEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">/=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">DivEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">%=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">RemEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">^=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitXorEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&amp;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitAndEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">|=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">BitOrEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&lt;&lt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">ShlEq</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">&gt;&gt;=</span>) <span class="op">=&gt;</span> { <span class="ident">BinOp</span>::<span class="ident">ShrEq</span> }
-        ));
+    <span class="kw">fn</span> <span class="ident">parse_binop</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">BinOp</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&amp;&amp;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">And</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">||</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Or</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;&lt;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Shl</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;&gt;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Shr</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">==</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Eq</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;=</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Le</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!=</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Ne</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;=</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Ge</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Add</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Sub</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Mul</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">/</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Div</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">%</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Rem</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">^</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitXor</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">&amp;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitAnd</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">|</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitOr</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Lt</span>)
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;</span>]) {
+            <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">Gt</span>)
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">input</span>.<span class="ident">error</span>(<span class="string">&quot;expected binary operator&quot;</span>))
+        }
     }
 
-    <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">UnOp</span> {
-        <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw-2">*</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Deref</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">!</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Not</span> }
-            <span class="op">|</span>
-            <span class="macro">punct</span><span class="macro">!</span>(<span class="op">-</span>) <span class="op">=&gt;</span> { <span class="ident">UnOp</span>::<span class="ident">Neg</span> }
-        ));
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">BinOp</span> {
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>))]</span>
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="ident">parse_binop</span>(<span class="ident">input</span>)
+        }
 
-        <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;unary operator: `*`, `!`, or `-`&quot;</span>)
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">+=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">AddEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">SubEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">*=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">MulEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">/=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">DivEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">%=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">RemEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">^=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitXorEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&amp;=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitAndEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">|=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">BitOrEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&lt;&lt;=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">ShlEq</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">input</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">&gt;&gt;=</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">BinOp</span>::<span class="ident">ShrEq</span>)
+            } <span class="kw">else</span> {
+                <span class="ident">parse_binop</span>(<span class="ident">input</span>)
+            }
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Parse</span> <span class="kw">for</span> <span class="ident">UnOp</span> {
+        <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">ParseStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="ident">lookahead</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">lookahead1</span>();
+            <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw-2">*</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">UnOp</span>::<span class="ident">Deref</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">!</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">UnOp</span>::<span class="ident">Not</span>)
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">lookahead</span>.<span class="ident">peek</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="op">-</span>]) {
+                <span class="ident">input</span>.<span class="ident">parse</span>().<span class="ident">map</span>(<span class="ident">UnOp</span>::<span class="ident">Neg</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Err</span>(<span class="ident">lookahead</span>.<span class="ident">error</span>())
+            }
         }
     }
 }
@@ -447,5 +461,5 @@
         }
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

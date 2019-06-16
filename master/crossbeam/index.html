@@ -1,104 +1,46 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `crossbeam` crate."><meta name="keywords" content="rust, rustlang, rust-lang, crossbeam"><title>crossbeam - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate crossbeam</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'crossbeam', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>crossbeam</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/crossbeam/lib.rs.html#1-67' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Support for concurrent and parallel programming.</p>
-<p>This crate is an early work in progress. The focus for the moment is
-concurrency:</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `crossbeam` crate."><meta name="keywords" content="rust, rustlang, rust-lang, crossbeam"><title>crossbeam - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../crossbeam/index.html'><img src='../rust-logo.png' alt='logo' width='100'></a><p class='location'>Crate crossbeam</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all crossbeam's items</p></a><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'crossbeam', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/crossbeam/lib.rs.html#1-131' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>crossbeam</a></span></h1><div class='docblock'><p>Crossbeam supports concurrent programming, especially focusing on memory
+management, synchronization, and non-blocking data structures.</p>
+<p>Crossbeam consists of several submodules:</p>
 <ul>
 <li>
-<p><strong>Non-blocking data structures</strong>. These data structures allow for high
-performance, highly-concurrent access, much superior to wrapping with a
-<code>Mutex</code>. Ultimately the goal is to include stacks, queues, deques, bags,
-sets and maps. These live in the <code>sync</code> module.</p>
+<p><code>atomic</code> for <strong>enhancing <code>std::sync</code> API</strong>. <code>AtomicConsume</code> provides
+C/C++11-style &quot;consume&quot; atomic operations (re-exported from
+[<code>crossbeam-utils</code>]). <code>ArcCell</code> provides atomic storage and retrieval of
+<code>Arc</code>.</p>
 </li>
 <li>
-<p><strong>Memory management</strong>. Because non-blocking data structures avoid global
-synchronization, it is not easy to tell when internal data can be safely
-freed. The <code>mem</code> module provides generic, easy to use, and high-performance
-APIs for managing memory in these cases. These live in the <code>mem</code> module.</p>
+<p><code>utils</code> and <code>thread</code> for <strong>utilities</strong>, re-exported from [<code>crossbeam-utils</code>].
+The &quot;scoped&quot; thread API in <code>thread</code> makes it possible to spawn threads that
+share stack data with their parents. The <code>utils::CachePadded</code> struct inserts
+padding to align data with the size of a cacheline. This crate also seeks to
+expand the standard library's few synchronization primitives (locks,
+barriers, etc) to include advanced/niche primitives, as well as userspace
+alternatives.</p>
 </li>
 <li>
-<p><strong>Synchronization</strong>. The standard library provides a few synchronization
-primitives (locks, barriers, etc) but this crate seeks to expand that set
-to include more advanced/niche primitives, as well as userspace
-alternatives. These live in the <code>sync</code> module.</p>
+<p><code>epoch</code> for <strong>memory management</strong>, re-exported from [<code>crossbeam-epoch</code>].
+Because non-blocking data structures avoid global synchronization, it is not
+easy to tell when internal data can be safely freed. The crate provides
+generic, easy to use, and high-performance APIs for managing memory in these
+cases. We plan to support other memory management schemes, e.g. hazard
+pointers (HP) and quiescent state-based reclamation (QSBR).</p>
 </li>
 <li>
-<p><strong>Scoped thread API</strong>. Finally, the crate provides a &quot;scoped&quot; thread API,
-making it possible to spawn threads that share stack data with their
-parents. This functionality is exported at the top-level.</p>
+<p><strong>Concurrent data structures</strong> which are non-blocking and much superior to
+wrapping sequential ones with a <code>Mutex</code>. Crossbeam currently provides
+channels (re-exported from [<code>crossbeam-channel</code>]), deques
+(re-exported from [<code>crossbeam-deque</code>]), queues, and stacks. Ultimately the
+goal is to also include bags, sets and maps.</p>
 </li>
 </ul>
-</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="epoch/index.html"
-                                  title='mod crossbeam::epoch'>epoch</a></td>
-                           <td class='docblock-short'>
-                                <p>Epoch-based memory management</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="mod" href="sync/index.html"
-                                  title='mod crossbeam::sync'>sync</a></td>
-                           <td class='docblock-short'>
-                                <p>Synchronization primitives.</p>
-
-                           </td>
-                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.CachePadded.html"
-                                  title='struct crossbeam::CachePadded'>CachePadded</a></td>
-                           <td class='docblock-short'>
-                                <p>Pad <code>T</code> to the length of a cacheline.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Scope.html"
-                                  title='struct crossbeam::Scope'>Scope</a></td>
-                           <td class='docblock-short'>
-                                
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ScopedJoinHandle.html"
-                                  title='struct crossbeam::ScopedJoinHandle'>ScopedJoinHandle</a></td>
-                           <td class='docblock-short'>
-                                <p>A handle to a scoped thread</p>
-
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.ZerosValid.html"
-                                  title='trait crossbeam::ZerosValid'>ZerosValid</a></td>
-                           <td class='docblock-short'>
-                                <p>Types for which mem::zeroed() is safe.</p>
-
-                           </td>
-                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.builder_spawn_unsafe.html"
-                                  title='fn crossbeam::builder_spawn_unsafe'>builder_spawn_unsafe</a><a title='unsafe function' href='#'><sup>⚠</sup></a></td>
-                           <td class='docblock-short'>
-                                <p>Like <code>std::thread::Builder::spawn</code>, but without the closure bounds.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.scope.html"
-                                  title='fn crossbeam::scope'>scope</a></td>
-                           <td class='docblock-short'>
-                                <p>Create a new <code>scope</code>, for deferred destructors.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="fn" href="fn.spawn_unsafe.html"
-                                  title='fn crossbeam::spawn_unsafe'>spawn_unsafe</a><a title='unsafe function' href='#'><sup>⚠</sup></a></td>
-                           <td class='docblock-short'>
-                                <p>Like <code>std::thread::spawn</code>, but without the closure bounds.</p>
-
-                           </td>
-                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "crossbeam";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use _epoch::<a class="mod" href="../crossbeam_epoch/index.html" title="mod crossbeam_epoch">crossbeam_epoch</a> as epoch;</code></td></tr><tr><td><code>pub use _deque::<a class="mod" href="../crossbeam_deque/index.html" title="mod crossbeam_deque">crossbeam_deque</a> as deque;</code></td></tr><tr><td><code>pub use _channel::<a class="mod" href="../crossbeam_channel/index.html" title="mod crossbeam_channel">crossbeam_channel</a> as channel;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="atomic/index.html" title='crossbeam::atomic mod'>atomic</a></td><td class='docblock-short'><p>Additional utilities for atomics.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="queue/index.html" title='crossbeam::queue mod'>queue</a></td><td class='docblock-short'><p>Concurrent queues.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="stack/index.html" title='crossbeam::stack mod'>stack</a></td><td class='docblock-short'><p>Concurrent stacks.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="sync/index.html" title='crossbeam::sync mod'>sync</a></td><td class='docblock-short'><p>Utilities for thread synchronization.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="thread/index.html" title='crossbeam::thread mod'>thread</a></td><td class='docblock-short'><p>Threads that can borrow variables from the stack.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="utils/index.html" title='crossbeam::utils mod'>utils</a></td><td class='docblock-short'><p>Utilities for concurrent programming.</p>
+</td></tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table><tr class='module-item'><td><a class="fn" href="fn.scope.html" title='crossbeam::scope fn'>scope</a></td><td class='docblock-short'><p>Creates a new scope for spawning threads.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "crossbeam";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/common/bitpacker.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bitpacker.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/common/bitpacker.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bitpacker.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -142,59 +142,10 @@
 <span id="142">142</span>
 <span id="143">143</span>
 <span id="144">144</span>
-<span id="145">145</span>
-<span id="146">146</span>
-<span id="147">147</span>
-<span id="148">148</span>
-<span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
-<span id="154">154</span>
-<span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
-<span id="160">160</span>
-<span id="161">161</span>
-<span id="162">162</span>
-<span id="163">163</span>
-<span id="164">164</span>
-<span id="165">165</span>
-<span id="166">166</span>
-<span id="167">167</span>
-<span id="168">168</span>
-<span id="169">169</span>
-<span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
-<span id="177">177</span>
-<span id="178">178</span>
-<span id="179">179</span>
-<span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
-<span id="187">187</span>
-<span id="188">188</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">serialize</span>::<span class="ident">BinarySerializable</span>;
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ByteOrder</span>, <span class="ident">LittleEndian</span>, <span class="ident">WriteBytesExt</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
-
-
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">BitPacker</span> {
     <span class="ident">mini_buffer</span>: <span class="ident">u64</span>,
@@ -209,7 +160,7 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">Write</span><span class="op">&gt;</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">val</span>: <span class="ident">u64</span>,
         <span class="ident">num_bits</span>: <span class="ident">u8</span>,
@@ -219,14 +170,14 @@
         <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">+</span> <span class="ident">num_bits</span> <span class="op">&gt;</span> <span class="number">64</span> {
             <span class="self">self</span>.<span class="ident">mini_buffer</span> <span class="op">|=</span> <span class="ident">val_u64</span>.<span class="ident">wrapping_shl</span>(<span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="kw">as</span> <span class="ident">u32</span>);
-            <span class="self">self</span>.<span class="ident">mini_buffer</span>.<span class="ident">serialize</span>(<span class="ident">output</span>)<span class="question-mark">?</span>;
+            <span class="ident">output</span>.<span class="ident">write_u64</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">mini_buffer</span>)<span class="question-mark">?</span>;
             <span class="self">self</span>.<span class="ident">mini_buffer</span> <span class="op">=</span> <span class="ident">val_u64</span>.<span class="ident">wrapping_shr</span>((<span class="number">64</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span>) <span class="kw">as</span> <span class="ident">u32</span>);
             <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">+</span> <span class="ident">num_bits</span> <span class="op">-</span> <span class="number">64</span>;
         } <span class="kw">else</span> {
             <span class="self">self</span>.<span class="ident">mini_buffer</span> <span class="op">|=</span> <span class="ident">val_u64</span> <span class="op">&lt;&lt;</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span>;
             <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">+=</span> <span class="ident">num_bits</span>;
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">==</span> <span class="number">64</span> {
-                <span class="self">self</span>.<span class="ident">mini_buffer</span>.<span class="ident">serialize</span>(<span class="ident">output</span>)<span class="question-mark">?</span>;
+                <span class="ident">output</span>.<span class="ident">write_u64</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">mini_buffer</span>)<span class="question-mark">?</span>;
                 <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="self">self</span>.<span class="ident">mini_buffer</span> <span class="op">=</span> <span class="number">0u64</span>;
             }
@@ -234,17 +185,18 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flush</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TWrite</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flush</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TWrite</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">let</span> <span class="ident">num_bytes</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">+</span> <span class="number">7</span>) <span class="op">/</span> <span class="number">8</span>;
-            <span class="kw">let</span> <span class="ident">arr</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">u64</span>, [<span class="ident">u8</span>; <span class="number">8</span>]<span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">mini_buffer</span>.<span class="ident">to_le</span>()) };
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">arr</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
+            <span class="ident">LittleEndian</span>::<span class="ident">write_u64</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">arr</span>, <span class="self">self</span>.<span class="ident">mini_buffer</span>);
             <span class="ident">output</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">arr</span>[..<span class="ident">num_bytes</span>])<span class="question-mark">?</span>;
             <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">=</span> <span class="number">0</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">close</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TWrite</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">close</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TWrite</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">flush</span>(<span class="ident">output</span>)<span class="question-mark">?</span>;
         <span class="comment">// Padding the write file to simplify reads.</span>
         <span class="ident">output</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">7</span>])<span class="question-mark">?</span>;
@@ -257,7 +209,7 @@
 <span class="kw">where</span>
     <span class="ident">Data</span>: <span class="ident">Deref</span><span class="op">&lt;</span><span class="ident">Target</span> <span class="op">=</span> [<span class="ident">u8</span>]<span class="op">&gt;</span>,
 {
-    <span class="ident">num_bits</span>: <span class="ident">usize</span>,
+    <span class="ident">num_bits</span>: <span class="ident">u64</span>,
     <span class="ident">mask</span>: <span class="ident">u64</span>,
     <span class="ident">data</span>: <span class="ident">Data</span>,
 }
@@ -273,13 +225,13 @@
             (<span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">num_bits</span>) <span class="op">-</span> <span class="number">1u64</span>
         };
         <span class="ident">BitUnpacker</span> {
-            <span class="ident">num_bits</span>: <span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>,
+            <span class="ident">num_bits</span>: <span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">num_bits</span>),
             <span class="ident">mask</span>,
             <span class="ident">data</span>,
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">num_bits</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="kw">return</span> <span class="number">0u64</span>;
         }
@@ -290,39 +242,12 @@
         <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&gt;&gt;</span> <span class="number">3</span>;
         <span class="kw">let</span> <span class="ident">bit_shift</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&amp;</span> <span class="number">7</span>;
         <span class="macro">debug_assert</span><span class="macro">!</span>(
-            <span class="ident">addr</span> <span class="op">+</span> <span class="number">8</span> <span class="op">&lt;=</span> <span class="ident">data</span>.<span class="ident">len</span>(),
+            <span class="ident">addr</span> <span class="op">+</span> <span class="number">8</span> <span class="op">&lt;=</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>,
             <span class="string">&quot;The fast field field should have been padded with 7 bytes.&quot;</span>
         );
-        <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span>
-            <span class="ident">u64</span>::<span class="ident">from_le</span>(<span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">data</span>[<span class="ident">addr</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) });
+        <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u64</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[(<span class="ident">addr</span> <span class="kw">as</span> <span class="ident">usize</span>)..]);
         <span class="kw">let</span> <span class="ident">val_shifted</span> <span class="op">=</span> (<span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> <span class="ident">bit_shift</span>) <span class="kw">as</span> <span class="ident">u64</span>;
         <span class="ident">val_shifted</span> <span class="op">&amp;</span> <span class="ident">mask</span>
-    }
-
-    <span class="doccomment">/// Reads a range of values from the fast field.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The range of values read is from</span>
-    <span class="doccomment">/// `[start..start + output.len()[`</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">start</span>: <span class="ident">u32</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u64</span>]) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">num_bits</span> <span class="op">==</span> <span class="number">0</span> {
-            <span class="kw">for</span> <span class="ident">val</span> <span class="kw">in</span> <span class="ident">output</span>.<span class="ident">iter_mut</span>() {
-                <span class="kw-2">*</span><span class="ident">val</span> <span class="op">=</span> <span class="number">0u64</span>;
-            }
-        } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">data</span>;
-            <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">num_bits</span>;
-            <span class="kw">let</span> <span class="ident">mask</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">mask</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">addr_in_bits</span> <span class="op">=</span> (<span class="ident">start</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">*</span> <span class="ident">num_bits</span>;
-            <span class="kw">for</span> <span class="ident">output_val</span> <span class="kw">in</span> <span class="ident">output</span>.<span class="ident">iter_mut</span>() {
-                <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&gt;&gt;</span> <span class="number">3</span>;
-                <span class="kw">let</span> <span class="ident">bit_shift</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&amp;</span> <span class="number">7</span>;
-                <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span>
-                    <span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">data</span>[<span class="ident">addr</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) };
-                <span class="kw">let</span> <span class="ident">val_shifted</span> <span class="op">=</span> (<span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> <span class="ident">bit_shift</span>) <span class="kw">as</span> <span class="ident">u64</span>;
-                <span class="kw-2">*</span><span class="ident">output_val</span> <span class="op">=</span> <span class="ident">val_shifted</span> <span class="op">&amp;</span> <span class="ident">mask</span>;
-                <span class="ident">addr_in_bits</span> <span class="op">+=</span> <span class="ident">num_bits</span>;
-            }
-        }
     }
 }
 
@@ -349,7 +274,7 @@
     <span class="kw">fn</span> <span class="ident">test_bitpacker_util</span>(<span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">num_bits</span>: <span class="ident">u8</span>) {
         <span class="kw">let</span> (<span class="ident">bitunpacker</span>, <span class="ident">vals</span>) <span class="op">=</span> <span class="ident">create_fastfield_bitpacker</span>(<span class="ident">len</span>, <span class="ident">num_bits</span>);
         <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">val</span>) <span class="kw">in</span> <span class="ident">vals</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">bitunpacker</span>.<span class="ident">get</span>(<span class="ident">i</span>), <span class="kw-2">*</span><span class="ident">val</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">bitunpacker</span>.<span class="ident">get</span>(<span class="ident">i</span> <span class="kw">as</span> <span class="ident">u64</span>), <span class="kw-2">*</span><span class="ident">val</span>);
         }
     }
 
@@ -361,19 +286,6 @@
         <span class="ident">test_bitpacker_util</span>(<span class="number">6</span>, <span class="number">14</span>);
         <span class="ident">test_bitpacker_util</span>(<span class="number">1000</span>, <span class="number">14</span>);
     }
-
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_bitpacker_range</span>() {
-        <span class="kw">let</span> (<span class="ident">bitunpacker</span>, <span class="ident">vals</span>) <span class="op">=</span> <span class="ident">create_fastfield_bitpacker</span>(<span class="number">100_000</span>, <span class="number">12</span>);
-        <span class="kw">let</span> <span class="ident">buffer_len</span> <span class="op">=</span> <span class="number">100</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u64</span>; <span class="ident">buffer_len</span>];
-        <span class="kw">for</span> <span class="ident">start</span> <span class="kw">in</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">10</span>, <span class="number">20</span>, <span class="number">100</span>, <span class="number">1_000</span>] {
-            <span class="ident">bitunpacker</span>.<span class="ident">get_range</span>(<span class="ident">start</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..]);
-            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">buffer_len</span> {
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>[<span class="ident">i</span>], <span class="ident">vals</span>[<span class="ident">start</span> <span class="op">+</span> <span class="ident">i</span>]);
-            }
-        }
-    }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

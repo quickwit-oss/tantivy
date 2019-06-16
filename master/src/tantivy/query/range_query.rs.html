@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/range_query.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>range_query.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/query/range_query.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>range_query.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -377,20 +377,43 @@
 <span id="377">377</span>
 <span id="378">378</span>
 <span id="379">379</span>
-</pre><pre class="rust ">
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BitSet</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-<span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorKind</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BitSetDocSet</span>;
+<span class="kw">use</span> <span class="ident">error</span>::<span class="ident">TantivyError</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">explanation</span>::<span class="ident">does_not_match</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">BitSetDocSet</span>, <span class="ident">Explanation</span>};
 <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Scorer</span>, <span class="ident">Weight</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Type</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">IndexRecordOption</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">Bound</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionary</span>, <span class="ident">TermStreamer</span>};
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> {<span class="prelude-ty">Result</span>, <span class="ident">SkipResult</span>};
 
 <span class="kw">fn</span> <span class="ident">map_bound</span><span class="op">&lt;</span><span class="ident">TFrom</span>, <span class="ident">TTo</span>, <span class="ident">Transform</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">TFrom</span>) <span class="op">-&gt;</span> <span class="ident">TTo</span><span class="op">&gt;</span>(
     <span class="ident">bound</span>: <span class="kw-2">&amp;</span><span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">TFrom</span><span class="op">&gt;</span>,
@@ -420,15 +443,14 @@
 <span class="doccomment">/// # #[macro_use]</span>
 <span class="doccomment">/// # extern crate tantivy;</span>
 <span class="doccomment">/// # use tantivy::Index;</span>
-<span class="doccomment">/// # use tantivy::schema::{SchemaBuilder, INT_INDEXED};</span>
-<span class="doccomment">/// # use tantivy::collector::CountCollector;</span>
-<span class="doccomment">/// # use tantivy::query::Query;</span>
+<span class="doccomment">/// # use tantivy::schema::{Schema, INDEXED};</span>
+<span class="doccomment">/// # use tantivy::collector::Count;</span>
 <span class="doccomment">/// # use tantivy::Result;</span>
 <span class="doccomment">/// # use tantivy::query::RangeQuery;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # fn run() -&gt; Result&lt;()&gt; {</span>
-<span class="doccomment">/// #     let mut schema_builder = SchemaBuilder::new();</span>
-<span class="doccomment">/// #     let year_field = schema_builder.add_u64_field(&quot;year&quot;, INT_INDEXED);</span>
+<span class="doccomment">/// #     let mut schema_builder = Schema::builder();</span>
+<span class="doccomment">/// #     let year_field = schema_builder.add_u64_field(&quot;year&quot;, INDEXED);</span>
 <span class="doccomment">/// #     let schema = schema_builder.build();</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// #     let index = Index::create_in_ram(schema);</span>
@@ -442,15 +464,12 @@
 <span class="doccomment">/// #         }</span>
 <span class="doccomment">/// #         index_writer.commit().unwrap();</span>
 <span class="doccomment">/// #     }</span>
-<span class="doccomment">/// #   index.load_searchers()?;</span>
-<span class="doccomment">/// let searcher = index.searcher();</span>
+<span class="doccomment">/// #   let reader = index.reader()?;</span>
+<span class="doccomment">/// let searcher = reader.searcher();</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// let mut count_collector = CountCollector::default();</span>
-<span class="doccomment">/// docs_in_the_sixties.search(&amp;*searcher, &amp;mut count_collector)?;</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// let num_60s_books = count_collector.count();</span>
+<span class="doccomment">/// let num_60s_books = searcher.search(&amp;docs_in_the_sixties, &amp;Count)?;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #     assert_eq!(num_60s_books, 2285);</span>
 <span class="doccomment">/// #     Ok(())</span>
@@ -469,6 +488,28 @@
 }
 
 <span class="kw">impl</span> <span class="ident">RangeQuery</span> {
+    <span class="doccomment">/// Creates a new `RangeQuery` from bounded start and end terms.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If the value type is not correct, something may go terribly wrong when</span>
+    <span class="doccomment">/// the `Weight` object is created.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_term_bounds</span>(
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">value_type</span>: <span class="ident">Type</span>,
+        <span class="ident">left_bound</span>: <span class="kw-2">&amp;</span><span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
+        <span class="ident">right_bound</span>: <span class="kw-2">&amp;</span><span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">RangeQuery</span> {
+        <span class="kw">let</span> <span class="ident">verify_and_unwrap_term</span> <span class="op">=</span> <span class="op">|</span><span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span><span class="op">|</span> {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">field</span>, <span class="ident">val</span>.<span class="ident">field</span>());
+            <span class="ident">val</span>.<span class="ident">value_bytes</span>().<span class="ident">to_owned</span>()
+        };
+        <span class="ident">RangeQuery</span> {
+            <span class="ident">field</span>,
+            <span class="ident">value_type</span>,
+            <span class="ident">left_bound</span>: <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="ident">left_bound</span>, <span class="kw-2">&amp;</span><span class="ident">verify_and_unwrap_term</span>),
+            <span class="ident">right_bound</span>: <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="ident">right_bound</span>, <span class="kw-2">&amp;</span><span class="ident">verify_and_unwrap_term</span>),
+        }
+    }
+
     <span class="doccomment">/// Creates a new `RangeQuery` over a `i64` field.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the field is not of the type `i64`, tantivy</span>
@@ -542,11 +583,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the field is not of the type `Str`, tantivy</span>
     <span class="doccomment">/// will panic when the `Weight` object is created.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_str_bounds</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>(
-        <span class="ident">field</span>: <span class="ident">Field</span>,
-        <span class="ident">left</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">str</span><span class="op">&gt;</span>,
-        <span class="ident">right</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">str</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">RangeQuery</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_str_bounds</span>(<span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">left</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">right</span>: <span class="ident">Bound</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">RangeQuery</span> {
         <span class="kw">let</span> <span class="ident">make_term_val</span> <span class="op">=</span> <span class="op">|</span><span class="ident">val</span>: <span class="op">&amp;&amp;</span><span class="ident">str</span><span class="op">|</span> <span class="ident">val</span>.<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>();
         <span class="ident">RangeQuery</span> {
             <span class="ident">field</span>,
@@ -560,7 +597,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the field is not of the type `Str`, tantivy</span>
     <span class="doccomment">/// will panic when the `Weight` object is created.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_str</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span><span class="op">&gt;</span>(<span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">RangeQuery</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_str</span>(<span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">RangeQuery</span> {
         <span class="ident">RangeQuery</span>::<span class="ident">new_str_bounds</span>(
             <span class="ident">field</span>,
             <span class="ident">Bound</span>::<span class="ident">Included</span>(<span class="ident">range</span>.<span class="ident">start</span>),
@@ -575,12 +612,16 @@
 
     <span class="doccomment">/// Lower bound of range</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">left_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span> {
-        <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">left_bound</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> <span class="ident">Term</span>::<span class="ident">from_field_bytes</span>(<span class="self">self</span>.<span class="ident">field</span>, <span class="ident">bytes</span>))
+        <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">left_bound</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> {
+            <span class="ident">Term</span>::<span class="ident">from_field_bytes</span>(<span class="self">self</span>.<span class="ident">field</span>, <span class="ident">bytes</span>)
+        })
     }
 
     <span class="doccomment">/// Upper bound of range</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">right_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Bound</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span> {
-        <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">right_bound</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> <span class="ident">Term</span>::<span class="ident">from_field_bytes</span>(<span class="self">self</span>.<span class="ident">field</span>, <span class="ident">bytes</span>))
+        <span class="ident">map_bound</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">right_bound</span>, <span class="kw-2">&amp;</span><span class="op">|</span><span class="ident">bytes</span><span class="op">|</span> {
+            <span class="ident">Term</span>::<span class="ident">from_field_bytes</span>(<span class="self">self</span>.<span class="ident">field</span>, <span class="ident">bytes</span>)
+        })
     }
 }
 
@@ -593,7 +634,7 @@
                 <span class="string">&quot;Create a range query of the type {:?}, when the field given was of type {:?}&quot;</span>,
                 <span class="self">self</span>.<span class="ident">value_type</span>, <span class="ident">value_type</span>
             );
-            <span class="macro">bail</span><span class="macro">!</span>(<span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="ident">err_msg</span>))
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">TantivyError</span>::<span class="ident">SchemaError</span>(<span class="ident">err_msg</span>));
         }
         <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RangeWeight</span> {
             <span class="ident">field</span>: <span class="self">self</span>.<span class="ident">field</span>,
@@ -648,15 +689,22 @@
         <span class="kw">let</span> <span class="ident">doc_bitset</span> <span class="op">=</span> <span class="ident">BitSetDocSet</span>::<span class="ident">from</span>(<span class="ident">doc_bitset</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ConstScorer</span>::<span class="ident">new</span>(<span class="ident">doc_bitset</span>)))
     }
+
+    <span class="kw">fn</span> <span class="ident">explain</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Explanation</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">scorer</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>;
+        <span class="kw">if</span> <span class="ident">scorer</span>.<span class="ident">skip_next</span>(<span class="ident">doc</span>) <span class="op">!=</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">does_not_match</span>(<span class="ident">doc</span>));
+        }
+        <span class="prelude-val">Ok</span>(<span class="ident">Explanation</span>::<span class="ident">new</span>(<span class="string">&quot;RangeQuery&quot;</span>, <span class="number">1.0f32</span>))
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">RangeQuery</span>;
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">CountCollector</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">INT_INDEXED</span>};
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Count</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>, <span class="ident">INDEXED</span>};
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">Bound</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
     <span class="kw">use</span> <span class="prelude-ty">Result</span>;
@@ -664,8 +712,8 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_range_query_simple</span>() {
         <span class="kw">fn</span> <span class="ident">run</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
-            <span class="kw">let</span> <span class="ident">year_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;year&quot;</span>, <span class="ident">INT_INDEXED</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
+            <span class="kw">let</span> <span class="ident">year_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;year&quot;</span>, <span class="ident">INDEXED</span>);
             <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
 
             <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
@@ -679,15 +727,14 @@
                 }
                 <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
             }
-            <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">searcher</span>();
 
             <span class="kw">let</span> <span class="ident">docs_in_the_sixties</span> <span class="op">=</span> <span class="ident">RangeQuery</span>::<span class="ident">new_u64</span>(<span class="ident">year_field</span>, <span class="number">1960u64</span>..<span class="number">1970u64</span>);
 
             <span class="comment">// ... or `1960..=1969` if inclusive range is enabled.</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count_collector</span> <span class="op">=</span> <span class="ident">CountCollector</span>::<span class="ident">default</span>();
-            <span class="ident">docs_in_the_sixties</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">count_collector</span>)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">count_collector</span>.<span class="ident">count</span>(), <span class="number">2285</span>);
+            <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">docs_in_the_sixties</span>, <span class="kw-2">&amp;</span><span class="ident">Count</span>)<span class="question-mark">?</span>;
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">count</span>, <span class="number">2285</span>);
             <span class="prelude-val">Ok</span>(())
         }
 
@@ -698,8 +745,8 @@
     <span class="kw">fn</span> <span class="ident">test_range_query</span>() {
         <span class="kw">let</span> <span class="ident">int_field</span>: <span class="ident">Field</span>;
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
-            <span class="ident">int_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_i64_field</span>(<span class="string">&quot;intfield&quot;</span>, <span class="ident">INT_INDEXED</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">Schema</span>::<span class="ident">builder</span>();
+            <span class="ident">int_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_i64_field</span>(<span class="string">&quot;intfield&quot;</span>, <span class="ident">INDEXED</span>);
             <span class="ident">schema_builder</span>.<span class="ident">build</span>()
         };
 
@@ -719,15 +766,10 @@
 
             <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
         }
-        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-        <span class="kw">let</span> <span class="ident">count_multiples</span> <span class="op">=</span> <span class="op">|</span><span class="ident">range_query</span>: <span class="ident">RangeQuery</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count_collector</span> <span class="op">=</span> <span class="ident">CountCollector</span>::<span class="ident">default</span>();
-            <span class="ident">range_query</span>
-                .<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">count_collector</span>)
-                .<span class="ident">unwrap</span>();
-            <span class="ident">count_collector</span>.<span class="ident">count</span>()
-        };
+        <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">reader</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">searcher</span>();
+        <span class="kw">let</span> <span class="ident">count_multiples</span> <span class="op">=</span>
+            <span class="op">|</span><span class="ident">range_query</span>: <span class="ident">RangeQuery</span><span class="op">|</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">range_query</span>, <span class="kw-2">&amp;</span><span class="ident">Count</span>).<span class="ident">unwrap</span>();
 
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">count_multiples</span>(<span class="ident">RangeQuery</span>::<span class="ident">new_i64</span>(<span class="ident">int_field</span>, <span class="number">10</span>..<span class="number">11</span>)), <span class="number">9</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -757,5 +799,5 @@
     }
 
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

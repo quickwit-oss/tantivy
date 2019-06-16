@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/indexer/segment_manager.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>segment_manager.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/indexer/segment_manager.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>segment_manager.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -203,33 +203,12 @@
 <span id="203">203</span>
 <span id="204">204</span>
 <span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-<span id="211">211</span>
-<span id="212">212</span>
-<span id="213">213</span>
-<span id="214">214</span>
-<span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
-<span id="220">220</span>
-<span id="221">221</span>
-<span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_register</span>::<span class="ident">SegmentRegister</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
-<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">LOCKFILE_FILEPATH</span>, <span class="ident">META_FILEPATH</span>};
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
+<span class="kw">use</span> <span class="ident">error</span>::<span class="ident">TantivyError</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentEntry</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_set</span>::<span class="ident">HashSet</span>;
@@ -237,12 +216,12 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">RwLockReadGuard</span>, <span class="ident">RwLockWriteGuard</span>};
+<span class="kw">use</span> <span class="prelude-ty">Result</span> <span class="kw">as</span> <span class="ident">TantivyResult</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">SegmentRegisters</span> {
     <span class="ident">uncommitted</span>: <span class="ident">SegmentRegister</span>,
     <span class="ident">committed</span>: <span class="ident">SegmentRegister</span>,
-    <span class="ident">writing</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">SegmentId</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// The segment manager stores the list of segments</span>
@@ -267,12 +246,17 @@
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_mergeable_segments</span>(
+    <span class="ident">in_merge_segment_ids</span>: <span class="kw-2">&amp;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">SegmentId</span><span class="op">&gt;</span>,
     <span class="ident">segment_manager</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentManager</span>,
 ) <span class="op">-&gt;</span> (<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span>) {
     <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="ident">segment_manager</span>.<span class="ident">read</span>();
     (
-        <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">get_mergeable_segments</span>(),
-        <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">get_mergeable_segments</span>(),
+        <span class="ident">registers_lock</span>
+            .<span class="ident">committed</span>
+            .<span class="ident">get_mergeable_segments</span>(<span class="ident">in_merge_segment_ids</span>),
+        <span class="ident">registers_lock</span>
+            .<span class="ident">uncommitted</span>
+            .<span class="ident">get_mergeable_segments</span>(<span class="ident">in_merge_segment_ids</span>),
     )
 }
 
@@ -285,49 +269,29 @@
             <span class="ident">registers</span>: <span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">SegmentRegisters</span> {
                 <span class="ident">uncommitted</span>: <span class="ident">SegmentRegister</span>::<span class="ident">default</span>(),
                 <span class="ident">committed</span>: <span class="ident">SegmentRegister</span>::<span class="ident">new</span>(<span class="ident">segment_metas</span>, <span class="ident">delete_cursor</span>),
-                <span class="ident">writing</span>: <span class="ident">HashSet</span>::<span class="ident">new</span>(),
             }),
         }
     }
 
     <span class="doccomment">/// Returns all of the segment entries (committed or uncommitted)</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">segment_entries</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentEntry</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_entries</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>().<span class="ident">uncommitted</span>.<span class="ident">segment_entries</span>();
-        <span class="ident">segment_entries</span>.<span class="ident">extend</span>(<span class="self">self</span>.<span class="ident">read</span>().<span class="ident">committed</span>.<span class="ident">segment_entries</span>());
+        <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_entries</span> <span class="op">=</span> <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">segment_entries</span>();
+        <span class="ident">segment_entries</span>.<span class="ident">extend</span>(<span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">segment_entries</span>());
         <span class="ident">segment_entries</span>
     }
 
-    <span class="doccomment">/// Returns the overall number of segments in the `SegmentManager`</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_segments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
-        <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">len</span>()
-    }
-
+    <span class="doccomment">/// List the files that are useful to the index.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This does not include lock files, or files that are obsolete</span>
+    <span class="doccomment">/// but have not yet been deleted by the garbage collector.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">list_files</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">files</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
         <span class="ident">files</span>.<span class="ident">insert</span>(<span class="ident">META_FILEPATH</span>.<span class="ident">clone</span>());
-        <span class="ident">files</span>.<span class="ident">insert</span>(<span class="ident">LOCKFILE_FILEPATH</span>.<span class="ident">clone</span>());
-
-        <span class="kw">let</span> <span class="ident">segment_metas</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">registers_lock</span>
-            .<span class="ident">committed</span>
-            .<span class="ident">get_all_segments</span>()
-            .<span class="ident">into_iter</span>()
-            .<span class="ident">chain</span>(<span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">get_all_segments</span>().<span class="ident">into_iter</span>())
-            .<span class="ident">chain</span>(<span class="ident">registers_lock</span>.<span class="ident">writing</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">map</span>(<span class="ident">SegmentMeta</span>::<span class="ident">new</span>))
-            .<span class="ident">collect</span>();
-        <span class="kw">for</span> <span class="ident">segment_meta</span> <span class="kw">in</span> <span class="ident">segment_metas</span> {
+        <span class="kw">for</span> <span class="ident">segment_meta</span> <span class="kw">in</span> <span class="ident">SegmentMeta</span>::<span class="ident">all</span>() {
             <span class="ident">files</span>.<span class="ident">extend</span>(<span class="ident">segment_meta</span>.<span class="ident">list_files</span>());
         }
         <span class="ident">files</span>
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">segment_entry</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_id</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentId</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentEntry</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">registers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
-        <span class="ident">registers</span>
-            .<span class="ident">committed</span>
-            .<span class="ident">segment_entry</span>(<span class="ident">segment_id</span>)
-            .<span class="ident">or_else</span>(<span class="op">||</span> <span class="ident">registers</span>.<span class="ident">uncommitted</span>.<span class="ident">segment_entry</span>(<span class="ident">segment_id</span>))
     }
 
     <span class="comment">// Lock poisoning should never happen :</span>
@@ -345,6 +309,27 @@
             .<span class="ident">expect</span>(<span class="string">&quot;Failed to acquire write lock on SegmentManager.&quot;</span>)
     }
 
+    <span class="doccomment">/// Deletes all empty segments</span>
+    <span class="kw">fn</span> <span class="ident">remove_empty_segments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
+        <span class="ident">registers_lock</span>
+            .<span class="ident">committed</span>
+            .<span class="ident">segment_entries</span>()
+            .<span class="ident">iter</span>()
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">segment</span><span class="op">|</span> <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">num_docs</span>() <span class="op">==</span> <span class="number">0</span>)
+            .<span class="ident">for_each</span>(<span class="op">|</span><span class="ident">segment</span><span class="op">|</span> {
+                <span class="ident">registers_lock</span>
+                    .<span class="ident">committed</span>
+                    .<span class="ident">remove_segment</span>(<span class="kw-2">&amp;</span><span class="ident">segment</span>.<span class="ident">segment_id</span>())
+            });
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">remove_all_segments</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
+        <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">clear</span>();
+        <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">clear</span>();
+    }
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">commit</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_entries</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentEntry</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
         <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">clear</span>();
@@ -354,65 +339,39 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_merge</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>]) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
+    <span class="doccomment">/// Marks a list of segments as in merge.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns an error if some segments are missing, or if</span>
+    <span class="doccomment">/// the `segment_ids` are not either all committed or all</span>
+    <span class="doccomment">/// uncommitted.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_merge</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>]) <span class="op">-&gt;</span> <span class="ident">TantivyResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentEntry</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_entries</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">if</span> <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">contains_all</span>(<span class="ident">segment_ids</span>) {
             <span class="kw">for</span> <span class="ident">segment_id</span> <span class="kw">in</span> <span class="ident">segment_ids</span> {
-                <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">start_merge</span>(<span class="ident">segment_id</span>);
+                <span class="kw">let</span> <span class="ident">segment_entry</span> <span class="op">=</span> <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>
+                    .<span class="ident">get</span>(<span class="ident">segment_id</span>)
+                    .<span class="ident">expect</span>(<span class="string">&quot;Segment id not found {}. Should never happen because of the contains all if-block.&quot;</span>);
+                <span class="ident">segment_entries</span>.<span class="ident">push</span>(<span class="ident">segment_entry</span>);
             }
         } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">contains_all</span>(<span class="ident">segment_ids</span>) {
             <span class="kw">for</span> <span class="ident">segment_id</span> <span class="kw">in</span> <span class="ident">segment_ids</span> {
-                <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">start_merge</span>(<span class="ident">segment_id</span>);
+                <span class="kw">let</span> <span class="ident">segment_entry</span> <span class="op">=</span> <span class="ident">registers_lock</span>.<span class="ident">committed</span>
+                    .<span class="ident">get</span>(<span class="ident">segment_id</span>)
+                    .<span class="ident">expect</span>(<span class="string">&quot;Segment id not found {}. Should never happen because of the contains all if-block.&quot;</span>);
+                <span class="ident">segment_entries</span>.<span class="ident">push</span>(<span class="ident">segment_entry</span>);
             }
         } <span class="kw">else</span> {
-            <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Merge operation sent for segments that are not all uncommited or commited.&quot;</span>);
+            <span class="kw">let</span> <span class="ident">error_msg</span> <span class="op">=</span> <span class="string">&quot;Merge operation sent for segments that are not \
+                             all uncommited or commited.&quot;</span>
+                .<span class="ident">to_string</span>();
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">TantivyError</span>::<span class="ident">InvalidArgument</span>(<span class="ident">error_msg</span>));
         }
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cancel_merge</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">before_merge_segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>],
-        <span class="ident">after_merge_segment_id</span>: <span class="ident">SegmentId</span>,
-    ) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
-
-        <span class="comment">// we mark all segments are ready for merge.</span>
-        {
-            <span class="kw">let</span> <span class="ident">target_segment_register</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SegmentRegister</span>;
-            <span class="ident">target_segment_register</span> <span class="op">=</span> {
-                <span class="kw">if</span> <span class="ident">registers_lock</span>
-                    .<span class="ident">uncommitted</span>
-                    .<span class="ident">contains_all</span>(<span class="ident">before_merge_segment_ids</span>)
-                {
-                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">registers_lock</span>
-                    .<span class="ident">committed</span>
-                    .<span class="ident">contains_all</span>(<span class="ident">before_merge_segment_ids</span>)
-                {
-                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">registers_lock</span>.<span class="ident">committed</span>
-                } <span class="kw">else</span> {
-                    <span class="macro">warn</span><span class="macro">!</span>(<span class="string">&quot;couldn&#39;t find segment in SegmentManager&quot;</span>);
-                    <span class="kw">return</span>;
-                }
-            };
-            <span class="kw">for</span> <span class="ident">segment_id</span> <span class="kw">in</span> <span class="ident">before_merge_segment_ids</span> {
-                <span class="ident">target_segment_register</span>.<span class="ident">cancel_merge</span>(<span class="ident">segment_id</span>);
-            }
-        }
-
-        <span class="comment">// ... and we make sure the target segment entry</span>
-        <span class="comment">// can be garbage collected.</span>
-        <span class="ident">registers_lock</span>.<span class="ident">writing</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">after_merge_segment_id</span>);
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_segment</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_id</span>: <span class="ident">SegmentId</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
-        <span class="ident">registers_lock</span>.<span class="ident">writing</span>.<span class="ident">insert</span>(<span class="ident">segment_id</span>);
+        <span class="prelude-val">Ok</span>(<span class="ident">segment_entries</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_segment</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_entry</span>: <span class="ident">SegmentEntry</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
-        <span class="ident">registers_lock</span>.<span class="ident">writing</span>.<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">segment_entry</span>.<span class="ident">segment_id</span>());
         <span class="ident">registers_lock</span>.<span class="ident">uncommitted</span>.<span class="ident">add_segment_entry</span>(<span class="ident">segment_entry</span>);
     }
 
@@ -422,10 +381,6 @@
         <span class="ident">after_merge_segment_entry</span>: <span class="ident">SegmentEntry</span>,
     ) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>();
-        <span class="ident">registers_lock</span>
-            .<span class="ident">writing</span>
-            .<span class="ident">remove</span>(<span class="kw-2">&amp;</span><span class="ident">after_merge_segment_entry</span>.<span class="ident">segment_id</span>());
-
         <span class="kw">let</span> <span class="ident">target_register</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SegmentRegister</span> <span class="op">=</span> {
             <span class="kw">if</span> <span class="ident">registers_lock</span>
                 .<span class="ident">uncommitted</span>
@@ -449,9 +404,10 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">committed_segment_metas</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">remove_empty_segments</span>();
         <span class="kw">let</span> <span class="ident">registers_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read</span>();
         <span class="ident">registers_lock</span>.<span class="ident">committed</span>.<span class="ident">segment_metas</span>()
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

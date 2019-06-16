@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.8/src/capture.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>capture.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.30/src/capture.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>capture.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../backtrace/index.html'><img src='../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -235,42 +235,409 @@
 <span id="235">235</span>
 <span id="236">236</span>
 <span id="237">237</span>
-</pre><pre class="rust ">
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">raw</span>::<span class="ident">c_void</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">prelude</span>::<span class="ident">v1</span>::<span class="kw-2">*</span>;
 
-<span class="kw">use</span> {<span class="ident">trace</span>, <span class="ident">resolve</span>, <span class="ident">SymbolName</span>};
+<span class="kw">use</span> <span class="ident">types</span>::<span class="ident">c_void</span>;
+<span class="kw">use</span> {<span class="ident">resolve</span>, <span class="ident">resolve_frame</span>, <span class="ident">trace</span>, <span class="ident">Symbol</span>, <span class="ident">SymbolName</span>};
 
 <span class="doccomment">/// Representation of an owned and self-contained backtrace.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This structure can be used to capture a backtrace at various points in a</span>
 <span class="doccomment">/// program and later used to inspect what the backtrace was at that time.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// `Backtrace` supports pretty-printing of backtraces through its `Debug`</span>
+<span class="doccomment">/// implementation.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Required features</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+<span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-rustc&quot;</span>, <span class="ident">derive</span>(<span class="ident">RustcDecodable</span>, <span class="ident">RustcEncodable</span>))]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-serde&quot;</span>, <span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Backtrace</span> {
+    <span class="comment">// Frames here are listed from top-to-bottom of the stack</span>
     <span class="ident">frames</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceFrame</span><span class="op">&gt;</span>,
+    <span class="comment">// The index we believe is the actual start of the backtrace, omitting</span>
+    <span class="comment">// frames like `Backtrace::new` and `backtrace::trace`.</span>
+    <span class="ident">actual_start_index</span>: <span class="ident">usize</span>,
+}
+
+<span class="kw">fn</span> <span class="ident">_assert_send_sync</span>() {
+    <span class="kw">fn</span> <span class="ident">_assert</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Send</span> <span class="op">+</span> <span class="ident">Sync</span><span class="op">&gt;</span>() {}
+    <span class="ident">_assert</span>::<span class="op">&lt;</span><span class="ident">Backtrace</span><span class="op">&gt;</span>();
 }
 
 <span class="doccomment">/// Captured version of a frame in a backtrace.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This type is returned as a list from `Backtrace::frames` and represents one</span>
 <span class="doccomment">/// stack frame in a captured backtrace.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Required features</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+<span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-rustc&quot;</span>, <span class="ident">derive</span>(<span class="ident">RustcDecodable</span>, <span class="ident">RustcEncodable</span>))]</span>
-<span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-serde&quot;</span>, <span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>))]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BacktraceFrame</span> {
-    <span class="ident">ip</span>: <span class="ident">usize</span>,
-    <span class="ident">symbol_address</span>: <span class="ident">usize</span>,
+    <span class="ident">frame</span>: <span class="ident">Frame</span>,
     <span class="ident">symbols</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceSymbol</span><span class="op">&gt;&gt;</span>,
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">enum</span> <span class="ident">Frame</span> {
+    <span class="ident">Raw</span>(::<span class="ident">Frame</span>),
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="ident">Deserialized</span> {
+        <span class="ident">ip</span>: <span class="ident">usize</span>,
+        <span class="ident">symbol_address</span>: <span class="ident">usize</span>,
+    },
+}
+
+<span class="kw">impl</span> <span class="ident">Frame</span> {
+    <span class="kw">fn</span> <span class="ident">ip</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">Frame</span>::<span class="ident">Raw</span>(<span class="kw-2">ref</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">ip</span>(),
+            <span class="ident">Frame</span>::<span class="ident">Deserialized</span> { <span class="ident">ip</span>, .. } <span class="op">=&gt;</span> <span class="ident">ip</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>,
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">symbol_address</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">Frame</span>::<span class="ident">Raw</span>(<span class="kw-2">ref</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">symbol_address</span>(),
+            <span class="ident">Frame</span>::<span class="ident">Deserialized</span> { <span class="ident">symbol_address</span>, .. } <span class="op">=&gt;</span> <span class="ident">symbol_address</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>,
+        }
+    }
 }
 
 <span class="doccomment">/// Captured version of a symbol in a backtrace.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This type is returned as a list from `BacktraceFrame::symbols` and</span>
 <span class="doccomment">/// represents the metadata for a symbol in a backtrace.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Required features</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+<span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-rustc&quot;</span>, <span class="ident">derive</span>(<span class="ident">RustcDecodable</span>, <span class="ident">RustcEncodable</span>))]</span>
 <span class="attribute">#[<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-serde&quot;</span>, <span class="ident">derive</span>(<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>))]</span>
@@ -290,6 +657,12 @@
     <span class="doccomment">/// elsewhere, and the purpose of this value is to be entirely self</span>
     <span class="doccomment">/// contained.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that on some platforms acquiring a full backtrace and resolving it</span>
+    <span class="doccomment">/// can be extremely expensive. If the cost is too much for your application</span>
+    <span class="doccomment">/// it&#39;s recommended to instead use `Backtrace::new_unresolved()` which</span>
+    <span class="doccomment">/// avoids the symbol resolution step (which typically takes the longest)</span>
+    <span class="doccomment">/// and allows deferring that to a later date.</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// # Examples</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// ```</span>
@@ -297,10 +670,17 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// let current_backtrace = Backtrace::new();</span>
     <span class="doccomment">/// ```</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">never</span>)]</span> <span class="comment">// want to make sure there&#39;s a frame here to remove</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Backtrace</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bt</span> <span class="op">=</span> <span class="ident">Backtrace</span>::<span class="ident">new_unresolved</span>();
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">lock_and_platform_init</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bt</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">create</span>(<span class="self">Self</span>::<span class="ident">new</span> <span class="kw">as</span> <span class="ident">usize</span>);
         <span class="ident">bt</span>.<span class="ident">resolve</span>();
-        <span class="kw">return</span> <span class="ident">bt</span>
+        <span class="ident">bt</span>
     }
 
     <span class="doccomment">/// Similar to `new` except that this does not resolve any symbols, this</span>
@@ -321,18 +701,36 @@
     <span class="doccomment">/// current_backtrace.resolve();</span>
     <span class="doccomment">/// println!(&quot;{:?}&quot;, current_backtrace); // symbol names now present</span>
     <span class="doccomment">/// ```</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">never</span>)]</span> <span class="comment">// want to make sure there&#39;s a frame here to remove</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_unresolved</span>() <span class="op">-&gt;</span> <span class="ident">Backtrace</span> {
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">lock_and_platform_init</span>();
+        <span class="self">Self</span>::<span class="ident">create</span>(<span class="self">Self</span>::<span class="ident">new_unresolved</span> <span class="kw">as</span> <span class="ident">usize</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">create</span>(<span class="ident">ip</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Backtrace</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">frames</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actual_start_index</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         <span class="ident">trace</span>(<span class="op">|</span><span class="ident">frame</span><span class="op">|</span> {
             <span class="ident">frames</span>.<span class="ident">push</span>(<span class="ident">BacktraceFrame</span> {
-                <span class="ident">ip</span>: <span class="ident">frame</span>.<span class="ident">ip</span>() <span class="kw">as</span> <span class="ident">usize</span>,
-                <span class="ident">symbol_address</span>: <span class="ident">frame</span>.<span class="ident">symbol_address</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+                <span class="ident">frame</span>: <span class="ident">Frame</span>::<span class="ident">Raw</span>(<span class="ident">frame</span>.<span class="ident">clone</span>()),
                 <span class="ident">symbols</span>: <span class="prelude-val">None</span>,
             });
+
+            <span class="kw">if</span> <span class="ident">frame</span>.<span class="ident">symbol_address</span>() <span class="kw">as</span> <span class="ident">usize</span> <span class="op">==</span> <span class="ident">ip</span> <span class="op">&amp;&amp;</span> <span class="ident">actual_start_index</span>.<span class="ident">is_none</span>() {
+                <span class="ident">actual_start_index</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">frames</span>.<span class="ident">len</span>());
+            }
             <span class="bool-val">true</span>
         });
 
-        <span class="ident">Backtrace</span> { <span class="ident">frames</span>: <span class="ident">frames</span> }
+        <span class="ident">Backtrace</span> {
+            <span class="ident">frames</span>,
+            <span class="ident">actual_start_index</span>: <span class="ident">actual_start_index</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>),
+        }
     }
 
     <span class="doccomment">/// Returns the frames from when this backtrace was captured.</span>
@@ -340,8 +738,13 @@
     <span class="doccomment">/// The first entry of this slice is likely the function `Backtrace::new`,</span>
     <span class="doccomment">/// and the last frame is likely something about how this thread or the main</span>
     <span class="doccomment">/// function started.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">frames</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">BacktraceFrame</span>] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">frames</span>
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">frames</span>[<span class="self">self</span>.<span class="ident">actual_start_index</span>..]
     }
 
     <span class="doccomment">/// If this backtrace was created from `new_unresolved` then this function</span>
@@ -349,17 +752,31 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If this backtrace has been previously resolved or was created through</span>
     <span class="doccomment">/// `new`, this function does nothing.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">resolve</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">lock_and_platform_init</span>();
         <span class="kw">for</span> <span class="ident">frame</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">frames</span>.<span class="ident">iter_mut</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">symbols</span>.<span class="ident">is_none</span>()) {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">symbols</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-            <span class="ident">resolve</span>(<span class="ident">frame</span>.<span class="ident">ip</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>, <span class="op">|</span><span class="ident">symbol</span><span class="op">|</span> {
-                <span class="ident">symbols</span>.<span class="ident">push</span>(<span class="ident">BacktraceSymbol</span> {
-                    <span class="ident">name</span>: <span class="ident">symbol</span>.<span class="ident">name</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-                    <span class="ident">addr</span>: <span class="ident">symbol</span>.<span class="ident">addr</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span> <span class="kw">as</span> <span class="ident">usize</span>),
-                    <span class="ident">filename</span>: <span class="ident">symbol</span>.<span class="ident">filename</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">to_path_buf</span>()),
-                    <span class="ident">lineno</span>: <span class="ident">symbol</span>.<span class="ident">lineno</span>(),
-                });
-            });
+            {
+                <span class="kw">let</span> <span class="ident">sym</span> <span class="op">=</span> <span class="op">|</span><span class="ident">symbol</span>: <span class="kw-2">&amp;</span><span class="ident">Symbol</span><span class="op">|</span> {
+                    <span class="ident">symbols</span>.<span class="ident">push</span>(<span class="ident">BacktraceSymbol</span> {
+                        <span class="ident">name</span>: <span class="ident">symbol</span>.<span class="ident">name</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
+                        <span class="ident">addr</span>: <span class="ident">symbol</span>.<span class="ident">addr</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">a</span><span class="op">|</span> <span class="ident">a</span> <span class="kw">as</span> <span class="ident">usize</span>),
+                        <span class="ident">filename</span>: <span class="ident">symbol</span>.<span class="ident">filename</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">to_owned</span>()),
+                        <span class="ident">lineno</span>: <span class="ident">symbol</span>.<span class="ident">lineno</span>(),
+                    });
+                };
+                <span class="kw">match</span> <span class="ident">frame</span>.<span class="ident">frame</span> {
+                    <span class="ident">Frame</span>::<span class="ident">Raw</span>(<span class="kw-2">ref</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">resolve_frame</span>(<span class="ident">f</span>, <span class="ident">sym</span>),
+                    <span class="ident">Frame</span>::<span class="ident">Deserialized</span> { <span class="ident">ip</span>, .. } <span class="op">=&gt;</span> {
+                        <span class="ident">resolve</span>(<span class="ident">ip</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>, <span class="ident">sym</span>);
+                    }
+                }
+            }
             <span class="ident">frame</span>.<span class="ident">symbols</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">symbols</span>);
         }
     }
@@ -368,7 +785,8 @@
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceFrame</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">Backtrace</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">frames</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceFrame</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Backtrace</span> {
-            <span class="ident">frames</span>: <span class="ident">frames</span>
+            <span class="ident">frames</span>,
+            <span class="ident">actual_start_index</span>: <span class="number">0</span>,
         }
     }
 }
@@ -381,13 +799,23 @@
 
 <span class="kw">impl</span> <span class="ident">BacktraceFrame</span> {
     <span class="doccomment">/// Same as `Frame::ip`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ip</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="self">self</span>.<span class="ident">ip</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
+        <span class="self">self</span>.<span class="ident">frame</span>.<span class="ident">ip</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
     <span class="doccomment">/// Same as `Frame::symbol_address`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">symbol_address</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="self">self</span>.<span class="ident">symbol_address</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
+        <span class="self">self</span>.<span class="ident">frame</span>.<span class="ident">symbol_address</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
     <span class="doccomment">/// Returns the list of symbols that this frame corresponds to.</span>
@@ -399,6 +827,11 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Note that if this frame came from an unresolved backtrace then this will</span>
     <span class="doccomment">/// return an empty list.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">symbols</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">BacktraceSymbol</span>] {
         <span class="self">self</span>.<span class="ident">symbols</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">s</span>[..]).<span class="ident">unwrap_or</span>(<span class="kw-2">&amp;</span>[])
     }
@@ -406,21 +839,41 @@
 
 <span class="kw">impl</span> <span class="ident">BacktraceSymbol</span> {
     <span class="doccomment">/// Same as `Symbol::name`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SymbolName</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">SymbolName</span>::<span class="ident">new</span>(<span class="ident">s</span>))
     }
 
     <span class="doccomment">/// Same as `Symbol::addr`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">addr</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>)
     }
 
     <span class="doccomment">/// Same as `Symbol::filename`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">filename</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">filename</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">p</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">p</span>)
     }
 
     <span class="doccomment">/// Same as `Symbol::lineno`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Required features</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This function requires the `std` feature of the `backtrace` crate to be</span>
+    <span class="doccomment">/// enabled, and the `std` feature is enabled by default.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">lineno</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">lineno</span>
     }
@@ -428,38 +881,62 @@
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Backtrace</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="kw">let</span> <span class="ident">hex_width</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>() <span class="op">*</span> <span class="number">2</span> <span class="op">+</span> <span class="number">2</span>;
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;stack backtrace:&quot;</span>)<span class="question-mark">?</span>;
 
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;stack backtrace:&quot;</span>));
+        <span class="kw">let</span> <span class="ident">iter</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">fmt</span>.<span class="ident">alternate</span>() {
+            <span class="self">self</span>.<span class="ident">frames</span>.<span class="ident">iter</span>()
+        } <span class="kw">else</span> {
+            <span class="self">self</span>.<span class="ident">frames</span>[<span class="self">self</span>.<span class="ident">actual_start_index</span>..].<span class="ident">iter</span>()
+        };
 
-        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">frame</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">frames</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">let</span> <span class="ident">ip</span> <span class="op">=</span> <span class="ident">frame</span>.<span class="ident">ip</span>();
-            <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n{:4}: {:2$?}&quot;</span>, <span class="ident">idx</span>, <span class="ident">ip</span>, <span class="ident">hex_width</span>));
+        <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">frame</span>) <span class="kw">in</span> <span class="ident">iter</span>.<span class="ident">enumerate</span>() {
+            <span class="comment">// To reduce TCB size in Sgx enclave, we do not want to implement symbol resolution functionality.</span>
+            <span class="comment">// Rather, we can print the offset of the address here, which could be later mapped to</span>
+            <span class="comment">// correct function.</span>
+            <span class="kw">let</span> <span class="ident">ip</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;sgx&quot;</span>)]</span>
+            {
+                <span class="ident">ip</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">wrapping_sub</span>(
+                    <span class="ident">frame</span>.<span class="ident">ip</span>() <span class="kw">as</span> <span class="kw">_</span>,
+                    <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">fortanix_sgx</span>::<span class="ident">mem</span>::<span class="ident">image_base</span>() <span class="kw">as</span> <span class="kw">_</span>,
+                ) <span class="kw">as</span> <span class="kw">_</span>;
+            }
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_env</span> <span class="op">=</span> <span class="string">&quot;sgx&quot;</span>))]</span>
+            {
+                <span class="ident">ip</span> <span class="op">=</span> <span class="ident">frame</span>.<span class="ident">ip</span>();
+            }
+
+            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n{:4}: &quot;</span>, <span class="ident">idx</span>)<span class="question-mark">?</span>;
 
             <span class="kw">let</span> <span class="ident">symbols</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">frame</span>.<span class="ident">symbols</span> {
                 <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span>,
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot; - &lt;unresolved&gt;&quot;</span>));
-                    <span class="kw">continue</span>
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;&lt;unresolved&gt; ({:?})&quot;</span>, <span class="ident">ip</span>)<span class="question-mark">?</span>;
+                    <span class="kw">continue</span>;
                 }
             };
             <span class="kw">if</span> <span class="ident">symbols</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">0</span> {
-                <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot; - &lt;no info&gt;&quot;</span>));
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;&lt;no info&gt; ({:?})&quot;</span>, <span class="ident">ip</span>)<span class="question-mark">?</span>;
+                <span class="kw">continue</span>;
             }
 
             <span class="kw">for</span> (<span class="ident">idx</span>, <span class="ident">symbol</span>) <span class="kw">in</span> <span class="ident">symbols</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                 <span class="kw">if</span> <span class="ident">idx</span> <span class="op">!=</span> <span class="number">0</span> {
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n      {:1$}&quot;</span>, <span class="string">&quot;&quot;</span>, <span class="ident">hex_width</span>));
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n      &quot;</span>)<span class="question-mark">?</span>;
                 }
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span> <span class="ident">symbol</span>.<span class="ident">name</span>() {
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot; - {}&quot;</span>, <span class="ident">name</span>));
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">name</span>)<span class="question-mark">?</span>;
                 } <span class="kw">else</span> {
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot; - &lt;unknown&gt;&quot;</span>));
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;&lt;unknown&gt;&quot;</span>)<span class="question-mark">?</span>;
+                }
+
+                <span class="kw">if</span> <span class="ident">idx</span> <span class="op">==</span> <span class="number">0</span> {
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot; ({:?})&quot;</span>, <span class="ident">ip</span>)<span class="question-mark">?</span>;
                 }
 
                 <span class="kw">if</span> <span class="kw">let</span> (<span class="prelude-val">Some</span>(<span class="ident">file</span>), <span class="prelude-val">Some</span>(<span class="ident">line</span>)) <span class="op">=</span> (<span class="ident">symbol</span>.<span class="ident">filename</span>(), <span class="ident">symbol</span>.<span class="ident">lineno</span>()) {
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n      {:3$}at {}:{}&quot;</span>, <span class="string">&quot;&quot;</span>, <span class="ident">file</span>.<span class="ident">display</span>(), <span class="ident">line</span>, <span class="ident">hex_width</span>));
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;\n             at {}:{}&quot;</span>, <span class="ident">file</span>.<span class="ident">display</span>(), <span class="ident">line</span>)<span class="question-mark">?</span>;
                 }
             }
         }
@@ -473,5 +950,162 @@
         <span class="ident">Backtrace</span>::<span class="ident">new</span>()
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "backtrace";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">BacktraceFrame</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;BacktraceFrame&quot;</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;ip&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">ip</span>())
+            .<span class="ident">field</span>(<span class="string">&quot;symbol_address&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">symbol_address</span>())
+            .<span class="ident">finish</span>()
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">BacktraceSymbol</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fmt</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="ident">fmt</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;BacktraceSymbol&quot;</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;name&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">name</span>())
+            .<span class="ident">field</span>(<span class="string">&quot;addr&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">addr</span>())
+            .<span class="ident">field</span>(<span class="string">&quot;filename&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">filename</span>())
+            .<span class="ident">field</span>(<span class="string">&quot;lineno&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">lineno</span>())
+            .<span class="ident">finish</span>()
+    }
+}
+
+<span class="comment">// When using `dbghelp` on Windows this is a performance optimization. If</span>
+<span class="comment">// we don&#39;t do this then `SymInitializeW` is called once per trace and once per</span>
+<span class="comment">// frame during resolution. That function, however, takes quite some time! To</span>
+<span class="comment">// help speed it up this function can amortize the calls necessary by ensuring</span>
+<span class="comment">// that the scope this is called in only initializes when this is called and</span>
+<span class="comment">// doesn&#39;t reinitialize for the rest of the scope.</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;dbghelp&quot;</span>))]</span>
+<span class="kw">fn</span> <span class="ident">lock_and_platform_init</span>() <span class="op">-&gt;</span> <span class="kw">impl</span> <span class="ident">Drop</span> {
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">ManuallyDrop</span>;
+
+    <span class="kw">struct</span> <span class="ident">Cleanup</span> {
+        <span class="ident">_lock</span>: <span class="kw">crate</span>::<span class="ident">lock</span>::<span class="ident">LockGuard</span>,
+
+        <span class="comment">// Need to make sure this is cleaned up before `_lock`</span>
+        <span class="ident">dbghelp_cleanup</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="kw">crate</span>::<span class="ident">dbghelp</span>::<span class="ident">Cleanup</span><span class="op">&gt;&gt;</span>,
+    }
+
+    <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Cleanup</span> {
+        <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">cleanup</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">dbghelp_cleanup</span>.<span class="ident">as_mut</span>() {
+                <span class="comment">// Unsafety here should be ok since we&#39;re only dropping this in</span>
+                <span class="comment">// `Drop` to ensure it&#39;s dropped before the lock, and `Drop`</span>
+                <span class="comment">// should only be called once.</span>
+                <span class="kw">unsafe</span> {
+                    <span class="ident">ManuallyDrop</span>::<span class="ident">drop</span>(<span class="ident">cleanup</span>);
+                }
+            }
+        }
+    }
+
+    <span class="comment">// Unsafety here should be ok because we only acquire the `dbghelp`</span>
+    <span class="comment">// initialization (the unsafe part) after acquiring the global lock for this</span>
+    <span class="comment">// crate. Note that we&#39;re also careful to drop it before the lock is</span>
+    <span class="comment">// dropped.</span>
+    <span class="kw">unsafe</span> {
+        <span class="ident">Cleanup</span> {
+            <span class="ident">_lock</span>: <span class="kw">crate</span>::<span class="ident">lock</span>::<span class="ident">lock</span>(),
+            <span class="ident">dbghelp_cleanup</span>: <span class="kw">crate</span>::<span class="ident">dbghelp</span>::<span class="ident">init</span>().<span class="ident">ok</span>().<span class="ident">map</span>(<span class="ident">ManuallyDrop</span>::<span class="ident">new</span>),
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;dbghelp&quot;</span>)))]</span>
+<span class="kw">fn</span> <span class="ident">lock_and_platform_init</span>() {}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-rustc&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">rustc_serialize_impls</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">rustc_serialize</span>::{<span class="ident">Decodable</span>, <span class="ident">Decoder</span>, <span class="ident">Encodable</span>, <span class="ident">Encoder</span>};
+
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">RustcEncodable</span>, <span class="ident">RustcDecodable</span>)]</span>
+    <span class="kw">struct</span> <span class="ident">SerializedFrame</span> {
+        <span class="ident">ip</span>: <span class="ident">usize</span>,
+        <span class="ident">symbol_address</span>: <span class="ident">usize</span>,
+        <span class="ident">symbols</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceSymbol</span><span class="op">&gt;&gt;</span>,
+    }
+
+    <span class="kw">impl</span> <span class="ident">Decodable</span> <span class="kw">for</span> <span class="ident">BacktraceFrame</span> {
+        <span class="kw">fn</span> <span class="ident">decode</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">d</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">D</span>: <span class="ident">Decoder</span>,
+        {
+            <span class="kw">let</span> <span class="ident">frame</span>: <span class="ident">SerializedFrame</span> <span class="op">=</span> <span class="ident">SerializedFrame</span>::<span class="ident">decode</span>(<span class="ident">d</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">BacktraceFrame</span> {
+                <span class="ident">frame</span>: <span class="ident">Frame</span>::<span class="ident">Deserialized</span> {
+                    <span class="ident">ip</span>: <span class="ident">frame</span>.<span class="ident">ip</span>,
+                    <span class="ident">symbol_address</span>: <span class="ident">frame</span>.<span class="ident">symbol_address</span>,
+                },
+                <span class="ident">symbols</span>: <span class="ident">frame</span>.<span class="ident">symbols</span>,
+            })
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Encodable</span> <span class="kw">for</span> <span class="ident">BacktraceFrame</span> {
+        <span class="kw">fn</span> <span class="ident">encode</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">e</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">E</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">E</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">E</span>: <span class="ident">Encoder</span>,
+        {
+            <span class="kw">let</span> <span class="ident">BacktraceFrame</span> { <span class="ident">frame</span>, <span class="ident">symbols</span> } <span class="op">=</span> <span class="self">self</span>;
+            <span class="ident">SerializedFrame</span> {
+                <span class="ident">ip</span>: <span class="ident">frame</span>.<span class="ident">ip</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+                <span class="ident">symbol_address</span>: <span class="ident">frame</span>.<span class="ident">symbol_address</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+                <span class="ident">symbols</span>: <span class="ident">symbols</span>.<span class="ident">clone</span>(),
+            }
+            .<span class="ident">encode</span>(<span class="ident">e</span>)
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serialize-serde&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">serde_impls</span> {
+    <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde</span>;
+
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span>;
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>;
+    <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+    <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+    <span class="kw">struct</span> <span class="ident">SerializedFrame</span> {
+        <span class="ident">ip</span>: <span class="ident">usize</span>,
+        <span class="ident">symbol_address</span>: <span class="ident">usize</span>,
+        <span class="ident">symbols</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BacktraceSymbol</span><span class="op">&gt;&gt;</span>,
+    }
+
+    <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">BacktraceFrame</span> {
+        <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">s</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">S</span>: <span class="ident">Serializer</span>,
+        {
+            <span class="kw">let</span> <span class="ident">BacktraceFrame</span> { <span class="ident">frame</span>, <span class="ident">symbols</span> } <span class="op">=</span> <span class="self">self</span>;
+            <span class="ident">SerializedFrame</span> {
+                <span class="ident">ip</span>: <span class="ident">frame</span>.<span class="ident">ip</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+                <span class="ident">symbol_address</span>: <span class="ident">frame</span>.<span class="ident">symbol_address</span>() <span class="kw">as</span> <span class="ident">usize</span>,
+                <span class="ident">symbols</span>: <span class="ident">symbols</span>.<span class="ident">clone</span>(),
+            }
+            .<span class="ident">serialize</span>(<span class="ident">s</span>)
+        }
+    }
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">BacktraceFrame</span> {
+        <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">d</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+        {
+            <span class="kw">let</span> <span class="ident">frame</span>: <span class="ident">SerializedFrame</span> <span class="op">=</span> <span class="ident">SerializedFrame</span>::<span class="ident">deserialize</span>(<span class="ident">d</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">BacktraceFrame</span> {
+                <span class="ident">frame</span>: <span class="ident">Frame</span>::<span class="ident">Deserialized</span> {
+                    <span class="ident">ip</span>: <span class="ident">frame</span>.<span class="ident">ip</span>,
+                    <span class="ident">symbol_address</span>: <span class="ident">frame</span>.<span class="ident">symbol_address</span>,
+                },
+                <span class="ident">symbols</span>: <span class="ident">frame</span>.<span class="ident">symbols</span>,
+            })
+        }
+    }
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "backtrace";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

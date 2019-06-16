@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.9.0/src/sys/socket/sockopt.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sockopt.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/nix-0.14.1/src/sys/socket/sockopt.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>sockopt.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../nix/index.html'><img src='../../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -430,16 +430,293 @@
 <span id="430">430</span>
 <span id="431">431</span>
 <span id="432">432</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ffi</span>, <span class="ident">consts</span>, <span class="ident">GetSockOpt</span>, <span class="ident">SetSockOpt</span>};
-<span class="kw">use</span> {<span class="ident">Errno</span>, <span class="prelude-ty">Result</span>};
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">GetSockOpt</span>, <span class="ident">SetSockOpt</span>};
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">errno</span>::<span class="ident">Errno</span>;
 <span class="kw">use</span> <span class="ident">sys</span>::<span class="ident">time</span>::<span class="ident">TimeVal</span>;
-<span class="kw">use</span> <span class="ident">libc</span>::{<span class="ident">c_int</span>, <span class="ident">uint8_t</span>, <span class="ident">c_void</span>, <span class="ident">socklen_t</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">libc</span>::<span class="ident">sockaddr_in</span>;
+<span class="kw">use</span> <span class="ident">libc</span>::{<span class="self">self</span>, <span class="ident">c_int</span>, <span class="ident">c_void</span>, <span class="ident">socklen_t</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">io</span>::<span class="ident">RawFd</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ffi</span>::{<span class="ident">OsStr</span>, <span class="ident">OsString</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_family</span> <span class="op">=</span> <span class="string">&quot;unix&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">os</span>::<span class="ident">unix</span>::<span class="ident">ffi</span>::<span class="ident">OsStrExt</span>;
 
+<span class="comment">// Constants</span>
+<span class="comment">// TCP_CA_NAME_MAX isn&#39;t defined in user space include files</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span> 
+<span class="kw">const</span> <span class="ident">TCP_CA_NAME_MAX</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">16</span>;
+
+<span class="doccomment">/// Helper for implementing `SetSockOpt` for a given socket option. See</span>
+<span class="doccomment">/// [`::sys::socket::SetSockOpt`](sys/socket/trait.SetSockOpt.html).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This macro aims to help implementing `SetSockOpt` for different socket options that accept</span>
+<span class="doccomment">/// different kinds of data to be used with `setsockopt`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Instead of using this macro directly consider using `sockopt_impl!`, especially if the option</span>
+<span class="doccomment">/// you are implementing represents a simple type.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Arguments</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * `$name:ident`: name of the type you want to implement `SetSockOpt` for.</span>
+<span class="doccomment">/// * `$level:path` : socket layer, or a `protocol level`: could be *raw sockets*</span>
+<span class="doccomment">///    (`libc::SOL_SOCKET`), *ip protocol* (libc::IPPROTO_IP), *tcp protocol* (`libc::IPPROTO_TCP`),</span>
+<span class="doccomment">///    and more. Please refer to your system manual for more options. Will be passed as the second</span>
+<span class="doccomment">///    argument (`level`) to the `setsockopt` call.</span>
+<span class="doccomment">/// * `$flag:path`: a flag name to set. Some examples: `libc::SO_REUSEADDR`, `libc::TCP_NODELAY`,</span>
+<span class="doccomment">///    `libc::IP_ADD_MEMBERSHIP` and others. Will be passed as the third argument (`option_name`)</span>
+<span class="doccomment">///    to the `setsockopt` call.</span>
+<span class="doccomment">/// * Type of the value that you are going to set.</span>
+<span class="doccomment">/// * Type that implements the `Set` trait for the type from the previous item (like `SetBool` for</span>
+<span class="doccomment">///    `bool`, `SetUsize` for `usize`, etc.).</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">setsockopt_impl</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">setter</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span> <span class="ident">SetSockOpt</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> {
@@ -449,9 +726,9 @@
                 <span class="kw">unsafe</span> {
                     <span class="kw">let</span> <span class="ident">setter</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">setter</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">new</span>(<span class="ident">val</span>);
 
-                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">setsockopt</span>(<span class="ident">fd</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>,
-                                              <span class="ident">setter</span>.<span class="ident">ffi_ptr</span>(),
-                                              <span class="ident">setter</span>.<span class="ident">ffi_len</span>());
+                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">setsockopt</span>(<span class="ident">fd</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>,
+                                               <span class="ident">setter</span>.<span class="ident">ffi_ptr</span>(),
+                                               <span class="ident">setter</span>.<span class="ident">ffi_len</span>());
                     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
                 }
             }
@@ -459,6 +736,28 @@
     }
 }
 
+<span class="doccomment">/// Helper for implementing `GetSockOpt` for a given socket option. See</span>
+<span class="doccomment">/// [`::sys::socket::GetSockOpt`](sys/socket/trait.GetSockOpt.html).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This macro aims to help implementing `GetSockOpt` for different socket options that accept</span>
+<span class="doccomment">/// different kinds of data to be use with `getsockopt`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Instead of using this macro directly consider using `sockopt_impl!`, especially if the option</span>
+<span class="doccomment">/// you are implementing represents a simple type.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Arguments</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * Name of the type you want to implement `GetSockOpt` for.</span>
+<span class="doccomment">/// * Socket layer, or a `protocol level`: could be *raw sockets* (`lic::SOL_SOCKET`),  *ip</span>
+<span class="doccomment">///    protocol* (libc::IPPROTO_IP), *tcp protocol* (`libc::IPPROTO_TCP`),  and more. Please refer</span>
+<span class="doccomment">///    to your system manual for more options. Will be passed as the second argument (`level`) to</span>
+<span class="doccomment">///    the `getsockopt` call.</span>
+<span class="doccomment">/// * A flag to set. Some examples: `libc::SO_REUSEADDR`, `libc::TCP_NODELAY`,</span>
+<span class="doccomment">///    `libc::SO_ORIGINAL_DST` and others. Will be passed as the third argument (`option_name`) to</span>
+<span class="doccomment">///    the `getsockopt` call.</span>
+<span class="doccomment">/// * Type of the value that you are going to get.</span>
+<span class="doccomment">/// * Type that implements the `Get` trait for the type from the previous item (`GetBool` for</span>
+<span class="doccomment">///    `bool`, `GetUsize` for `usize`, etc.).</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">getsockopt_impl</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">getter</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span> <span class="ident">GetSockOpt</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> {
@@ -468,10 +767,10 @@
                 <span class="kw">unsafe</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">getter</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">getter</span> <span class="op">=</span> <span class="ident">Get</span>::<span class="ident">blank</span>();
 
-                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">ffi</span>::<span class="ident">getsockopt</span>(<span class="ident">fd</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>,
-                                              <span class="ident">getter</span>.<span class="ident">ffi_ptr</span>(),
-                                              <span class="ident">getter</span>.<span class="ident">ffi_len</span>());
-                    <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>));
+                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">getsockopt</span>(<span class="ident">fd</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>,
+                                               <span class="ident">getter</span>.<span class="ident">ffi_ptr</span>(),
+                                               <span class="ident">getter</span>.<span class="ident">ffi_len</span>());
+                    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>)<span class="question-mark">?</span>;
 
                     <span class="prelude-val">Ok</span>(<span class="ident">getter</span>.<span class="ident">unwrap</span>())
                 }
@@ -480,7 +779,31 @@
     }
 }
 
-<span class="comment">// Helper to generate the sockopt accessors</span>
+<span class="doccomment">/// Helper to generate the sockopt accessors. See</span>
+<span class="doccomment">/// [`::sys::socket::GetSockOpt`](sys/socket/trait.GetSockOpt.html) and</span>
+<span class="doccomment">/// [`::sys::socket::SetSockOpt`](sys/socket/trait.SetSockOpt.html).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This macro aims to help implementing `GetSockOpt` and `SetSockOpt` for different socket options</span>
+<span class="doccomment">/// that accept different kinds of data to be use with `getsockopt` and `setsockopt` respectively.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Basically this macro wraps up the [`getsockopt_impl!`](macro.getsockopt_impl.html) and</span>
+<span class="doccomment">/// [`setsockopt_impl!`](macro.setsockopt_impl.html) macros.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Arguments</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * `GetOnly`, `SetOnly` or `Both`: whether you want to implement only getter, only setter or</span>
+<span class="doccomment">///    both of them.</span>
+<span class="doccomment">/// * `$name:ident`: name of type `GetSockOpt`/`SetSockOpt` will be implemented for.</span>
+<span class="doccomment">/// * `$level:path` : socket layer, or a `protocol level`: could be *raw sockets*</span>
+<span class="doccomment">///    (`lic::SOL_SOCKET`), *ip protocol* (libc::IPPROTO_IP), *tcp protocol* (`libc::IPPROTO_TCP`),</span>
+<span class="doccomment">///    and more. Please refer to your system manual for more options. Will be passed as the second</span>
+<span class="doccomment">///    argument (`level`) to the `getsockopt`/`setsockopt` call.</span>
+<span class="doccomment">/// * `$flag:path`: a flag name to set. Some examples: `libc::SO_REUSEADDR`, `libc::TCP_NODELAY`,</span>
+<span class="doccomment">///    `libc::IP_ADD_MEMBERSHIP` and others. Will be passed as the third argument (`option_name`)</span>
+<span class="doccomment">///    to the `setsockopt`/`getsockopt` call.</span>
+<span class="doccomment">/// * `$ty:ty`: type of the value that will be get/set.</span>
+<span class="doccomment">/// * `$getter:ty`: `Get` implementation; optional; only for `GetOnly` and `Both`.</span>
+<span class="doccomment">/// * `$setter:ty`: `Set` implementation; optional; only for `SetOnly` and `Both`.</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">sockopt_impl</span> {
     (<span class="ident">GetOnly</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">path</span>, <span class="ident">bool</span>) <span class="op">=&gt;</span> {
         <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>, <span class="ident">bool</span>, <span class="ident">GetBool</span>);
@@ -516,6 +839,10 @@
 
     (<span class="ident">Both</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">path</span>, <span class="ident">usize</span>) <span class="op">=&gt;</span> {
         <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>, <span class="ident">usize</span>, <span class="ident">GetUsize</span>, <span class="ident">SetUsize</span>);
+    };
+
+    (<span class="ident">Both</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>:<span class="ident">path</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>:<span class="ident">path</span>, <span class="ident">OsString</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">array</span>:<span class="ident">ty</span><span class="op">&gt;</span>) <span class="op">=&gt;</span> {
+        <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">level</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">flag</span>, <span class="ident">OsString</span>, <span class="ident">GetOsString</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">array</span><span class="op">&gt;</span>, <span class="ident">SetOsString</span>);
     };
 
     <span class="comment">/*
@@ -563,52 +890,152 @@
  *
  */</span>
 
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReuseAddr</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_REUSEADDR</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReusePort</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_REUSEPORT</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpNoDelay</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">consts</span>::<span class="ident">TCP_NODELAY</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Linger</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_LINGER</span>, <span class="kw">super</span>::<span class="ident">linger</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">IpAddMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">consts</span>::<span class="ident">IP_ADD_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">ip_mreq</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">IpDropMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">consts</span>::<span class="ident">IP_DROP_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">ip_mreq</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>)))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6AddMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">consts</span>::<span class="ident">IPV6_ADD_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">ipv6_mreq</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>)))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6DropMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">consts</span>::<span class="ident">IPV6_DROP_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">ipv6_mreq</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6AddMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">consts</span>::<span class="ident">IPV6_JOIN_GROUP</span>, <span class="kw">super</span>::<span class="ident">ipv6_mreq</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6DropMembership</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">consts</span>::<span class="ident">IPV6_LEAVE_GROUP</span>, <span class="kw">super</span>::<span class="ident">ipv6_mreq</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">IpMulticastTtl</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">consts</span>::<span class="ident">IP_MULTICAST_TTL</span>, <span class="ident">u8</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">IpMulticastLoop</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">consts</span>::<span class="ident">IP_MULTICAST_LOOP</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReceiveTimeout</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_RCVTIMEO</span>, <span class="ident">TimeVal</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">SendTimeout</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_SNDTIMEO</span>, <span class="ident">TimeVal</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Broadcast</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_BROADCAST</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">OobInline</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_OOBINLINE</span>, <span class="ident">bool</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">SocketError</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_ERROR</span>, <span class="ident">i32</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">KeepAlive</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_KEEPALIVE</span>, <span class="ident">bool</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">not</span>(<span class="ident">target_arch</span><span class="op">=</span><span class="string">&quot;arm&quot;</span>)))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">PeerCredentials</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_PEERCRED</span>, <span class="kw">super</span>::<span class="ident">ucred</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
-          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpKeepAlive</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">consts</span>::<span class="ident">TCP_KEEPALIVE</span>, <span class="ident">u32</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReuseAddr</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_REUSEADDR</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReusePort</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_REUSEPORT</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpNoDelay</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">libc</span>::<span class="ident">TCP_NODELAY</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Linger</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_LINGER</span>, <span class="ident">libc</span>::<span class="ident">linger</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">IpAddMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_ADD_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">IpMembershipRequest</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">IpDropMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_DROP_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">IpMembershipRequest</span>);
+<span class="macro">cfg_if</span><span class="macro">!</span> {
+    <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span> {
+        <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6AddMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">libc</span>::<span class="ident">IPV6_ADD_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">Ipv6MembershipRequest</span>);
+        <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6DropMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">libc</span>::<span class="ident">IPV6_DROP_MEMBERSHIP</span>, <span class="kw">super</span>::<span class="ident">Ipv6MembershipRequest</span>);
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
+                        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+                        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+                        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+                        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+                        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>))]</span> {
+        <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6AddMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">libc</span>::<span class="ident">IPV6_JOIN_GROUP</span>, <span class="kw">super</span>::<span class="ident">Ipv6MembershipRequest</span>);
+        <span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">Ipv6DropMembership</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">libc</span>::<span class="ident">IPV6_LEAVE_GROUP</span>, <span class="kw">super</span>::<span class="ident">Ipv6MembershipRequest</span>);
+    }
+}
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">IpMulticastTtl</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_MULTICAST_TTL</span>, <span class="ident">u8</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">IpMulticastLoop</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_MULTICAST_LOOP</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReceiveTimeout</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_RCVTIMEO</span>, <span class="ident">TimeVal</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">SendTimeout</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_SNDTIMEO</span>, <span class="ident">TimeVal</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Broadcast</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_BROADCAST</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">OobInline</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_OOBINLINE</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">SocketError</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_ERROR</span>, <span class="ident">i32</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">KeepAlive</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_KEEPALIVE</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">PeerCredentials</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_PEERCRED</span>, <span class="kw">super</span>::<span class="ident">UnixCredentials</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpKeepAlive</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">libc</span>::<span class="ident">TCP_KEEPALIVE</span>, <span class="ident">u32</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
           <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;dragonfly&quot;</span>,
-          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
-          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
-          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;nacl&quot;</span>))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpKeepIdle</span>, <span class="ident">consts</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">consts</span>::<span class="ident">TCP_KEEPIDLE</span>, <span class="ident">u32</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">RcvBuf</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_RCVBUF</span>, <span class="ident">usize</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">SndBuf</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_SNDBUF</span>, <span class="ident">usize</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">RcvBufForce</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_RCVBUFFORCE</span>, <span class="ident">usize</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">not</span>(<span class="ident">target_arch</span><span class="op">=</span><span class="string">&quot;arm&quot;</span>)))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">SndBufForce</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_SNDBUFFORCE</span>, <span class="ident">usize</span>);
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">SockType</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_TYPE</span>, <span class="kw">super</span>::<span class="ident">SockType</span>);
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+          <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
           <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
           <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;nacl&quot;</span>))]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">AcceptConn</span>, <span class="ident">consts</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">consts</span>::<span class="ident">SO_ACCEPTCONN</span>, <span class="ident">bool</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpKeepIdle</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">libc</span>::<span class="ident">TCP_KEEPIDLE</span>, <span class="ident">u32</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">RcvBuf</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_RCVBUF</span>, <span class="ident">usize</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">SndBuf</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_SNDBUF</span>, <span class="ident">usize</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">RcvBufForce</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_RCVBUFFORCE</span>, <span class="ident">usize</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">SetOnly</span>, <span class="ident">SndBufForce</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_SNDBUFFORCE</span>, <span class="ident">usize</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">SockType</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_TYPE</span>, <span class="kw">super</span>::<span class="ident">SockType</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">AcceptConn</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_ACCEPTCONN</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">OriginalDst</span>, <span class="ident">libc</span>::<span class="ident">SOL_IP</span>, <span class="ident">libc</span>::<span class="ident">SO_ORIGINAL_DST</span>, <span class="ident">libc</span>::<span class="ident">sockaddr_in</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">ReceiveTimestamp</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_TIMESTAMP</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">IpTransparent</span>, <span class="ident">libc</span>::<span class="ident">SOL_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_TRANSPARENT</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>)]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">BindAny</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_BINDANY</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>)]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">BindAny</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_BINDANY</span>, <span class="ident">bool</span>);
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
-<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">GetOnly</span>, <span class="ident">OriginalDst</span>, <span class="ident">consts</span>::<span class="ident">SOL_IP</span>, <span class="ident">consts</span>::<span class="ident">SO_ORIGINAL_DST</span>, <span class="ident">sockaddr_in</span>);
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Mark</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_MARK</span>, <span class="ident">u32</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">PassCred</span>, <span class="ident">libc</span>::<span class="ident">SOL_SOCKET</span>, <span class="ident">libc</span>::<span class="ident">SO_PASSCRED</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span> 
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">TcpCongestion</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_TCP</span>, <span class="ident">libc</span>::<span class="ident">TCP_CONGESTION</span>, <span class="ident">OsString</span><span class="op">&lt;</span>[<span class="ident">u8</span>; <span class="ident">TCP_CA_NAME_MAX</span>]<span class="op">&gt;</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Ipv4PacketInfo</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_PKTINFO</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>,
+))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Ipv6RecvPacketInfo</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IPV6</span>, <span class="ident">libc</span>::<span class="ident">IPV6_RECVPKTINFO</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>,
+))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Ipv4RecvIf</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_RECVIF</span>, <span class="ident">bool</span>);
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;netbsd&quot;</span>,
+    <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;openbsd&quot;</span>,
+))]</span>
+<span class="macro">sockopt_impl</span><span class="macro">!</span>(<span class="ident">Both</span>, <span class="ident">Ipv4RecvDstAddr</span>, <span class="ident">libc</span>::<span class="ident">IPPROTO_IP</span>, <span class="ident">libc</span>::<span class="ident">IP_RECVDSTADDR</span>, <span class="ident">bool</span>);
+
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AlgSetAeadAuthSize</span>;
+
+<span class="comment">// ALG_SET_AEAD_AUTH_SIZE read the length from passed `option_len`</span>
+<span class="comment">// See https://elixir.bootlin.com/linux/v4.4/source/crypto/af_alg.c#L222</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span> <span class="ident">SetSockOpt</span> <span class="kw">for</span> <span class="ident">AlgSetAeadAuthSize</span> {
+    <span class="kw">type</span> <span class="ident">Val</span> <span class="op">=</span> <span class="ident">usize</span>;
+
+    <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fd</span>: <span class="ident">RawFd</span>, <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">setsockopt</span>(<span class="ident">fd</span>,
+                                       <span class="ident">libc</span>::<span class="ident">SOL_ALG</span>,
+                                       <span class="ident">libc</span>::<span class="ident">ALG_SET_AEAD_AUTHSIZE</span>,
+                                       ::<span class="ident">std</span>::<span class="ident">ptr</span>::<span class="ident">null</span>(),
+                                       <span class="kw-2">*</span><span class="ident">val</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">socklen_t</span>);
+            <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AlgSetKey</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(::<span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">AlgSetKey</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">AlgSetKey</span>(<span class="ident">Default</span>::<span class="ident">default</span>())
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">SetSockOpt</span> <span class="kw">for</span> <span class="ident">AlgSetKey</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Clone</span> {
+    <span class="kw">type</span> <span class="ident">Val</span> <span class="op">=</span> <span class="ident">T</span>;
+
+    <span class="kw">fn</span> <span class="ident">set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fd</span>: <span class="ident">RawFd</span>, <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">libc</span>::<span class="ident">setsockopt</span>(<span class="ident">fd</span>,
+                                       <span class="ident">libc</span>::<span class="ident">SOL_ALG</span>,
+                                       <span class="ident">libc</span>::<span class="ident">ALG_SET_KEY</span>,
+                                       <span class="ident">val</span>.<span class="ident">as_ref</span>().<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>,
+                                       <span class="ident">val</span>.<span class="ident">as_ref</span>().<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">socklen_t</span>);
+            <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
+        }
+    }
+}
 
 <span class="comment">/*
  *
@@ -616,25 +1043,39 @@
  *
  */</span>
 
-<span class="kw">trait</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+<span class="doccomment">/// Helper trait that describes what is expected from a `GetSockOpt` getter.</span>
+<span class="kw">unsafe</span> <span class="kw">trait</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Returns an empty value.</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span>;
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span>;
+    <span class="doccomment">/// Returns a pointer to the stored value. This pointer will be passed to the system&#39;s</span>
+    <span class="doccomment">/// `getsockopt` call (`man 3p getsockopt`, argument `option_value`).</span>
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>;
+    <span class="doccomment">/// Returns length of the stored value. This pointer will be passed to the system&#39;s</span>
+    <span class="doccomment">/// `getsockopt` call (`man 3p getsockopt`, argument `option_len`).</span>
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span>;
+    <span class="doccomment">/// Returns the stored value.</span>
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">T</span>;
 }
 
-<span class="kw">trait</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+<span class="doccomment">/// Helper trait that describes what is expected from a `SetSockOpt` setter.</span>
+<span class="kw">unsafe</span> <span class="kw">trait</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// Initialize the setter with a given value.</span>
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>;
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span>;
+    <span class="doccomment">/// Returns a pointer to the stored value. This pointer will be passed to the system&#39;s</span>
+    <span class="doccomment">/// `setsockopt` call (`man 3p setsockopt`, argument `option_value`).</span>
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>;
+    <span class="doccomment">/// Returns length of the stored value. This pointer will be passed to the system&#39;s</span>
+    <span class="doccomment">/// `setsockopt` call (`man 3p setsockopt`, argument `option_len`).</span>
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span>;
 }
 
+<span class="doccomment">/// Getter for an arbitrary `struct`.</span>
 <span class="kw">struct</span> <span class="ident">GetStruct</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="ident">len</span>: <span class="ident">socklen_t</span>,
     <span class="ident">val</span>: <span class="ident">T</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetStruct</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetStruct</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">GetStruct</span> {
             <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
@@ -642,12 +1083,12 @@
         }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">T</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">T</span> {
@@ -656,30 +1097,32 @@
     }
 }
 
+<span class="doccomment">/// Setter for an arbitrary `struct`.</span>
 <span class="kw">struct</span> <span class="ident">SetStruct</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
     <span class="ident">ptr</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">T</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetStruct</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetStruct</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">ptr</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">SetStruct</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
         <span class="ident">SetStruct</span> { <span class="ident">ptr</span>: <span class="ident">ptr</span> }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>.<span class="ident">ptr</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="self">self</span>.<span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
         <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>
     }
 }
 
+<span class="doccomment">/// Getter for a boolean value.</span>
 <span class="kw">struct</span> <span class="ident">GetBool</span> {
     <span class="ident">len</span>: <span class="ident">socklen_t</span>,
     <span class="ident">val</span>: <span class="ident">c_int</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetBool</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetBool</span> {
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">GetBool</span> {
             <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
@@ -687,12 +1130,12 @@
         }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_int</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -701,75 +1144,79 @@
     }
 }
 
+<span class="doccomment">/// Setter for a boolean value.</span>
 <span class="kw">struct</span> <span class="ident">SetBool</span> {
     <span class="ident">val</span>: <span class="ident">c_int</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetBool</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetBool</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">SetBool</span> {
         <span class="ident">SetBool</span> { <span class="ident">val</span>: <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">val</span> { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> } }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_int</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
         <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>
     }
 }
 
+<span class="doccomment">/// Getter for an `u8` value.</span>
 <span class="kw">struct</span> <span class="ident">GetU8</span> {
     <span class="ident">len</span>: <span class="ident">socklen_t</span>,
-    <span class="ident">val</span>: <span class="ident">uint8_t</span>,
+    <span class="ident">val</span>: <span class="ident">u8</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetU8</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetU8</span> {
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">GetU8</span> {
-            <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">uint8_t</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
+            <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
             <span class="ident">val</span>: <span class="ident">mem</span>::<span class="ident">zeroed</span>(),
         }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">==</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">uint8_t</span><span class="op">&gt;</span>(), <span class="string">&quot;invalid getsockopt implementation&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">len</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">==</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>(), <span class="string">&quot;invalid getsockopt implementation&quot;</span>);
         <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="ident">u8</span>
     }
 }
 
+<span class="doccomment">/// Setter for an `u8` value.</span>
 <span class="kw">struct</span> <span class="ident">SetU8</span> {
-    <span class="ident">val</span>: <span class="ident">uint8_t</span>,
+    <span class="ident">val</span>: <span class="ident">u8</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetU8</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">u8</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetU8</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">SetU8</span> {
-        <span class="ident">SetU8</span> { <span class="ident">val</span>: <span class="kw-2">*</span><span class="ident">val</span> <span class="kw">as</span> <span class="ident">uint8_t</span> }
+        <span class="ident">SetU8</span> { <span class="ident">val</span>: <span class="kw-2">*</span><span class="ident">val</span> <span class="kw">as</span> <span class="ident">u8</span> }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
         <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>
     }
 }
 
+<span class="doccomment">/// Getter for an `usize` value.</span>
 <span class="kw">struct</span> <span class="ident">GetUsize</span> {
     <span class="ident">len</span>: <span class="ident">socklen_t</span>,
     <span class="ident">val</span>: <span class="ident">c_int</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetUsize</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetUsize</span> {
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">GetUsize</span> {
             <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
@@ -777,12 +1224,12 @@
         }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_int</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -791,36 +1238,84 @@
     }
 }
 
+<span class="doccomment">/// Setter for an `usize` value.</span>
 <span class="kw">struct</span> <span class="ident">SetUsize</span> {
     <span class="ident">val</span>: <span class="ident">c_int</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetUsize</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetUsize</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">SetUsize</span> {
         <span class="ident">SetUsize</span> { <span class="ident">val</span>: <span class="kw-2">*</span><span class="ident">val</span> <span class="kw">as</span> <span class="ident">c_int</span> }
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span>)
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_int</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
     }
 
-    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
         <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">c_int</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>
     }
 }
 
+<span class="doccomment">/// Getter for a `OsString` value.</span>
+<span class="kw">struct</span> <span class="ident">GetOsString</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsMut</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> {
+    <span class="ident">len</span>: <span class="ident">socklen_t</span>,
+    <span class="ident">val</span>: <span class="ident">T</span>,
+}
+
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">AsMut</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;&gt;</span> <span class="ident">Get</span><span class="op">&lt;</span><span class="ident">OsString</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GetOsString</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">blank</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">GetOsString</span> {
+            <span class="ident">len</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>,
+            <span class="ident">val</span>: <span class="ident">mem</span>::<span class="ident">zeroed</span>(),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">T</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">socklen_t</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">len</span>
+    }
+
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">unwrap</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">OsString</span> {
+        <span class="ident">OsStr</span>::<span class="ident">from_bytes</span>(<span class="self">self</span>.<span class="ident">val</span>.<span class="ident">as_mut</span>()).<span class="ident">to_owned</span>()
+    }
+}
+
+<span class="doccomment">/// Setter for a `OsString` value.</span>
+<span class="kw">struct</span> <span class="ident">SetOsString</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">OsStr</span>,
+}
+
+<span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">OsString</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SetOsString</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">OsString</span>) <span class="op">-&gt;</span> <span class="ident">SetOsString</span> {
+        <span class="ident">SetOsString</span> { <span class="ident">val</span>: <span class="ident">val</span>.<span class="ident">as_os_str</span>() }
+    }
+
+    <span class="kw">fn</span> <span class="ident">ffi_ptr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span> {
+        <span class="self">self</span>.<span class="ident">val</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_void</span>
+    }
+
+    <span class="kw">fn</span> <span class="ident">ffi_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">socklen_t</span> {
+        <span class="self">self</span>.<span class="ident">val</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">socklen_t</span>
+    }
+}
+
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">not</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;arm&quot;</span>)))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">can_get_peercred_on_unix_socket</span>() {
         <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="kw-2">*</span>;
 
-        <span class="kw">let</span> (<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=</span> <span class="ident">socketpair</span>(<span class="ident">AddressFamily</span>::<span class="ident">Unix</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="number">0</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> (<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=</span> <span class="ident">socketpair</span>(<span class="ident">AddressFamily</span>::<span class="ident">Unix</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="prelude-val">None</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>()).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">a_cred</span> <span class="op">=</span> <span class="ident">getsockopt</span>(<span class="ident">a</span>, <span class="kw">super</span>::<span class="ident">PeerCredentials</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">b_cred</span> <span class="op">=</span> <span class="ident">getsockopt</span>(<span class="ident">b</span>, <span class="kw">super</span>::<span class="ident">PeerCredentials</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">a_cred</span>, <span class="ident">b_cred</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a_cred</span>.<span class="ident">pid</span> <span class="op">!=</span> <span class="number">0</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a_cred</span>.<span class="ident">pid</span>() <span class="op">!=</span> <span class="number">0</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -828,7 +1323,7 @@
         <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="kw-2">*</span>;
         <span class="kw">use</span> ::<span class="ident">unistd</span>::<span class="ident">close</span>;
 
-        <span class="kw">let</span> (<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=</span> <span class="ident">socketpair</span>(<span class="ident">AddressFamily</span>::<span class="ident">Unix</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="number">0</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> (<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=</span> <span class="ident">socketpair</span>(<span class="ident">AddressFamily</span>::<span class="ident">Unix</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="prelude-val">None</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>()).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">a_type</span> <span class="op">=</span> <span class="ident">getsockopt</span>(<span class="ident">a</span>, <span class="kw">super</span>::<span class="ident">SockType</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a_type</span> <span class="op">==</span> <span class="ident">SockType</span>::<span class="ident">Stream</span>);
         <span class="ident">close</span>(<span class="ident">a</span>).<span class="ident">unwrap</span>();
@@ -840,7 +1335,7 @@
         <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="kw-2">*</span>;
         <span class="kw">use</span> ::<span class="ident">unistd</span>::<span class="ident">close</span>;
 
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">socket</span>(<span class="ident">AddressFamily</span>::<span class="ident">Inet</span>, <span class="ident">SockType</span>::<span class="ident">Datagram</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>(), <span class="number">0</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">socket</span>(<span class="ident">AddressFamily</span>::<span class="ident">Inet</span>, <span class="ident">SockType</span>::<span class="ident">Datagram</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>(), <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">s_type</span> <span class="op">=</span> <span class="ident">getsockopt</span>(<span class="ident">s</span>, <span class="kw">super</span>::<span class="ident">SockType</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s_type</span> <span class="op">==</span> <span class="ident">SockType</span>::<span class="ident">Datagram</span>);
         <span class="ident">close</span>(<span class="ident">s</span>).<span class="ident">unwrap</span>();
@@ -854,7 +1349,7 @@
         <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="kw-2">*</span>;
         <span class="kw">use</span> ::<span class="ident">unistd</span>::<span class="ident">close</span>;
 
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">socket</span>(<span class="ident">AddressFamily</span>::<span class="ident">Inet</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>(), <span class="number">0</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">socket</span>(<span class="ident">AddressFamily</span>::<span class="ident">Inet</span>, <span class="ident">SockType</span>::<span class="ident">Stream</span>, <span class="ident">SockFlag</span>::<span class="ident">empty</span>(), <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">s_listening</span> <span class="op">=</span> <span class="ident">getsockopt</span>(<span class="ident">s</span>, <span class="kw">super</span>::<span class="ident">AcceptConn</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">s_listening</span>);
         <span class="ident">listen</span>(<span class="ident">s</span>, <span class="number">10</span>).<span class="ident">unwrap</span>();
@@ -862,6 +1357,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s_listening2</span>);
         <span class="ident">close</span>(<span class="ident">s</span>).<span class="ident">unwrap</span>();
     }
+
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "nix";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "nix";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>

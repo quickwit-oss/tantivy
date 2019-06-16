@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-stemmers-0.1.0/src/snowball/algorithms/portuguese.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>portuguese.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-stemmers-1.1.0/src/snowball/algorithms/portuguese.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>portuguese.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../rust_stemmers/index.html'><img src='../../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1043,78 +1043,49 @@
 <span id="1043">1043</span>
 <span id="1044">1044</span>
 <span id="1045">1045</span>
-<span id="1046">1046</span>
-<span id="1047">1047</span>
-<span id="1048">1048</span>
-<span id="1049">1049</span>
-<span id="1050">1050</span>
-<span id="1051">1051</span>
-<span id="1052">1052</span>
-<span id="1053">1053</span>
-<span id="1054">1054</span>
-<span id="1055">1055</span>
-<span id="1056">1056</span>
-<span id="1057">1057</span>
-<span id="1058">1058</span>
-<span id="1059">1059</span>
-<span id="1060">1060</span>
-<span id="1061">1061</span>
-<span id="1062">1062</span>
-<span id="1063">1063</span>
-<span id="1064">1064</span>
-<span id="1065">1065</span>
-<span id="1066">1066</span>
-<span id="1067">1067</span>
-<span id="1068">1068</span>
-<span id="1069">1069</span>
-<span id="1070">1070</span>
-<span id="1071">1071</span>
-<span id="1072">1072</span>
-<span id="1073">1073</span>
-<span id="1074">1074</span>
-<span id="1075">1075</span>
-<span id="1076">1076</span>
-<span id="1077">1077</span>
-<span id="1078">1078</span>
-</pre><pre class="rust ">
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! This file was generated automatically by the Snowball to Rust compiler</span>
 <span class="doccomment">//! http://snowballstem.org/</span>
 
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_upper_case_globals</span>)]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">non_snake_case</span>)]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_variables</span>)]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_mut</span>)]</span>
 <span class="kw">use</span> <span class="ident">snowball</span>::<span class="ident">SnowballEnv</span>;
 <span class="kw">use</span> <span class="ident">snowball</span>::<span class="ident">Among</span>;
 
-<span class="kw">static</span> <span class="ident">a_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_0</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">3</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00E3}&quot;</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;\u{00F5}&quot;</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;\u{00F5}&quot;</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_1</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">3</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;a~&quot;</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;o~&quot;</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;o~&quot;</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_2</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_2</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;ic&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="op">-</span><span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;ad&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="op">-</span><span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;os&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="op">-</span><span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;iv&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;iv&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_3</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_3</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;ante&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;avel&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;\u{00ED}vel&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;\u{00ED}vel&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_4</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_4</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">3</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;ic&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;abil&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;iv&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;iv&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_5</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">45</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_5</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">45</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;ica&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00E2}ncia&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00EA}ncia&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">4</span>, <span class="prelude-val">None</span>),
@@ -1159,10 +1130,10 @@
     <span class="ident">Among</span>(<span class="string">&quot;osos&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;amentos&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;imentos&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;ivos&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">8</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;ivos&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">8</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_6</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">120</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_6</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">120</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;ada&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;ida&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;ia&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
@@ -1282,878 +1253,841 @@
     <span class="ident">Among</span>(<span class="string">&quot;ou&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;ar\u{00E1}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;er\u{00E1}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;ir\u{00E1}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;ir\u{00E1}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_7</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">7</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_7</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">7</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;a&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;i&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;o&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;os&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00E1}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00ED}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;\u{00F3}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;\u{00F3}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">a_8</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
+<span class="kw">static</span> <span class="ident">A_8</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">Among</span><span class="op">&lt;</span><span class="ident">Context</span><span class="op">&gt;</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
     <span class="ident">Among</span>(<span class="string">&quot;e&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00E7}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">2</span>, <span class="prelude-val">None</span>),
     <span class="ident">Among</span>(<span class="string">&quot;\u{00E9}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
-    <span class="ident">Among</span>(<span class="string">&quot;\u{00EA}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>)
+    <span class="ident">Among</span>(<span class="string">&quot;\u{00EA}&quot;</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">1</span>, <span class="prelude-val">None</span>),
 ];
 
-<span class="kw">static</span> <span class="ident">g_v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">20</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">17</span>, <span class="number">65</span>, <span class="number">16</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">19</span>, <span class="number">12</span>, <span class="number">2</span>];
+<span class="kw">static</span> <span class="ident">G_v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="ident">u8</span>; <span class="number">20</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">17</span>, <span class="number">65</span>, <span class="number">16</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">19</span>, <span class="number">12</span>, <span class="number">2</span>];
 
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Context</span> {
-    <span class="ident">I_p2</span>: <span class="ident">usize</span>,
-    <span class="ident">I_p1</span>: <span class="ident">usize</span>,
-    <span class="ident">I_pV</span>: <span class="ident">usize</span>,
+    <span class="ident">i_p2</span>: <span class="ident">usize</span>,
+    <span class="ident">i_p1</span>: <span class="ident">usize</span>,
+    <span class="ident">i_pV</span>: <span class="ident">usize</span>,
 }
 
-<span class="kw">fn</span> <span class="ident">__r_prelude</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
+<span class="kw">fn</span> <span class="ident">r_prelude</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
     <span class="comment">// repeat, line 36</span>
     <span class="lifetime">&#39;replab0</span>: <span class="kw">loop</span>{
         <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-        <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
+        <span class="lifetime">&#39;lab1</span>: <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1</span> {
             <span class="comment">// (, line 36</span>
             <span class="comment">// [, line 37</span>
             <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
             <span class="comment">// substring, line 37</span>
-            <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among</span>(<span class="ident">a_0</span>);
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                 <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among</span>(<span class="ident">A_0</span>, <span class="ident">context</span>);
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
             }
             <span class="comment">// ], line 37</span>
             <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                 <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-            }
-
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
                 <span class="comment">// (, line 38</span>
                 <span class="comment">// &lt;-, line 38</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;a~&quot;</span>){
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;a~&quot;</span>) {
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span>{
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span> {
                 <span class="comment">// (, line 39</span>
                 <span class="comment">// &lt;-, line 39</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;o~&quot;</span>){
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;o~&quot;</span>) {
                     <span class="kw">return</span> <span class="bool-val">false</span>;
                 }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span>{
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span> {
                 <span class="comment">// (, line 40</span>
                 <span class="comment">// next, line 40</span>
-                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
                 }
                 <span class="ident">env</span>.<span class="ident">next_char</span>();
             }
             <span class="kw">continue</span> <span class="lifetime">&#39;replab0</span>;
-            <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
         }
-        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;;
+        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;
         <span class="kw">break</span> <span class="lifetime">&#39;replab0</span>;
-        }        <span class="kw">return</span> <span class="bool-val">true</span>;
     }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
 
-    <span class="kw">fn</span> <span class="ident">__r_mark_regions</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-        <span class="comment">// (, line 44</span>
-        <span class="ident">context</span>.<span class="ident">I_pV</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;;
-        <span class="ident">context</span>.<span class="ident">I_p1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;;
-        <span class="ident">context</span>.<span class="ident">I_p2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;;
-        <span class="comment">// do, line 50</span>
-        <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-        <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span>{
-            <span class="comment">// (, line 50</span>
-            <span class="comment">// or, line 52</span>
-            <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
-                <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span>{
-                    <span class="comment">// (, line 51</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                    }
-                    <span class="comment">// or, line 51</span>
-                    <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span>{
-                        <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="lifetime">&#39;lab4</span>: <span class="kw">loop</span>{
-                            <span class="comment">// (, line 51</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
-                            }
-                            <span class="comment">// gopast, line 51</span>
-                            <span class="lifetime">&#39;golab5</span>: <span class="kw">loop</span>{
-                                <span class="lifetime">&#39;lab6</span>: <span class="kw">loop</span>{
-                                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                                         <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
-                                    }
-                                    <span class="kw">break</span> <span class="lifetime">&#39;golab5</span>;
-                                    <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
-                                }
-                                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                                     <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
-                                }
-                                <span class="ident">env</span>.<span class="ident">next_char</span>();
-                            }
-                            <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+<span class="kw">fn</span> <span class="ident">r_mark_regions</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="comment">// (, line 44</span>
+    <span class="ident">context</span>.<span class="ident">i_pV</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;
+    <span class="ident">context</span>.<span class="ident">i_p1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;
+    <span class="ident">context</span>.<span class="ident">i_p2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;
+    <span class="comment">// do, line 50</span>
+    <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span> {
+        <span class="comment">// (, line 50</span>
+        <span class="comment">// or, line 52</span>
+        <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span> {
+                <span class="comment">// (, line 51</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+                }
+                <span class="comment">// or, line 51</span>
+                <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span> {
+                    <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                    <span class="lifetime">&#39;lab4</span>: <span class="kw">loop</span> {
+                        <span class="comment">// (, line 51</span>
+                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
                             <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
                         }
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_3</span>;;
-                        <span class="comment">// (, line 51</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                        }
                         <span class="comment">// gopast, line 51</span>
-                        <span class="lifetime">&#39;golab7</span>: <span class="kw">loop</span>{
-                            <span class="lifetime">&#39;lab8</span>: <span class="kw">loop</span>{
-                                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                                     <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
+                        <span class="lifetime">&#39;golab5</span>: <span class="kw">loop</span> {
+                            <span class="lifetime">&#39;lab6</span>: <span class="kw">loop</span> {
+                                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                                    <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
                                 }
-                                <span class="kw">break</span> <span class="lifetime">&#39;golab7</span>;
+                                <span class="kw">break</span> <span class="lifetime">&#39;golab5</span>;
+                            }
+                            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                                <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
+                            }
+                            <span class="ident">env</span>.<span class="ident">next_char</span>();
+                        }
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+                    }
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_3</span>;
+                    <span class="comment">// (, line 51</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+                    }
+                    <span class="comment">// gopast, line 51</span>
+                    <span class="lifetime">&#39;golab7</span>: <span class="kw">loop</span> {
+                        <span class="lifetime">&#39;lab8</span>: <span class="kw">loop</span> {
+                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
                                 <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
                             }
-                            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                            }
-                            <span class="ident">env</span>.<span class="ident">next_char</span>();
+                            <span class="kw">break</span> <span class="lifetime">&#39;golab7</span>;
                         }
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                }
-                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_2</span>;;
-                <span class="comment">// (, line 53</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                }
-                <span class="comment">// or, line 53</span>
-                <span class="lifetime">&#39;lab9</span>: <span class="kw">loop</span>{
-                    <span class="kw">let</span> <span class="ident">v_6</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="lifetime">&#39;lab10</span>: <span class="kw">loop</span>{
-                        <span class="comment">// (, line 53</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab10</span>;
+                        <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                            <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
                         }
-                        <span class="comment">// gopast, line 53</span>
-                        <span class="lifetime">&#39;golab11</span>: <span class="kw">loop</span>{
-                            <span class="lifetime">&#39;lab12</span>: <span class="kw">loop</span>{
-                                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                                     <span class="kw">break</span> <span class="lifetime">&#39;lab12</span>;
-                                }
-                                <span class="kw">break</span> <span class="lifetime">&#39;golab11</span>;
-                                <span class="kw">break</span> <span class="lifetime">&#39;lab12</span>;
-                            }
-                            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab10</span>;
-                            }
-                            <span class="ident">env</span>.<span class="ident">next_char</span>();
-                        }
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab10</span>;
-                    }
-                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_6</span>;;
-                    <span class="comment">// (, line 53</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                    }
-                    <span class="comment">// next, line 53</span>
-                    <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                    }
-                    <span class="ident">env</span>.<span class="ident">next_char</span>();
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
-                }
-                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-            }
-            <span class="comment">// setmark pV, line 54</span>
-            <span class="ident">context</span>.<span class="ident">I_pV</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-        }
-        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;;
-        <span class="comment">// do, line 56</span>
-        <span class="kw">let</span> <span class="ident">v_8</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-        <span class="lifetime">&#39;lab13</span>: <span class="kw">loop</span>{
-            <span class="comment">// (, line 56</span>
-            <span class="comment">// gopast, line 57</span>
-            <span class="lifetime">&#39;golab14</span>: <span class="kw">loop</span>{
-                <span class="lifetime">&#39;lab15</span>: <span class="kw">loop</span>{
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab15</span>;
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;golab14</span>;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab15</span>;
-                }
-                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
-                }
-                <span class="ident">env</span>.<span class="ident">next_char</span>();
-            }
-            <span class="comment">// gopast, line 57</span>
-            <span class="lifetime">&#39;golab16</span>: <span class="kw">loop</span>{
-                <span class="lifetime">&#39;lab17</span>: <span class="kw">loop</span>{
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab17</span>;
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;golab16</span>;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab17</span>;
-                }
-                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
-                }
-                <span class="ident">env</span>.<span class="ident">next_char</span>();
-            }
-            <span class="comment">// setmark p1, line 57</span>
-            <span class="ident">context</span>.<span class="ident">I_p1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// gopast, line 58</span>
-            <span class="lifetime">&#39;golab18</span>: <span class="kw">loop</span>{
-                <span class="lifetime">&#39;lab19</span>: <span class="kw">loop</span>{
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab19</span>;
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;golab18</span>;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab19</span>;
-                }
-                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
-                }
-                <span class="ident">env</span>.<span class="ident">next_char</span>();
-            }
-            <span class="comment">// gopast, line 58</span>
-            <span class="lifetime">&#39;golab20</span>: <span class="kw">loop</span>{
-                <span class="lifetime">&#39;lab21</span>: <span class="kw">loop</span>{
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">g_v</span>, <span class="number">97</span>, <span class="number">250</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab21</span>;
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;golab20</span>;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab21</span>;
-                }
-                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
-                }
-                <span class="ident">env</span>.<span class="ident">next_char</span>();
-            }
-            <span class="comment">// setmark p2, line 58</span>
-            <span class="ident">context</span>.<span class="ident">I_p2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
-        }
-        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_8</span>;;
-        <span class="kw">return</span> <span class="bool-val">true</span>;
-    }
-
-    <span class="kw">fn</span> <span class="ident">__r_postlude</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-        <span class="comment">// repeat, line 62</span>
-        <span class="lifetime">&#39;replab0</span>: <span class="kw">loop</span>{
-            <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
-                <span class="comment">// (, line 62</span>
-                <span class="comment">// [, line 63</span>
-                <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="comment">// substring, line 63</span>
-                <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among</span>(<span class="ident">a_1</span>);
-                <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                }
-                <span class="comment">// ], line 63</span>
-                <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                }
-
-                <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                    <span class="comment">// (, line 64</span>
-                    <span class="comment">// &lt;-, line 64</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;\u{00E3}&quot;</span>){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
-                    }
-                }
-                <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span>{
-                    <span class="comment">// (, line 65</span>
-                    <span class="comment">// &lt;-, line 65</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;\u{00F5}&quot;</span>){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
-                    }
-                }
-                <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span>{
-                    <span class="comment">// (, line 66</span>
-                    <span class="comment">// next, line 66</span>
-                    <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span>{
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                    }
-                    <span class="ident">env</span>.<span class="ident">next_char</span>();
-                }
-                <span class="kw">continue</span> <span class="lifetime">&#39;replab0</span>;
-                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-            }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;;
-            <span class="kw">break</span> <span class="lifetime">&#39;replab0</span>;
-            }            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_RV</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">I_pV</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_R1</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">I_p1</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_R2</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">I_p2</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_standard_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="comment">// (, line 76</span>
-            <span class="comment">// [, line 77</span>
-            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// substring, line 77</span>
-            <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_5</span>);
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="comment">// ], line 77</span>
-            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                <span class="comment">// (, line 92</span>
-                <span class="comment">// call R2, line 93</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 93</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span>{
-                <span class="comment">// (, line 97</span>
-                <span class="comment">// call R2, line 98</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// &lt;-, line 98</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;log&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span>{
-                <span class="comment">// (, line 101</span>
-                <span class="comment">// call R2, line 102</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// &lt;-, line 102</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;u&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">4</span>{
-                <span class="comment">// (, line 105</span>
-                <span class="comment">// call R2, line 106</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// &lt;-, line 106</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;ente&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">5</span>{
-                <span class="comment">// (, line 109</span>
-                <span class="comment">// call R1, line 110</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R1</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 110</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// try, line 111</span>
-                <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span>{
-                    <span class="comment">// (, line 111</span>
-                    <span class="comment">// [, line 112</span>
-                    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// substring, line 112</span>
-                    <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_2</span>);
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                    }
-                    <span class="comment">// ], line 112</span>
-                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// call R2, line 112</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                    }
-                    <span class="comment">// delete, line 112</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
-                    }
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                    }
-
-                    <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                        <span class="comment">// (, line 113</span>
-                        <span class="comment">// [, line 113</span>
-                        <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="comment">// literal, line 113</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;at&quot;</span>){
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                        }
-                        <span class="comment">// ], line 113</span>
-                        <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="comment">// call R2, line 113</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                        }
-                        <span class="comment">// delete, line 113</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                            <span class="kw">return</span> <span class="bool-val">false</span>;
-                        }
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">6</span>{
-                <span class="comment">// (, line 121</span>
-                <span class="comment">// call R2, line 122</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 122</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// try, line 123</span>
-                <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
-                    <span class="comment">// (, line 123</span>
-                    <span class="comment">// [, line 124</span>
-                    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// substring, line 124</span>
-                    <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_3</span>);
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                    }
-                    <span class="comment">// ], line 124</span>
-                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                    }
-
-                    <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                        <span class="comment">// (, line 127</span>
-                        <span class="comment">// call R2, line 127</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                        }
-                        <span class="comment">// delete, line 127</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                            <span class="kw">return</span> <span class="bool-val">false</span>;
-                        }
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">7</span>{
-                <span class="comment">// (, line 133</span>
-                <span class="comment">// call R2, line 134</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 134</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// try, line 135</span>
-                <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span>{
-                    <span class="comment">// (, line 135</span>
-                    <span class="comment">// [, line 136</span>
-                    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// substring, line 136</span>
-                    <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_4</span>);
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                    }
-                    <span class="comment">// ], line 136</span>
-                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                    }
-
-                    <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                        <span class="comment">// (, line 139</span>
-                        <span class="comment">// call R2, line 139</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                        }
-                        <span class="comment">// delete, line 139</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                            <span class="kw">return</span> <span class="bool-val">false</span>;
-                        }
-                    }
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">8</span>{
-                <span class="comment">// (, line 145</span>
-                <span class="comment">// call R2, line 146</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 146</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// try, line 147</span>
-                <span class="kw">let</span> <span class="ident">v_4</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span>{
-                    <span class="comment">// (, line 147</span>
-                    <span class="comment">// [, line 148</span>
-                    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// literal, line 148</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;at&quot;</span>){
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
-                    }
-                    <span class="comment">// ], line 148</span>
-                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// call R2, line 148</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
-                    }
-                    <span class="comment">// delete, line 148</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
+                        <span class="ident">env</span>.<span class="ident">next_char</span>();
                     }
                     <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
                 }
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
             }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">9</span>{
-                <span class="comment">// (, line 152</span>
-                <span class="comment">// call RV, line 153</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// literal, line 153</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;e&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// &lt;-, line 154</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;ir&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_verb_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="comment">// setlimit, line 159</span>
-            <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// tomark, line 159</span>
-            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&lt;</span> <span class="ident">context</span>.<span class="ident">I_pV</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">I_pV</span>;
-            <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit_backward</span>;
-            <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;;
-            <span class="comment">// (, line 159</span>
-            <span class="comment">// [, line 160</span>
-            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// substring, line 160</span>
-            <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_6</span>);
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="comment">// ], line 160</span>
-            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                <span class="comment">// (, line 179</span>
-                <span class="comment">// delete, line 179</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;;
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_residual_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="comment">// (, line 183</span>
-            <span class="comment">// [, line 184</span>
-            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// substring, line 184</span>
-            <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_7</span>);
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="comment">// ], line 184</span>
-            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                <span class="comment">// (, line 187</span>
-                <span class="comment">// call RV, line 187</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 187</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">fn</span> <span class="ident">__r_residual_form</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="comment">// (, line 191</span>
-            <span class="comment">// [, line 192</span>
-            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="comment">// substring, line 192</span>
-            <span class="kw">let</span> <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">a_8</span>);
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-            <span class="comment">// ], line 192</span>
-            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span>{
-                <span class="kw">return</span> <span class="bool-val">false</span>;
-            }
-
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span>{
-                <span class="comment">// (, line 194</span>
-                <span class="comment">// call RV, line 194</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 194</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// [, line 194</span>
-                <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                <span class="comment">// or, line 194</span>
-                <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span>{
-                    <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
-                        <span class="comment">// (, line 194</span>
-                        <span class="comment">// literal, line 194</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;u&quot;</span>){
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                        }
-                        <span class="comment">// ], line 194</span>
-                        <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="comment">// test, line 194</span>
-                        <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="comment">// literal, line 194</span>
-                        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;g&quot;</span>){
-                             <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                        }
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;;
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                    }
-                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;;
-                    <span class="comment">// (, line 195</span>
-                    <span class="comment">// literal, line 195</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;i&quot;</span>){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
-                    }
-                    <span class="comment">// ], line 195</span>
-                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// test, line 195</span>
-                    <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="comment">// literal, line 195</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;c&quot;</span>){
-                        <span class="kw">return</span> <span class="bool-val">false</span>;
-                    }
-                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;;
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                }
-                <span class="comment">// call RV, line 195</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-                <span class="comment">// delete, line 195</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span>{
-                <span class="comment">// (, line 196</span>
-                <span class="comment">// &lt;-, line 196</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;c&quot;</span>){
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">return</span> <span class="bool-val">true</span>;
-        }
-
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">_stem</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>{
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>{
-                <span class="ident">I_p2</span>: <span class="number">0</span>,
-                <span class="ident">I_p1</span>: <span class="number">0</span>,
-                <span class="ident">I_pV</span>: <span class="number">0</span>,
-            };
-            <span class="comment">// (, line 201</span>
-            <span class="comment">// do, line 202</span>
-            <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span>{
-                <span class="comment">// call prelude, line 202</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_prelude</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
-                }
+            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_2</span>;
+            <span class="comment">// (, line 53</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
                 <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
             }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;;
-            <span class="comment">// do, line 203</span>
-            <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span>{
-                <span class="comment">// call mark_regions, line 203</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_mark_regions</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-                }
-                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
-            }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_2</span>;;
-            <span class="comment">// backwards, line 204</span>
-            <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;
-            <span class="comment">// (, line 204</span>
-            <span class="comment">// do, line 205</span>
-            <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span>{
-                <span class="comment">// (, line 205</span>
-                <span class="comment">// or, line 209</span>
-                <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span>{
-                    <span class="kw">let</span> <span class="ident">v_4</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                    <span class="lifetime">&#39;lab4</span>: <span class="kw">loop</span>{
-                        <span class="comment">// (, line 206</span>
-                        <span class="comment">// and, line 207</span>
-                        <span class="kw">let</span> <span class="ident">v_5</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="comment">// (, line 206</span>
-                        <span class="comment">// or, line 206</span>
-                        <span class="lifetime">&#39;lab5</span>: <span class="kw">loop</span>{
-                            <span class="kw">let</span> <span class="ident">v_6</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                            <span class="lifetime">&#39;lab6</span>: <span class="kw">loop</span>{
-                                <span class="comment">// call standard_suffix, line 206</span>
-                                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_standard_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                                     <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
-                                }
-                                <span class="kw">break</span> <span class="lifetime">&#39;lab5</span>;
-                                <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
-                            }
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_6</span>;;
-                            <span class="comment">// call verb_suffix, line 206</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_verb_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
-                            }
-                            <span class="kw">break</span> <span class="lifetime">&#39;lab5</span>;
-                        }
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_5</span>;;
-                        <span class="comment">// do, line 207</span>
-                        <span class="kw">let</span> <span class="ident">v_7</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                        <span class="lifetime">&#39;lab7</span>: <span class="kw">loop</span>{
-                            <span class="comment">// (, line 207</span>
-                            <span class="comment">// [, line 207</span>
-                            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                            <span class="comment">// literal, line 207</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;i&quot;</span>){
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
-                            }
-                            <span class="comment">// ], line 207</span>
-                            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                            <span class="comment">// test, line 207</span>
-                            <span class="kw">let</span> <span class="ident">v_8</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-                            <span class="comment">// literal, line 207</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="string">&quot;c&quot;</span>){
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
-                            }
-                            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_8</span>;;
-                            <span class="comment">// call RV, line 207</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                                 <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
-                            }
-                            <span class="comment">// delete, line 207</span>
-                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>(){
-                                <span class="kw">return</span> <span class="bool-val">false</span>;
-                            }
-                            <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
-                        }
-                        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_7</span>;;
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
-                        <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
+            <span class="comment">// or, line 53</span>
+            <span class="lifetime">&#39;lab9</span>: <span class="kw">loop</span> {
+                <span class="kw">let</span> <span class="ident">v_6</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="lifetime">&#39;lab10</span>: <span class="kw">loop</span> {
+                    <span class="comment">// (, line 53</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab10</span>;
                     }
-                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;;
-                    <span class="comment">// call residual_suffix, line 209</span>
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_residual_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                         <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+                    <span class="comment">// gopast, line 53</span>
+                    <span class="lifetime">&#39;golab11</span>: <span class="kw">loop</span> {
+                        <span class="lifetime">&#39;lab12</span>: <span class="kw">loop</span> {
+                            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                                <span class="kw">break</span> <span class="lifetime">&#39;lab12</span>;
+                            }
+                            <span class="kw">break</span> <span class="lifetime">&#39;golab11</span>;
+                        }
+                        <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                            <span class="kw">break</span> <span class="lifetime">&#39;lab10</span>;
+                        }
+                        <span class="ident">env</span>.<span class="ident">next_char</span>();
                     }
-                    <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
                 }
-                <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
-            }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;;
-            <span class="comment">// do, line 211</span>
-            <span class="kw">let</span> <span class="ident">v_9</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab8</span>: <span class="kw">loop</span>{
-                <span class="comment">// call residual_form, line 211</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_residual_form</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_6</span>;
+                <span class="comment">// (, line 53</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
                 }
-                <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
-            }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_9</span>;;
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit_backward</span>;
-            <span class="comment">// do, line 213</span>
-            <span class="kw">let</span> <span class="ident">v_10</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
-            <span class="lifetime">&#39;lab9</span>: <span class="kw">loop</span>{
-                <span class="comment">// call postlude, line 213</span>
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">__r_postlude</span>(<span class="ident">env</span>, <span class="ident">context</span>){
-                     <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
+                <span class="comment">// next, line 53</span>
+                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
                 }
+                <span class="ident">env</span>.<span class="ident">next_char</span>();
                 <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
             }
-            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_10</span>;;
-            <span class="kw">return</span> <span class="bool-val">true</span>;
+            <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
         }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "rust_stemmers";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>
+        <span class="comment">// setmark pV, line 54</span>
+        <span class="ident">context</span>.<span class="ident">i_pV</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;
+    <span class="comment">// do, line 56</span>
+    <span class="kw">let</span> <span class="ident">v_8</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab13</span>: <span class="kw">loop</span> {
+        <span class="comment">// (, line 56</span>
+        <span class="comment">// gopast, line 57</span>
+        <span class="lifetime">&#39;golab14</span>: <span class="kw">loop</span> {
+            <span class="lifetime">&#39;lab15</span>: <span class="kw">loop</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab15</span>;
+                }
+                <span class="kw">break</span> <span class="lifetime">&#39;golab14</span>;
+            }
+            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">next_char</span>();
+        }
+        <span class="comment">// gopast, line 57</span>
+        <span class="lifetime">&#39;golab16</span>: <span class="kw">loop</span> {
+            <span class="lifetime">&#39;lab17</span>: <span class="kw">loop</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab17</span>;
+                }
+                <span class="kw">break</span> <span class="lifetime">&#39;golab16</span>;
+            }
+            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">next_char</span>();
+        }
+        <span class="comment">// setmark p1, line 57</span>
+        <span class="ident">context</span>.<span class="ident">i_p1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="comment">// gopast, line 58</span>
+        <span class="lifetime">&#39;golab18</span>: <span class="kw">loop</span> {
+            <span class="lifetime">&#39;lab19</span>: <span class="kw">loop</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">in_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab19</span>;
+                }
+                <span class="kw">break</span> <span class="lifetime">&#39;golab18</span>;
+            }
+            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">next_char</span>();
+        }
+        <span class="comment">// gopast, line 58</span>
+        <span class="lifetime">&#39;golab20</span>: <span class="kw">loop</span> {
+            <span class="lifetime">&#39;lab21</span>: <span class="kw">loop</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">out_grouping</span>(<span class="ident">G_v</span>, <span class="number">97</span>, <span class="number">250</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab21</span>;
+                }
+                <span class="kw">break</span> <span class="lifetime">&#39;golab20</span>;
+            }
+            <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">next_char</span>();
+        }
+        <span class="comment">// setmark p2, line 58</span>
+        <span class="ident">context</span>.<span class="ident">i_p2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="kw">break</span> <span class="lifetime">&#39;lab13</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_8</span>;
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_postlude</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
+    <span class="comment">// repeat, line 62</span>
+    <span class="lifetime">&#39;replab0</span>: <span class="kw">loop</span>{
+        <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="lifetime">&#39;lab1</span>: <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1</span> {
+            <span class="comment">// (, line 62</span>
+            <span class="comment">// [, line 63</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// substring, line 63</span>
+            <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among</span>(<span class="ident">A_1</span>, <span class="ident">context</span>);
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            }
+            <span class="comment">// ], line 63</span>
+            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+                <span class="comment">// (, line 64</span>
+                <span class="comment">// &lt;-, line 64</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;\u{00E3}&quot;</span>) {
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span> {
+                <span class="comment">// (, line 65</span>
+                <span class="comment">// &lt;-, line 65</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;\u{00F5}&quot;</span>) {
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span> {
+                <span class="comment">// (, line 66</span>
+                <span class="comment">// next, line 66</span>
+                <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&gt;=</span> <span class="ident">env</span>.<span class="ident">limit</span> {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+                }
+                <span class="ident">env</span>.<span class="ident">next_char</span>();
+            }
+            <span class="kw">continue</span> <span class="lifetime">&#39;replab0</span>;
+        }
+        <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;
+        <span class="kw">break</span> <span class="lifetime">&#39;replab0</span>;
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_RV</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">i_pV</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_R1</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">i_p1</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_R2</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">if</span> <span class="op">!</span>(<span class="ident">context</span>.<span class="ident">i_p2</span> <span class="op">&lt;=</span> <span class="ident">env</span>.<span class="ident">cursor</span>){
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_standard_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
+    <span class="comment">// (, line 76</span>
+    <span class="comment">// [, line 77</span>
+    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="comment">// substring, line 77</span>
+    <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_5</span>, <span class="ident">context</span>);
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="comment">// ], line 77</span>
+    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="comment">// (, line 92</span>
+        <span class="comment">// call R2, line 93</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 93</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span> {
+        <span class="comment">// (, line 97</span>
+        <span class="comment">// call R2, line 98</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// &lt;-, line 98</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;log&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">3</span> {
+        <span class="comment">// (, line 101</span>
+        <span class="comment">// call R2, line 102</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// &lt;-, line 102</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;u&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">4</span> {
+        <span class="comment">// (, line 105</span>
+        <span class="comment">// call R2, line 106</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// &lt;-, line 106</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;ente&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">5</span> {
+        <span class="comment">// (, line 109</span>
+        <span class="comment">// call R1, line 110</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R1</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 110</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// try, line 111</span>
+        <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span> {
+            <span class="comment">// (, line 111</span>
+            <span class="comment">// [, line 112</span>
+            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// substring, line 112</span>
+            <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_2</span>, <span class="ident">context</span>);
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+            }
+            <span class="comment">// ], line 112</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// call R2, line 112</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+            }
+            <span class="comment">// delete, line 112</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                <span class="kw">return</span> <span class="bool-val">false</span>;
+            }
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+                <span class="comment">// (, line 113</span>
+                <span class="comment">// [, line 113</span>
+                <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="comment">// literal, line 113</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;at&quot;</span>) {
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+                }
+                <span class="comment">// ], line 113</span>
+                <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="comment">// call R2, line 113</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+                }
+                <span class="comment">// delete, line 113</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            }
+            <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">6</span> {
+        <span class="comment">// (, line 121</span>
+        <span class="comment">// call R2, line 122</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 122</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// try, line 123</span>
+        <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span> {
+            <span class="comment">// (, line 123</span>
+            <span class="comment">// [, line 124</span>
+            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// substring, line 124</span>
+            <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_3</span>, <span class="ident">context</span>);
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            }
+            <span class="comment">// ], line 124</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+                <span class="comment">// (, line 127</span>
+                <span class="comment">// call R2, line 127</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+                }
+                <span class="comment">// delete, line 127</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            }
+            <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">7</span> {
+        <span class="comment">// (, line 133</span>
+        <span class="comment">// call R2, line 134</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 134</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// try, line 135</span>
+        <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span> {
+            <span class="comment">// (, line 135</span>
+            <span class="comment">// [, line 136</span>
+            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// substring, line 136</span>
+            <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_4</span>, <span class="ident">context</span>);
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+            }
+            <span class="comment">// ], line 136</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+                <span class="comment">// (, line 139</span>
+                <span class="comment">// call R2, line 139</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+                }
+                <span class="comment">// delete, line 139</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                    <span class="kw">return</span> <span class="bool-val">false</span>;
+                }
+            }
+            <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">8</span> {
+        <span class="comment">// (, line 145</span>
+        <span class="comment">// call R2, line 146</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 146</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// try, line 147</span>
+        <span class="kw">let</span> <span class="ident">v_4</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span> {
+            <span class="comment">// (, line 147</span>
+            <span class="comment">// [, line 148</span>
+            <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// literal, line 148</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;at&quot;</span>) {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+            }
+            <span class="comment">// ], line 148</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// call R2, line 148</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">r_R2</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+            }
+            <span class="comment">// delete, line 148</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                <span class="kw">return</span> <span class="bool-val">false</span>;
+            }
+            <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">9</span> {
+        <span class="comment">// (, line 152</span>
+        <span class="comment">// call RV, line 153</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// literal, line 153</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;e&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// &lt;-, line 154</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;ir&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_verb_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
+    <span class="comment">// setlimit, line 159</span>
+    <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="comment">// tomark, line 159</span>
+    <span class="kw">if</span> <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">&lt;</span> <span class="ident">context</span>.<span class="ident">i_pV</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">i_pV</span>;
+    <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit_backward</span>;
+    <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+    <span class="comment">// (, line 159</span>
+    <span class="comment">// [, line 160</span>
+    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="comment">// substring, line 160</span>
+    <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_6</span>, <span class="ident">context</span>);
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="comment">// ], line 160</span>
+    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="comment">// (, line 179</span>
+        <span class="comment">// delete, line 179</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    }
+    <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">v_2</span>;
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_residual_suffix</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
+    <span class="comment">// (, line 183</span>
+    <span class="comment">// [, line 184</span>
+    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="comment">// substring, line 184</span>
+    <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_7</span>, <span class="ident">context</span>);
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="comment">// ], line 184</span>
+    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="comment">// (, line 187</span>
+        <span class="comment">// call RV, line 187</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 187</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">fn</span> <span class="ident">r_residual_form</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>, <span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">among_var</span>;
+    <span class="comment">// (, line 191</span>
+    <span class="comment">// [, line 192</span>
+    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="comment">// substring, line 192</span>
+    <span class="ident">among_var</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">find_among_b</span>(<span class="ident">A_8</span>, <span class="ident">context</span>);
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    }
+    <span class="comment">// ], line 192</span>
+    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">0</span> {
+        <span class="kw">return</span> <span class="bool-val">false</span>;
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="comment">// (, line 194</span>
+        <span class="comment">// call RV, line 194</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 194</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// [, line 194</span>
+        <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+        <span class="comment">// or, line 194</span>
+        <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span> {
+                <span class="comment">// (, line 194</span>
+                <span class="comment">// literal, line 194</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;u&quot;</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+                }
+                <span class="comment">// ], line 194</span>
+                <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="comment">// test, line 194</span>
+                <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="comment">// literal, line 194</span>
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;g&quot;</span>) {
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+                }
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_2</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_1</span>;
+            <span class="comment">// (, line 195</span>
+            <span class="comment">// literal, line 195</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;i&quot;</span>) {
+                <span class="kw">return</span> <span class="bool-val">false</span>;
+            }
+            <span class="comment">// ], line 195</span>
+            <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// test, line 195</span>
+            <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="comment">// literal, line 195</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;c&quot;</span>) {
+                <span class="kw">return</span> <span class="bool-val">false</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
+            <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+        }
+        <span class="comment">// call RV, line 195</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+        <span class="comment">// delete, line 195</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">among_var</span> <span class="op">==</span> <span class="number">2</span> {
+        <span class="comment">// (, line 196</span>
+        <span class="comment">// &lt;-, line 196</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_from</span>(<span class="string">&quot;c&quot;</span>) {
+            <span class="kw">return</span> <span class="bool-val">false</span>;
+        }
+    }
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">stem</span>(<span class="ident">env</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SnowballEnv</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Context</span> {
+        <span class="ident">i_p2</span>: <span class="number">0</span>,
+        <span class="ident">i_p1</span>: <span class="number">0</span>,
+        <span class="ident">i_pV</span>: <span class="number">0</span>,
+    };
+    <span class="comment">// (, line 201</span>
+    <span class="comment">// do, line 202</span>
+    <span class="kw">let</span> <span class="ident">v_1</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab0</span>: <span class="kw">loop</span> {
+        <span class="comment">// call prelude, line 202</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_prelude</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+        }
+        <span class="kw">break</span> <span class="lifetime">&#39;lab0</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_1</span>;
+    <span class="comment">// do, line 203</span>
+    <span class="kw">let</span> <span class="ident">v_2</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab1</span>: <span class="kw">loop</span> {
+        <span class="comment">// call mark_regions, line 203</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_mark_regions</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+        }
+        <span class="kw">break</span> <span class="lifetime">&#39;lab1</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_2</span>;
+    <span class="comment">// backwards, line 204</span>
+    <span class="ident">env</span>.<span class="ident">limit_backward</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span>;
+    <span class="comment">// (, line 204</span>
+    <span class="comment">// do, line 205</span>
+    <span class="kw">let</span> <span class="ident">v_3</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab2</span>: <span class="kw">loop</span> {
+        <span class="comment">// (, line 205</span>
+        <span class="comment">// or, line 209</span>
+        <span class="lifetime">&#39;lab3</span>: <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">v_4</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+            <span class="lifetime">&#39;lab4</span>: <span class="kw">loop</span> {
+                <span class="comment">// (, line 206</span>
+                <span class="comment">// and, line 207</span>
+                <span class="kw">let</span> <span class="ident">v_5</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="comment">// (, line 206</span>
+                <span class="comment">// or, line 206</span>
+                <span class="lifetime">&#39;lab5</span>: <span class="kw">loop</span> {
+                    <span class="kw">let</span> <span class="ident">v_6</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                    <span class="lifetime">&#39;lab6</span>: <span class="kw">loop</span> {
+                        <span class="comment">// call standard_suffix, line 206</span>
+                        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_standard_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                            <span class="kw">break</span> <span class="lifetime">&#39;lab6</span>;
+                        }
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab5</span>;
+                    }
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_6</span>;
+                    <span class="comment">// call verb_suffix, line 206</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">r_verb_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab4</span>;
+                    }
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab5</span>;
+                }
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_5</span>;
+                <span class="comment">// do, line 207</span>
+                <span class="kw">let</span> <span class="ident">v_7</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                <span class="lifetime">&#39;lab7</span>: <span class="kw">loop</span> {
+                    <span class="comment">// (, line 207</span>
+                    <span class="comment">// [, line 207</span>
+                    <span class="ident">env</span>.<span class="ident">ket</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                    <span class="comment">// literal, line 207</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;i&quot;</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
+                    }
+                    <span class="comment">// ], line 207</span>
+                    <span class="ident">env</span>.<span class="ident">bra</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                    <span class="comment">// test, line 207</span>
+                    <span class="kw">let</span> <span class="ident">v_8</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+                    <span class="comment">// literal, line 207</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">eq_s_b</span>(<span class="kw-2">&amp;</span><span class="string">&quot;c&quot;</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
+                    }
+                    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_8</span>;
+                    <span class="comment">// call RV, line 207</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">r_RV</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                        <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
+                    }
+                    <span class="comment">// delete, line 207</span>
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">env</span>.<span class="ident">slice_del</span>() {
+                        <span class="kw">return</span> <span class="bool-val">false</span>;
+                    }
+                    <span class="kw">break</span> <span class="lifetime">&#39;lab7</span>;
+                }
+                <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_7</span>;
+                <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+            }
+            <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_4</span>;
+            <span class="comment">// call residual_suffix, line 209</span>
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">r_residual_suffix</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+                <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+            }
+            <span class="kw">break</span> <span class="lifetime">&#39;lab3</span>;
+        }
+        <span class="kw">break</span> <span class="lifetime">&#39;lab2</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_3</span>;
+    <span class="comment">// do, line 211</span>
+    <span class="kw">let</span> <span class="ident">v_9</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab8</span>: <span class="kw">loop</span> {
+        <span class="comment">// call residual_form, line 211</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_residual_form</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
+        }
+        <span class="kw">break</span> <span class="lifetime">&#39;lab8</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit</span> <span class="op">-</span> <span class="ident">v_9</span>;
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">limit_backward</span>;
+    <span class="comment">// do, line 213</span>
+    <span class="kw">let</span> <span class="ident">v_10</span> <span class="op">=</span> <span class="ident">env</span>.<span class="ident">cursor</span>;
+    <span class="lifetime">&#39;lab9</span>: <span class="kw">loop</span> {
+        <span class="comment">// call postlude, line 213</span>
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">r_postlude</span>(<span class="ident">env</span>, <span class="ident">context</span>) {
+            <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
+        }
+        <span class="kw">break</span> <span class="lifetime">&#39;lab9</span>;
+    }
+    <span class="ident">env</span>.<span class="ident">cursor</span> <span class="op">=</span> <span class="ident">v_10</span>;
+    <span class="kw">return</span> <span class="bool-val">true</span>;
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "rust_stemmers";</script><script src="../../../../aliases.js"></script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>

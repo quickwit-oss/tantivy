@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/directory/ram_directory.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ram_directory.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/directory/ram_directory.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ram_directory.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -181,39 +181,12 @@
 <span id="181">181</span>
 <span id="182">182</span>
 <span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
-<span id="187">187</span>
-<span id="188">188</span>
-<span id="189">189</span>
-<span id="190">190</span>
-<span id="191">191</span>
-<span id="192">192</span>
-<span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
-<span id="196">196</span>
-<span id="197">197</span>
-<span id="198">198</span>
-<span id="199">199</span>
-<span id="200">200</span>
-<span id="201">201</span>
-<span id="202">202</span>
-<span id="203">203</span>
-<span id="204">204</span>
-<span id="205">205</span>
-<span id="206">206</span>
-<span id="207">207</span>
-<span id="208">208</span>
-<span id="209">209</span>
-<span id="210">210</span>
-</pre><pre class="rust ">
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">shared_vec_slice</span>::<span class="ident">SharedVecSlice</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">make_io_err</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">IOError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WatchCallbackList</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">ReadOnlySource</span>};
+<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">ReadOnlySource</span>, <span class="ident">WatchCallback</span>, <span class="ident">WatchHandle</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">BufWriter</span>, <span class="ident">Cursor</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>};
@@ -233,13 +206,13 @@
 <span class="doccomment">///</span>
 <span class="kw">struct</span> <span class="ident">VecWriter</span> {
     <span class="ident">path</span>: <span class="ident">PathBuf</span>,
-    <span class="ident">shared_directory</span>: <span class="ident">InnerDirectory</span>,
+    <span class="ident">shared_directory</span>: <span class="ident">RAMDirectory</span>,
     <span class="ident">data</span>: <span class="ident">Cursor</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span>,
     <span class="ident">is_flushed</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">VecWriter</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path_buf</span>: <span class="ident">PathBuf</span>, <span class="ident">shared_directory</span>: <span class="ident">InnerDirectory</span>) <span class="op">-&gt;</span> <span class="ident">VecWriter</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">path_buf</span>: <span class="ident">PathBuf</span>, <span class="ident">shared_directory</span>: <span class="ident">RAMDirectory</span>) <span class="op">-&gt;</span> <span class="ident">VecWriter</span> {
         <span class="ident">VecWriter</span> {
             <span class="ident">path</span>: <span class="ident">path_buf</span>,
             <span class="ident">data</span>: <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()),
@@ -275,75 +248,44 @@
 
     <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">is_flushed</span> <span class="op">=</span> <span class="bool-val">true</span>;
-        <span class="self">self</span>.<span class="ident">shared_directory</span>
-            .<span class="ident">write</span>(<span class="self">self</span>.<span class="ident">path</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">get_ref</span>())<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">shared_directory</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>();
+        <span class="ident">fs</span>.<span class="ident">write</span>(<span class="self">self</span>.<span class="ident">path</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">get_ref</span>());
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">struct</span> <span class="ident">InnerDirectory</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PathBuf</span>, <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>);
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
+<span class="kw">struct</span> <span class="ident">InnerDirectory</span> {
+    <span class="ident">fs</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">PathBuf</span>, <span class="ident">ReadOnlySource</span><span class="op">&gt;</span>,
+    <span class="ident">watch_router</span>: <span class="ident">WatchCallbackList</span>,
+}
 
 <span class="kw">impl</span> <span class="ident">InnerDirectory</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">InnerDirectory</span> {
-        <span class="ident">InnerDirectory</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">HashMap</span>::<span class="ident">new</span>())))
-    }
-
-    <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="ident">PathBuf</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">write</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-            <span class="ident">make_io_err</span>(<span class="macro">format</span><span class="macro">!</span>(
-                <span class="string">&quot;Failed to lock the directory, when trying to write {:?}&quot;</span>,
-                <span class="ident">path</span>
-            ))
-        })<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">prev_value</span> <span class="op">=</span> <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">path</span>, <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">from</span>(<span class="ident">data</span>)));
-        <span class="prelude-val">Ok</span>(<span class="ident">prev_value</span>.<span class="ident">is_some</span>())
+    <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="ident">PathBuf</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">ReadOnlySource</span>::<span class="ident">new</span>(<span class="ident">Vec</span>::<span class="ident">from</span>(<span class="ident">data</span>));
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">insert</span>(<span class="ident">path</span>, <span class="ident">data</span>).<span class="ident">is_some</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span>, <span class="ident">OpenReadError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">read</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
-                    <span class="string">&quot;Failed to acquire read lock for the \
-                     directory when trying to read {:?}&quot;</span>,
-                    <span class="ident">path</span>
-                );
-                <span class="kw">let</span> <span class="ident">io_err</span> <span class="op">=</span> <span class="ident">make_io_err</span>(<span class="ident">msg</span>);
-                <span class="ident">OpenReadError</span>::<span class="ident">IOError</span>(<span class="ident">IOError</span>::<span class="ident">with_path</span>(<span class="ident">path</span>.<span class="ident">to_owned</span>(), <span class="ident">io_err</span>))
-            })
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">readable_map</span><span class="op">|</span> {
-                <span class="ident">readable_map</span>
-                    .<span class="ident">get</span>(<span class="ident">path</span>)
-                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(<span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>)))
-                    .<span class="ident">map</span>(<span class="ident">Arc</span>::<span class="ident">clone</span>)
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> <span class="ident">ReadOnlySource</span>::<span class="ident">Anonymous</span>(<span class="ident">SharedVecSlice</span>::<span class="ident">new</span>(<span class="ident">data</span>)))
-            })
+        <span class="self">self</span>.<span class="ident">fs</span>
+            .<span class="ident">get</span>(<span class="ident">path</span>)
+            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(<span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>)))
+            .<span class="ident">map</span>(<span class="ident">Clone</span>::<span class="ident">clone</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DeleteError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">write</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
-                    <span class="string">&quot;Failed to acquire write lock for the \
-                     directory when trying to delete {:?}&quot;</span>,
-                    <span class="ident">path</span>
-                );
-                <span class="kw">let</span> <span class="ident">io_err</span> <span class="op">=</span> <span class="ident">make_io_err</span>(<span class="ident">msg</span>);
-                <span class="ident">DeleteError</span>::<span class="ident">IOError</span>(<span class="ident">IOError</span>::<span class="ident">with_path</span>(<span class="ident">path</span>.<span class="ident">to_owned</span>(), <span class="ident">io_err</span>))
-            })
-            .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">writable_map</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">writable_map</span>.<span class="ident">remove</span>(<span class="ident">path</span>) {
-                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-                <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(<span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>))),
-            })
+    <span class="kw">fn</span> <span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DeleteError</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">remove</span>(<span class="ident">path</span>) {
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(<span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>))),
+        }
     }
 
     <span class="kw">fn</span> <span class="ident">exists</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="number">0</span>
-            .<span class="ident">read</span>()
-            .<span class="ident">expect</span>(<span class="string">&quot;Failed to get read lock directory.&quot;</span>)
-            .<span class="ident">contains_key</span>(<span class="ident">path</span>)
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">contains_key</span>(<span class="ident">path</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">watch_handle</span>: <span class="ident">WatchCallback</span>) <span class="op">-&gt;</span> <span class="ident">WatchHandle</span> {
+        <span class="self">self</span>.<span class="ident">watch_router</span>.<span class="ident">subscribe</span>(<span class="ident">watch_handle</span>)
     }
 }
 
@@ -358,33 +300,36 @@
 <span class="doccomment">/// It is mainly meant for unit testing.</span>
 <span class="doccomment">/// Writes are only made visible upon flushing.</span>
 <span class="doccomment">///</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RAMDirectory</span> {
-    <span class="ident">fs</span>: <span class="ident">InnerDirectory</span>,
+    <span class="ident">fs</span>: <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">InnerDirectory</span><span class="op">&gt;&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">RAMDirectory</span> {
     <span class="doccomment">/// Constructor</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>() <span class="op">-&gt;</span> <span class="ident">RAMDirectory</span> {
-        <span class="ident">RAMDirectory</span> {
-            <span class="ident">fs</span>: <span class="ident">InnerDirectory</span>::<span class="ident">new</span>(),
-        }
+        <span class="self">Self</span>::<span class="ident">default</span>()
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Directory</span> <span class="kw">for</span> <span class="ident">RAMDirectory</span> {
     <span class="kw">fn</span> <span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span>, <span class="ident">OpenReadError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">open_read</span>(<span class="ident">path</span>)
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">read</span>().<span class="ident">unwrap</span>().<span class="ident">open_read</span>(<span class="ident">path</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DeleteError</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>().<span class="ident">delete</span>(<span class="ident">path</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">exists</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">read</span>().<span class="ident">unwrap</span>().<span class="ident">exists</span>(<span class="ident">path</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">open_write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">WritePtr</span>, <span class="ident">OpenWriteError</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">path_buf</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>);
-        <span class="kw">let</span> <span class="ident">vec_writer</span> <span class="op">=</span> <span class="ident">VecWriter</span>::<span class="ident">new</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">clone</span>());
-
-        <span class="kw">let</span> <span class="ident">exists</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fs</span>
-            .<span class="ident">write</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="ident">Vec</span>::<span class="ident">new</span>())
-            .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">IOError</span>::<span class="ident">with_path</span>(<span class="ident">path</span>.<span class="ident">to_owned</span>(), <span class="ident">err</span>))<span class="question-mark">?</span>;
-
+        <span class="kw">let</span> <span class="ident">vec_writer</span> <span class="op">=</span> <span class="ident">VecWriter</span>::<span class="ident">new</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">clone</span>());
+        <span class="kw">let</span> <span class="ident">exists</span> <span class="op">=</span> <span class="ident">fs</span>.<span class="ident">write</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span>[]);
         <span class="comment">// force the creation of the file to mimic the MMap directory.</span>
         <span class="kw">if</span> <span class="ident">exists</span> {
             <span class="prelude-val">Err</span>(<span class="ident">OpenWriteError</span>::<span class="ident">FileAlreadyExists</span>(<span class="ident">path_buf</span>))
@@ -393,31 +338,32 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DeleteError</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">delete</span>(<span class="ident">path</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">exists</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">exists</span>(<span class="ident">path</span>)
-    }
-
     <span class="kw">fn</span> <span class="ident">atomic_read</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">OpenReadError</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">read</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">open_read</span>(<span class="ident">path</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">read</span>.<span class="ident">as_slice</span>().<span class="ident">to_owned</span>())
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">open_read</span>(<span class="ident">path</span>)<span class="question-mark">?</span>.<span class="ident">as_slice</span>().<span class="ident">to_owned</span>())
     }
 
     <span class="kw">fn</span> <span class="ident">atomic_write</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="macro">fail_point</span><span class="macro">!</span>(<span class="string">&quot;RAMDirectory::atomic_write&quot;</span>, <span class="op">|</span><span class="ident">msg</span><span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(
+            <span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">Other</span>,
+            <span class="ident">msg</span>.<span class="ident">unwrap_or</span>(<span class="string">&quot;Undefined&quot;</span>.<span class="ident">to_string</span>())
+        )));
         <span class="kw">let</span> <span class="ident">path_buf</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vec_writer</span> <span class="op">=</span> <span class="ident">VecWriter</span>::<span class="ident">new</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">clone</span>());
-        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>(<span class="ident">path_buf</span>, <span class="kw-2">&amp;</span><span class="ident">Vec</span>::<span class="ident">new</span>())<span class="question-mark">?</span>;
+
+        <span class="comment">// Reserve the path to prevent calls to .write() to succeed.</span>
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>().<span class="ident">write</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span>[]);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vec_writer</span> <span class="op">=</span> <span class="ident">VecWriter</span>::<span class="ident">new</span>(<span class="ident">path_buf</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">clone</span>());
         <span class="ident">vec_writer</span>.<span class="ident">write_all</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
         <span class="ident">vec_writer</span>.<span class="ident">flush</span>()<span class="question-mark">?</span>;
+        <span class="kw">if</span> <span class="ident">path</span> <span class="op">==</span> <span class="ident">Path</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">META_FILEPATH</span>) {
+            <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>().<span class="ident">watch_router</span>.<span class="ident">broadcast</span>();
+        }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">box_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Directory</span><span class="op">&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">clone</span>())
+    <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">watch_callback</span>: <span class="ident">WatchCallback</span>) <span class="op">-&gt;</span> <span class="ident">WatchHandle</span> {
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">write</span>().<span class="ident">unwrap</span>().<span class="ident">watch</span>(<span class="ident">watch_callback</span>)
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

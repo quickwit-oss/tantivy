@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.66/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.92/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="shortcut icon" href="../../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../serde/index.html'><img src='../../../rust-logo.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1986,102 +1986,7 @@
 <span id="1986">1986</span>
 <span id="1987">1987</span>
 <span id="1988">1988</span>
-<span id="1989">1989</span>
-<span id="1990">1990</span>
-<span id="1991">1991</span>
-<span id="1992">1992</span>
-<span id="1993">1993</span>
-<span id="1994">1994</span>
-<span id="1995">1995</span>
-<span id="1996">1996</span>
-<span id="1997">1997</span>
-<span id="1998">1998</span>
-<span id="1999">1999</span>
-<span id="2000">2000</span>
-<span id="2001">2001</span>
-<span id="2002">2002</span>
-<span id="2003">2003</span>
-<span id="2004">2004</span>
-<span id="2005">2005</span>
-<span id="2006">2006</span>
-<span id="2007">2007</span>
-<span id="2008">2008</span>
-<span id="2009">2009</span>
-<span id="2010">2010</span>
-<span id="2011">2011</span>
-<span id="2012">2012</span>
-<span id="2013">2013</span>
-<span id="2014">2014</span>
-<span id="2015">2015</span>
-<span id="2016">2016</span>
-<span id="2017">2017</span>
-<span id="2018">2018</span>
-<span id="2019">2019</span>
-<span id="2020">2020</span>
-<span id="2021">2021</span>
-<span id="2022">2022</span>
-<span id="2023">2023</span>
-<span id="2024">2024</span>
-<span id="2025">2025</span>
-<span id="2026">2026</span>
-<span id="2027">2027</span>
-<span id="2028">2028</span>
-<span id="2029">2029</span>
-<span id="2030">2030</span>
-<span id="2031">2031</span>
-<span id="2032">2032</span>
-<span id="2033">2033</span>
-<span id="2034">2034</span>
-<span id="2035">2035</span>
-<span id="2036">2036</span>
-<span id="2037">2037</span>
-<span id="2038">2038</span>
-<span id="2039">2039</span>
-<span id="2040">2040</span>
-<span id="2041">2041</span>
-<span id="2042">2042</span>
-<span id="2043">2043</span>
-<span id="2044">2044</span>
-<span id="2045">2045</span>
-<span id="2046">2046</span>
-<span id="2047">2047</span>
-<span id="2048">2048</span>
-<span id="2049">2049</span>
-<span id="2050">2050</span>
-<span id="2051">2051</span>
-<span id="2052">2052</span>
-<span id="2053">2053</span>
-<span id="2054">2054</span>
-<span id="2055">2055</span>
-<span id="2056">2056</span>
-<span id="2057">2057</span>
-<span id="2058">2058</span>
-<span id="2059">2059</span>
-<span id="2060">2060</span>
-<span id="2061">2061</span>
-<span id="2062">2062</span>
-<span id="2063">2063</span>
-<span id="2064">2064</span>
-<span id="2065">2065</span>
-<span id="2066">2066</span>
-<span id="2067">2067</span>
-<span id="2068">2068</span>
-<span id="2069">2069</span>
-<span id="2070">2070</span>
-<span id="2071">2071</span>
-<span id="2072">2072</span>
-<span id="2073">2073</span>
-<span id="2074">2074</span>
-<span id="2075">2075</span>
-</pre><pre class="rust ">
-<span class="comment">// Copyright 2017 Serde Developers</span>
-<span class="comment">//</span>
-<span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
-<span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
-<span class="comment">// &lt;LICENSE-MIT or http://opensource.org/licenses/MIT&gt;, at your</span>
-<span class="comment">// option. This file may not be copied, modified, or distributed</span>
-<span class="comment">// except according to those terms.</span>
-
+</pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Generic data structure serialization framework.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The two most important traits in this module are [`Serialize`] and</span>
@@ -2100,8 +2005,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Additionally, Serde provides a procedural macro called [`serde_derive`] to</span>
 <span class="doccomment">//! automatically generate [`Serialize`] implementations for structs and enums</span>
-<span class="doccomment">//! in your program. See the [codegen section of the manual] for how to use</span>
-<span class="doccomment">//! this.</span>
+<span class="doccomment">//! in your program. See the [derive section of the manual] for how to use this.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! In rare cases it may be necessary to implement [`Serialize`] manually for</span>
 <span class="doccomment">//! some type in your program. See the [Implementing `Serialize`] section of the</span>
@@ -2141,13 +2045,13 @@
 <span class="doccomment">//!    - PhantomData\&lt;T\&gt;</span>
 <span class="doccomment">//!  - **Wrapper types**:</span>
 <span class="doccomment">//!    - Box\&lt;T\&gt;</span>
-<span class="doccomment">//!    - Rc\&lt;T\&gt;</span>
-<span class="doccomment">//!    - Arc\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Cow\&lt;&#39;a, T\&gt;</span>
 <span class="doccomment">//!    - Cell\&lt;T\&gt;</span>
 <span class="doccomment">//!    - RefCell\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Mutex\&lt;T\&gt;</span>
 <span class="doccomment">//!    - RwLock\&lt;T\&gt;</span>
+<span class="doccomment">//!    - Rc\&lt;T\&gt;&amp;emsp;*(if* features = [&quot;rc&quot;] *is enabled)*</span>
+<span class="doccomment">//!    - Arc\&lt;T\&gt;&amp;emsp;*(if* features = [&quot;rc&quot;] *is enabled)*</span>
 <span class="doccomment">//!  - **Collection types**:</span>
 <span class="doccomment">//!    - BTreeMap\&lt;K, V\&gt;</span>
 <span class="doccomment">//!    - BTreeSet\&lt;T\&gt;</span>
@@ -2168,6 +2072,8 @@
 <span class="doccomment">//!    - Path</span>
 <span class="doccomment">//!    - PathBuf</span>
 <span class="doccomment">//!    - Range\&lt;T\&gt;</span>
+<span class="doccomment">//!    - RangeInclusive\&lt;T\&gt;</span>
+<span class="doccomment">//!    - Bound\&lt;T\&gt;</span>
 <span class="doccomment">//!    - num::NonZero*</span>
 <span class="doccomment">//!    - `!` *(unstable)*</span>
 <span class="doccomment">//!  - **Net types**:</span>
@@ -2187,7 +2093,7 @@
 <span class="doccomment">//! [`serde_derive`]: https://crates.io/crates/serde_derive</span>
 <span class="doccomment">//! [`serde_json`]: https://github.com/serde-rs/json</span>
 <span class="doccomment">//! [`serde_yaml`]: https://github.com/dtolnay/serde-yaml</span>
-<span class="doccomment">//! [codegen section of the manual]: https://serde.rs/codegen.html</span>
+<span class="doccomment">//! [derive section of the manual]: https://serde.rs/derive.html</span>
 <span class="doccomment">//! [data formats]: https://serde.rs/#data-formats</span>
 
 <span class="kw">use</span> <span class="ident">lib</span>::<span class="kw-2">*</span>;
@@ -2221,7 +2127,7 @@
             <span class="doccomment">/// For example, a filesystem [`Path`] may refuse to serialize</span>
             <span class="doccomment">/// itself if it contains invalid UTF-8 data.</span>
             <span class="doccomment">///</span>
-            <span class="doccomment">/// ```rust</span>
+            <span class="doccomment">/// ```edition2018</span>
             <span class="doccomment">/// # struct Path;</span>
             <span class="doccomment">/// #</span>
             <span class="doccomment">/// # impl Path {</span>
@@ -2271,7 +2177,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Additionally, Serde provides a procedural macro called [`serde_derive`] to</span>
 <span class="doccomment">/// automatically generate `Serialize` implementations for structs and enums in</span>
-<span class="doccomment">/// your program. See the [codegen section of the manual] for how to use this.</span>
+<span class="doccomment">/// your program. See the [derive section of the manual] for how to use this.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// In rare cases it may be necessary to implement `Serialize` manually for some</span>
 <span class="doccomment">/// type in your program. See the [Implementing `Serialize`] section of the</span>
@@ -2286,7 +2192,7 @@
 <span class="doccomment">/// [`LinkedHashMap&lt;K, V&gt;`]: https://docs.rs/linked-hash-map/*/linked_hash_map/struct.LinkedHashMap.html</span>
 <span class="doccomment">/// [`linked-hash-map`]: https://crates.io/crates/linked-hash-map</span>
 <span class="doccomment">/// [`serde_derive`]: https://crates.io/crates/serde_derive</span>
-<span class="doccomment">/// [codegen section of the manual]: https://serde.rs/codegen.html</span>
+<span class="doccomment">/// [derive section of the manual]: https://serde.rs/derive.html</span>
 <span class="doccomment">/// [ser]: https://docs.serde.rs/serde/ser/index.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Serialize</span> {
     <span class="doccomment">/// Serialize this value into the given Serde serializer.</span>
@@ -2294,8 +2200,8 @@
     <span class="doccomment">/// See the [Implementing `Serialize`] section of the manual for more</span>
     <span class="doccomment">/// information about how to implement this method.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStruct};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeStruct, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct Person {</span>
     <span class="doccomment">///     name: String,</span>
@@ -2349,16 +2255,16 @@
 <span class="doccomment">///    - When serializing, all strings are handled equally. When deserializing,</span>
 <span class="doccomment">///      there are three flavors of strings: transient, owned, and borrowed.</span>
 <span class="doccomment">///  - **byte array** - \[u8\]</span>
-<span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be transient,</span>
-<span class="doccomment">///      owned, or borrowed.</span>
+<span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be</span>
+<span class="doccomment">///      transient, owned, or borrowed.</span>
 <span class="doccomment">///  - **option**</span>
 <span class="doccomment">///    - Either none or some value.</span>
 <span class="doccomment">///  - **unit**</span>
-<span class="doccomment">///    - The type of `()` in Rust. It represents an anonymous value containing no</span>
-<span class="doccomment">///      data.</span>
+<span class="doccomment">///    - The type of `()` in Rust. It represents an anonymous value containing</span>
+<span class="doccomment">///      no data.</span>
 <span class="doccomment">///  - **unit_struct**</span>
-<span class="doccomment">///    - For example `struct Unit` or `PhantomData&lt;T&gt;`. It represents a named value</span>
-<span class="doccomment">///      containing no data.</span>
+<span class="doccomment">///    - For example `struct Unit` or `PhantomData&lt;T&gt;`. It represents a named</span>
+<span class="doccomment">///      value containing no data.</span>
 <span class="doccomment">///  - **unit_variant**</span>
 <span class="doccomment">///    - For example the `E::A` and `E::B` in `enum E { A, B }`.</span>
 <span class="doccomment">///  - **newtype_struct**</span>
@@ -2366,14 +2272,15 @@
 <span class="doccomment">///  - **newtype_variant**</span>
 <span class="doccomment">///    - For example the `E::N` in `enum E { N(u8) }`.</span>
 <span class="doccomment">///  - **seq**</span>
-<span class="doccomment">///    - A variably sized heterogeneous sequence of values, for example `Vec&lt;T&gt;` or</span>
-<span class="doccomment">///      `HashSet&lt;T&gt;`. When serializing, the length may or may not be known before</span>
-<span class="doccomment">///      iterating through all the data. When deserializing, the length is determined</span>
-<span class="doccomment">///      by looking at the serialized data.</span>
+<span class="doccomment">///    - A variably sized heterogeneous sequence of values, for example</span>
+<span class="doccomment">///      `Vec&lt;T&gt;` or `HashSet&lt;T&gt;`. When serializing, the length may or may not</span>
+<span class="doccomment">///      be known before iterating through all the data. When deserializing,</span>
+<span class="doccomment">///      the length is determined by looking at the serialized data.</span>
 <span class="doccomment">///  - **tuple**</span>
-<span class="doccomment">///    - A statically sized heterogeneous sequence of values for which the length</span>
-<span class="doccomment">///      will be known at deserialization time without looking at the serialized</span>
-<span class="doccomment">///      data, for example `(u8,)` or `(String, u64, Vec&lt;T&gt;)` or `[u64; 10]`.</span>
+<span class="doccomment">///    - A statically sized heterogeneous sequence of values for which the</span>
+<span class="doccomment">///      length will be known at deserialization time without looking at the</span>
+<span class="doccomment">///      serialized data, for example `(u8,)` or `(String, u64, Vec&lt;T&gt;)` or</span>
+<span class="doccomment">///      `[u64; 10]`.</span>
 <span class="doccomment">///  - **tuple_struct**</span>
 <span class="doccomment">///    - A named tuple, for example `struct Rgb(u8, u8, u8)`.</span>
 <span class="doccomment">///  - **tuple_variant**</span>
@@ -2381,9 +2288,9 @@
 <span class="doccomment">///  - **map**</span>
 <span class="doccomment">///    - A heterogeneous key-value pairing, for example `BTreeMap&lt;K, V&gt;`.</span>
 <span class="doccomment">///  - **struct**</span>
-<span class="doccomment">///    - A heterogeneous key-value pairing in which the keys are strings and will be</span>
-<span class="doccomment">///      known at deserialization time without looking at the serialized data, for</span>
-<span class="doccomment">///      example `struct S { r: u8, g: u8, b: u8 }`.</span>
+<span class="doccomment">///    - A heterogeneous key-value pairing in which the keys are strings and</span>
+<span class="doccomment">///      will be known at deserialization time without looking at the</span>
+<span class="doccomment">///      serialized data, for example `struct S { r: u8, g: u8, b: u8 }`.</span>
 <span class="doccomment">///  - **struct_variant**</span>
 <span class="doccomment">///    - For example the `E::S` in `enum E { S { r: u8, g: u8, b: u8 } }`.</span>
 <span class="doccomment">///</span>
@@ -2460,13 +2367,10 @@
 
     <span class="doccomment">/// Serialize a `bool` value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for bool {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2476,8 +2380,6 @@
     <span class="doccomment">///         serializer.serialize_bool(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_bool</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2487,13 +2389,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `i64` and</span>
     <span class="doccomment">/// forward to `serialize_i64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i8 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2503,8 +2402,6 @@
     <span class="doccomment">///         serializer.serialize_i8(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_i8</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2514,13 +2411,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `i64` and</span>
     <span class="doccomment">/// forward to `serialize_i64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i16 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2530,8 +2424,6 @@
     <span class="doccomment">///         serializer.serialize_i16(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_i16</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i16</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2541,13 +2433,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `i64` and</span>
     <span class="doccomment">/// forward to `serialize_i64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2557,20 +2446,15 @@
     <span class="doccomment">///         serializer.serialize_i32(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_i32</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Serialize an `i64` value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2580,21 +2464,16 @@
     <span class="doccomment">///         serializer.serialize_i64(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_i64</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
         <span class="doccomment">/// Serialize an `i128` value.</span>
         <span class="doccomment">///</span>
-        <span class="doccomment">/// ```rust</span>
-        <span class="doccomment">/// # #[macro_use]</span>
-        <span class="doccomment">/// # extern crate serde;</span>
-        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// ```edition2018</span>
         <span class="doccomment">/// # use serde::Serializer;</span>
         <span class="doccomment">/// #</span>
-        <span class="doccomment">/// # __private_serialize!();</span>
+        <span class="doccomment">/// # serde::__private_serialize!();</span>
         <span class="doccomment">/// #</span>
         <span class="doccomment">/// impl Serialize for i128 {</span>
         <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2604,8 +2483,6 @@
         <span class="doccomment">///         serializer.serialize_i128(*self)</span>
         <span class="doccomment">///     }</span>
         <span class="doccomment">/// }</span>
-        <span class="doccomment">/// #</span>
-        <span class="doccomment">/// # fn main() {}</span>
         <span class="doccomment">/// ```</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
@@ -2622,13 +2499,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `u64` and</span>
     <span class="doccomment">/// forward to `serialize_u64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u8 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2638,8 +2512,6 @@
     <span class="doccomment">///         serializer.serialize_u8(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_u8</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2649,13 +2521,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `u64` and</span>
     <span class="doccomment">/// forward to `serialize_u64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u16 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2665,8 +2534,6 @@
     <span class="doccomment">///         serializer.serialize_u16(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_u16</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2676,13 +2543,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `u64` and</span>
     <span class="doccomment">/// forward to `serialize_u64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2692,20 +2556,15 @@
     <span class="doccomment">///         serializer.serialize_u32(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_u32</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Serialize a `u64` value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2715,21 +2574,16 @@
     <span class="doccomment">///         serializer.serialize_u64(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_u64</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
         <span class="doccomment">/// Serialize a `u128` value.</span>
         <span class="doccomment">///</span>
-        <span class="doccomment">/// ```rust</span>
-        <span class="doccomment">/// # #[macro_use]</span>
-        <span class="doccomment">/// # extern crate serde;</span>
-        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// ```edition2018</span>
         <span class="doccomment">/// # use serde::Serializer;</span>
         <span class="doccomment">/// #</span>
-        <span class="doccomment">/// # __private_serialize!();</span>
+        <span class="doccomment">/// # serde::__private_serialize!();</span>
         <span class="doccomment">/// #</span>
         <span class="doccomment">/// impl Serialize for u128 {</span>
         <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2739,8 +2593,6 @@
         <span class="doccomment">///         serializer.serialize_u128(*self)</span>
         <span class="doccomment">///     }</span>
         <span class="doccomment">/// }</span>
-        <span class="doccomment">/// #</span>
-        <span class="doccomment">/// # fn main() {}</span>
         <span class="doccomment">/// ```</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
@@ -2757,13 +2609,10 @@
     <span class="doccomment">/// reasonable implementation would be to cast the value to `f64` and</span>
     <span class="doccomment">/// forward to `serialize_f64`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for f32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2773,20 +2622,15 @@
     <span class="doccomment">///         serializer.serialize_f32(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_f32</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Serialize an `f64` value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for f64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2796,8 +2640,6 @@
     <span class="doccomment">///         serializer.serialize_f64(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_f64</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2806,13 +2648,10 @@
     <span class="doccomment">/// If the format does not support characters, it is reasonable to serialize</span>
     <span class="doccomment">/// it as a single element `str` or a `u32`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for char {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2822,20 +2661,15 @@
     <span class="doccomment">///         serializer.serialize_char(*self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_char</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Serialize a `&amp;str`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for str {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2845,8 +2679,6 @@
     <span class="doccomment">///         serializer.serialize_str(self)</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_str</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2858,10 +2690,7 @@
     <span class="doccomment">/// `serialize_seq`. If forwarded, the implementation looks usually just</span>
     <span class="doccomment">/// like this:</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::ser::{Serializer, SerializeSeq};</span>
     <span class="doccomment">/// # use serde::private::ser::Error;</span>
     <span class="doccomment">/// #</span>
@@ -2879,22 +2708,18 @@
     <span class="doccomment">///     seq.end()</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// #     __serialize_unimplemented! {</span>
+    <span class="doccomment">/// #     serde::__serialize_unimplemented! {</span>
     <span class="doccomment">/// #         bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str none some</span>
     <span class="doccomment">/// #         unit unit_struct unit_variant newtype_struct newtype_variant</span>
     <span class="doccomment">/// #         seq tuple tuple_struct tuple_variant map struct struct_variant</span>
     <span class="doccomment">/// #     }</span>
     <span class="doccomment">/// # }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_bytes</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Serialize a [`None`] value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::{Serialize, Serializer};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # enum Option&lt;T&gt; {</span>
@@ -2902,7 +2727,7 @@
     <span class="doccomment">/// #     None,</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # use Option::{Some, None};</span>
+    <span class="doccomment">/// # use self::Option::{Some, None};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl&lt;T&gt; Serialize for Option&lt;T&gt;</span>
     <span class="doccomment">/// where</span>
@@ -2927,9 +2752,7 @@
 
     <span class="doccomment">/// Serialize a [`Some(T)`] value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::{Serialize, Serializer};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # enum Option&lt;T&gt; {</span>
@@ -2937,7 +2760,7 @@
     <span class="doccomment">/// #     None,</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # use Option::{Some, None};</span>
+    <span class="doccomment">/// # use self::Option::{Some, None};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl&lt;T&gt; Serialize for Option&lt;T&gt;</span>
     <span class="doccomment">/// where</span>
@@ -2964,13 +2787,10 @@
 
     <span class="doccomment">/// Serialize a `()` value.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// # #[macro_use]</span>
-    <span class="doccomment">/// # extern crate serde;</span>
-    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use serde::Serializer;</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # __private_serialize!();</span>
+    <span class="doccomment">/// # serde::__private_serialize!();</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for () {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
@@ -2980,8 +2800,6 @@
     <span class="doccomment">///         serializer.serialize_unit()</span>
     <span class="doccomment">///     }</span>
     <span class="doccomment">/// }</span>
-    <span class="doccomment">/// #</span>
-    <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_unit</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
@@ -2989,7 +2807,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// A reasonable implementation would be to forward to `serialize_unit`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct Nothing;</span>
@@ -3011,7 +2829,7 @@
     <span class="doccomment">/// this variant within the enum, and the `variant` is the name of the</span>
     <span class="doccomment">/// variant.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// enum E {</span>
@@ -3044,7 +2862,7 @@
     <span class="doccomment">/// wrappers around the data they contain. A reasonable implementation would</span>
     <span class="doccomment">/// be to forward to `value.serialize(self)`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct Millimeters(u8);</span>
@@ -3072,7 +2890,7 @@
     <span class="doccomment">/// this variant within the enum, and the `variant` is the name of the</span>
     <span class="doccomment">/// variant. The `value` is the data contained within this newtype variant.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// enum E {</span>
@@ -3110,7 +2928,7 @@
     <span class="doccomment">/// not be computable before the sequence is iterated. Some serializers only</span>
     <span class="doccomment">/// support sequences whose length is known up front.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use std::marker::PhantomData;</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct Vec&lt;T&gt;(PhantomData&lt;T&gt;);</span>
@@ -3155,7 +2973,7 @@
     <span class="doccomment">/// This call must be followed by zero or more calls to `serialize_element`,</span>
     <span class="doccomment">/// then a call to `end`.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTuple};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # mod fool {</span>
@@ -3185,8 +3003,8 @@
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTuple};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeTuple, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// const VRAM_SIZE: usize = 386;</span>
     <span class="doccomment">/// struct Vram([u16; VRAM_SIZE]);</span>
@@ -3213,8 +3031,8 @@
     <span class="doccomment">/// The `name` is the name of the tuple struct and the `len` is the number</span>
     <span class="doccomment">/// of data fields that will be serialized.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleStruct};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeTupleStruct, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct Rgb(u8, u8, u8);</span>
     <span class="doccomment">///</span>
@@ -3245,8 +3063,8 @@
     <span class="doccomment">/// this variant within the enum, the `variant` is the name of the variant,</span>
     <span class="doccomment">/// and the `len` is the number of data fields that will be serialized.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleVariant};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeTupleVariant, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// enum E {</span>
     <span class="doccomment">///     T(u8, u8),</span>
@@ -3291,7 +3109,7 @@
     <span class="doccomment">/// be computable before the map is iterated. Some serializers only support</span>
     <span class="doccomment">/// maps whose length is known up front.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use std::marker::PhantomData;</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct HashMap&lt;K, V&gt;(PhantomData&lt;K&gt;, PhantomData&lt;V&gt;);</span>
@@ -3339,8 +3157,8 @@
     <span class="doccomment">/// The `name` is the name of the struct and the `len` is the number of</span>
     <span class="doccomment">/// data fields that will be serialized.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStruct};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeStruct, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct Rgb {</span>
     <span class="doccomment">///     r: u8,</span>
@@ -3375,11 +3193,11 @@
     <span class="doccomment">/// this variant within the enum, the `variant` is the name of the variant,</span>
     <span class="doccomment">/// and the `len` is the number of data fields that will be serialized.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStructVariant};</span>
+    <span class="doccomment">/// ```edition2018</span>
+    <span class="doccomment">/// use serde::ser::{Serialize, SerializeStructVariant, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// enum E {</span>
-    <span class="doccomment">///     S { r: u8, g: u8, b: u8 }</span>
+    <span class="doccomment">///     S { r: u8, g: u8, b: u8 },</span>
     <span class="doccomment">/// }</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for E {</span>
@@ -3388,7 +3206,11 @@
     <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
-    <span class="doccomment">///             E::S { ref r, ref g, ref b } =&gt; {</span>
+    <span class="doccomment">///             E::S {</span>
+    <span class="doccomment">///                 ref r,</span>
+    <span class="doccomment">///                 ref g,</span>
+    <span class="doccomment">///                 ref b,</span>
+    <span class="doccomment">///             } =&gt; {</span>
     <span class="doccomment">///                 let mut sv = serializer.serialize_struct_variant(&quot;E&quot;, 0, &quot;S&quot;, 3)?;</span>
     <span class="doccomment">///                 sv.serialize_field(&quot;r&quot;, r)?;</span>
     <span class="doccomment">///                 sv.serialize_field(&quot;g&quot;, g)?;</span>
@@ -3413,7 +3235,7 @@
     <span class="doccomment">/// using [`serialize_seq`]. Implementors should not need to override this</span>
     <span class="doccomment">/// method.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct SecretlyOneHigher {</span>
@@ -3450,9 +3272,9 @@
     <span class="doccomment">/// using [`serialize_map`]. Implementors should not need to override this</span>
     <span class="doccomment">/// method.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
-    <span class="doccomment">/// use std::collections::BTreeSet;</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// use serde::{Serialize, Serializer};</span>
+    <span class="doccomment">/// use std::collections::BTreeSet;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// struct MapToUnit {</span>
     <span class="doccomment">///     keys: BTreeSet&lt;i32&gt;,</span>
@@ -3490,7 +3312,7 @@
     <span class="doccomment">/// delegates to [`serialize_str`]. Serializers are encouraged to provide a</span>
     <span class="doccomment">/// more efficient implementation if possible.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # struct DateTime;</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # impl DateTime {</span>
@@ -3531,7 +3353,7 @@
     <span class="doccomment">/// of this method. If no more sensible behavior is possible, the</span>
     <span class="doccomment">/// implementation is expected to return an error.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # struct DateTime;</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # impl DateTime {</span>
@@ -3566,7 +3388,7 @@
     <span class="doccomment">/// human-readable one and binary formats like Bincode will prefer the</span>
     <span class="doccomment">/// compact one.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// ```edition2018</span>
     <span class="doccomment">/// # use std::fmt::{self, Display};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # struct Timestamp;</span>
@@ -3615,7 +3437,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::marker::PhantomData;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # struct Vec&lt;T&gt;(PhantomData&lt;T&gt;);</span>
@@ -3679,7 +3501,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTuple};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # mod fool {</span>
@@ -3709,7 +3531,7 @@
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::marker::PhantomData;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # struct Array&lt;T&gt;(PhantomData&lt;T&gt;);</span>
@@ -3779,8 +3601,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleStruct};</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// use serde::ser::{Serialize, SerializeTupleStruct, Serializer};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// struct Rgb(u8, u8, u8);</span>
 <span class="doccomment">///</span>
@@ -3824,8 +3646,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleVariant};</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// use serde::ser::{Serialize, SerializeTupleVariant, Serializer};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// enum E {</span>
 <span class="doccomment">///     T(u8, u8),</span>
@@ -3882,7 +3704,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// ```edition2018</span>
 <span class="doccomment">/// # use std::marker::PhantomData;</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # struct HashMap&lt;K, V&gt;(PhantomData&lt;K&gt;, PhantomData&lt;V&gt;);</span>
@@ -3993,8 +3815,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStruct};</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// use serde::ser::{Serialize, SerializeStruct, Serializer};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// struct Rgb {</span>
 <span class="doccomment">///     r: u8,</span>
@@ -4053,11 +3875,11 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// ```rust</span>
-<span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStructVariant};</span>
+<span class="doccomment">/// ```edition2018</span>
+<span class="doccomment">/// use serde::ser::{Serialize, SerializeStructVariant, Serializer};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// enum E {</span>
-<span class="doccomment">///     S { r: u8, g: u8, b: u8 }</span>
+<span class="doccomment">///     S { r: u8, g: u8, b: u8 },</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl Serialize for E {</span>
@@ -4066,7 +3888,11 @@
 <span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         match *self {</span>
-<span class="doccomment">///             E::S { ref r, ref g, ref b } =&gt; {</span>
+<span class="doccomment">///             E::S {</span>
+<span class="doccomment">///                 ref r,</span>
+<span class="doccomment">///                 ref g,</span>
+<span class="doccomment">///                 ref b,</span>
+<span class="doccomment">///             } =&gt; {</span>
 <span class="doccomment">///                 let mut sv = serializer.serialize_struct_variant(&quot;E&quot;, 0, &quot;S&quot;, 3)?;</span>
 <span class="doccomment">///                 sv.serialize_field(&quot;r&quot;, r)?;</span>
 <span class="doccomment">///                 sv.serialize_field(&quot;g&quot;, g)?;</span>
@@ -4149,5 +3975,5 @@
         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     }
 }
-</pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g., <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g., <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g., <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "serde";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>
