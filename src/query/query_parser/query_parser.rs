@@ -115,7 +115,7 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 /// as `(a AND b) OR c`.
 ///
 /// * In addition to the boolean operators, the `-`, `+` can help define. These operators
-///   are sufficient to axpress all queries using boolean operators. For instance `x AND y OR z` can
+///   are sufficient to express all queries using boolean operators. For instance `x AND y OR z` can
 ///   be written (`(+x +y) z`). In addition, these operators can help define "required optional"
 ///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.
 ///
