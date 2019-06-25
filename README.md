@@ -65,7 +65,6 @@ performance for different type of queries / collection.
 library upon which one could build a distributed search. Serializable/mergeable collector state for instance, 
 are within the scope of tantivy.
 
-
 # Supported OS and compiler
 
 Tantivy works on stable rust (>= 1.27) and supports Linux, MacOS and Windows.
@@ -81,30 +80,61 @@ It will walk you through getting a wikipedia search engine up and running in a f
     - [For the last released version](https://docs.rs/tantivy/)
     - [For the last master branch](https://tantivy-search.github.io/tantivy/tantivy/index.html)
 
-# Compiling
+# How can I support this project?
 
-## Development
+There are many ways to support this project. 
+
+- Use tantivy and tell us about your experience on [gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
+- Report bugs
+- Write a blog post
+- Help with documentation by asking questions or submitting PRs
+- Contribute code (you can join [our gitter](https://gitter.im/tantivy-search/tantivy) )
+- Talk about tantivy around you
+- Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or even [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
+
+# Contributing code
+
+We use the GitHub Pull Request workflow - reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
+
+## Clone and build locally
 
 Tantivy compiles on stable rust but requires `Rust >= 1.27`.
 To check out and run tests, you can simply run :
 
+```bash
     git clone https://github.com/tantivy-search/tantivy.git
     cd tantivy
     cargo build
+```
 
-## Running tests
+## Run tests
 
 Some tests will not run with just `cargo test` because of `fail-rs`.
-To run the tests exhaustively, run `./run-tests.sh`. 
+To run the tests exhaustively, run `./run-tests.sh`
 
-# How can I support this project ?
+## Debug
 
-There are many ways to support this project. 
+You might find it useful to step through the programme with a debugger.
 
-- If you use tantivy, tell us about your experience on [gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
-- Report bugs
-- Write a blog post
-- Complete documentation
-- Contribute code (you can join [our gitter](https://gitter.im/tantivy-search/tantivy) )
-- Talk about tantivy around you
-- Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or even [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
+### A failing test
+
+Make sure you haven't run `cargo clean` after the most recent `cargo test` or `cargo build` to guarantee that `target/` dir exists. Use this bash script to find the most name of the most recent debug build of tantivy and run it under rust-gdb.
+
+```bash
+find target/debug/ -maxdepth 1 -executable -type f -name "tantivy*" -printf '%TY-%Tm-%Td %TT %p\n' | sort -r | cut -d " " -f 3 | xargs -I RECENT_DBG_TANTIVY rust-gdb RECENT_DBG_TANTIVY
+```
+
+Now that you are in rust-gdb, you can set breakpoints on lines and methods that match your source-code and run the debug executable with flags that you normally pass to `cargo test` to like this
+
+```bash
+$gdb run --test-threads 1 --test $NAME_OF_TEST
+```
+
+### An example
+
+By default, rustc compiles everything in the `examples/` dir in debug mode. This makes it easy for you to make examples to reproduce bugs.
+
+```bash
+rust-gdb target/debug/examples/$EXAMPLE_NAME
+$ gdb run
+```
