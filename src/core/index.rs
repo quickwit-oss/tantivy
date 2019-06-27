@@ -538,6 +538,9 @@ mod tests {
         assert_eq!(count, 2);
     }
 
+    // This test will not pass on windows, because windows
+    // prevent deleting files that are MMapped.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn garbage_collect_works_as_intended() {
         let directory = RAMDirectory::create();

@@ -22,6 +22,7 @@ Arc<RwLock<IndexWriter>>`. `add_document` and `delete_term` can
 only require a read lock. (@pmasurel)
 - Introducing `Opstamp` as an expressive type alias for `u64`. (@petr-tik)
 - Stamper now relies on `AtomicU64` on all platforms (@petr-tik)
+- Bugfix - Files get deleted slightly earlier
 
 ## How to update?
 
