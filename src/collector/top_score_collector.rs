@@ -178,7 +178,7 @@ impl TopDocs {
     /// # Example
     ///
     /// Typically, you will want to rely on one or more fast fields,
-    /// to alter or replace the original relevance `Score`.
+    /// to alter the original relevance `Score`.
     ///
     /// For instance, in the following, we assume that we are implementing
     /// an e-commerce website that has a fast field called `popularity`
@@ -268,6 +268,21 @@ impl TopDocs {
         TweakedScoreTopCollector::new(score_tweaker, self.0.limit())
     }
 
+    /// Ranks the documents using a custom score.
+    ///
+    /// This method offers a convenient way to use a different score.
+    ///
+    /// As suggested by the prototype you can manually define your
+    /// own [`CustomScorer`](./trait.CustomScorer.html)
+    /// and pass it as an argument, but there is a much simpler way to
+    /// tweak your score: you can use a closure as in the following
+    /// example.
+    ///
+    /// # Example
+    /// // TODO
+    ///
+    /// # See also
+    /// [tweak_score(...)](#tweak_score).
     pub fn custom_score<TScore, TCustomSegmentScorer, TCustomScorer>(
         self,
         custom_score: TCustomScorer,
