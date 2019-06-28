@@ -1,17 +1,17 @@
 use super::SegmentComponent;
-use core::Index;
-use core::SegmentId;
-use core::SegmentMeta;
-use directory::error::{OpenReadError, OpenWriteError};
-use directory::Directory;
-use directory::{ReadOnlySource, WritePtr};
-use indexer::segment_serializer::SegmentSerializer;
-use schema::Schema;
+use crate::core::Index;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::directory::error::{OpenReadError, OpenWriteError};
+use crate::directory::Directory;
+use crate::directory::{ReadOnlySource, WritePtr};
+use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::schema::Schema;
+use crate::Opstamp;
+use crate::Result;
 use std::fmt;
 use std::path::PathBuf;
 use std::result;
-use Opstamp;
-use Result;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
@@ -21,7 +21,7 @@ pub struct Segment {
 }
 
 impl fmt::Debug for Segment {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Segment({:?})", self.id().uuid_string())
     }
 }

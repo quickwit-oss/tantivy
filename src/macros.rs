@@ -67,7 +67,7 @@ macro_rules! doc(
 
 #[cfg(test)]
 mod test {
-    use schema::{Schema, FAST, TEXT};
+    use crate::schema::{Schema, FAST, TEXT};
 
     #[test]
     fn test_doc_basic() {

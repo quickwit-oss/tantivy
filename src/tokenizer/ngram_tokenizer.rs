@@ -309,9 +309,9 @@ mod tests {
     use super::CodepointFrontiers;
     use super::NgramTokenizer;
     use super::StutteringIterator;
-    use tokenizer::tests::assert_token;
-    use tokenizer::tokenizer::{TokenStream, Tokenizer};
-    use tokenizer::Token;
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::tokenizer::{TokenStream, Tokenizer};
+    use crate::tokenizer::Token;
 
     fn test_helper<T: TokenStream>(mut tokenizer: T) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];

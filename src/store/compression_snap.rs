@@ -1,4 +1,4 @@
-extern crate snap;
+use snap;
 
 use std::io::{self, Read, Write};
 

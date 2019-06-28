@@ -1,18 +1,18 @@
 use super::FastValue;
-use common::bitpacker::BitUnpacker;
-use common::compute_num_bits;
-use common::BinarySerializable;
-use common::CompositeFile;
-use directory::ReadOnlySource;
-use directory::{Directory, RAMDirectory, WritePtr};
-use fastfield::{FastFieldSerializer, FastFieldsWriter};
+use crate::common::bitpacker::BitUnpacker;
+use crate::common::compute_num_bits;
+use crate::common::BinarySerializable;
+use crate::common::CompositeFile;
+use crate::directory::ReadOnlySource;
+use crate::directory::{Directory, RAMDirectory, WritePtr};
+use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
+use crate::schema::Schema;
+use crate::schema::FAST;
+use crate::DocId;
 use owning_ref::OwningRef;
-use schema::Schema;
-use schema::FAST;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
-use DocId;
 
 /// Trait for accessing a fastfield.
 ///

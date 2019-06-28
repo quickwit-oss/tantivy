@@ -1,14 +1,14 @@
-use common::BitSet;
-use core::SegmentReader;
-use query::ConstScorer;
-use query::{BitSetDocSet, Explanation};
-use query::{Scorer, Weight};
-use schema::{Field, IndexRecordOption};
+use crate::common::BitSet;
+use crate::core::SegmentReader;
+use crate::query::ConstScorer;
+use crate::query::{BitSetDocSet, Explanation};
+use crate::query::{Scorer, Weight};
+use crate::schema::{Field, IndexRecordOption};
+use crate::termdict::{TermDictionary, TermStreamer};
+use crate::DocId;
+use crate::TantivyError;
+use crate::{Result, SkipResult};
 use tantivy_fst::Automaton;
-use termdict::{TermDictionary, TermStreamer};
-use DocId;
-use TantivyError;
-use {Result, SkipResult};
 
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
@@ -38,7 +38,7 @@ impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
 {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 

@@ -2,11 +2,11 @@
 
 use std::io;
 
-use directory::error::LockError;
-use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
-use fastfield::FastFieldNotAvailableError;
-use query;
-use schema;
+use crate::directory::error::LockError;
+use crate::directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
+use crate::fastfield::FastFieldNotAvailableError;
+use crate::query;
+use crate::schema;
 use serde_json;
 use std::fmt;
 use std::path::PathBuf;
@@ -34,7 +34,7 @@ impl DataCorruption {
 }
 
 impl fmt::Debug for DataCorruption {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "Data corruption: ")?;
         if let Some(ref filepath) = &self.filepath {
             write!(f, "(in file `{:?}`)", filepath)?;

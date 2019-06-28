@@ -1,4 +1,4 @@
-use common::BinarySerializable;
+use crate::common::BinarySerializable;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
@@ -173,7 +173,7 @@ impl BinarySerializable for Facet {
 }
 
 impl Display for Facet {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for step in self.0.split(FACET_SEP_CHAR) {
             write!(f, "/")?;
             write!(f, "{}", escape_slashes(step))?;
@@ -182,7 +182,7 @@ impl Display for Facet {
     }
 }
 
-fn escape_slashes(s: &str) -> Cow<str> {
+fn escape_slashes(s: &str) -> Cow<'_, str> {
     lazy_static! {
         static ref SLASH_PTN: Regex = Regex::new(r"[\\/]").unwrap();
     }
@@ -208,7 +208,7 @@ impl<'de> Deserialize<'de> for Facet {
 }
 
 impl Debug for Facet {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Facet({})", self)?;
         Ok(())
     }

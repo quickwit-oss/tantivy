@@ -1,7 +1,7 @@
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::indexer::delete_queue::DeleteCursor;
 use bit_set::BitSet;
-use core::SegmentId;
-use core::SegmentMeta;
-use indexer::delete_queue::DeleteCursor;
 use std::fmt;
 
 /// A segment entry describes the state of
@@ -67,7 +67,7 @@ impl SegmentEntry {
 }
 
 impl fmt::Debug for SegmentEntry {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "SegmentEntry({:?})", self.meta)
     }
 }

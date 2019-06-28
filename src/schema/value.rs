@@ -1,8 +1,8 @@
-use schema::Facet;
+use crate::schema::Facet;
+use crate::DateTime;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
-use DateTime;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for Value {
         impl<'de> Visitor<'de> for ValueVisitor {
             type Value = Value;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a string or u32")
             }
 
@@ -163,9 +163,9 @@ impl From<Vec<u8>> for Value {
 
 mod binary_serialize {
     use super::Value;
+    use crate::common::BinarySerializable;
+    use crate::schema::Facet;
     use chrono::{TimeZone, Utc};
-    use common::BinarySerializable;
-    use schema::Facet;
     use std::io::{self, Read, Write};
 
     const TEXT_CODE: u8 = 0;

@@ -1,11 +1,13 @@
-use core::MANAGED_FILEPATH;
-use directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
-use directory::DirectoryLock;
-use directory::Lock;
-use directory::META_LOCK;
-use directory::{ReadOnlySource, WritePtr};
-use directory::{WatchCallback, WatchHandle};
-use error::DataCorruption;
+use crate::core::MANAGED_FILEPATH;
+use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
+use crate::directory::DirectoryLock;
+use crate::directory::Lock;
+use crate::directory::META_LOCK;
+use crate::directory::{ReadOnlySource, WritePtr};
+use crate::directory::{WatchCallback, WatchHandle};
+use crate::error::DataCorruption;
+use crate::Directory;
+use crate::Result;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
@@ -14,8 +16,6 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
-use Directory;
-use Result;
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -39,7 +39,7 @@ fn is_managed(path: &Path) -> bool {
 /// useful anymore.
 #[derive(Debug)]
 pub struct ManagedDirectory {
-    directory: Box<Directory>,
+    directory: Box<dyn Directory>,
     meta_informations: Arc<RwLock<MetaInformation>>,
 }
 
@@ -51,8 +51,8 @@ struct MetaInformation {
 /// Saves the file containing the list of existing files
 /// that were created by tantivy.
 fn save_managed_paths(
-    directory: &mut Directory,
-    wlock: &RwLockWriteGuard<MetaInformation>,
+    directory: &mut dyn Directory,
+    wlock: &RwLockWriteGuard<'_, MetaInformation>,
 ) -> io::Result<()> {
     let mut w = serde_json::to_vec(&wlock.managed_paths)?;
     writeln!(&mut w)?;
@@ -272,7 +272,7 @@ mod tests {
             static ref TEST_PATH2: &'static Path = Path::new("some_path_for_test2");
         }
 
-        use directory::MmapDirectory;
+        use crate::directory::MmapDirectory;
         use std::io::Write;
 
         #[test]

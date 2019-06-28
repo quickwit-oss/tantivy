@@ -1,11 +1,11 @@
-extern crate murmurhash32;
+use murmurhash32;
 
 use self::murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
+use crate::postings::stacker::memory_arena::store;
+use crate::postings::UnorderedTermId;
 use byteorder::{ByteOrder, NativeEndian};
-use postings::stacker::memory_arena::store;
-use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
 use std::slice;
@@ -154,7 +154,7 @@ impl TermHashMap {
         unordered_term_id
     }
 
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             inner: self.occupied.iter(),
             hashmap: &self,

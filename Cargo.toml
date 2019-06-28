@@ -10,6 +10,7 @@ homepage = "https://github.com/tantivy-search/tantivy"
 repository = "https://github.com/tantivy-search/tantivy"
 readme = "README.md"
 keywords = ["search", "information", "retrieval"]
+edition = "2018"
 
 [dependencies]
 base64 = "0.10.0"

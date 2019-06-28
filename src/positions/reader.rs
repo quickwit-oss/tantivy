@@ -1,3 +1,9 @@
+use crate::common::{BinarySerializable, FixedSize};
+use crate::directory::ReadOnlySource;
+use crate::positions::COMPRESSION_BLOCK_SIZE;
+use crate::positions::LONG_SKIP_INTERVAL;
+use crate::positions::LONG_SKIP_IN_BLOCKS;
+use crate::postings::compression::compressed_block_size;
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
 ///
@@ -19,13 +25,7 @@
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
 use bitpacking::{BitPacker, BitPacker4x};
-use common::{BinarySerializable, FixedSize};
-use directory::ReadOnlySource;
 use owned_read::OwnedRead;
-use positions::COMPRESSION_BLOCK_SIZE;
-use positions::LONG_SKIP_INTERVAL;
-use positions::LONG_SKIP_IN_BLOCKS;
-use postings::compression::compressed_block_size;
 
 struct Positions {
     bit_packer: BitPacker4x,

@@ -1,7 +1,7 @@
-use schema::IntOptions;
-use schema::TextOptions;
+use crate::schema::IntOptions;
+use crate::schema::TextOptions;
 
-use schema::FieldType;
+use crate::schema::FieldType;
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -174,7 +174,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
         impl<'de> Visitor<'de> for FieldEntryVisitor {
             type Value = FieldEntry;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("struct FieldEntry")
             }
 
@@ -247,7 +247,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use schema::TEXT;
+    use crate::schema::TEXT;
     use serde_json;
 
     #[test]

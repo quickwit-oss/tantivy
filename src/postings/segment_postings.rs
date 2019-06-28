@@ -1,21 +1,21 @@
-use common::BitSet;
-use common::HasLen;
-use common::{BinarySerializable, VInt};
-use docset::{DocSet, SkipResult};
+use crate::common::BitSet;
+use crate::common::HasLen;
+use crate::common::{BinarySerializable, VInt};
+use crate::docset::{DocSet, SkipResult};
+use crate::positions::PositionReader;
+use crate::postings::compression::{compressed_block_size, AlignedBuffer};
+use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
+use crate::postings::serializer::PostingsSerializer;
+use crate::postings::BlockSearcher;
+use crate::postings::FreqReadingOption;
+use crate::postings::Postings;
+use crate::postings::SkipReader;
+use crate::postings::USE_SKIP_INFO_LIMIT;
+use crate::schema::IndexRecordOption;
+use crate::DocId;
 use owned_read::OwnedRead;
-use positions::PositionReader;
-use postings::compression::{compressed_block_size, AlignedBuffer};
-use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
-use postings::serializer::PostingsSerializer;
-use postings::BlockSearcher;
-use postings::FreqReadingOption;
-use postings::Postings;
-use postings::SkipReader;
-use postings::USE_SKIP_INFO_LIMIT;
-use schema::IndexRecordOption;
 use std::cmp::Ordering;
 use tantivy_fst::Streamer;
-use DocId;
 
 struct PositionComputer {
     // store the amount of position int
@@ -611,17 +611,17 @@ mod tests {
     use super::BlockSegmentPostings;
     use super::BlockSegmentPostingsSkipResult;
     use super::SegmentPostings;
-    use common::HasLen;
-    use core::Index;
-    use docset::DocSet;
-    use postings::postings::Postings;
-    use schema::IndexRecordOption;
-    use schema::Schema;
-    use schema::Term;
-    use schema::INDEXED;
+    use crate::common::HasLen;
+    use crate::core::Index;
+    use crate::docset::DocSet;
+    use crate::postings::postings::Postings;
+    use crate::schema::IndexRecordOption;
+    use crate::schema::Schema;
+    use crate::schema::Term;
+    use crate::schema::INDEXED;
+    use crate::DocId;
+    use crate::SkipResult;
     use tantivy_fst::Streamer;
-    use DocId;
-    use SkipResult;
 
     #[test]
     fn test_empty_segment_postings() {

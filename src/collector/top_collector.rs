@@ -1,11 +1,11 @@
+use crate::DocAddress;
+use crate::DocId;
+use crate::Result;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
 use serde::export::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use DocAddress;
-use DocId;
-use Result;
-use SegmentLocalId;
-use SegmentReader;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
@@ -178,8 +178,8 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 #[cfg(test)]
 mod tests {
     use super::{TopCollector, TopSegmentCollector};
-    use DocAddress;
-    use Score;
+    use crate::DocAddress;
+    use crate::Score;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

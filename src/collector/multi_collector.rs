@@ -1,30 +1,30 @@
 use super::Collector;
 use super::SegmentCollector;
-use collector::Fruit;
+use crate::collector::Fruit;
+use crate::DocId;
+use crate::Result;
+use crate::Score;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
+use crate::TantivyError;
 use std::marker::PhantomData;
 use std::ops::Deref;
-use DocId;
-use Result;
-use Score;
-use SegmentLocalId;
-use SegmentReader;
-use TantivyError;
 
 pub struct MultiFruit {
-    sub_fruits: Vec<Option<Box<Fruit>>>,
+    sub_fruits: Vec<Option<Box<dyn Fruit>>>,
 }
 
 pub struct CollectorWrapper<TCollector: Collector>(TCollector);
 
 impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
-    type Fruit = Box<Fruit>;
-    type Child = Box<BoxableSegmentCollector>;
+    type Fruit = Box<dyn Fruit>;
+    type Child = Box<dyn BoxableSegmentCollector>;
 
     fn for_segment(
         &self,
         segment_local_id: u32,
         reader: &SegmentReader,
-    ) -> Result<Box<BoxableSegmentCollector>> {
+    ) -> Result<Box<dyn BoxableSegmentCollector>> {
         let child = self.0.for_segment(segment_local_id, reader)?;
         Ok(Box::new(SegmentCollectorWrapper(child)))
     }
@@ -33,7 +33,7 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
         self.0.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> Result<Box<Fruit>> {
+    fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> Result<Box<dyn Fruit>> {
         let typed_fruit: Vec<TCollector::Fruit> = children
             .into_iter()
             .map(|untyped_fruit| {
@@ -50,21 +50,21 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     }
 }
 
-impl SegmentCollector for Box<BoxableSegmentCollector> {
-    type Fruit = Box<Fruit>;
+impl SegmentCollector for Box<dyn BoxableSegmentCollector> {
+    type Fruit = Box<dyn Fruit>;
 
     fn collect(&mut self, doc: u32, score: f32) {
         self.as_mut().collect(doc, score);
     }
 
-    fn harvest(self) -> Box<Fruit> {
+    fn harvest(self) -> Box<dyn Fruit> {
         BoxableSegmentCollector::harvest_from_box(self)
     }
 }
 
 pub trait BoxableSegmentCollector {
     fn collect(&mut self, doc: u32, score: f32);
-    fn harvest_from_box(self: Box<Self>) -> Box<Fruit>;
+    fn harvest_from_box(self: Box<Self>) -> Box<dyn Fruit>;
 }
 
 pub struct SegmentCollectorWrapper<TSegmentCollector: SegmentCollector>(TSegmentCollector);
@@ -76,7 +76,7 @@ impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector
         self.0.collect(doc, score);
     }
 
-    fn harvest_from_box(self: Box<Self>) -> Box<Fruit> {
+    fn harvest_from_box(self: Box<Self>) -> Box<dyn Fruit> {
         Box::new(self.0.harvest())
     }
 }
@@ -157,8 +157,9 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 #[allow(clippy::type_complexity)]
 #[derive(Default)]
 pub struct MultiCollector<'a> {
-    collector_wrappers:
-        Vec<Box<Collector<Child = Box<BoxableSegmentCollector>, Fruit = Box<Fruit>> + 'a>>,
+    collector_wrappers: Vec<
+        Box<dyn Collector<Child = Box<dyn BoxableSegmentCollector>, Fruit = Box<dyn Fruit>> + 'a>,
+    >,
 }
 
 impl<'a> MultiCollector<'a> {
@@ -207,7 +208,7 @@ impl<'a> Collector for MultiCollector<'a> {
     }
 
     fn merge_fruits(&self, segments_multifruits: Vec<MultiFruit>) -> Result<MultiFruit> {
-        let mut segment_fruits_list: Vec<Vec<Box<Fruit>>> = (0..self.collector_wrappers.len())
+        let mut segment_fruits_list: Vec<Vec<Box<dyn Fruit>>> = (0..self.collector_wrappers.len())
             .map(|_| Vec::with_capacity(segments_multifruits.len()))
             .collect::<Vec<_>>();
         for segment_multifruit in segments_multifruits {
@@ -230,7 +231,7 @@ impl<'a> Collector for MultiCollector<'a> {
 }
 
 pub struct MultiCollectorChild {
-    children: Vec<Box<BoxableSegmentCollector>>,
+    children: Vec<Box<dyn BoxableSegmentCollector>>,
 }
 
 impl SegmentCollector for MultiCollectorChild {
@@ -257,12 +258,12 @@ impl SegmentCollector for MultiCollectorChild {
 mod tests {
 
     use super::*;
-    use collector::{Count, TopDocs};
-    use query::TermQuery;
-    use schema::IndexRecordOption;
-    use schema::{Schema, TEXT};
-    use Index;
-    use Term;
+    use crate::collector::{Count, TopDocs};
+    use crate::query::TermQuery;
+    use crate::schema::IndexRecordOption;
+    use crate::schema::{Schema, TEXT};
+    use crate::Index;
+    use crate::Term;
 
     #[test]
     fn test_multi_collector() {

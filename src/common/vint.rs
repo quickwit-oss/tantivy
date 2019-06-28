@@ -30,16 +30,16 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
     let val = u64::from(val);
     const STOP_BIT: u64 = 128u64;
     match val {
-        0...STOP_1 => (val | STOP_BIT, 1),
-        START_2...STOP_2 => (
+        0..=STOP_1 => (val | STOP_BIT, 1),
+        START_2..=STOP_2 => (
             (val & MASK_1) | ((val & MASK_2) << 1) | (STOP_BIT << (8)),
             2,
         ),
-        START_3...STOP_3 => (
+        START_3..=STOP_3 => (
             (val & MASK_1) | ((val & MASK_2) << 1) | ((val & MASK_3) << 2) | (STOP_BIT << (8 * 2)),
             3,
         ),
-        START_4...STOP_4 => (
+        START_4..=STOP_4 => (
             (val & MASK_1)
                 | ((val & MASK_2) << 1)
                 | ((val & MASK_3) << 2)
@@ -171,8 +171,8 @@ mod tests {
 
     use super::serialize_vint_u32;
     use super::VInt;
+    use crate::common::BinarySerializable;
     use byteorder::{ByteOrder, LittleEndian};
-    use common::BinarySerializable;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];

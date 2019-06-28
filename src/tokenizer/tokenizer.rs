@@ -1,7 +1,7 @@
+use crate::tokenizer::TokenStreamChain;
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 use std::borrow::{Borrow, BorrowMut};
-use tokenizer::TokenStreamChain;
 
 /// Token
 #[derive(Debug, Clone)]
@@ -82,17 +82,17 @@ pub trait Tokenizer<'a>: Sized + Clone {
 /// A boxed tokenizer
 pub trait BoxedTokenizer: Send + Sync {
     /// Tokenize a `&str`
-    fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a>;
 
     /// Tokenize an array`&str`
     ///
     /// The resulting `TokenStream` is equivalent to what would be obtained if the &str were
     /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
     /// to prevent accidental `PhraseQuery` to match accross two terms.
-    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b>;
+    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b>;
 
     /// Return a boxed clone of the tokenizer
-    fn boxed_clone(&self) -> Box<BoxedTokenizer>;
+    fn boxed_clone(&self) -> Box<dyn BoxedTokenizer>;
 }
 
 #[derive(Clone)]
@@ -104,11 +104,11 @@ impl<A> BoxedTokenizer for BoxableTokenizer<A>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
-    fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a> {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
         Box::new(self.0.token_stream(text))
     }
 
-    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
+    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b> {
         assert!(!texts.is_empty());
         if texts.len() == 1 {
             Box::new(self.0.token_stream(texts[0]))
@@ -125,31 +125,31 @@ where
         }
     }
 
-    fn boxed_clone(&self) -> Box<BoxedTokenizer> {
+    fn boxed_clone(&self) -> Box<dyn BoxedTokenizer> {
         Box::new(self.clone())
     }
 }
 
-pub(crate) fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
+pub(crate) fn box_tokenizer<A>(a: A) -> Box<dyn BoxedTokenizer>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
     Box::new(BoxableTokenizer(a))
 }
 
-impl<'b> TokenStream for Box<TokenStream + 'b> {
+impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
     fn advance(&mut self) -> bool {
-        let token_stream: &mut TokenStream = self.borrow_mut();
+        let token_stream: &mut dyn TokenStream = self.borrow_mut();
         token_stream.advance()
     }
 
     fn token(&self) -> &Token {
-        let token_stream: &TokenStream = self.borrow();
+        let token_stream: &dyn TokenStream = self.borrow();
         token_stream.token()
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        let token_stream: &mut TokenStream = self.borrow_mut();
+        let token_stream: &mut dyn TokenStream = self.borrow_mut();
         token_stream.token_mut()
     }
 }
@@ -226,7 +226,7 @@ pub trait TokenStream {
 
     /// Helper function to consume the entire `TokenStream`
     /// and push the tokens to a sink function.
-    fn process(&mut self, sink: &mut FnMut(&Token)) -> u32 {
+    fn process(&mut self, sink: &mut dyn FnMut(&Token)) -> u32 {
         let mut num_tokens_pushed = 0u32;
         while self.advance() {
             sink(self.token());

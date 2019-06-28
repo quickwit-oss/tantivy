@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
-use query::Occur;
+use crate::query::Occur;
 
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
@@ -14,7 +14,7 @@ pub enum UserInputLeaf {
 }
 
 impl Debug for UserInputLeaf {
-    fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             UserInputLeaf::Literal(literal) => literal.fmt(formatter),
             UserInputLeaf::Range {
@@ -41,7 +41,7 @@ pub struct UserInputLiteral {
 }
 
 impl fmt::Debug for UserInputLiteral {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self.field_name {
             Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
             None => write!(formatter, "\"{}\"", self.phrase),
@@ -55,14 +55,14 @@ pub enum UserInputBound {
 }
 
 impl UserInputBound {
-    fn display_lower(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn display_lower(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{}\"", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
         }
     }
 
-    fn display_upper(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn display_upper(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),
@@ -163,7 +163,7 @@ impl From<UserInputLeaf> for UserInputAST {
 }
 
 impl fmt::Debug for UserInputAST {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {

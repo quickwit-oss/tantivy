@@ -53,11 +53,11 @@ use self::compression_snap::*;
 pub mod tests {
 
     use super::*;
-    use directory::{Directory, RAMDirectory, WritePtr};
-    use schema::Document;
-    use schema::FieldValue;
-    use schema::Schema;
-    use schema::TextOptions;
+    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::schema::Document;
+    use crate::schema::FieldValue;
+    use crate::schema::Schema;
+    use crate::schema::TextOptions;
     use std::path::Path;
 
     pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {

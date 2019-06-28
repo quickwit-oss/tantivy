@@ -1,6 +1,6 @@
 use super::IndexWriter;
-use Opstamp;
-use Result;
+use crate::Opstamp;
+use crate::Result;
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {
@@ -10,7 +10,7 @@ pub struct PreparedCommit<'a> {
 }
 
 impl<'a> PreparedCommit<'a> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp) -> PreparedCommit {
+    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp) -> PreparedCommit<'_> {
         PreparedCommit {
             index_writer,
             payload: None,

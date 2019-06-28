@@ -1,16 +1,16 @@
 use super::Collector;
-use collector::top_collector::TopCollector;
-use collector::top_collector::TopSegmentCollector;
-use collector::SegmentCollector;
-use fastfield::FastFieldReader;
-use fastfield::FastValue;
-use schema::Field;
+use crate::collector::top_collector::TopCollector;
+use crate::collector::top_collector::TopSegmentCollector;
+use crate::collector::SegmentCollector;
+use crate::fastfield::FastFieldReader;
+use crate::fastfield::FastValue;
+use crate::schema::Field;
+use crate::DocAddress;
+use crate::Result;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
+use crate::TantivyError;
 use std::marker::PhantomData;
-use DocAddress;
-use Result;
-use SegmentLocalId;
-use SegmentReader;
-use TantivyError;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -159,17 +159,17 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector
 #[cfg(test)]
 mod tests {
     use super::TopDocsByField;
-    use collector::Collector;
-    use collector::TopDocs;
-    use query::Query;
-    use query::QueryParser;
-    use schema::Field;
-    use schema::IntOptions;
-    use schema::{Schema, FAST, TEXT};
-    use DocAddress;
-    use Index;
-    use IndexWriter;
-    use TantivyError;
+    use crate::collector::Collector;
+    use crate::collector::TopDocs;
+    use crate::query::Query;
+    use crate::query::QueryParser;
+    use crate::schema::Field;
+    use crate::schema::IntOptions;
+    use crate::schema::{Schema, FAST, TEXT};
+    use crate::DocAddress;
+    use crate::Index;
+    use crate::IndexWriter;
+    use crate::TantivyError;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
@@ -258,7 +258,7 @@ mod tests {
         query_field: Field,
         schema: Schema,
         mut doc_adder: impl FnMut(&mut IndexWriter) -> (),
-    ) -> (Index, Box<Query>) {
+    ) -> (Index, Box<dyn Query>) {
         let index = Index::create_in_ram(schema);
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();

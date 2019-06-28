@@ -1,4 +1,4 @@
-use schema::Value;
+use crate::schema::Value;
 use std::collections::BTreeMap;
 
 /// Internal representation of a document used for JSON

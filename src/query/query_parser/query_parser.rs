@@ -1,26 +1,26 @@
 use super::logical_ast::*;
 use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
+use crate::core::Index;
+use crate::query::occur::compose_occur;
+use crate::query::query_parser::logical_ast::LogicalAST;
+use crate::query::AllQuery;
+use crate::query::BooleanQuery;
+use crate::query::EmptyQuery;
+use crate::query::Occur;
+use crate::query::PhraseQuery;
+use crate::query::Query;
+use crate::query::RangeQuery;
+use crate::query::TermQuery;
+use crate::schema::IndexRecordOption;
+use crate::schema::{Field, Schema};
+use crate::schema::{FieldType, Term};
+use crate::tokenizer::TokenizerManager;
 use combine::Parser;
-use core::Index;
-use query::occur::compose_occur;
-use query::query_parser::logical_ast::LogicalAST;
-use query::AllQuery;
-use query::BooleanQuery;
-use query::EmptyQuery;
-use query::Occur;
-use query::PhraseQuery;
-use query::Query;
-use query::RangeQuery;
-use query::TermQuery;
-use schema::IndexRecordOption;
-use schema::{Field, Schema};
-use schema::{FieldType, Term};
 use std::borrow::Cow;
 use std::num::ParseIntError;
 use std::ops::Bound;
 use std::str::FromStr;
-use tokenizer::TokenizerManager;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -192,7 +192,7 @@ impl QueryParser {
     ///
     /// Implementing a lenient mode for this query parser is tracked
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
-    pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
+    pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
     }
@@ -253,7 +253,7 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let mut tokenizer =
+                    let tokenizer =
                         self.tokenizer_manager
                             .get(option.tokenizer())
                             .ok_or_else(|| {
@@ -347,7 +347,7 @@ impl QueryParser {
     fn resolved_fields(
         &self,
         given_field: &Option<String>,
-    ) -> Result<Cow<[Field]>, QueryParserError> {
+    ) -> Result<Cow<'_, [Field]>, QueryParserError> {
         match *given_field {
             None => {
                 if self.default_fields.is_empty() {
@@ -458,7 +458,7 @@ impl QueryParser {
     }
 }
 
-fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
+fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
         LogicalLiteral::Phrase(term_with_offsets) => {
@@ -476,7 +476,7 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     }
 }
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
+fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAST::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
@@ -501,12 +501,14 @@ mod test {
     use super::super::logical_ast::*;
     use super::QueryParser;
     use super::QueryParserError;
-    use query::Query;
-    use schema::Field;
-    use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
-    use schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
-    use tokenizer::{LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager};
-    use Index;
+    use crate::query::Query;
+    use crate::schema::Field;
+    use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
+    use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
+    use crate::tokenizer::{
+        LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager,
+    };
+    use crate::Index;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = Schema::builder();
@@ -570,7 +572,7 @@ mod test {
         let query_parser = make_query_parser();
 
         let is_not_indexed_err = |query: &str| {
-            let result: Result<Box<Query>, QueryParserError> = query_parser.parse_query(query);
+            let result: Result<Box<dyn Query>, QueryParserError> = query_parser.parse_query(query);
             if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
                 Some(field_name.clone())
             } else {

@@ -1,10 +1,10 @@
-use common::TinySet;
-use docset::{DocSet, SkipResult};
-use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
-use query::Scorer;
+use crate::common::TinySet;
+use crate::docset::{DocSet, SkipResult};
+use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use crate::query::Scorer;
+use crate::DocId;
+use crate::Score;
 use std::cmp::Ordering;
-use DocId;
-use Score;
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
@@ -267,14 +267,14 @@ mod tests {
 
     use super::Union;
     use super::HORIZON;
-    use docset::{DocSet, SkipResult};
-    use postings::tests::test_skip_against_unoptimized;
-    use query::score_combiner::DoNothingCombiner;
-    use query::ConstScorer;
-    use query::VecDocSet;
+    use crate::docset::{DocSet, SkipResult};
+    use crate::postings::tests::test_skip_against_unoptimized;
+    use crate::query::score_combiner::DoNothingCombiner;
+    use crate::query::ConstScorer;
+    use crate::query::VecDocSet;
+    use crate::tests;
+    use crate::DocId;
     use std::collections::BTreeSet;
-    use tests;
-    use DocId;
 
     fn aux_test_union(vals: Vec<Vec<u32>>) {
         let mut val_set: BTreeSet<u32> = BTreeSet::new();
@@ -334,7 +334,7 @@ mod tests {
             }
         }
         let docset_factory = || {
-            let res: Box<DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
+            let res: Box<dyn DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
                 docs_list
                     .iter()
                     .map(|docs| docs.clone())

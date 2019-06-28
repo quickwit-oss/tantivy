@@ -1,10 +1,10 @@
-use docset::{DocSet, SkipResult};
-use query::score_combiner::ScoreCombiner;
-use query::Scorer;
+use crate::docset::{DocSet, SkipResult};
+use crate::query::score_combiner::ScoreCombiner;
+use crate::query::Scorer;
+use crate::DocId;
+use crate::Score;
 use std::cmp::Ordering;
 use std::marker::PhantomData;
-use DocId;
-use Score;
 
 /// Given a required scorer and an optional scorer
 /// matches all document from the required scorer
@@ -102,13 +102,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::RequiredOptionalScorer;
-    use docset::DocSet;
-    use postings::tests::test_skip_against_unoptimized;
-    use query::score_combiner::{DoNothingCombiner, SumCombiner};
-    use query::ConstScorer;
-    use query::Scorer;
-    use query::VecDocSet;
-    use tests::sample_with_seed;
+    use crate::docset::DocSet;
+    use crate::postings::tests::test_skip_against_unoptimized;
+    use crate::query::score_combiner::{DoNothingCombiner, SumCombiner};
+    use crate::query::ConstScorer;
+    use crate::query::Scorer;
+    use crate::query::VecDocSet;
+    use crate::tests::sample_with_seed;
 
     #[test]
     fn test_reqopt_scorer_empty() {

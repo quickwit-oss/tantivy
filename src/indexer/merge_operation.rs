@@ -1,7 +1,7 @@
+use crate::Opstamp;
+use crate::SegmentId;
 use census::{Inventory, TrackedObject};
 use std::collections::HashSet;
-use Opstamp;
-use SegmentId;
 
 #[derive(Default)]
 pub struct MergeOperationInventory(Inventory<InnerMergeOperation>);

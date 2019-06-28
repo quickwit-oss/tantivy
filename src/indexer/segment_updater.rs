@@ -1,29 +1,31 @@
 use super::segment_manager::{get_mergeable_segments, SegmentManager};
-use core::Index;
-use core::IndexMeta;
-use core::Segment;
-use core::SegmentId;
-use core::SegmentMeta;
-use core::SerializableSegment;
-use core::META_FILEPATH;
-use directory::{Directory, DirectoryClone};
-use error::TantivyError;
+use crate::core::Index;
+use crate::core::IndexMeta;
+use crate::core::Segment;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::core::SerializableSegment;
+use crate::core::META_FILEPATH;
+use crate::directory::{Directory, DirectoryClone};
+use crate::error::TantivyError;
+use crate::indexer::delete_queue::DeleteCursor;
+use crate::indexer::index_writer::advance_deletes;
+use crate::indexer::merge_operation::MergeOperationInventory;
+use crate::indexer::merger::IndexMerger;
+use crate::indexer::stamper::Stamper;
+use crate::indexer::MergeOperation;
+use crate::indexer::SegmentEntry;
+use crate::indexer::SegmentSerializer;
+use crate::indexer::{DefaultMergePolicy, MergePolicy};
+use crate::schema::Schema;
+use crate::Opstamp;
+use crate::Result;
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;
 use futures::Future;
 use futures_cpupool::Builder as CpuPoolBuilder;
 use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
-use indexer::delete_queue::DeleteCursor;
-use indexer::index_writer::advance_deletes;
-use indexer::merge_operation::MergeOperationInventory;
-use indexer::merger::IndexMerger;
-use indexer::stamper::Stamper;
-use indexer::MergeOperation;
-use indexer::SegmentEntry;
-use indexer::SegmentSerializer;
-use indexer::{DefaultMergePolicy, MergePolicy};
-use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
@@ -36,8 +38,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
-use Opstamp;
-use Result;
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -48,7 +48,7 @@ use Result;
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
+pub fn save_new_metas(schema: Schema, directory: &mut dyn Directory) -> Result<()> {
     save_metas(
         &IndexMeta {
             segments: Vec::new(),
@@ -69,7 +69,7 @@ pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-fn save_metas(metas: &IndexMeta, directory: &mut Directory) -> Result<()> {
+fn save_metas(metas: &IndexMeta, directory: &mut dyn Directory) -> Result<()> {
     info!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
@@ -142,7 +142,7 @@ struct InnerSegmentUpdater {
     pool: CpuPool,
     index: Index,
     segment_manager: SegmentManager,
-    merge_policy: RwLock<Arc<Box<MergePolicy>>>,
+    merge_policy: RwLock<Arc<Box<dyn MergePolicy>>>,
     merging_thread_id: AtomicUsize,
     merging_threads: RwLock<HashMap<usize, JoinHandle<Result<()>>>>,
     generation: AtomicUsize,
@@ -179,11 +179,11 @@ impl SegmentUpdater {
         })))
     }
 
-    pub fn get_merge_policy(&self) -> Arc<Box<MergePolicy>> {
+    pub fn get_merge_policy(&self) -> Arc<Box<dyn MergePolicy>> {
         self.0.merge_policy.read().unwrap().clone()
     }
 
-    pub fn set_merge_policy(&self, merge_policy: Box<MergePolicy>) {
+    pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
         let arc_merge_policy = Arc::new(merge_policy);
         *self.0.merge_policy.write().unwrap() = arc_merge_policy;
     }
@@ -533,9 +533,9 @@ impl SegmentUpdater {
 #[cfg(test)]
 mod tests {
 
-    use indexer::merge_policy::tests::MergeWheneverPossible;
-    use schema::*;
-    use Index;
+    use crate::indexer::merge_policy::tests::MergeWheneverPossible;
+    use crate::schema::*;
+    use crate::Index;
 
     #[test]
     fn test_delete_during_merge() {

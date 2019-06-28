@@ -1,5 +1,5 @@
 use super::merge_policy::{MergeCandidate, MergePolicy};
-use core::SegmentMeta;
+use crate::core::SegmentMeta;
 use std::cmp;
 use std::f64;
 
@@ -95,8 +95,8 @@ impl Default for LogMergePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::{SegmentId, SegmentMeta};
-    use indexer::merge_policy::MergePolicy;
+    use crate::core::{SegmentId, SegmentMeta};
+    use crate::indexer::merge_policy::MergePolicy;
 
     fn test_merge_policy() -> LogMergePolicy {
         let mut log_merge_policy = LogMergePolicy::default();

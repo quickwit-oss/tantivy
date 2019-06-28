@@ -1,7 +1,7 @@
+use crate::Opstamp;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use Opstamp;
 
 /// Stamper provides Opstamps, which is just an auto-increment id to label
 /// an operation.

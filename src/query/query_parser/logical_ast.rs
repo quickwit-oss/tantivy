@@ -1,7 +1,7 @@
-use query::Occur;
-use schema::Field;
-use schema::Term;
-use schema::Type;
+use crate::query::Occur;
+use crate::schema::Field;
+use crate::schema::Term;
+use crate::schema::Type;
 use std::fmt;
 use std::ops::Bound;
 
@@ -33,7 +33,7 @@ fn occur_letter(occur: Occur) -> &'static str {
 }
 
 impl fmt::Debug for LogicalAST {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalAST::Clause(ref clause) => {
                 if clause.is_empty() {
@@ -60,7 +60,7 @@ impl From<LogicalLiteral> for LogicalAST {
 }
 
 impl fmt::Debug for LogicalLiteral {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
             LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),

@@ -125,31 +125,8 @@ extern crate failure;
 
 #[cfg(feature = "mmap")]
 extern crate atomicwrites;
-extern crate base64;
-extern crate bit_set;
-extern crate bitpacking;
-extern crate byteorder;
-extern crate combine;
-extern crate crossbeam;
-extern crate fnv;
-extern crate futures;
-extern crate futures_cpupool;
-extern crate htmlescape;
-extern crate itertools;
-extern crate levenshtein_automata;
 #[cfg(feature = "mmap")]
 extern crate memmap;
-extern crate num_cpus;
-extern crate owning_ref;
-extern crate regex;
-extern crate rust_stemmers;
-extern crate scoped_pool;
-extern crate serde;
-extern crate stable_deref_trait;
-extern crate tantivy_fst;
-extern crate tempdir;
-extern crate tempfile;
-extern crate uuid;
 
 #[cfg(test)]
 #[macro_use]
@@ -181,14 +158,11 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use error::TantivyError;
+pub use crate::error::TantivyError;
 
 #[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
-pub use error::TantivyError as Error;
-
-extern crate census;
-pub extern crate chrono;
-extern crate owned_read;
+pub use crate::error::TantivyError as Error;
+pub use chrono;
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, error::TantivyError>;
@@ -225,15 +199,15 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
 
-pub use core::SegmentComponent;
-pub use core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
-pub use core::{InvertedIndexReader, SegmentReader};
-pub use directory::Directory;
-pub use indexer::IndexWriter;
-pub use postings::Postings;
-pub use schema::{Document, Term};
+pub use crate::core::SegmentComponent;
+pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
+pub use crate::core::{InvertedIndexReader, SegmentReader};
+pub use crate::directory::Directory;
+pub use crate::indexer::IndexWriter;
+pub use crate::postings::Postings;
+pub use crate::schema::{Document, Term};
 
-pub use common::{i64_to_u64, u64_to_i64};
+pub use crate::common::{i64_to_u64, u64_to_i64};
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
@@ -243,10 +217,10 @@ pub fn version() -> &'static str {
 
 /// Defines tantivy's merging strategy
 pub mod merge_policy {
-    pub use indexer::DefaultMergePolicy;
-    pub use indexer::LogMergePolicy;
-    pub use indexer::MergePolicy;
-    pub use indexer::NoMergePolicy;
+    pub use crate::indexer::DefaultMergePolicy;
+    pub use crate::indexer::LogMergePolicy;
+    pub use crate::indexer::MergePolicy;
+    pub use crate::indexer::NoMergePolicy;
 }
 
 /// A `u32` identifying a document within a segment.
@@ -304,20 +278,20 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 #[cfg(test)]
 mod tests {
 
-    use collector::tests::TestCollector;
-    use core::SegmentReader;
-    use docset::DocSet;
-    use query::BooleanQuery;
+    use crate::collector::tests::TestCollector;
+    use crate::core::SegmentReader;
+    use crate::docset::DocSet;
+    use crate::query::BooleanQuery;
+    use crate::schema::*;
+    use crate::DocAddress;
+    use crate::Index;
+    use crate::IndexWriter;
+    use crate::Postings;
+    use crate::ReloadPolicy;
     use rand::distributions::Bernoulli;
     use rand::distributions::Uniform;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
-    use schema::*;
-    use DocAddress;
-    use Index;
-    use IndexWriter;
-    use Postings;
-    use ReloadPolicy;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(
@@ -480,7 +454,7 @@ mod tests {
         }
     }
 
-    fn advance_undeleted(docset: &mut DocSet, reader: &SegmentReader) -> bool {
+    fn advance_undeleted(docset: &mut dyn DocSet, reader: &SegmentReader) -> bool {
         while docset.advance() {
             if !reader.is_deleted(docset.doc()) {
                 return true;

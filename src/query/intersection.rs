@@ -1,9 +1,9 @@
-use docset::{DocSet, SkipResult};
-use query::term_query::TermScorer;
-use query::EmptyScorer;
-use query::Scorer;
-use DocId;
-use Score;
+use crate::docset::{DocSet, SkipResult};
+use crate::query::term_query::TermScorer;
+use crate::query::EmptyScorer;
+use crate::query::Scorer;
+use crate::DocId;
+use crate::Score;
 
 /// Returns the intersection scorer.
 ///
@@ -13,7 +13,7 @@ use Score;
 /// For better performance, the function uses a
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
-pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
+pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
     if scorers.is_empty() {
         return Box::new(EmptyScorer);
     }
@@ -46,7 +46,7 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
 }
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<Scorer>> {
+pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>> {
     left: TDocSet,
     right: TDocSet,
     others: Vec<TOtherDocSet>,
@@ -81,7 +81,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
 }
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> {
-    pub(crate) fn docset_mut(&mut self, ord: usize) -> &mut DocSet {
+    pub(crate) fn docset_mut(&mut self, ord: usize) -> &mut dyn DocSet {
         match ord {
             0 => &mut self.left,
             1 => &mut self.right,
@@ -229,9 +229,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::Intersection;
-    use docset::{DocSet, SkipResult};
-    use postings::tests::test_skip_against_unoptimized;
-    use query::VecDocSet;
+    use crate::docset::{DocSet, SkipResult};
+    use crate::postings::tests::test_skip_against_unoptimized;
+    use crate::query::VecDocSet;
 
     #[test]
     fn test_intersection() {

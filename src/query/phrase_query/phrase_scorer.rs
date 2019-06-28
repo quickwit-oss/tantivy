@@ -1,9 +1,9 @@
-use docset::{DocSet, SkipResult};
-use fieldnorm::FieldNormReader;
-use postings::Postings;
-use query::bm25::BM25Weight;
-use query::{Intersection, Scorer};
-use DocId;
+use crate::docset::{DocSet, SkipResult};
+use crate::fieldnorm::FieldNormReader;
+use crate::postings::Postings;
+use crate::query::bm25::BM25Weight;
+use crate::query::{Intersection, Scorer};
+use crate::DocId;
 
 struct PostingsWithOffset<TPostings> {
     offset: u32,

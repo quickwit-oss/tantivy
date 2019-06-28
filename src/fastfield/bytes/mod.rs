@@ -6,8 +6,8 @@ pub use self::writer::BytesFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
-    use schema::Schema;
-    use Index;
+    use crate::schema::Schema;
+    use crate::Index;
 
     #[test]
     fn test_bytes() {

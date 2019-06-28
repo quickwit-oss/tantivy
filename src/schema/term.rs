@@ -1,11 +1,11 @@
 use std::fmt;
 
 use super::Field;
+use crate::common;
+use crate::schema::Facet;
+use crate::DateTime;
 use byteorder::{BigEndian, ByteOrder};
-use common;
-use schema::Facet;
 use std::str;
-use DateTime;
 
 /// Size (in bytes) of the buffer of a int field.
 const INT_TERM_LEN: usize = 4 + 8;
@@ -197,7 +197,7 @@ where
 }
 
 impl fmt::Debug for Term {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Term({:?})", &self.0[..])
     }
 }
@@ -205,7 +205,7 @@ impl fmt::Debug for Term {
 #[cfg(test)]
 mod tests {
 
-    use schema::*;
+    use crate::schema::*;
 
     #[test]
     pub fn test_term() {

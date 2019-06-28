@@ -7,19 +7,19 @@ pub use self::boolean_query::BooleanQuery;
 mod tests {
 
     use super::*;
-    use collector::tests::TestCollector;
-    use query::score_combiner::SumWithCoordsCombiner;
-    use query::term_query::TermScorer;
-    use query::Intersection;
-    use query::Occur;
-    use query::Query;
-    use query::QueryParser;
-    use query::RequiredOptionalScorer;
-    use query::Scorer;
-    use query::TermQuery;
-    use schema::*;
-    use Index;
-    use {DocAddress, DocId};
+    use crate::collector::tests::TestCollector;
+    use crate::query::score_combiner::SumWithCoordsCombiner;
+    use crate::query::term_query::TermScorer;
+    use crate::query::Intersection;
+    use crate::query::Occur;
+    use crate::query::Query;
+    use crate::query::QueryParser;
+    use crate::query::RequiredOptionalScorer;
+    use crate::query::Scorer;
+    use crate::query::TermQuery;
+    use crate::schema::*;
+    use crate::Index;
+    use crate::{DocAddress, DocId};
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = Schema::builder();
@@ -89,7 +89,7 @@ mod tests {
             let query = query_parser.parse_query("+a +(b c)").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(scorer.is::<Intersection<Box<Scorer>>>());
+            assert!(scorer.is::<Intersection<Box<dyn Scorer>>>());
         }
     }
 
@@ -102,8 +102,11 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(scorer
-                .is::<RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>>());
+            assert!(scorer.is::<RequiredOptionalScorer<
+                Box<dyn Scorer>,
+                Box<dyn Scorer>,
+                SumWithCoordsCombiner,
+            >>());
         }
         {
             let query = query_parser.parse_query("+a b").unwrap();
@@ -122,13 +125,13 @@ mod tests {
                 Term::from_field_text(text_field, text),
                 IndexRecordOption::Basic,
             );
-            let query: Box<Query> = Box::new(term_query);
+            let query: Box<dyn Query> = Box::new(term_query);
             query
         };
 
         let reader = index.reader().unwrap();
 
-        let matching_docs = |boolean_query: &Query| {
+        let matching_docs = |boolean_query: &dyn Query| {
             reader
                 .searcher()
                 .search(boolean_query, &TestCollector)
@@ -185,11 +188,11 @@ mod tests {
                 Term::from_field_text(text_field, text),
                 IndexRecordOption::Basic,
             );
-            let query: Box<Query> = Box::new(term_query);
+            let query: Box<dyn Query> = Box::new(term_query);
             query
         };
         let reader = index.reader().unwrap();
-        let score_docs = |boolean_query: &Query| {
+        let score_docs = |boolean_query: &dyn Query| {
             let fruit = reader
                 .searcher()
                 .search(boolean_query, &TestCollector)

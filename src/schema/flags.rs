@@ -1,5 +1,5 @@
-use schema::IntOptions;
-use schema::TextOptions;
+use crate::schema::IntOptions;
+use crate::schema::TextOptions;
 use std::ops::BitOr;
 
 #[derive(Clone)]

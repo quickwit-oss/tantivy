@@ -1558,12 +1558,12 @@ fn to_ascii(text: &mut String, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::to_ascii;
+    use crate::tokenizer::AsciiFoldingFilter;
+    use crate::tokenizer::RawTokenizer;
+    use crate::tokenizer::SimpleTokenizer;
+    use crate::tokenizer::TokenStream;
+    use crate::tokenizer::Tokenizer;
     use std::iter;
-    use tokenizer::AsciiFoldingFilter;
-    use tokenizer::RawTokenizer;
-    use tokenizer::SimpleTokenizer;
-    use tokenizer::TokenStream;
-    use tokenizer::Tokenizer;
 
     #[test]
     fn test_ascii_folding() {
