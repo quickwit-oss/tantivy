@@ -57,7 +57,7 @@ chrono = "0.4"
 winapi = "0.3"
 
 [dev-dependencies]
-rand = "0.6"
+rand = "0.7"
 maplit = "1"
 matches = "0.1.8"
 time = "0.1.42"

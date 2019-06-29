@@ -342,7 +342,7 @@ mod tests {
 
     pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {
         StdRng::from_seed([seed_val; 32])
-            .sample_iter(&Bernoulli::new(ratio))
+            .sample_iter(&Bernoulli::new(ratio).unwrap())
             .take(n as usize)
             .enumerate()
             .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
