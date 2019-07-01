@@ -1,13 +1,13 @@
 use super::Scorer;
-use query::explanation::does_not_match;
-use query::Weight;
-use query::{Explanation, Query};
-use DocId;
-use DocSet;
-use Result;
-use Score;
-use Searcher;
-use SegmentReader;
+use crate::query::explanation::does_not_match;
+use crate::query::Weight;
+use crate::query::{Explanation, Query};
+use crate::DocId;
+use crate::DocSet;
+use crate::Result;
+use crate::Score;
+use crate::Searcher;
+use crate::SegmentReader;
 
 /// `EmptyQuery` is a dummy `Query` in which no document matches.
 ///
@@ -16,7 +16,7 @@ use SegmentReader;
 pub struct EmptyQuery;
 
 impl Query for EmptyQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         Ok(Box::new(EmptyWeight))
     }
 
@@ -30,7 +30,7 @@ impl Query for EmptyQuery {
 /// It is useful for tests and handling edge cases.
 pub struct EmptyWeight;
 impl Weight for EmptyWeight {
-    fn scorer(&self, _reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, _reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         Ok(Box::new(EmptyScorer))
     }
 
@@ -69,8 +69,8 @@ impl Scorer for EmptyScorer {
 
 #[cfg(test)]
 mod tests {
-    use query::EmptyScorer;
-    use DocSet;
+    use crate::query::EmptyScorer;
+    use crate::DocSet;
 
     #[test]
     fn test_empty_scorer() {

@@ -85,12 +85,12 @@ See the `custom_collector` example.
 
 */
 
+use crate::DocId;
+use crate::Result;
+use crate::Score;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
 use downcast_rs;
-use DocId;
-use Result;
-use Score;
-use SegmentLocalId;
-use SegmentReader;
 
 mod count_collector;
 pub use self::count_collector::Count;

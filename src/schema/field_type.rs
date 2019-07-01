@@ -1,11 +1,11 @@
 use base64::decode;
 
-use schema::{IntOptions, TextOptions};
+use crate::schema::{IntOptions, TextOptions};
 
-use schema::Facet;
-use schema::IndexRecordOption;
-use schema::TextFieldIndexing;
-use schema::Value;
+use crate::schema::Facet;
+use crate::schema::IndexRecordOption;
+use crate::schema::TextFieldIndexing;
+use crate::schema::Value;
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -166,8 +166,8 @@ impl FieldType {
 #[cfg(test)]
 mod tests {
     use super::FieldType;
-    use schema::field_type::ValueParsingError;
-    use schema::Value;
+    use crate::schema::field_type::ValueParsingError;
+    use crate::schema::Value;
 
     #[test]
     fn test_bytes_value_from_json() {

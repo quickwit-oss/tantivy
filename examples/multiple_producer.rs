@@ -23,8 +23,6 @@
 // index a single document?), but aims at demonstrating the mechanism that makes indexing
 // from several threads possible.
 
-extern crate tempdir;
-
 // ---
 // Importing tantivy...
 #[macro_use]

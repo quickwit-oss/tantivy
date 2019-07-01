@@ -1,8 +1,8 @@
-use core::SegmentMeta;
-use schema::Schema;
+use crate::core::SegmentMeta;
+use crate::schema::Schema;
+use crate::Opstamp;
 use serde_json;
 use std::fmt;
-use Opstamp;
 
 /// Meta information about the `Index`.
 ///
@@ -46,7 +46,7 @@ impl IndexMeta {
 }
 
 impl fmt::Debug for IndexMeta {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -60,7 +60,7 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
-    use schema::{Schema, TEXT};
+    use crate::schema::{Schema, TEXT};
     use serde_json;
 
     #[test]

@@ -1,9 +1,9 @@
 use super::MultiValueIntFastFieldReader;
-use schema::Facet;
+use crate::schema::Facet;
+use crate::termdict::TermDictionary;
+use crate::termdict::TermOrdinal;
+use crate::DocId;
 use std::str;
-use termdict::TermDictionary;
-use termdict::TermOrdinal;
-use DocId;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific

@@ -1,8 +1,8 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
-use common::{read_u32_vint, write_u32_vint};
-use postings::FieldSerializer;
+use crate::common::{read_u32_vint, write_u32_vint};
+use crate::postings::FieldSerializer;
+use crate::DocId;
 use std::io;
-use DocId;
 
 const POSITION_END: u32 = 0;
 
@@ -72,7 +72,7 @@ pub(crate) trait Recorder: Copy + 'static {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
     ) -> io::Result<()>;
 }
@@ -108,7 +108,7 @@ impl Recorder for NothingRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
     ) -> io::Result<()> {
         let buffer = buffer_lender.lend_u8();
@@ -159,7 +159,7 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
     ) -> io::Result<()> {
         let buffer = buffer_lender.lend_u8();
@@ -208,7 +208,7 @@ impl Recorder for TFAndPositionRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
     ) -> io::Result<()> {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();

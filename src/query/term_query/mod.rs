@@ -9,13 +9,13 @@ pub use self::term_weight::TermWeight;
 #[cfg(test)]
 mod tests {
 
-    use collector::TopDocs;
-    use docset::DocSet;
-    use query::{Query, QueryParser, Scorer, TermQuery};
-    use schema::{IndexRecordOption, Schema, STRING, TEXT};
-    use tests::assert_nearly_equals;
-    use Index;
-    use Term;
+    use crate::collector::TopDocs;
+    use crate::docset::DocSet;
+    use crate::query::{Query, QueryParser, Scorer, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, STRING, TEXT};
+    use crate::tests::assert_nearly_equals;
+    use crate::Index;
+    use crate::Term;
 
     #[test]
     pub fn test_term_query_no_freq() {

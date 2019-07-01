@@ -1,7 +1,7 @@
 use super::{Addr, MemoryArena};
 
-use postings::stacker::memory_arena::load;
-use postings::stacker::memory_arena::store;
+use crate::postings::stacker::memory_arena::load;
+use crate::postings::stacker::memory_arena::store;
 use std::io;
 use std::mem;
 
@@ -16,8 +16,8 @@ enum CapacityResult {
 
 fn len_to_capacity(len: u32) -> CapacityResult {
     match len {
-        0...15 => CapacityResult::Available(FIRST_BLOCK as u32 - len),
-        16...MAX_BLOCK_LEN => {
+        0..=15 => CapacityResult::Available(FIRST_BLOCK as u32 - len),
+        16..=MAX_BLOCK_LEN => {
             let cap = 1 << (32u32 - (len - 1u32).leading_zeros());
             let available = cap - len;
             if available == 0 {

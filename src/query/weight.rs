@@ -1,7 +1,7 @@
 use super::Scorer;
-use core::SegmentReader;
-use query::Explanation;
-use {DocId, Result};
+use crate::core::SegmentReader;
+use crate::query::Explanation;
+use crate::{DocId, Result};
 
 /// A Weight is the specialization of a Query
 /// for a given set of segments.
@@ -10,7 +10,7 @@ use {DocId, Result};
 pub trait Weight: Send + Sync + 'static {
     /// Returns the scorer for the given segment.
     /// See [`Query`](./trait.Query.html).
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>>;
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>>;
 
     /// Returns an `Explanation` for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation>;

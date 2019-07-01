@@ -1,12 +1,12 @@
 use super::term_weight::TermWeight;
-use query::bm25::BM25Weight;
-use query::Query;
-use query::Weight;
-use schema::IndexRecordOption;
+use crate::query::bm25::BM25Weight;
+use crate::query::Query;
+use crate::query::Weight;
+use crate::schema::IndexRecordOption;
+use crate::Result;
+use crate::Searcher;
+use crate::Term;
 use std::collections::BTreeSet;
-use Result;
-use Searcher;
-use Term;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -99,7 +99,7 @@ impl TermQuery {
 }
 
 impl Query for TermQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
     }
     fn query_terms(&self, term_set: &mut BTreeSet<Term>) {

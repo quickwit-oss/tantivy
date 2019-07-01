@@ -1,10 +1,10 @@
 use super::TermDictionary;
-use postings::TermInfo;
+use crate::postings::TermInfo;
+use crate::termdict::TermOrdinal;
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::map::{Stream, StreamBuilder};
 use tantivy_fst::Automaton;
 use tantivy_fst::{IntoStreamer, Streamer};
-use termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.

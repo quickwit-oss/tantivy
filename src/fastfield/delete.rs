@@ -1,11 +1,11 @@
+use crate::common::HasLen;
+use crate::directory::ReadOnlySource;
+use crate::directory::WritePtr;
+use crate::space_usage::ByteCount;
+use crate::DocId;
 use bit_set::BitSet;
-use common::HasLen;
-use directory::ReadOnlySource;
-use directory::WritePtr;
-use space_usage::ByteCount;
 use std::io;
 use std::io::Write;
-use DocId;
 
 /// Write a delete `BitSet`
 ///
@@ -82,8 +82,8 @@ impl HasLen for DeleteBitSet {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::directory::*;
     use bit_set::BitSet;
-    use directory::*;
     use std::path::PathBuf;
 
     fn test_delete_bitset_helper(bitset: &BitSet) {

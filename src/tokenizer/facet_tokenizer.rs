@@ -1,5 +1,5 @@
 use super::{Token, TokenStream, Tokenizer};
-use schema::FACET_SEP_BYTE;
+use crate::schema::FACET_SEP_BYTE;
 
 /// The `FacetTokenizer` process a `Facet` binary representation
 /// and emits a token for all of its parent.
@@ -83,8 +83,8 @@ impl<'a> TokenStream for FacetTokenStream<'a> {
 mod tests {
 
     use super::FacetTokenizer;
-    use schema::Facet;
-    use tokenizer::{Token, TokenStream, Tokenizer};
+    use crate::schema::Facet;
+    use crate::tokenizer::{Token, TokenStream, Tokenizer};
 
     #[test]
     fn test_facet_tokenizer() {

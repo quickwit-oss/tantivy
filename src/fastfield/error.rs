@@ -1,4 +1,4 @@
-use schema::FieldEntry;
+use crate::schema::FieldEntry;
 use std::result;
 
 /// `FastFieldNotAvailableError` is returned when the

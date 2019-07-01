@@ -1,16 +1,16 @@
 use super::segment_register::SegmentRegister;
-use core::SegmentId;
-use core::SegmentMeta;
-use core::META_FILEPATH;
-use error::TantivyError;
-use indexer::delete_queue::DeleteCursor;
-use indexer::SegmentEntry;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::core::META_FILEPATH;
+use crate::error::TantivyError;
+use crate::indexer::delete_queue::DeleteCursor;
+use crate::indexer::SegmentEntry;
+use crate::Result as TantivyResult;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
-use Result as TantivyResult;
 
 #[derive(Default)]
 struct SegmentRegisters {
@@ -29,7 +29,7 @@ pub struct SegmentManager {
 }
 
 impl Debug for SegmentManager {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         let lock = self.read();
         write!(
             f,
@@ -91,13 +91,13 @@ impl SegmentManager {
     // Lock poisoning should never happen :
     // The lock is acquired and released within this class,
     // and the operations cannot panic.
-    fn read(&self) -> RwLockReadGuard<SegmentRegisters> {
+    fn read(&self) -> RwLockReadGuard<'_, SegmentRegisters> {
         self.registers
             .read()
             .expect("Failed to acquire read lock on SegmentManager.")
     }
 
-    fn write(&self) -> RwLockWriteGuard<SegmentRegisters> {
+    fn write(&self) -> RwLockWriteGuard<'_, SegmentRegisters> {
         self.registers
             .write()
             .expect("Failed to acquire write lock on SegmentManager.")

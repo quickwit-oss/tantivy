@@ -1,11 +1,11 @@
 use super::Weight;
-use core::searcher::Searcher;
-use query::Explanation;
+use crate::core::searcher::Searcher;
+use crate::query::Explanation;
+use crate::Result;
+use crate::Term;
+use crate::{downcast_rs, DocAddress};
 use std::collections::BTreeSet;
 use std::fmt;
-use Result;
-use Term;
-use {downcast_rs, DocAddress};
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -47,7 +47,7 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     /// can increase performances.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>>;
 
     /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
@@ -72,20 +72,20 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
 }
 
 pub trait QueryClone {
-    fn box_clone(&self) -> Box<Query>;
+    fn box_clone(&self) -> Box<dyn Query>;
 }
 
 impl<T> QueryClone for T
 where
     T: 'static + Query + Clone,
 {
-    fn box_clone(&self) -> Box<Query> {
+    fn box_clone(&self) -> Box<dyn Query> {
         Box::new(self.clone())
     }
 }
 
-impl Query for Box<Query> {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
+impl Query for Box<dyn Query> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         self.as_ref().weight(searcher, scoring_enabled)
     }
 
@@ -98,8 +98,8 @@ impl Query for Box<Query> {
     }
 }
 
-impl QueryClone for Box<Query> {
-    fn box_clone(&self) -> Box<Query> {
+impl QueryClone for Box<dyn Query> {
+    fn box_clone(&self) -> Box<dyn Query> {
         self.as_ref().box_clone()
     }
 }

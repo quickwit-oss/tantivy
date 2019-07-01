@@ -1,16 +1,16 @@
 use super::PhraseScorer;
-use core::SegmentReader;
-use fieldnorm::FieldNormReader;
-use postings::SegmentPostings;
-use query::bm25::BM25Weight;
-use query::explanation::does_not_match;
-use query::Scorer;
-use query::Weight;
-use query::{EmptyScorer, Explanation};
-use schema::IndexRecordOption;
-use schema::Term;
-use {DocId, DocSet};
-use {Result, SkipResult};
+use crate::core::SegmentReader;
+use crate::fieldnorm::FieldNormReader;
+use crate::postings::SegmentPostings;
+use crate::query::bm25::BM25Weight;
+use crate::query::explanation::does_not_match;
+use crate::query::Scorer;
+use crate::query::Weight;
+use crate::query::{EmptyScorer, Explanation};
+use crate::schema::IndexRecordOption;
+use crate::schema::Term;
+use crate::{DocId, DocSet};
+use crate::{Result, SkipResult};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -84,7 +84,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader)? {
             Ok(Box::new(scorer))
         } else {

@@ -1,23 +1,23 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
-use postings::recorder::{
+use crate::postings::recorder::{
     BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
 };
-use postings::UnorderedTermId;
-use postings::{FieldSerializer, InvertedIndexSerializer};
-use schema::IndexRecordOption;
-use schema::{Field, FieldEntry, FieldType, Schema, Term};
+use crate::postings::UnorderedTermId;
+use crate::postings::{FieldSerializer, InvertedIndexSerializer};
+use crate::schema::IndexRecordOption;
+use crate::schema::{Field, FieldEntry, FieldType, Schema, Term};
+use crate::termdict::TermOrdinal;
+use crate::tokenizer::TokenStream;
+use crate::tokenizer::{Token, MAX_TOKEN_LEN};
+use crate::DocId;
+use crate::Result;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
-use termdict::TermOrdinal;
-use tokenizer::TokenStream;
-use tokenizer::{Token, MAX_TOKEN_LEN};
-use DocId;
-use Result;
 
-fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
+fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
@@ -49,7 +49,7 @@ pub struct MultiFieldPostingsWriter {
     heap: MemoryArena,
     schema: Schema,
     term_index: TermHashMap,
-    per_field_postings_writers: Vec<Box<PostingsWriter>>,
+    per_field_postings_writers: Vec<Box<dyn PostingsWriter>>,
 }
 
 fn make_field_partition(
@@ -99,7 +99,12 @@ impl MultiFieldPostingsWriter {
         self.term_index.mem_usage() + self.heap.mem_usage()
     }
 
-    pub fn index_text(&mut self, doc: DocId, field: Field, token_stream: &mut TokenStream) -> u32 {
+    pub fn index_text(
+        &mut self,
+        doc: DocId,
+        field: Field,
+        token_stream: &mut dyn TokenStream,
+    ) -> u32 {
         let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
         postings_writer.index_text(
             &mut self.term_index,
@@ -138,10 +143,10 @@ impl MultiFieldPostingsWriter {
                 FieldType::Str(_) | FieldType::HierarchicalFacet => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
-                    let mut unordered_term_ids = term_offsets[start..stop]
+                    let unordered_term_ids = term_offsets[start..stop]
                         .iter()
                         .map(|&(_, _, bucket)| bucket);
-                    let mut mapping: HashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
+                    let mapping: HashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
                         .enumerate()
                         .map(|(term_ord, unord_term_id)| {
                             (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
@@ -194,7 +199,7 @@ pub trait PostingsWriter {
     fn serialize(
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         term_heap: &MemoryArena,
         heap: &MemoryArena,
     ) -> io::Result<()>;
@@ -205,7 +210,7 @@ pub trait PostingsWriter {
         term_index: &mut TermHashMap,
         doc_id: DocId,
         field: Field,
-        token_stream: &mut TokenStream,
+        token_stream: &mut dyn TokenStream,
         heap: &mut MemoryArena,
     ) -> u32 {
         let mut term = Term::for_field(field);
@@ -246,7 +251,7 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     }
 
     /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
-    pub fn new_boxed() -> Box<PostingsWriter> {
+    pub fn new_boxed() -> Box<dyn PostingsWriter> {
         Box::new(SpecializedPostingsWriter::<Rec>::new())
     }
 }
@@ -283,7 +288,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     fn serialize(
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer,
+        serializer: &mut FieldSerializer<'_>,
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
     ) -> io::Result<()> {

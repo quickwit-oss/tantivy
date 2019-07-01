@@ -1,8 +1,8 @@
+use crate::common::BinarySerializable;
+use crate::common::CountingWriter;
+use crate::positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
 use bitpacking::BitPacker;
 use bitpacking::BitPacker4x;
-use common::BinarySerializable;
-use common::CountingWriter;
-use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
 use std::io::{self, Write};
 
 pub struct PositionSerializer<W: io::Write> {

@@ -1,11 +1,11 @@
-use common::CompositeFile;
-use fastfield::BytesFastFieldReader;
-use fastfield::MultiValueIntFastFieldReader;
-use fastfield::{FastFieldNotAvailableError, FastFieldReader};
-use schema::{Cardinality, Field, FieldType, Schema};
-use space_usage::PerFieldSpaceUsage;
+use crate::common::CompositeFile;
+use crate::fastfield::BytesFastFieldReader;
+use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::fastfield::{FastFieldNotAvailableError, FastFieldReader};
+use crate::schema::{Cardinality, Field, FieldType, Schema};
+use crate::space_usage::PerFieldSpaceUsage;
+use crate::Result;
 use std::collections::HashMap;
-use Result;
 
 /// Provides access to all of the FastFieldReader.
 ///

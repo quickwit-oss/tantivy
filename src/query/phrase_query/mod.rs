@@ -10,13 +10,13 @@ pub use self::phrase_weight::PhraseWeight;
 mod tests {
 
     use super::*;
-    use collector::tests::TestCollector;
-    use core::Index;
-    use error::TantivyError;
-    use schema::{Schema, Term, TEXT};
-    use tests::assert_nearly_equals;
-    use DocAddress;
-    use DocId;
+    use crate::collector::tests::TestCollector;
+    use crate::core::Index;
+    use crate::error::TantivyError;
+    use crate::schema::{Schema, Term, TEXT};
+    use crate::tests::assert_nearly_equals;
+    use crate::DocAddress;
+    use crate::DocId;
 
     fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = Schema::builder();
@@ -71,9 +71,9 @@ mod tests {
     #[test]
     pub fn test_phrase_query_no_positions() {
         let mut schema_builder = Schema::builder();
-        use schema::IndexRecordOption;
-        use schema::TextFieldIndexing;
-        use schema::TextOptions;
+        use crate::schema::IndexRecordOption;
+        use crate::schema::TextFieldIndexing;
+        use crate::schema::TextOptions;
         let no_positions = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
                 .set_tokenizer("default")

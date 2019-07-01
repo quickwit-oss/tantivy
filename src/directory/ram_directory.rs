@@ -1,8 +1,8 @@
-use core::META_FILEPATH;
-use directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use directory::WatchCallbackList;
-use directory::WritePtr;
-use directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
+use crate::core::META_FILEPATH;
+use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use crate::directory::WatchCallbackList;
+use crate::directory::WritePtr;
+use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
@@ -110,7 +110,7 @@ impl InnerDirectory {
 }
 
 impl fmt::Debug for RAMDirectory {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "RAMDirectory")
     }
 }

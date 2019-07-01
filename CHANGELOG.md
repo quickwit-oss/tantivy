@@ -11,6 +11,7 @@ Tantivy 0.10.0
 
 Minor
 ---------
+- Switched to Rust 2018 (@uvd)
 - Small simplification of the code. 
 Calling .freq() or .doc() when .advance() has never been called
 on segment postings should panic from now on.

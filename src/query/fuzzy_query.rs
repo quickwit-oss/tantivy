@@ -1,9 +1,9 @@
+use crate::query::{AutomatonWeight, Query, Weight};
+use crate::schema::Term;
+use crate::Result;
+use crate::Searcher;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
-use query::{AutomatonWeight, Query, Weight};
-use schema::Term;
 use std::collections::HashMap;
-use Result;
-use Searcher;
 
 lazy_static! {
     static ref LEV_BUILDER: HashMap<(u8, bool), LevenshteinAutomatonBuilder> = {
@@ -109,7 +109,7 @@ impl FuzzyTermQuery {
 }
 
 impl Query for FuzzyTermQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()?))
     }
 }
@@ -117,12 +117,12 @@ impl Query for FuzzyTermQuery {
 #[cfg(test)]
 mod test {
     use super::FuzzyTermQuery;
-    use collector::TopDocs;
-    use schema::Schema;
-    use schema::TEXT;
-    use tests::assert_nearly_equals;
-    use Index;
-    use Term;
+    use crate::collector::TopDocs;
+    use crate::schema::Schema;
+    use crate::schema::TEXT;
+    use crate::tests::assert_nearly_equals;
+    use crate::Index;
+    use crate::Term;
 
     #[test]
     pub fn test_fuzzy_term() {

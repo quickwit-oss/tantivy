@@ -1,7 +1,7 @@
-use core::SegmentId;
-use core::SegmentMeta;
-use indexer::delete_queue::DeleteCursor;
-use indexer::segment_entry::SegmentEntry;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::indexer::delete_queue::DeleteCursor;
+use crate::indexer::segment_entry::SegmentEntry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
@@ -20,7 +20,7 @@ pub struct SegmentRegister {
 }
 
 impl Debug for SegmentRegister {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "SegmentRegister(")?;
         for k in self.segment_states.keys() {
             write!(f, "{}, ", k.short_uuid_string())?;
@@ -93,9 +93,9 @@ impl SegmentRegister {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::SegmentId;
-    use core::SegmentMeta;
-    use indexer::delete_queue::*;
+    use crate::core::SegmentId;
+    use crate::core::SegmentMeta;
+    use crate::indexer::delete_queue::*;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {
         segment_register

@@ -1,4 +1,4 @@
-use common::{BinarySerializable, VInt};
+use crate::common::{BinarySerializable, VInt};
 use std::cmp::max;
 use std::marker::PhantomData;
 

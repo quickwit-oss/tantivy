@@ -1,23 +1,25 @@
-extern crate fs2;
-extern crate notify;
+use fs2;
+use notify;
 
 use self::fs2::FileExt;
 use self::notify::RawEvent;
 use self::notify::RecursiveMode;
 use self::notify::Watcher;
+use crate::core::META_FILEPATH;
+use crate::directory::error::LockError;
+use crate::directory::error::{
+    DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
+};
+use crate::directory::read_only_source::BoxedData;
+use crate::directory::Directory;
+use crate::directory::DirectoryLock;
+use crate::directory::Lock;
+use crate::directory::ReadOnlySource;
+use crate::directory::WatchCallback;
+use crate::directory::WatchCallbackList;
+use crate::directory::WatchHandle;
+use crate::directory::WritePtr;
 use atomicwrites;
-use core::META_FILEPATH;
-use directory::error::LockError;
-use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
-use directory::read_only_source::BoxedData;
-use directory::Directory;
-use directory::DirectoryLock;
-use directory::Lock;
-use directory::ReadOnlySource;
-use directory::WatchCallback;
-use directory::WatchCallbackList;
-use directory::WatchHandle;
-use directory::WritePtr;
 use memmap::Mmap;
 use std::collections::HashMap;
 use std::convert::From;
@@ -254,7 +256,7 @@ impl MmapDirectoryInner {
 }
 
 impl fmt::Debug for MmapDirectory {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MmapDirectory({:?})", self.inner.root_path)
     }
 }
@@ -525,13 +527,13 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
-    use schema::{Schema, SchemaBuilder, TEXT};
+    use crate::schema::{Schema, SchemaBuilder, TEXT};
+    use crate::Index;
+    use crate::ReloadPolicy;
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
     use std::time::Duration;
-    use Index;
-    use ReloadPolicy;
 
     #[test]
     fn test_open_non_existant_path() {

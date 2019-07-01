@@ -10,8 +10,6 @@
 // - search for the best document matchings "sea whale"
 // - retrieve the best document original content.
 
-extern crate tempdir;
-
 // ---
 // Importing tantivy...
 #[macro_use]

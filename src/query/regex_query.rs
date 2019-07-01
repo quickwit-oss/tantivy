@@ -1,10 +1,10 @@
-use error::TantivyError;
-use query::{AutomatonWeight, Query, Weight};
-use schema::Field;
+use crate::error::TantivyError;
+use crate::query::{AutomatonWeight, Query, Weight};
+use crate::schema::Field;
+use crate::Result;
+use crate::Searcher;
 use std::clone::Clone;
 use tantivy_fst::Regex;
-use Result;
-use Searcher;
 
 // A Regex Query matches all of the documents
 /// containing a specific term that matches
@@ -78,7 +78,7 @@ impl RegexQuery {
 }
 
 impl Query for RegexQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()?))
     }
 }
@@ -86,11 +86,11 @@ impl Query for RegexQuery {
 #[cfg(test)]
 mod test {
     use super::RegexQuery;
-    use collector::TopDocs;
-    use schema::Schema;
-    use schema::TEXT;
-    use tests::assert_nearly_equals;
-    use Index;
+    use crate::collector::TopDocs;
+    use crate::schema::Schema;
+    use crate::schema::TEXT;
+    use crate::tests::assert_nearly_equals;
+    use crate::Index;
 
     #[test]
     pub fn test_regex_query() {

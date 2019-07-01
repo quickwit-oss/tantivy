@@ -1,9 +1,9 @@
 use super::*;
-use common::BinarySerializable;
-use common::VInt;
+use crate::common::BinarySerializable;
+use crate::common::VInt;
+use crate::DateTime;
 use itertools::Itertools;
 use std::io::{self, Read, Write};
-use DateTime;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -163,7 +163,7 @@ impl BinarySerializable for Document {
 #[cfg(test)]
 mod tests {
 
-    use schema::*;
+    use crate::schema::*;
 
     #[test]
     fn test_doc() {

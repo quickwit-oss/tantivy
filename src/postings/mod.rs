@@ -31,7 +31,7 @@ pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
 pub(crate) use self::stacker::compute_table_size;
 
-pub use common::HasLen;
+pub use crate::common::HasLen;
 
 pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
 pub(crate) type UnorderedTermId = u64;
@@ -48,24 +48,24 @@ pub(crate) enum FreqReadingOption {
 pub mod tests {
 
     use super::*;
-    use core::Index;
-    use core::SegmentComponent;
-    use core::SegmentReader;
-    use docset::{DocSet, SkipResult};
-    use fieldnorm::FieldNormReader;
-    use indexer::operation::AddOperation;
-    use indexer::SegmentWriter;
-    use merge_policy::NoMergePolicy;
-    use query::Scorer;
+    use crate::core::Index;
+    use crate::core::SegmentComponent;
+    use crate::core::SegmentReader;
+    use crate::docset::{DocSet, SkipResult};
+    use crate::fieldnorm::FieldNormReader;
+    use crate::indexer::operation::AddOperation;
+    use crate::indexer::SegmentWriter;
+    use crate::merge_policy::NoMergePolicy;
+    use crate::query::Scorer;
+    use crate::schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
+    use crate::schema::{Field, TextOptions};
+    use crate::schema::{IndexRecordOption, TextFieldIndexing};
+    use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
+    use crate::DocId;
+    use crate::Score;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
-    use schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
-    use schema::{Field, TextOptions};
-    use schema::{IndexRecordOption, TextFieldIndexing};
     use std::iter;
-    use tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
-    use DocId;
-    use Score;
 
     #[test]
     pub fn test_position_write() {
@@ -589,7 +589,7 @@ pub mod tests {
         }
     }
 
-    pub fn test_skip_against_unoptimized<F: Fn() -> Box<DocSet>>(
+    pub fn test_skip_against_unoptimized<F: Fn() -> Box<dyn DocSet>>(
         postings_factory: F,
         targets: Vec<u32>,
     ) {

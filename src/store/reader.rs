@@ -1,16 +1,16 @@
-use Result;
+use crate::Result;
 
 use super::decompress;
 use super::skiplist::SkipList;
-use common::BinarySerializable;
-use common::VInt;
-use directory::ReadOnlySource;
-use schema::Document;
-use space_usage::StoreSpaceUsage;
+use crate::common::BinarySerializable;
+use crate::common::VInt;
+use crate::directory::ReadOnlySource;
+use crate::schema::Document;
+use crate::space_usage::StoreSpaceUsage;
+use crate::DocId;
 use std::cell::RefCell;
 use std::io;
 use std::mem::size_of;
-use DocId;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl StoreReader {
         }
     }
 
-    pub(crate) fn block_index(&self) -> SkipList<u64> {
+    pub(crate) fn block_index(&self) -> SkipList<'_, u64> {
         SkipList::from(self.offset_index_source.as_slice())
     }
 

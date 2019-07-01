@@ -1,12 +1,12 @@
-use docset::{DocSet, SkipResult};
-use query::{Explanation, Scorer};
-use DocId;
-use Score;
+use crate::docset::{DocSet, SkipResult};
+use crate::query::{Explanation, Scorer};
+use crate::DocId;
+use crate::Score;
 
-use fieldnorm::FieldNormReader;
-use postings::Postings;
-use postings::SegmentPostings;
-use query::bm25::BM25Weight;
+use crate::fieldnorm::FieldNormReader;
+use crate::postings::Postings;
+use crate::postings::SegmentPostings;
+use crate::query::bm25::BM25Weight;
 
 pub struct TermScorer {
     postings: SegmentPostings,

@@ -33,7 +33,7 @@ impl Into<io::Error> for IOError {
 }
 
 impl fmt::Display for IOError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.path {
             Some(ref path) => write!(f, "io error occurred on path '{:?}': '{}'", path, self.err),
             None => write!(f, "io error occurred: '{}'", self.err),
@@ -46,7 +46,7 @@ impl StdError for IOError {
         "io error occurred"
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         Some(&self.err)
     }
 }
@@ -84,7 +84,7 @@ impl From<io::Error> for OpenDirectoryError {
 }
 
 impl fmt::Display for OpenDirectoryError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             OpenDirectoryError::DoesNotExist(ref path) => {
                 write!(f, "the underlying directory '{:?}' does not exist", path)
@@ -106,7 +106,7 @@ impl StdError for OpenDirectoryError {
         "error occurred while opening a directory"
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         None
     }
 }
@@ -129,7 +129,7 @@ impl From<IOError> for OpenWriteError {
 }
 
 impl fmt::Display for OpenWriteError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             OpenWriteError::FileAlreadyExists(ref path) => {
                 write!(f, "the file '{:?}' already exists", path)
@@ -148,7 +148,7 @@ impl StdError for OpenWriteError {
         "error occurred while opening a file for writing"
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             OpenWriteError::FileAlreadyExists(_) => None,
             OpenWriteError::IOError(ref err) => Some(err),
@@ -173,7 +173,7 @@ impl From<IOError> for OpenReadError {
 }
 
 impl fmt::Display for OpenReadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             OpenReadError::FileDoesNotExist(ref path) => {
                 write!(f, "the file '{:?}' does not exist", path)
@@ -192,7 +192,7 @@ impl StdError for OpenReadError {
         "error occurred while opening a file for reading"
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             OpenReadError::FileDoesNotExist(_) => None,
             OpenReadError::IOError(ref err) => Some(err),
@@ -217,7 +217,7 @@ impl From<IOError> for DeleteError {
 }
 
 impl fmt::Display for DeleteError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DeleteError::FileDoesNotExist(ref path) => {
                 write!(f, "the file '{:?}' does not exist", path)
@@ -234,7 +234,7 @@ impl StdError for DeleteError {
         "error occurred while deleting a file"
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             DeleteError::FileDoesNotExist(_) => None,
             DeleteError::IOError(ref err) => Some(err),

@@ -1,8 +1,8 @@
-use common::BinarySerializable;
+use crate::common::BinarySerializable;
+use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
+use crate::schema::IndexRecordOption;
+use crate::DocId;
 use owned_read::OwnedRead;
-use postings::compression::COMPRESSION_BLOCK_SIZE;
-use schema::IndexRecordOption;
-use DocId;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,

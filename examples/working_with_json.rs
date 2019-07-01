@@ -1,4 +1,4 @@
-extern crate tantivy;
+use tantivy;
 use tantivy::schema::*;
 
 // # Document from json

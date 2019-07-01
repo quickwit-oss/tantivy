@@ -1,6 +1,6 @@
-use common::BinarySerializable;
-use schema::Field;
-use schema::Value;
+use crate::common::BinarySerializable;
+use crate::schema::Field;
+use crate::schema::Value;
 use std::io;
 use std::io::Read;
 use std::io::Write;

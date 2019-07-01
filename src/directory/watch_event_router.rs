@@ -3,7 +3,7 @@ use std::sync::RwLock;
 use std::sync::Weak;
 
 /// Type alias for callbacks registered when watching files of a `Directory`.
-pub type WatchCallback = Box<Fn() -> () + Sync + Send>;
+pub type WatchCallback = Box<dyn Fn() -> () + Sync + Send>;
 
 /// Helper struct to implement the watch method in `Directory` implementations.
 ///
@@ -67,7 +67,7 @@ impl WatchCallbackList {
 
 #[cfg(test)]
 mod tests {
-    use directory::WatchCallbackList;
+    use crate::directory::WatchCallbackList;
     use std::mem;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;

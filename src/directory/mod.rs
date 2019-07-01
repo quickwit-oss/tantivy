@@ -39,7 +39,7 @@ impl<T: Seek + Write> SeekableWrite for T {}
 ///
 /// `WritePtr` are required to implement both Write
 /// and Seek.
-pub type WritePtr = BufWriter<Box<SeekableWrite>>;
+pub type WritePtr = BufWriter<Box<dyn SeekableWrite>>;
 
 #[cfg(test)]
 mod tests;

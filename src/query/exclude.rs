@@ -1,7 +1,7 @@
-use docset::{DocSet, SkipResult};
-use query::Scorer;
-use DocId;
-use Score;
+use crate::docset::{DocSet, SkipResult};
+use crate::query::Scorer;
+use crate::DocId;
+use crate::Score;
 
 #[derive(Clone, Copy, Debug)]
 enum State {
@@ -130,9 +130,9 @@ where
 mod tests {
 
     use super::*;
-    use postings::tests::test_skip_against_unoptimized;
-    use query::VecDocSet;
-    use tests::sample_with_seed;
+    use crate::postings::tests::test_skip_against_unoptimized;
+    use crate::query::VecDocSet;
+    use crate::tests::sample_with_seed;
 
     #[test]
     fn test_exclude() {

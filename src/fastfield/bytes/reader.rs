@@ -1,8 +1,8 @@
 use owning_ref::OwningRef;
 
-use directory::ReadOnlySource;
-use fastfield::FastFieldReader;
-use DocId;
+use crate::directory::ReadOnlySource;
+use crate::fastfield::FastFieldReader;
+use crate::DocId;
 
 /// Reader for byte array fast fields
 ///
