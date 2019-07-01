@@ -1,15 +1,15 @@
 mod pool;
 
 use self::pool::{LeasedItem, Pool};
-use core::Segment;
-use directory::Directory;
-use directory::WatchHandle;
-use directory::META_LOCK;
+use crate::core::Segment;
+use crate::directory::Directory;
+use crate::directory::WatchHandle;
+use crate::directory::META_LOCK;
+use crate::Index;
+use crate::Result;
+use crate::Searcher;
+use crate::SegmentReader;
 use std::sync::Arc;
-use Index;
-use Result;
-use Searcher;
-use SegmentReader;
 
 /// Defines when a new version of the index should be reloaded.
 ///

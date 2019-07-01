@@ -1,6 +1,6 @@
+use crate::DocId;
+use crate::Opstamp;
 use std::sync::Arc;
-use DocId;
-use Opstamp;
 
 // Doc to opstamp is used to identify which
 // document should be deleted.

@@ -1,15 +1,15 @@
+use crate::tokenizer::box_tokenizer;
+use crate::tokenizer::stemmer::Language;
+use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::LowerCaser;
+use crate::tokenizer::RawTokenizer;
+use crate::tokenizer::RemoveLongFilter;
+use crate::tokenizer::SimpleTokenizer;
+use crate::tokenizer::Stemmer;
+use crate::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, RwLock};
-use tokenizer::box_tokenizer;
-use tokenizer::stemmer::Language;
-use tokenizer::BoxedTokenizer;
-use tokenizer::LowerCaser;
-use tokenizer::RawTokenizer;
-use tokenizer::RemoveLongFilter;
-use tokenizer::SimpleTokenizer;
-use tokenizer::Stemmer;
-use tokenizer::Tokenizer;
 
 /// The tokenizer manager serves as a store for
 /// all of the pre-configured tokenizer pipelines.
@@ -25,7 +25,7 @@ use tokenizer::Tokenizer;
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, Box<BoxedTokenizer>>>>,
+    tokenizers: Arc<RwLock<HashMap<String, Box<dyn BoxedTokenizer>>>>,
 }
 
 impl TokenizerManager {
@@ -42,7 +42,7 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<Box<BoxedTokenizer>> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn BoxedTokenizer>> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")

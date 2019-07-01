@@ -1,12 +1,12 @@
 use super::compress;
 use super::skiplist::SkipListBuilder;
 use super::StoreReader;
-use common::CountingWriter;
-use common::{BinarySerializable, VInt};
-use directory::WritePtr;
-use schema::Document;
+use crate::common::CountingWriter;
+use crate::common::{BinarySerializable, VInt};
+use crate::directory::WritePtr;
+use crate::schema::Document;
+use crate::DocId;
 use std::io::{self, Write};
-use DocId;
 
 const BLOCK_SIZE: usize = 16_384;
 

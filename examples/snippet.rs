@@ -4,7 +4,6 @@
 // your hit result.
 // Snippet are an extracted of a target document, and returned in HTML format.
 // The keyword searched by the user are highlighted with a `<b>` tag.
-extern crate tempdir;
 
 // ---
 // Importing tantivy...

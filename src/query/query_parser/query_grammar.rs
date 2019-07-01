@@ -3,12 +3,12 @@
 
 use super::query_grammar;
 use super::user_input_ast::*;
+use crate::query::occur::Occur;
+use crate::query::query_parser::user_input_ast::UserInputBound;
 use combine::char::*;
 use combine::error::StreamError;
 use combine::stream::StreamErrorFor;
 use combine::*;
-use query::occur::Occur;
-use query::query_parser::user_input_ast::UserInputBound;
 
 parser! {
     fn field[I]()(I) -> String

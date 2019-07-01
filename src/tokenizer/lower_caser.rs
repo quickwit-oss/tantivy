@@ -72,10 +72,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use tokenizer::LowerCaser;
-    use tokenizer::SimpleTokenizer;
-    use tokenizer::TokenStream;
-    use tokenizer::Tokenizer;
+    use crate::tokenizer::LowerCaser;
+    use crate::tokenizer::SimpleTokenizer;
+    use crate::tokenizer::TokenStream;
+    use crate::tokenizer::Tokenizer;
 
     #[test]
     fn test_to_lower_case() {

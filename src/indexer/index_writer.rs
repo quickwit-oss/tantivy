@@ -1,37 +1,37 @@
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
+use crate::core::Index;
+use crate::core::Segment;
+use crate::core::SegmentComponent;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::core::SegmentReader;
+use crate::directory::DirectoryLock;
+use crate::docset::DocSet;
+use crate::error::TantivyError;
+use crate::fastfield::write_delete_bitset;
+use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
+use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
+use crate::indexer::operation::DeleteOperation;
+use crate::indexer::stamper::Stamper;
+use crate::indexer::MergePolicy;
+use crate::indexer::SegmentEntry;
+use crate::indexer::SegmentWriter;
+use crate::postings::compute_table_size;
+use crate::schema::Document;
+use crate::schema::IndexRecordOption;
+use crate::schema::Term;
+use crate::Opstamp;
+use crate::Result;
 use bit_set::BitSet;
-use core::Index;
-use core::Segment;
-use core::SegmentComponent;
-use core::SegmentId;
-use core::SegmentMeta;
-use core::SegmentReader;
 use crossbeam::channel;
-use directory::DirectoryLock;
-use docset::DocSet;
-use error::TantivyError;
-use fastfield::write_delete_bitset;
 use futures::{Canceled, Future};
-use indexer::delete_queue::{DeleteCursor, DeleteQueue};
-use indexer::doc_opstamp_mapping::DocToOpstampMapping;
-use indexer::operation::DeleteOperation;
-use indexer::stamper::Stamper;
-use indexer::MergePolicy;
-use indexer::SegmentEntry;
-use indexer::SegmentWriter;
-use postings::compute_table_size;
-use schema::Document;
-use schema::IndexRecordOption;
-use schema::Term;
 use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use Opstamp;
-use Result;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -268,7 +268,7 @@ fn index_documents(
     memory_budget: usize,
     segment: &Segment,
     generation: usize,
-    document_iterator: &mut Iterator<Item = Vec<AddOperation>>,
+    document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
@@ -440,12 +440,12 @@ impl IndexWriter {
     }
 
     /// Accessor to the merge policy.
-    pub fn get_merge_policy(&self) -> Arc<Box<MergePolicy>> {
+    pub fn get_merge_policy(&self) -> Arc<Box<dyn MergePolicy>> {
         self.segment_updater.get_merge_policy()
     }
 
     /// Set the merge policy.
-    pub fn set_merge_policy(&self, merge_policy: Box<MergePolicy>) {
+    pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
         self.segment_updater.set_merge_policy(merge_policy);
     }
 
@@ -603,7 +603,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub fn prepare_commit(&mut self) -> Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self) -> Result<PreparedCommit<'_>> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -773,15 +773,15 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use super::initial_table_size;
-    use collector::TopDocs;
-    use directory::error::LockError;
-    use error::*;
-    use indexer::NoMergePolicy;
-    use query::TermQuery;
-    use schema::{self, IndexRecordOption};
-    use Index;
-    use ReloadPolicy;
-    use Term;
+    use crate::collector::TopDocs;
+    use crate::directory::error::LockError;
+    use crate::error::*;
+    use crate::indexer::NoMergePolicy;
+    use crate::query::TermQuery;
+    use crate::schema::{self, IndexRecordOption};
+    use crate::Index;
+    use crate::ReloadPolicy;
+    use crate::Term;
 
     #[test]
     fn test_operations_group() {

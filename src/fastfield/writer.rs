@@ -1,13 +1,13 @@
 use super::multivalued::MultiValueIntFastFieldWriter;
-use common;
-use common::BinarySerializable;
-use common::VInt;
-use fastfield::{BytesFastFieldWriter, FastFieldSerializer};
-use postings::UnorderedTermId;
-use schema::{Cardinality, Document, Field, FieldType, Schema};
+use crate::common;
+use crate::common::BinarySerializable;
+use crate::common::VInt;
+use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
+use crate::postings::UnorderedTermId;
+use crate::schema::{Cardinality, Document, Field, FieldType, Schema};
+use crate::termdict::TermOrdinal;
 use std::collections::HashMap;
 use std::io;
-use termdict::TermOrdinal;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {

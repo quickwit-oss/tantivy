@@ -1,16 +1,16 @@
 use super::Collector;
-use collector::top_collector::TopCollector;
-use collector::top_collector::TopSegmentCollector;
-use collector::SegmentCollector;
-use collector::TopDocsByField;
-use fastfield::FastValue;
-use schema::Field;
-use DocAddress;
-use DocId;
-use Result;
-use Score;
-use SegmentLocalId;
-use SegmentReader;
+use crate::collector::top_collector::TopCollector;
+use crate::collector::top_collector::TopSegmentCollector;
+use crate::collector::SegmentCollector;
+use crate::collector::TopDocsByField;
+use crate::fastfield::FastValue;
+use crate::schema::Field;
+use crate::DocAddress;
+use crate::DocId;
+use crate::Result;
+use crate::Score;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
 
 /// The Top Score Collector keeps track of the K documents
 /// sorted by their score.
@@ -128,12 +128,12 @@ impl SegmentCollector for TopScoreSegmentCollector {
 #[cfg(test)]
 mod tests {
     use super::TopDocs;
-    use query::QueryParser;
-    use schema::Schema;
-    use schema::TEXT;
-    use DocAddress;
-    use Index;
-    use Score;
+    use crate::query::QueryParser;
+    use crate::schema::Schema;
+    use crate::schema::TEXT;
+    use crate::DocAddress;
+    use crate::Index;
+    use crate::Score;
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();

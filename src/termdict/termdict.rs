@@ -1,15 +1,15 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
-use common::BinarySerializable;
-use common::CountingWriter;
-use directory::ReadOnlySource;
-use postings::TermInfo;
-use schema::FieldType;
+use crate::common::BinarySerializable;
+use crate::common::CountingWriter;
+use crate::directory::ReadOnlySource;
+use crate::postings::TermInfo;
+use crate::schema::FieldType;
+use crate::termdict::TermOrdinal;
 use std::io::{self, Write};
 use tantivy_fst;
 use tantivy_fst::raw::Fst;
 use tantivy_fst::Automaton;
-use termdict::TermOrdinal;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -186,12 +186,12 @@ impl TermDictionary {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range(&self) -> TermStreamerBuilder {
+    pub fn range(&self) -> TermStreamerBuilder<'_> {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream(&self) -> TermStreamer {
+    pub fn stream(&self) -> TermStreamer<'_> {
         self.range().into_stream()
     }
 

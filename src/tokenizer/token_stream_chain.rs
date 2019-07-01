@@ -1,4 +1,4 @@
-use tokenizer::{Token, TokenStream};
+use crate::tokenizer::{Token, TokenStream};
 
 const POSITION_GAP: usize = 2;
 

@@ -1,6 +1,6 @@
-use schema::flags::SchemaFlagList;
-use schema::flags::StoredFlag;
-use schema::IndexRecordOption;
+use crate::schema::flags::SchemaFlagList;
+use crate::schema::flags::StoredFlag;
+use crate::schema::IndexRecordOption;
 use std::borrow::Cow;
 use std::ops::BitOr;
 
@@ -151,7 +151,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use schema::*;
+    use crate::schema::*;
 
     #[test]
     fn test_field_options() {

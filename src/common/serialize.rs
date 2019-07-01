@@ -1,6 +1,6 @@
+use crate::common::Endianness;
+use crate::common::VInt;
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use common::Endianness;
-use common::VInt;
 use std::fmt;
 use std::io;
 use std::io::Read;
@@ -136,7 +136,7 @@ impl BinarySerializable for String {
 pub mod test {
 
     use super::*;
-    use common::VInt;
+    use crate::common::VInt;
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();

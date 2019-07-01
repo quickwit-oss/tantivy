@@ -32,10 +32,10 @@ pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
 #[cfg(test)]
 mod tests {
     use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
-    use core::Index;
-    use directory::{Directory, RAMDirectory, ReadOnlySource};
-    use postings::TermInfo;
-    use schema::{Document, FieldType, Schema, TEXT};
+    use crate::core::Index;
+    use crate::directory::{Directory, RAMDirectory, ReadOnlySource};
+    use crate::postings::TermInfo;
+    use crate::schema::{Document, FieldType, Schema, TEXT};
     use std::path::PathBuf;
     use std::str;
 
@@ -349,7 +349,7 @@ mod tests {
         let source = ReadOnlySource::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
 
-        let value_list = |mut streamer: TermStreamer| {
+        let value_list = |mut streamer: TermStreamer<'_>| {
             let mut res: Vec<u32> = vec![];
             while let Some((_, ref v)) = streamer.next() {
                 res.push(v.doc_freq);

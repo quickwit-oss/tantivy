@@ -1,4 +1,4 @@
-use postings::compression::AlignedBuffer;
+use crate::postings::compression::AlignedBuffer;
 
 /// This modules define the logic used to search for a doc in a given
 /// block. (at most 128 docs)
@@ -8,7 +8,7 @@ use postings::compression::AlignedBuffer;
 
 #[cfg(target_arch = "x86_64")]
 mod sse2 {
-    use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
+    use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
     use std::arch::x86_64::__m128i as DataType;
     use std::arch::x86_64::_mm_add_epi32 as op_add;
     use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
@@ -49,7 +49,7 @@ mod sse2 {
     #[cfg(test)]
     mod test {
         use super::linear_search_sse2_128;
-        use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
+        use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
         #[test]
         fn test_linear_search_sse2_128_u32() {
@@ -140,7 +140,7 @@ impl BlockSearcher {
     ) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
-            use postings::compression::COMPRESSION_BLOCK_SIZE;
+            use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
             if self == BlockSearcher::SSE2 && len == COMPRESSION_BLOCK_SIZE {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
@@ -166,7 +166,7 @@ mod tests {
     use super::exponential_search;
     use super::linear_search;
     use super::BlockSearcher;
-    use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
+    use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
     #[test]
     fn test_linear_search() {

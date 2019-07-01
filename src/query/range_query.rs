@@ -1,18 +1,18 @@
-use common::BitSet;
-use core::Searcher;
-use core::SegmentReader;
-use error::TantivyError;
-use query::explanation::does_not_match;
-use query::ConstScorer;
-use query::{BitSetDocSet, Explanation};
-use query::{Query, Scorer, Weight};
-use schema::Type;
-use schema::{Field, IndexRecordOption, Term};
+use crate::common::BitSet;
+use crate::core::Searcher;
+use crate::core::SegmentReader;
+use crate::error::TantivyError;
+use crate::query::explanation::does_not_match;
+use crate::query::ConstScorer;
+use crate::query::{BitSetDocSet, Explanation};
+use crate::query::{Query, Scorer, Weight};
+use crate::schema::Type;
+use crate::schema::{Field, IndexRecordOption, Term};
+use crate::termdict::{TermDictionary, TermStreamer};
+use crate::DocId;
+use crate::{Result, SkipResult};
 use std::collections::Bound;
 use std::ops::Range;
-use termdict::{TermDictionary, TermStreamer};
-use DocId;
-use {Result, SkipResult};
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -225,7 +225,7 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         let schema = searcher.schema();
         let value_type = schema.get_field_entry(self.field).field_type().value_type();
         if value_type != self.value_type {
@@ -268,7 +268,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -302,11 +302,11 @@ impl Weight for RangeWeight {
 mod tests {
 
     use super::RangeQuery;
-    use collector::Count;
-    use schema::{Document, Field, Schema, INDEXED};
+    use crate::collector::Count;
+    use crate::schema::{Document, Field, Schema, INDEXED};
+    use crate::Index;
+    use crate::Result;
     use std::collections::Bound;
-    use Index;
-    use Result;
 
     #[test]
     fn test_range_query_simple() {

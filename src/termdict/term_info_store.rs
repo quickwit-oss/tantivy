@@ -1,13 +1,13 @@
+use crate::common::bitpacker::BitPacker;
+use crate::common::compute_num_bits;
+use crate::common::Endianness;
+use crate::common::{BinarySerializable, FixedSize};
+use crate::directory::ReadOnlySource;
+use crate::postings::TermInfo;
+use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
-use common::bitpacker::BitPacker;
-use common::compute_num_bits;
-use common::Endianness;
-use common::{BinarySerializable, FixedSize};
-use directory::ReadOnlySource;
-use postings::TermInfo;
 use std::cmp;
 use std::io::{self, Read, Write};
-use termdict::TermOrdinal;
 
 const BLOCK_LEN: usize = 256;
 
@@ -259,12 +259,12 @@ mod tests {
     use super::extract_bits;
     use super::TermInfoBlockMeta;
     use super::{TermInfoStore, TermInfoStoreWriter};
-    use common;
-    use common::bitpacker::BitPacker;
-    use common::compute_num_bits;
-    use common::BinarySerializable;
-    use directory::ReadOnlySource;
-    use postings::TermInfo;
+    use crate::common;
+    use crate::common::bitpacker::BitPacker;
+    use crate::common::compute_num_bits;
+    use crate::common::BinarySerializable;
+    use crate::directory::ReadOnlySource;
+    use crate::postings::TermInfo;
 
     #[test]
     fn test_term_info_block() {

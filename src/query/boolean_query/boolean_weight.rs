@@ -1,20 +1,20 @@
-use core::SegmentReader;
-use query::explanation::does_not_match;
-use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
-use query::term_query::TermScorer;
-use query::EmptyScorer;
-use query::Exclude;
-use query::Occur;
-use query::RequiredOptionalScorer;
-use query::Scorer;
-use query::Union;
-use query::Weight;
-use query::{intersect_scorers, Explanation};
+use crate::core::SegmentReader;
+use crate::query::explanation::does_not_match;
+use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
+use crate::query::term_query::TermScorer;
+use crate::query::EmptyScorer;
+use crate::query::Exclude;
+use crate::query::Occur;
+use crate::query::RequiredOptionalScorer;
+use crate::query::Scorer;
+use crate::query::Union;
+use crate::query::Weight;
+use crate::query::{intersect_scorers, Explanation};
+use crate::Result;
+use crate::{DocId, SkipResult};
 use std::collections::HashMap;
-use Result;
-use {DocId, SkipResult};
 
-fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
+fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer>
 where
     TScoreCombiner: ScoreCombiner,
 {
@@ -30,22 +30,23 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            let scorer: Box<Scorer> = Box::new(Union::<TermScorer, TScoreCombiner>::from(scorers));
+            let scorer: Box<dyn Scorer> =
+                Box::new(Union::<TermScorer, TScoreCombiner>::from(scorers));
             return scorer;
         }
     }
 
-    let scorer: Box<Scorer> = Box::new(Union::<_, TScoreCombiner>::from(scorers));
+    let scorer: Box<dyn Scorer> = Box::new(Union::<_, TScoreCombiner>::from(scorers));
     scorer
 }
 
 pub struct BooleanWeight {
-    weights: Vec<(Occur, Box<Weight>)>,
+    weights: Vec<(Occur, Box<dyn Weight>)>,
     scoring_enabled: bool,
 }
 
 impl BooleanWeight {
-    pub fn new(weights: Vec<(Occur, Box<Weight>)>, scoring_enabled: bool) -> BooleanWeight {
+    pub fn new(weights: Vec<(Occur, Box<dyn Weight>)>, scoring_enabled: bool) -> BooleanWeight {
         BooleanWeight {
             weights,
             scoring_enabled,
@@ -55,10 +56,10 @@ impl BooleanWeight {
     fn per_occur_scorers(
         &self,
         reader: &SegmentReader,
-    ) -> Result<HashMap<Occur, Vec<Box<Scorer>>>> {
-        let mut per_occur_scorers: HashMap<Occur, Vec<Box<Scorer>>> = HashMap::new();
+    ) -> Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
+        let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
         for &(ref occur, ref subweight) in &self.weights {
-            let sub_scorer: Box<Scorer> = subweight.scorer(reader)?;
+            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader)?;
             per_occur_scorers
                 .entry(*occur)
                 .or_insert_with(Vec::new)
@@ -70,22 +71,22 @@ impl BooleanWeight {
     fn complex_scorer<TScoreCombiner: ScoreCombiner>(
         &self,
         reader: &SegmentReader,
-    ) -> Result<Box<Scorer>> {
+    ) -> Result<Box<dyn Scorer>> {
         let mut per_occur_scorers = self.per_occur_scorers(reader)?;
 
-        let should_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+        let should_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::Should)
             .map(scorer_union::<TScoreCombiner>);
 
-        let exclude_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+        let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
             .map(scorer_union::<TScoreCombiner>);
 
-        let must_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+        let must_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::Must)
             .map(intersect_scorers);
 
-        let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
+        let positive_scorer: Box<dyn Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {
                 if self.scoring_enabled {
                     Box::new(RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
@@ -112,7 +113,7 @@ impl BooleanWeight {
 }
 
 impl Weight for BooleanWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {

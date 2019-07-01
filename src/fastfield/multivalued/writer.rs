@@ -1,13 +1,13 @@
-use fastfield::serializer::FastSingleFieldSerializer;
-use fastfield::value_to_u64;
-use fastfield::FastFieldSerializer;
+use crate::fastfield::serializer::FastSingleFieldSerializer;
+use crate::fastfield::value_to_u64;
+use crate::fastfield::FastFieldSerializer;
+use crate::postings::UnorderedTermId;
+use crate::schema::{Document, Field};
+use crate::termdict::TermOrdinal;
+use crate::DocId;
 use itertools::Itertools;
-use postings::UnorderedTermId;
-use schema::{Document, Field};
 use std::collections::HashMap;
 use std::io;
-use termdict::TermOrdinal;
-use DocId;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -116,7 +116,7 @@ impl MultiValueIntFastFieldWriter {
         }
         {
             // writing the values themselves.
-            let mut value_serializer: FastSingleFieldSerializer<_>;
+            let mut value_serializer: FastSingleFieldSerializer<'_, _>;
             match mapping_opt {
                 Some(mapping) => {
                     value_serializer = serializer.new_u64_fast_field_with_idx(

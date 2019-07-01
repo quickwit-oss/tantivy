@@ -1,5 +1,5 @@
+use crate::common::FixedSize;
 use bitpacking::{BitPacker, BitPacker4x};
-use common::FixedSize;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;

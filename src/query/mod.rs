@@ -58,11 +58,11 @@ pub use self::weight::Weight;
 
 #[cfg(test)]
 mod tests {
-    use query::QueryParser;
-    use schema::{Schema, TEXT};
+    use crate::query::QueryParser;
+    use crate::schema::{Schema, TEXT};
+    use crate::Index;
+    use crate::Term;
     use std::collections::BTreeSet;
-    use Index;
-    use Term;
 
     #[test]
     fn test_query_terms() {

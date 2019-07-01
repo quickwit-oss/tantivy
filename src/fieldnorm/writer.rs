@@ -1,9 +1,9 @@
-use DocId;
+use crate::DocId;
 
 use super::fieldnorm_to_id;
 use super::FieldNormsSerializer;
-use schema::Field;
-use schema::Schema;
+use crate::schema::Field;
+use crate::schema::Schema;
 use std::io;
 
 /// The `FieldNormsWriter` is in charge of tracking the fieldnorm byte

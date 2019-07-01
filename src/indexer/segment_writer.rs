@@ -1,23 +1,23 @@
 use super::operation::AddOperation;
-use core::Segment;
-use core::SerializableSegment;
-use fastfield::FastFieldsWriter;
-use fieldnorm::FieldNormsWriter;
-use indexer::segment_serializer::SegmentSerializer;
-use postings::MultiFieldPostingsWriter;
-use schema::FieldEntry;
-use schema::FieldType;
-use schema::Schema;
-use schema::Term;
-use schema::Value;
+use crate::core::Segment;
+use crate::core::SerializableSegment;
+use crate::fastfield::FastFieldsWriter;
+use crate::fieldnorm::FieldNormsWriter;
+use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::postings::MultiFieldPostingsWriter;
+use crate::schema::FieldEntry;
+use crate::schema::FieldType;
+use crate::schema::Schema;
+use crate::schema::Term;
+use crate::schema::Value;
+use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::FacetTokenizer;
+use crate::tokenizer::{TokenStream, Tokenizer};
+use crate::DocId;
+use crate::Opstamp;
+use crate::Result;
 use std::io;
 use std::str;
-use tokenizer::BoxedTokenizer;
-use tokenizer::FacetTokenizer;
-use tokenizer::{TokenStream, Tokenizer};
-use DocId;
-use Opstamp;
-use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// set of documents.
@@ -31,7 +31,7 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
+    tokenizers: Vec<Option<Box<dyn BoxedTokenizer>>>,
 }
 
 impl SegmentWriter {

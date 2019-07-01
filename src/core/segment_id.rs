@@ -62,7 +62,7 @@ impl SegmentId {
 }
 
 impl fmt::Debug for SegmentId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Seg({:?})", self.short_uuid_string())
     }
 }

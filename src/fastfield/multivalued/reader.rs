@@ -1,5 +1,5 @@
-use fastfield::{FastFieldReader, FastValue};
-use DocId;
+use crate::fastfield::{FastFieldReader, FastValue};
+use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
 ///
@@ -64,8 +64,8 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
 #[cfg(test)]
 mod tests {
 
-    use core::Index;
-    use schema::{Facet, Schema};
+    use crate::core::Index;
+    use crate::schema::{Facet, Schema};
 
     #[test]
     fn test_multifastfield_reader() {

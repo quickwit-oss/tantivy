@@ -1,31 +1,31 @@
-use common::MAX_DOC_LIMIT;
-use core::Segment;
-use core::SegmentReader;
-use core::SerializableSegment;
-use docset::DocSet;
-use fastfield::BytesFastFieldReader;
-use fastfield::DeleteBitSet;
-use fastfield::FastFieldReader;
-use fastfield::FastFieldSerializer;
-use fastfield::MultiValueIntFastFieldReader;
-use fieldnorm::FieldNormReader;
-use fieldnorm::FieldNormsSerializer;
-use fieldnorm::FieldNormsWriter;
-use indexer::SegmentSerializer;
+use crate::common::MAX_DOC_LIMIT;
+use crate::core::Segment;
+use crate::core::SegmentReader;
+use crate::core::SerializableSegment;
+use crate::docset::DocSet;
+use crate::fastfield::BytesFastFieldReader;
+use crate::fastfield::DeleteBitSet;
+use crate::fastfield::FastFieldReader;
+use crate::fastfield::FastFieldSerializer;
+use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::fieldnorm::FieldNormReader;
+use crate::fieldnorm::FieldNormsSerializer;
+use crate::fieldnorm::FieldNormsWriter;
+use crate::indexer::SegmentSerializer;
+use crate::postings::InvertedIndexSerializer;
+use crate::postings::Postings;
+use crate::schema::Cardinality;
+use crate::schema::FieldType;
+use crate::schema::{Field, Schema};
+use crate::store::StoreWriter;
+use crate::termdict::TermMerger;
+use crate::termdict::TermOrdinal;
+use crate::DocId;
+use crate::Result;
+use crate::TantivyError;
 use itertools::Itertools;
-use postings::InvertedIndexSerializer;
-use postings::Postings;
-use schema::Cardinality;
-use schema::FieldType;
-use schema::{Field, Schema};
 use std::cmp;
 use std::collections::HashMap;
-use store::StoreWriter;
-use termdict::TermMerger;
-use termdict::TermOrdinal;
-use DocId;
-use Result;
-use TantivyError;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -692,28 +692,28 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
+    use crate::collector::tests::TestCollector;
+    use crate::collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
+    use crate::collector::{Count, FacetCollector};
+    use crate::core::Index;
+    use crate::query::AllQuery;
+    use crate::query::BooleanQuery;
+    use crate::query::TermQuery;
+    use crate::schema;
+    use crate::schema::Cardinality;
+    use crate::schema::Document;
+    use crate::schema::Facet;
+    use crate::schema::IndexRecordOption;
+    use crate::schema::IntOptions;
+    use crate::schema::Term;
+    use crate::schema::TextFieldIndexing;
+    use crate::schema::INDEXED;
+    use crate::DocAddress;
+    use crate::IndexWriter;
+    use crate::Searcher;
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-    use collector::tests::TestCollector;
-    use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
-    use collector::{Count, FacetCollector};
-    use core::Index;
     use futures::Future;
-    use query::AllQuery;
-    use query::BooleanQuery;
-    use query::TermQuery;
-    use schema;
-    use schema::Cardinality;
-    use schema::Document;
-    use schema::Facet;
-    use schema::IndexRecordOption;
-    use schema::IntOptions;
-    use schema::Term;
-    use schema::TextFieldIndexing;
-    use schema::INDEXED;
     use std::io::Cursor;
-    use DocAddress;
-    use IndexWriter;
-    use Searcher;
 
     #[test]
     fn test_index_merger_no_deletes() {

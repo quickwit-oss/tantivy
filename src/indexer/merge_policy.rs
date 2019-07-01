@@ -1,5 +1,5 @@
-use core::SegmentId;
-use core::SegmentMeta;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
 use std::fmt::Debug;
 use std::marker;
 
@@ -39,8 +39,8 @@ impl MergePolicy for NoMergePolicy {
 pub mod tests {
 
     use super::*;
-    use core::SegmentId;
-    use core::SegmentMeta;
+    use crate::core::SegmentId;
+    use crate::core::SegmentMeta;
 
     /// `MergePolicy` useful for test purposes.
     ///

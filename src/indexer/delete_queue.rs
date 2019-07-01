@@ -1,8 +1,8 @@
 use super::operation::DeleteOperation;
+use crate::Opstamp;
 use std::mem;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
-use Opstamp;
 
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.
@@ -250,7 +250,7 @@ impl DeleteCursor {
 mod tests {
 
     use super::{DeleteOperation, DeleteQueue};
-    use schema::{Field, Term};
+    use crate::schema::{Field, Term};
 
     #[test]
     fn test_deletequeue() {

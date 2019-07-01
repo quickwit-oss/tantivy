@@ -1,8 +1,8 @@
 use std::io;
 
-use fastfield::serializer::FastFieldSerializer;
-use schema::{Document, Field, Value};
-use DocId;
+use crate::fastfield::serializer::FastFieldSerializer;
+use crate::schema::{Document, Field, Value};
+use crate::DocId;
 
 /// Writer for byte array (as in, any number of bytes per document) fast fields
 ///

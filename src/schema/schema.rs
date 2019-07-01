@@ -1,4 +1,4 @@
-use schema::field_type::ValueParsingError;
+use crate::schema::field_type::ValueParsingError;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -313,7 +313,7 @@ impl<'de> Deserialize<'de> for Schema {
         impl<'de> Visitor<'de> for SchemaVisitor {
             type Value = Schema;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("struct Schema")
             }
 
@@ -353,9 +353,9 @@ pub enum DocParsingError {
 #[cfg(test)]
 mod tests {
 
-    use schema::field_type::ValueParsingError;
-    use schema::schema::DocParsingError::NotJSON;
-    use schema::*;
+    use crate::schema::field_type::ValueParsingError;
+    use crate::schema::schema::DocParsingError::NotJSON;
+    use crate::schema::*;
     use serde_json;
 
     #[test]

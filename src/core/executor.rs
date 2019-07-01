@@ -1,6 +1,6 @@
+use crate::Result;
 use crossbeam::channel;
 use scoped_pool::{Pool, ThreadConfig};
-use Result;
 
 /// Search executor whether search request are single thread or multithread.
 ///

@@ -1,9 +1,9 @@
-use directory::directory_lock::Lock;
-use directory::error::LockError;
-use directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use directory::WatchCallback;
-use directory::WatchHandle;
-use directory::{ReadOnlySource, WritePtr};
+use crate::directory::directory_lock::Lock;
+use crate::directory::error::LockError;
+use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use crate::directory::WatchCallback;
+use crate::directory::WatchHandle;
+use crate::directory::{ReadOnlySource, WritePtr};
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -48,10 +48,10 @@ impl RetryPolicy {
 ///
 /// It is transparently associated to a lock file, that gets deleted
 /// on `Drop.` The lock is released automatically on `Drop`.
-pub struct DirectoryLock(Box<Drop + Send + Sync + 'static>);
+pub struct DirectoryLock(Box<dyn Drop + Send + Sync + 'static>);
 
 struct DirectoryLockGuard {
-    directory: Box<Directory>,
+    directory: Box<dyn Directory>,
     path: PathBuf,
 }
 
@@ -76,7 +76,7 @@ enum TryAcquireLockError {
 
 fn try_acquire_lock(
     filepath: &Path,
-    directory: &mut Directory,
+    directory: &mut dyn Directory,
 ) -> Result<DirectoryLock, TryAcquireLockError> {
     let mut write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
@@ -210,14 +210,14 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
 /// DirectoryClone
 pub trait DirectoryClone {
     /// Clones the directory and boxes the clone
-    fn box_clone(&self) -> Box<Directory>;
+    fn box_clone(&self) -> Box<dyn Directory>;
 }
 
 impl<T> DirectoryClone for T
 where
     T: 'static + Directory + Clone,
 {
-    fn box_clone(&self) -> Box<Directory> {
+    fn box_clone(&self) -> Box<dyn Directory> {
         Box::new(self.clone())
     }
 }

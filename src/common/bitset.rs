@@ -5,7 +5,7 @@ use std::u64;
 pub(crate) struct TinySet(u64);
 
 impl fmt::Debug for TinySet {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.into_iter().collect::<Vec<u32>>().fmt(f)
     }
 }
@@ -204,12 +204,12 @@ mod tests {
 
     use super::BitSet;
     use super::TinySet;
-    use docset::DocSet;
-    use query::BitSetDocSet;
+    use crate::docset::DocSet;
+    use crate::query::BitSetDocSet;
+    use crate::tests;
+    use crate::tests::generate_nonunique_unsorted;
     use std::collections::BTreeSet;
     use std::collections::HashSet;
-    use tests;
-    use tests::generate_nonunique_unsorted;
 
     #[test]
     fn test_tiny_set() {

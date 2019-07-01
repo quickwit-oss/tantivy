@@ -7,8 +7,6 @@
 // Of course, you can have a look at the tantivy's built-in collectors
 // such as the `CountCollector` for more examples.
 
-extern crate tempdir;
-
 // ---
 // Importing tantivy...
 #[macro_use]

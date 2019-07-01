@@ -1,18 +1,18 @@
 use super::TermInfo;
-use common::{BinarySerializable, VInt};
-use common::{CompositeWrite, CountingWriter};
-use core::Segment;
-use directory::WritePtr;
-use positions::PositionSerializer;
-use postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
-use postings::skip::SkipSerializer;
-use postings::USE_SKIP_INFO_LIMIT;
-use schema::Schema;
-use schema::{Field, FieldEntry, FieldType};
+use crate::common::{BinarySerializable, VInt};
+use crate::common::{CompositeWrite, CountingWriter};
+use crate::core::Segment;
+use crate::directory::WritePtr;
+use crate::positions::PositionSerializer;
+use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
+use crate::postings::skip::SkipSerializer;
+use crate::postings::USE_SKIP_INFO_LIMIT;
+use crate::schema::Schema;
+use crate::schema::{Field, FieldEntry, FieldType};
+use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
+use crate::DocId;
+use crate::Result;
 use std::io::{self, Write};
-use termdict::{TermDictionaryBuilder, TermOrdinal};
-use DocId;
-use Result;
 
 /// `InvertedIndexSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -73,7 +73,7 @@ impl InvertedIndexSerializer {
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
-        use SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
+        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
         InvertedIndexSerializer::create(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
@@ -91,7 +91,7 @@ impl InvertedIndexSerializer {
         &mut self,
         field: Field,
         total_num_tokens: u64,
-    ) -> io::Result<FieldSerializer> {
+    ) -> io::Result<FieldSerializer<'_>> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);

@@ -9,8 +9,6 @@
 // - add a few stop words
 // - index few documents in our index
 
-extern crate tempdir;
-
 // ---
 // Importing tantivy...
 #[macro_use]

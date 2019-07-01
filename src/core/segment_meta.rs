@@ -1,11 +1,11 @@
 use super::SegmentComponent;
+use crate::core::SegmentId;
+use crate::Opstamp;
 use census::{Inventory, TrackedObject};
-use core::SegmentId;
 use serde;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
-use Opstamp;
 
 lazy_static! {
     static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
@@ -27,7 +27,7 @@ pub struct SegmentMeta {
 }
 
 impl fmt::Debug for SegmentMeta {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.tracked.fmt(f)
     }
 }

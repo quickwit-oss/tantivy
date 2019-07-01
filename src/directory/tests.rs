@@ -34,7 +34,7 @@ fn ram_directory_panics_if_flush_forgotten() {
     assert!(write_file.write_all(&[4]).is_ok());
 }
 
-fn test_simple(directory: &mut Directory) {
+fn test_simple(directory: &mut dyn Directory) {
     {
         let mut write_file = directory.open_write(*TEST_PATH).unwrap();
         assert!(directory.exists(*TEST_PATH));
@@ -52,7 +52,7 @@ fn test_simple(directory: &mut Directory) {
     assert!(!directory.exists(*TEST_PATH));
 }
 
-fn test_seek(directory: &mut Directory) {
+fn test_seek(directory: &mut dyn Directory) {
     {
         {
             let mut write_file = directory.open_write(*TEST_PATH).unwrap();
@@ -69,7 +69,7 @@ fn test_seek(directory: &mut Directory) {
     assert!(directory.delete(*TEST_PATH).is_ok());
 }
 
-fn test_rewrite_forbidden(directory: &mut Directory) {
+fn test_rewrite_forbidden(directory: &mut dyn Directory) {
     {
         directory.open_write(*TEST_PATH).unwrap();
         assert!(directory.exists(*TEST_PATH));
@@ -80,7 +80,7 @@ fn test_rewrite_forbidden(directory: &mut Directory) {
     assert!(directory.delete(*TEST_PATH).is_ok());
 }
 
-fn test_write_create_the_file(directory: &mut Directory) {
+fn test_write_create_the_file(directory: &mut dyn Directory) {
     {
         assert!(directory.open_read(*TEST_PATH).is_err());
         let _w = directory.open_write(*TEST_PATH).unwrap();
@@ -90,7 +90,7 @@ fn test_write_create_the_file(directory: &mut Directory) {
     }
 }
 
-fn test_directory_delete(directory: &mut Directory) {
+fn test_directory_delete(directory: &mut dyn Directory) {
     assert!(directory.open_read(*TEST_PATH).is_err());
     let mut write_file = directory.open_write(*TEST_PATH).unwrap();
     write_file.write_all(&[1, 2, 3, 4]).unwrap();
@@ -118,7 +118,7 @@ fn test_directory_delete(directory: &mut Directory) {
     assert!(directory.delete(*TEST_PATH).is_err());
 }
 
-fn test_directory(directory: &mut Directory) {
+fn test_directory(directory: &mut dyn Directory) {
     test_simple(directory);
     test_seek(directory);
     test_rewrite_forbidden(directory);
@@ -129,7 +129,7 @@ fn test_directory(directory: &mut Directory) {
     test_watch(directory);
 }
 
-fn test_watch(directory: &mut Directory) {
+fn test_watch(directory: &mut dyn Directory) {
     let counter: Arc<AtomicUsize> = Default::default();
     let counter_clone = counter.clone();
     let watch_callback = Box::new(move || {
@@ -163,7 +163,7 @@ fn test_watch(directory: &mut Directory) {
     assert_eq!(10, counter.load(Ordering::SeqCst));
 }
 
-fn test_lock_non_blocking(directory: &mut Directory) {
+fn test_lock_non_blocking(directory: &mut dyn Directory) {
     {
         let lock_a_res = directory.acquire_lock(&Lock {
             filepath: PathBuf::from("a.lock"),
@@ -188,7 +188,7 @@ fn test_lock_non_blocking(directory: &mut Directory) {
     assert!(lock_a_res.is_ok());
 }
 
-fn test_lock_blocking(directory: &mut Directory) {
+fn test_lock_blocking(directory: &mut dyn Directory) {
     let lock_a_res = directory.acquire_lock(&Lock {
         filepath: PathBuf::from("a.lock"),
         is_blocking: true,

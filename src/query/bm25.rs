@@ -1,8 +1,8 @@
-use fieldnorm::FieldNormReader;
-use query::Explanation;
-use Score;
-use Searcher;
-use Term;
+use crate::fieldnorm::FieldNormReader;
+use crate::query::Explanation;
+use crate::Score;
+use crate::Searcher;
+use crate::Term;
 
 const K1: f32 = 1.2;
 const B: f32 = 0.75;
@@ -131,7 +131,7 @@ impl BM25Weight {
 mod tests {
 
     use super::idf;
-    use tests::assert_nearly_equals;
+    use crate::tests::assert_nearly_equals;
 
     #[test]
     fn test_idf() {

@@ -1,38 +1,38 @@
 use super::segment::create_segment;
 use super::segment::Segment;
-use core::Executor;
-use core::IndexMeta;
-use core::SegmentId;
-use core::SegmentMeta;
-use core::META_FILEPATH;
-use directory::ManagedDirectory;
+use crate::core::Executor;
+use crate::core::IndexMeta;
+use crate::core::SegmentId;
+use crate::core::SegmentMeta;
+use crate::core::META_FILEPATH;
+use crate::directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
-use directory::MmapDirectory;
-use directory::INDEX_WRITER_LOCK;
-use directory::{Directory, RAMDirectory};
-use error::DataCorruption;
-use error::TantivyError;
-use indexer::index_writer::open_index_writer;
-use indexer::index_writer::HEAP_SIZE_MIN;
-use indexer::segment_updater::save_new_metas;
+use crate::directory::MmapDirectory;
+use crate::directory::INDEX_WRITER_LOCK;
+use crate::directory::{Directory, RAMDirectory};
+use crate::error::DataCorruption;
+use crate::error::TantivyError;
+use crate::indexer::index_writer::open_index_writer;
+use crate::indexer::index_writer::HEAP_SIZE_MIN;
+use crate::indexer::segment_updater::save_new_metas;
+use crate::reader::IndexReader;
+use crate::reader::IndexReaderBuilder;
+use crate::schema::Field;
+use crate::schema::FieldType;
+use crate::schema::Schema;
+use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::TokenizerManager;
+use crate::IndexWriter;
+use crate::Result;
 use num_cpus;
-use reader::IndexReader;
-use reader::IndexReaderBuilder;
-use schema::Field;
-use schema::FieldType;
-use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::sync::Arc;
-use tokenizer::BoxedTokenizer;
-use tokenizer::TokenizerManager;
-use IndexWriter;
-use Result;
 
-fn load_metas(directory: &Directory) -> Result<IndexMeta> {
+fn load_metas(directory: &dyn Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
     serde_json::from_str(&meta_string)
@@ -169,11 +169,11 @@ impl Index {
     }
 
     /// Helper to access the tokenizer associated to a specific field.
-    pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<BoxedTokenizer>> {
+    pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<dyn BoxedTokenizer>> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let tokenizer_manager: &TokenizerManager = self.tokenizers();
-        let tokenizer_name_opt: Option<Box<BoxedTokenizer>> = match field_type {
+        let tokenizer_name_opt: Option<Box<dyn BoxedTokenizer>> = match field_type {
             FieldType::Str(text_options) => text_options
                 .get_indexing_options()
                 .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
@@ -346,22 +346,22 @@ impl Index {
 }
 
 impl fmt::Debug for Index {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Index({:?})", self.directory)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use directory::RAMDirectory;
-    use schema::Field;
-    use schema::{Schema, INDEXED, TEXT};
+    use crate::directory::RAMDirectory;
+    use crate::schema::Field;
+    use crate::schema::{Schema, INDEXED, TEXT};
+    use crate::Index;
+    use crate::IndexReader;
+    use crate::IndexWriter;
+    use crate::ReloadPolicy;
     use std::thread;
     use std::time::Duration;
-    use Index;
-    use IndexReader;
-    use IndexWriter;
-    use ReloadPolicy;
 
     #[test]
     fn test_indexer_for_field() {

@@ -1,11 +1,11 @@
-use Result;
+use crate::Result;
 
-use core::Segment;
-use core::SegmentComponent;
-use fastfield::FastFieldSerializer;
-use fieldnorm::FieldNormsSerializer;
-use postings::InvertedIndexSerializer;
-use store::StoreWriter;
+use crate::core::Segment;
+use crate::core::SegmentComponent;
+use crate::fastfield::FastFieldSerializer;
+use crate::fieldnorm::FieldNormsSerializer;
+use crate::postings::InvertedIndexSerializer;
+use crate::store::StoreWriter;
 
 /// Segment serializer is in charge of laying out on disk
 /// the data accumulated and sorted by the `SegmentWriter`.

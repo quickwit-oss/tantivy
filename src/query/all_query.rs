@@ -1,11 +1,11 @@
-use core::Searcher;
-use core::SegmentReader;
-use docset::DocSet;
-use query::explanation::does_not_match;
-use query::{Explanation, Query, Scorer, Weight};
-use DocId;
-use Result;
-use Score;
+use crate::core::Searcher;
+use crate::core::SegmentReader;
+use crate::docset::DocSet;
+use crate::query::explanation::does_not_match;
+use crate::query::{Explanation, Query, Scorer, Weight};
+use crate::DocId;
+use crate::Result;
+use crate::Score;
 
 /// Query that matches all of the documents.
 ///
@@ -14,7 +14,7 @@ use Score;
 pub struct AllQuery;
 
 impl Query for AllQuery {
-    fn weight(&self, _: &Searcher, _: bool) -> Result<Box<Weight>> {
+    fn weight(&self, _: &Searcher, _: bool) -> Result<Box<dyn Weight>> {
         Ok(Box::new(AllWeight))
     }
 }
@@ -23,7 +23,7 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         Ok(Box::new(AllScorer {
             state: State::NotStarted,
             doc: 0u32,
@@ -93,9 +93,9 @@ impl Scorer for AllScorer {
 mod tests {
 
     use super::AllQuery;
-    use query::Query;
-    use schema::{Schema, TEXT};
-    use Index;
+    use crate::query::Query;
+    use crate::schema::{Schema, TEXT};
+    use crate::Index;
 
     #[test]
     fn test_all_query() {

@@ -33,10 +33,10 @@ pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use common;
-use schema::Cardinality;
-use schema::FieldType;
-use schema::Value;
+use crate::common;
+use crate::schema::Cardinality;
+use crate::schema::FieldType;
+use crate::schema::Value;
 
 mod bytes;
 mod delete;
@@ -126,16 +126,16 @@ fn value_to_u64(value: &Value) -> u64 {
 mod tests {
 
     use super::*;
-    use common::CompositeFile;
-    use directory::{Directory, RAMDirectory, WritePtr};
-    use fastfield::FastFieldReader;
+    use crate::common::CompositeFile;
+    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::fastfield::FastFieldReader;
+    use crate::schema::Document;
+    use crate::schema::Field;
+    use crate::schema::Schema;
+    use crate::schema::FAST;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
-    use schema::Document;
-    use schema::Field;
-    use schema::Schema;
-    use schema::FAST;
     use std::collections::HashMap;
     use std::path::Path;
 

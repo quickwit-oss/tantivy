@@ -1,6 +1,6 @@
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use directory::ReadOnlySource;
-use DocId;
+use crate::directory::ReadOnlySource;
+use crate::DocId;
 
 /// Reads the fieldnorm associated to a document.
 /// The fieldnorm represents the length associated to

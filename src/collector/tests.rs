@@ -1,12 +1,12 @@
 use super::*;
-use core::SegmentReader;
-use fastfield::BytesFastFieldReader;
-use fastfield::FastFieldReader;
-use schema::Field;
-use DocAddress;
-use DocId;
-use Score;
-use SegmentLocalId;
+use crate::core::SegmentReader;
+use crate::fastfield::BytesFastFieldReader;
+use crate::fastfield::FastFieldReader;
+use crate::schema::Field;
+use crate::DocAddress;
+use crate::DocId;
+use crate::Score;
+use crate::SegmentLocalId;
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.

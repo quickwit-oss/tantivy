@@ -1,13 +1,13 @@
 use super::PhraseWeight;
-use core::searcher::Searcher;
-use error::TantivyError;
-use query::bm25::BM25Weight;
-use query::Query;
-use query::Weight;
-use schema::IndexRecordOption;
-use schema::{Field, Term};
+use crate::core::searcher::Searcher;
+use crate::error::TantivyError;
+use crate::query::bm25::BM25Weight;
+use crate::query::Query;
+use crate::query::Weight;
+use crate::schema::IndexRecordOption;
+use crate::schema::{Field, Term};
+use crate::Result;
 use std::collections::BTreeSet;
-use Result;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -78,7 +78,7 @@ impl Query for PhraseQuery {
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         let schema = searcher.schema();
         let field_entry = schema.get_field_entry(self.field);
         let has_positions = field_entry

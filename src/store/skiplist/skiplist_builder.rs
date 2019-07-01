@@ -1,4 +1,4 @@
-use common::{is_power_of_2, BinarySerializable, VInt};
+use crate::common::{is_power_of_2, BinarySerializable, VInt};
 use std::io;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -15,7 +15,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
         self.buffer.len()
     }
 
-    fn write(&self, output: &mut Write) -> Result<(), io::Error> {
+    fn write(&self, output: &mut dyn Write) -> Result<(), io::Error> {
         output.write_all(&self.buffer)?;
         Ok(())
     }

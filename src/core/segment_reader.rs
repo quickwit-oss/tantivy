@@ -1,26 +1,26 @@
-use common::CompositeFile;
-use common::HasLen;
-use core::InvertedIndexReader;
-use core::Segment;
-use core::SegmentComponent;
-use core::SegmentId;
-use directory::ReadOnlySource;
-use fastfield::DeleteBitSet;
-use fastfield::FacetReader;
-use fastfield::FastFieldReaders;
-use fieldnorm::FieldNormReader;
-use schema::Field;
-use schema::FieldType;
-use schema::Schema;
-use space_usage::SegmentSpaceUsage;
+use crate::common::CompositeFile;
+use crate::common::HasLen;
+use crate::core::InvertedIndexReader;
+use crate::core::Segment;
+use crate::core::SegmentComponent;
+use crate::core::SegmentId;
+use crate::directory::ReadOnlySource;
+use crate::fastfield::DeleteBitSet;
+use crate::fastfield::FacetReader;
+use crate::fastfield::FastFieldReaders;
+use crate::fieldnorm::FieldNormReader;
+use crate::schema::Field;
+use crate::schema::FieldType;
+use crate::schema::Schema;
+use crate::space_usage::SegmentSpaceUsage;
+use crate::store::StoreReader;
+use crate::termdict::TermDictionary;
+use crate::DocId;
+use crate::Result;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
-use store::StoreReader;
-use termdict::TermDictionary;
-use DocId;
-use Result;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -243,10 +243,9 @@ impl SegmentReader {
 
         let postings_source = postings_source_opt.unwrap();
 
-        let termdict_source = self
-            .termdict_composite
-            .open_read(field)
-            .expect("Failed to open field term dictionary in composite file. Is the field indexed?");
+        let termdict_source = self.termdict_composite.open_read(field).expect(
+            "Failed to open field term dictionary in composite file. Is the field indexed?",
+        );
 
         let positions_source = self
             .positions_composite
@@ -296,7 +295,7 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator {
+    pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator<'_> {
         SegmentReaderAliveDocsIterator::new(&self)
     }
 
@@ -320,7 +319,7 @@ impl SegmentReader {
 }
 
 impl fmt::Debug for SegmentReader {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
     }
 }
@@ -373,9 +372,9 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
 
 #[cfg(test)]
 mod test {
-    use core::Index;
-    use schema::{Schema, Term, STORED, TEXT};
-    use DocId;
+    use crate::core::Index;
+    use crate::schema::{Schema, Term, STORED, TEXT};
+    use crate::DocId;
 
     #[test]
     fn test_alive_docs_iterator() {

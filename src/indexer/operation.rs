@@ -1,6 +1,6 @@
-use schema::Document;
-use schema::Term;
-use Opstamp;
+use crate::schema::Document;
+use crate::schema::Term;
+use crate::Opstamp;
 
 /// Timestamped Delete operation.
 #[derive(Clone, Eq, PartialEq, Debug)]

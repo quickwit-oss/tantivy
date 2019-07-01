@@ -1,13 +1,13 @@
-use common::BinarySerializable;
-use directory::ReadOnlySource;
+use crate::common::BinarySerializable;
+use crate::directory::ReadOnlySource;
+use crate::positions::PositionReader;
+use crate::postings::TermInfo;
+use crate::postings::{BlockSegmentPostings, SegmentPostings};
+use crate::schema::FieldType;
+use crate::schema::IndexRecordOption;
+use crate::schema::Term;
+use crate::termdict::TermDictionary;
 use owned_read::OwnedRead;
-use positions::PositionReader;
-use postings::TermInfo;
-use postings::{BlockSegmentPostings, SegmentPostings};
-use schema::FieldType;
-use schema::IndexRecordOption;
-use schema::Term;
-use termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.

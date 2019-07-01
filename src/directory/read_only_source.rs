@@ -1,9 +1,9 @@
-use common::HasLen;
+use crate::common::HasLen;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::ops::Deref;
 use std::sync::Arc;
 
-pub type BoxedData = Box<Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Read object that represents files in tantivy.
 ///

@@ -1,9 +1,9 @@
-use common::BitSet;
-use docset::{DocSet, SkipResult};
+use crate::common::BitSet;
+use crate::docset::{DocSet, SkipResult};
+use crate::DocId;
+use crate::Score;
 use downcast_rs;
 use std::ops::DerefMut;
-use DocId;
-use Score;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -16,7 +16,7 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
 
     /// Iterates through all of the document matched by the DocSet
     /// `DocSet` and push the scored documents to the collector.
-    fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
+    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
         while self.advance() {
             callback(self.doc(), self.score());
         }
@@ -25,12 +25,12 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
 
 impl_downcast!(Scorer);
 
-impl Scorer for Box<Scorer> {
+impl Scorer for Box<dyn Scorer> {
     fn score(&mut self) -> Score {
         self.deref_mut().score()
     }
 
-    fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
+    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
         let scorer = self.deref_mut();
         scorer.for_each(callback);
     }

@@ -1,15 +1,15 @@
 use super::term_scorer::TermScorer;
-use core::SegmentReader;
-use docset::DocSet;
-use postings::SegmentPostings;
-use query::bm25::BM25Weight;
-use query::explanation::does_not_match;
-use query::Weight;
-use query::{Explanation, Scorer};
-use schema::IndexRecordOption;
-use DocId;
-use Term;
-use {Result, SkipResult};
+use crate::core::SegmentReader;
+use crate::docset::DocSet;
+use crate::postings::SegmentPostings;
+use crate::query::bm25::BM25Weight;
+use crate::query::explanation::does_not_match;
+use crate::query::Weight;
+use crate::query::{Explanation, Scorer};
+use crate::schema::IndexRecordOption;
+use crate::DocId;
+use crate::Term;
+use crate::{Result, SkipResult};
 
 pub struct TermWeight {
     term: Term,
@@ -18,7 +18,7 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         let term_scorer = self.scorer_specialized(reader)?;
         Ok(Box::new(term_scorer))
     }

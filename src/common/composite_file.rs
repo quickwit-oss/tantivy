@@ -1,11 +1,11 @@
-use common::BinarySerializable;
-use common::CountingWriter;
-use common::VInt;
-use directory::ReadOnlySource;
-use directory::WritePtr;
-use schema::Field;
-use space_usage::FieldUsage;
-use space_usage::PerFieldSpaceUsage;
+use crate::common::BinarySerializable;
+use crate::common::CountingWriter;
+use crate::common::VInt;
+use crate::directory::ReadOnlySource;
+use crate::directory::WritePtr;
+use crate::schema::Field;
+use crate::space_usage::FieldUsage;
+use crate::space_usage::PerFieldSpaceUsage;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::{self, Read};
@@ -185,10 +185,10 @@ impl CompositeFile {
 mod test {
 
     use super::{CompositeFile, CompositeWrite};
-    use common::BinarySerializable;
-    use common::VInt;
-    use directory::{Directory, RAMDirectory};
-    use schema::Field;
+    use crate::common::BinarySerializable;
+    use crate::common::VInt;
+    use crate::directory::{Directory, RAMDirectory};
+    use crate::schema::Field;
     use std::io::Write;
     use std::path::Path;
 

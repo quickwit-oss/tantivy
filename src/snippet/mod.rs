@@ -1,15 +1,15 @@
+use crate::query::Query;
+use crate::schema::Field;
+use crate::schema::Value;
+use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::{Token, TokenStream};
+use crate::Document;
+use crate::Result;
+use crate::Searcher;
 use htmlescape::encode_minimal;
-use query::Query;
-use schema::Field;
-use schema::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use tokenizer::BoxedTokenizer;
-use tokenizer::{Token, TokenStream};
-use Document;
-use Result;
-use Searcher;
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -142,7 +142,7 @@ impl Snippet {
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
 fn search_fragments<'a>(
-    tokenizer: &BoxedTokenizer,
+    tokenizer: &dyn BoxedTokenizer,
     text: &'a str,
     terms: &BTreeMap<String, f32>,
     max_num_chars: usize,
@@ -254,14 +254,18 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// ```
 pub struct SnippetGenerator {
     terms_text: BTreeMap<String, f32>,
-    tokenizer: Box<BoxedTokenizer>,
+    tokenizer: Box<dyn BoxedTokenizer>,
     field: Field,
     max_num_chars: usize,
 }
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
-    pub fn create(searcher: &Searcher, query: &Query, field: Field) -> Result<SnippetGenerator> {
+    pub fn create(
+        searcher: &Searcher,
+        query: &dyn Query,
+        field: Field,
+    ) -> Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
         let terms_text: BTreeMap<String, f32> = terms
@@ -325,13 +329,13 @@ impl SnippetGenerator {
 #[cfg(test)]
 mod tests {
     use super::{search_fragments, select_best_fragment_combination};
-    use query::QueryParser;
-    use schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::query::QueryParser;
+    use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
+    use crate::tokenizer::{box_tokenizer, SimpleTokenizer};
+    use crate::Index;
+    use crate::SnippetGenerator;
     use std::collections::BTreeMap;
     use std::iter::Iterator;
-    use tokenizer::{box_tokenizer, SimpleTokenizer};
-    use Index;
-    use SnippetGenerator;
 
     const TEST_TEXT: &'static str =
         r#"Rust is a systems programming language sponsored by Mozilla which

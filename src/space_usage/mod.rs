@@ -9,9 +9,9 @@ details into consideration. For example, if your file system block size is 4096 
 under-count actual resultant space usage by up to 4095 bytes per file.
 */
 
-use schema::Field;
+use crate::schema::Field;
+use crate::SegmentComponent;
 use std::collections::HashMap;
-use SegmentComponent;
 
 /// Indicates space usage in bytes
 pub type ByteCount = usize;
@@ -119,7 +119,7 @@ impl SegmentSpaceUsage {
     /// Use the components directly if this is somehow in performance critical code.
     pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
         use self::ComponentSpaceUsage::*;
-        use SegmentComponent::*;
+        use crate::SegmentComponent::*;
         match component {
             POSTINGS => PerField(self.postings().clone()),
             POSITIONS => PerField(self.positions().clone()),
@@ -292,13 +292,13 @@ impl FieldUsage {
 
 #[cfg(test)]
 mod test {
-    use core::Index;
-    use schema::Field;
-    use schema::Schema;
-    use schema::{FAST, INDEXED, STORED, TEXT};
-    use space_usage::ByteCount;
-    use space_usage::PerFieldSpaceUsage;
-    use Term;
+    use crate::core::Index;
+    use crate::schema::Field;
+    use crate::schema::Schema;
+    use crate::schema::{FAST, INDEXED, STORED, TEXT};
+    use crate::space_usage::ByteCount;
+    use crate::space_usage::PerFieldSpaceUsage;
+    use crate::Term;
 
     #[test]
     fn test_empty() {

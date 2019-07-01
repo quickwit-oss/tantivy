@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use common::HasLen;
-use docset::DocSet;
+use crate::common::HasLen;
+use crate::docset::DocSet;
+use crate::DocId;
 use std::num::Wrapping;
-use DocId;
 
 /// Simulate a `Postings` objects from a `VecPostings`.
 /// `VecPostings` only exist for testing purposes.
@@ -49,8 +49,8 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use docset::{DocSet, SkipResult};
-    use DocId;
+    use crate::docset::{DocSet, SkipResult};
+    use crate::DocId;
 
     #[test]
     pub fn test_vec_postings() {

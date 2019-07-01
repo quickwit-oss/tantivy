@@ -1,8 +1,8 @@
-use schema::Term;
+use crate::schema::Term;
+use crate::termdict::TermOrdinal;
+use crate::termdict::TermStreamer;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use termdict::TermOrdinal;
-use termdict::TermStreamer;
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,
@@ -60,7 +60,7 @@ impl<'a> TermMerger<'a> {
 
     pub(crate) fn matching_segments<'b: 'a>(
         &'b self,
-    ) -> Box<'b + Iterator<Item = (usize, TermOrdinal)>> {
+    ) -> Box<dyn 'b + Iterator<Item = (usize, TermOrdinal)>> {
         Box::new(
             self.current_streamers
                 .iter()

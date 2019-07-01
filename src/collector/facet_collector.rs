@@ -1,9 +1,15 @@
-use collector::Collector;
-use collector::SegmentCollector;
-use docset::SkipResult;
-use fastfield::FacetReader;
-use schema::Facet;
-use schema::Field;
+use crate::collector::Collector;
+use crate::collector::SegmentCollector;
+use crate::docset::SkipResult;
+use crate::fastfield::FacetReader;
+use crate::schema::Facet;
+use crate::schema::Field;
+use crate::DocId;
+use crate::Result;
+use crate::Score;
+use crate::SegmentLocalId;
+use crate::SegmentReader;
+use crate::TantivyError;
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -12,12 +18,6 @@ use std::collections::BinaryHeap;
 use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
-use DocId;
-use Result;
-use Score;
-use SegmentLocalId;
-use SegmentReader;
-use TantivyError;
 
 struct Hit<'a> {
     count: u64,
@@ -27,13 +27,13 @@ struct Hit<'a> {
 impl<'a> Eq for Hit<'a> {}
 
 impl<'a> PartialEq<Hit<'a>> for Hit<'a> {
-    fn eq(&self, other: &Hit) -> bool {
+    fn eq(&self, other: &Hit<'_>) -> bool {
         self.count == other.count
     }
 }
 
 impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
-    fn partial_cmp(&self, other: &Hit) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Hit<'_>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -398,7 +398,7 @@ impl<'a> Iterator for FacetChildIterator<'a> {
 }
 
 impl FacetCounts {
-    pub fn get<T>(&self, facet_from: T) -> FacetChildIterator
+    pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where
         Facet: From<T>,
     {
@@ -412,7 +412,8 @@ impl FacetCounts {
             let facet_after = Facet::from_encoded_string(facet_after_bytes);
             Bound::Excluded(facet_after)
         };
-        let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));
+        let underlying: btree_map::Range<'_, _, _> =
+            self.facet_counts.range((left_bound, right_bound));
         FacetChildIterator { underlying }
     }
 
@@ -453,12 +454,12 @@ impl FacetCounts {
 #[cfg(test)]
 mod tests {
     use super::{FacetCollector, FacetCounts};
-    use core::Index;
-    use query::AllQuery;
+    use crate::core::Index;
+    use crate::query::AllQuery;
+    use crate::schema::{Document, Facet, Field, Schema};
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;
     use rand::{thread_rng, Rng};
-    use schema::{Document, Facet, Field, Schema};
     use std::iter;
 
     #[test]

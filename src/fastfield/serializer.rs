@@ -1,10 +1,10 @@
-use common::bitpacker::BitPacker;
-use common::compute_num_bits;
-use common::BinarySerializable;
-use common::CompositeWrite;
-use common::CountingWriter;
-use directory::WritePtr;
-use schema::Field;
+use crate::common::bitpacker::BitPacker;
+use crate::common::compute_num_bits;
+use crate::common::BinarySerializable;
+use crate::common::CompositeWrite;
+use crate::common::CountingWriter;
+use crate::directory::WritePtr;
+use crate::schema::Field;
 use std::io::{self, Write};
 
 /// `FastFieldSerializer` is in charge of serializing
@@ -45,7 +45,7 @@ impl FastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
+    ) -> io::Result<FastSingleFieldSerializer<'_, CountingWriter<WritePtr>>> {
         self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
@@ -56,7 +56,7 @@ impl FastFieldSerializer {
         min_value: u64,
         max_value: u64,
         idx: usize,
-    ) -> io::Result<FastSingleFieldSerializer<CountingWriter<WritePtr>>> {
+    ) -> io::Result<FastSingleFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastSingleFieldSerializer::open(field_write, min_value, max_value)
     }
@@ -66,7 +66,7 @@ impl FastFieldSerializer {
         &mut self,
         field: Field,
         idx: usize,
-    ) -> io::Result<FastBytesFieldSerializer<CountingWriter<WritePtr>>> {
+    ) -> io::Result<FastBytesFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastBytesFieldSerializer::open(field_write)
     }
@@ -79,7 +79,7 @@ impl FastFieldSerializer {
     }
 }
 
-pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
+pub struct FastSingleFieldSerializer<'a, W: Write> {
     bit_packer: BitPacker,
     write: &'a mut W,
     min_value: u64,
@@ -127,7 +127,7 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
     }
 }
 
-pub struct FastBytesFieldSerializer<'a, W: Write + 'a> {
+pub struct FastBytesFieldSerializer<'a, W: Write> {
     write: &'a mut W,
 }
 

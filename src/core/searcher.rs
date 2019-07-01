@@ -1,26 +1,26 @@
-use collector::Collector;
-use collector::SegmentCollector;
-use core::Executor;
-use core::InvertedIndexReader;
-use core::SegmentReader;
-use query::Query;
-use query::Scorer;
-use query::Weight;
-use schema::Document;
-use schema::Schema;
-use schema::{Field, Term};
-use space_usage::SearcherSpaceUsage;
+use crate::collector::Collector;
+use crate::collector::SegmentCollector;
+use crate::core::Executor;
+use crate::core::InvertedIndexReader;
+use crate::core::SegmentReader;
+use crate::query::Query;
+use crate::query::Scorer;
+use crate::query::Weight;
+use crate::schema::Document;
+use crate::schema::Schema;
+use crate::schema::{Field, Term};
+use crate::space_usage::SearcherSpaceUsage;
+use crate::store::StoreReader;
+use crate::termdict::TermMerger;
+use crate::DocAddress;
+use crate::Index;
+use crate::Result;
 use std::fmt;
 use std::sync::Arc;
-use store::StoreReader;
-use termdict::TermMerger;
-use DocAddress;
-use Index;
-use Result;
 
 fn collect_segment<C: Collector>(
     collector: &C,
-    weight: &Weight,
+    weight: &dyn Weight,
     segment_ord: u32,
     segment_reader: &SegmentReader,
 ) -> Result<C::Fruit> {
@@ -132,7 +132,7 @@ impl Searcher {
     ///
     ///  Finally, the Collector merges each of the child collectors into itself for result usability
     ///  by the caller.
-    pub fn search<C: Collector>(&self, query: &Query, collector: &C) -> Result<C::Fruit> {
+    pub fn search<C: Collector>(&self, query: &dyn Query, collector: &C) -> Result<C::Fruit> {
         let executor = self.index.search_executor();
         self.search_with_executor(query, collector, executor)
     }
@@ -151,7 +151,7 @@ impl Searcher {
     /// hurt it. It will however, decrease the average response time.
     pub fn search_with_executor<C: Collector>(
         &self,
-        query: &Query,
+        query: &dyn Query,
         collector: &C,
         executor: &Executor,
     ) -> Result<C::Fruit> {
@@ -203,7 +203,7 @@ impl FieldSearcher {
 
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
-    pub fn terms(&self) -> TermMerger {
+    pub fn terms(&self) -> TermMerger<'_> {
         let term_streamers: Vec<_> = self
             .inv_index_readers
             .iter()
@@ -214,7 +214,7 @@ impl FieldSearcher {
 }
 
 impl fmt::Debug for Searcher {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let segment_ids = self
             .segment_readers
             .iter()

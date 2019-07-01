@@ -1,10 +1,10 @@
 use rand::thread_rng;
 use std::collections::HashSet;
 
+use crate::schema::*;
+use crate::Index;
+use crate::Searcher;
 use rand::Rng;
-use schema::*;
-use Index;
-use Searcher;
 
 fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
     assert!(searcher.segment_readers().len() < 20);

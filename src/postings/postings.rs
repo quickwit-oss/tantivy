@@ -1,4 +1,4 @@
-use docset::DocSet;
+use crate::docset::DocSet;
 
 /// Postings (also called inverted list)
 ///

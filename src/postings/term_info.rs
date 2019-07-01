@@ -1,4 +1,4 @@
-use common::{BinarySerializable, FixedSize};
+use crate::common::{BinarySerializable, FixedSize};
 use std::io;
 
 /// `TermInfo` wraps the metadata associated to a Term.
@@ -45,7 +45,7 @@ impl BinarySerializable for TermInfo {
 mod tests {
 
     use super::TermInfo;
-    use common::test::fixed_size_test;
+    use crate::common::test::fixed_size_test;
 
     #[test]
     fn test_fixed_size() {
