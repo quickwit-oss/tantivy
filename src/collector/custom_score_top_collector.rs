@@ -1,8 +1,7 @@
-use collector::top_collector::{TopCollector, TopSegmentCollector};
-use collector::{Collector, SegmentCollector};
-use DocAddress;
-use Result;
-use {DocId, Score, SegmentReader};
+use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
+use crate::collector::{Collector, SegmentCollector};
+use crate::Result;
+use crate::{DocAddress, DocId, Score, SegmentReader};
 
 pub struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
     custom_scorer: TCustomScorer,

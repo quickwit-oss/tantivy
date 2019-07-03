@@ -1,13 +1,11 @@
 use super::Collector;
+use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
 use crate::collector::top_collector::TopCollector;
 use crate::collector::top_collector::TopSegmentCollector;
-use crate::collector::top_custom_score_collector::ScoreTweaker;
-use crate::collector::top_custom_score_collector::SegmentScoreTweaker;
-use crate::collector::top_custom_score_collector::TweakedScoreCollector;
-use crate::collector::SegmentCollector;
-use crate::collector::SegmentCollector;
-use crate::collector::TopDocsByField;
-use crate::fastfield::FastValue;
+use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
+use crate::collector::{
+    CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
+};
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
@@ -337,14 +335,13 @@ impl SegmentCollector for TopScoreSegmentCollector {
 #[cfg(test)]
 mod tests {
     use super::TopDocs;
-    use crate::query::QueryParser;
-    use crate::schema::Schema;
-    use crate::schema::TEXT;
+    use crate::collector::Collector;
+    use crate::query::{Query, QueryParser};
+    use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::DocAddress;
     use crate::Index;
+    use crate::IndexWriter;
     use crate::Score;
-    use crate::{DocAddress, Index, IndexWriter, TantivyError};
-    use {DocAddress, Index, IndexWriter};
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();

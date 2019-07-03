@@ -1,8 +1,7 @@
-use collector::top_collector::{TopCollector, TopSegmentCollector};
-use collector::{Collector, SegmentCollector};
-use DocAddress;
-use Result;
-use {DocId, Score, SegmentReader};
+use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
+use crate::collector::{Collector, SegmentCollector};
+use crate::DocAddress;
+use crate::{DocId, Result, Score, SegmentReader};
 
 pub struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
     score_tweaker: TScoreTweaker,
