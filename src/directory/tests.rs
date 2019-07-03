@@ -1,5 +1,5 @@
 use super::*;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
@@ -50,23 +50,6 @@ fn test_simple(directory: &mut dyn Directory) {
     }
     assert!(directory.delete(*TEST_PATH).is_ok());
     assert!(!directory.exists(*TEST_PATH));
-}
-
-fn test_seek(directory: &mut dyn Directory) {
-    {
-        {
-            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-            write_file.write_all(&[4, 3, 7, 3, 5]).unwrap();
-            write_file.seek(SeekFrom::Start(0)).unwrap();
-            write_file.write_all(&[3, 1]).unwrap();
-            write_file.flush().unwrap();
-        }
-        let read_file = directory.open_read(*TEST_PATH).unwrap();
-        let data: &[u8] = &*read_file;
-        assert_eq!(data, &[3u8, 1u8, 7u8, 3u8, 5u8]);
-    }
-
-    assert!(directory.delete(*TEST_PATH).is_ok());
 }
 
 fn test_rewrite_forbidden(directory: &mut dyn Directory) {
@@ -120,7 +103,6 @@ fn test_directory_delete(directory: &mut dyn Directory) {
 
 fn test_directory(directory: &mut dyn Directory) {
     test_simple(directory);
-    test_seek(directory);
     test_rewrite_forbidden(directory);
     test_write_create_the_file(directory);
     test_directory_delete(directory);
