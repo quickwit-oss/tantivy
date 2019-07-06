@@ -3,7 +3,7 @@ use crate::collector::{Collector, SegmentCollector};
 use crate::DocAddress;
 use crate::{DocId, Result, Score, SegmentReader};
 
-pub struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
+pub(crate) struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
     score_tweaker: TScoreTweaker,
     collector: TopCollector<TScore>,
 }
@@ -23,13 +23,28 @@ where
     }
 }
 
+/// A `ScoreSegmentTweaker` makes it possible to modify the default score
+/// for a given document belonging to a specific segment.
+///
+/// It is the segment local version of the [`ScoreTweaker`](./trait.ScoreTweaker.html).
 pub trait ScoreSegmentTweaker<TScore>: 'static {
+    /// Tweak the given `score` for the document `doc`.
     fn score(&self, doc: DocId, score: Score) -> TScore;
 }
 
+/// `ScoreTweaker` makes it possible to tweak the score
+/// emitted  by the scorer into another one.
+///
+/// The `ScoreTweaker` itself does not make much of the computation itself.
+/// Instead, it helps constructing `Self::Child` instances that will compute
+/// the score at a segment scale.
 pub trait ScoreTweaker<TScore>: Sync {
+    /// Type of the associated [`ScoreSegmentTweaker`](./trait.ScoreSegmentTweaker.html).
     type Child: ScoreSegmentTweaker<TScore>;
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
+
+    /// Builds a child tweaker for a specific segment. The child scorer is associated to
+    /// a specific segment.
+    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
 }
 
 impl<TScoreTweaker, TScore> Collector for TweakedScoreTopCollector<TScoreTweaker, TScore>
@@ -46,7 +61,7 @@ where
         segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> Result<Self::Child> {
-        let segment_scorer = self.score_tweaker.segment_scorer(segment_reader)?;
+        let segment_scorer = self.score_tweaker.segment_tweaker(segment_reader)?;
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
@@ -99,7 +114,7 @@ where
 {
     type Child = TSegmentScoreTweaker;
 
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+    fn segment_tweaker(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
         Ok((self)(segment_reader))
     }
 }

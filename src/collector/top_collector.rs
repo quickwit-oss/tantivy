@@ -177,8 +177,8 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TopSegmentCollector};
-    use crate::{DocAddress};
+    use super::TopSegmentCollector;
+    use crate::DocAddress;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

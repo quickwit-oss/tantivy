@@ -3,7 +3,7 @@ use crate::collector::{Collector, SegmentCollector};
 use crate::Result;
 use crate::{DocAddress, DocId, Score, SegmentReader};
 
-pub struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
+pub(crate) struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
     custom_scorer: TCustomScorer,
     collector: TopCollector<TScore>,
 }
@@ -23,12 +23,25 @@ where
     }
 }
 
+/// A custom segment scorer makes it possible to define any kind of score
+/// for a given document belonging to a specific segment.
+///
+/// It is the segment local version of the [`CustomScorer`](./trait.CustomScorer.html).
 pub trait CustomSegmentScorer<TScore>: 'static {
+    /// Computes the score of a specific `doc`.
     fn score(&self, doc: DocId) -> TScore;
 }
 
+/// `CustomScorer` makes it possible to define any kind of score.
+///
+/// The `CustomerScorer` itself does not make much of the computation itself.
+/// Instead, it helps constructing `Self::Child` instances that will compute
+/// the score at a segment scale.
 pub trait CustomScorer<TScore>: Sync {
+    /// Type of the associated [`CustomSegmentScorer`](./trait.CustomSegmentScorer.html).
     type Child: CustomSegmentScorer<TScore>;
+    /// Builds a child scorer for a specific segment. The child scorer is associated to
+    /// a specific segment.
     fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
 }
 

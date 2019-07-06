@@ -66,7 +66,7 @@ let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
 
 The `Collector` trait is implemented for up to 4 collectors.
 If you have more than 4 collectors, you can either group them into
-tuples of tuples `(a,(b,(c,d)))`, or rely on `MultiCollector`'s.
+tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
 
 # Combining several collectors dynamically
 
