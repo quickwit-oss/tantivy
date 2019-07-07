@@ -134,9 +134,6 @@ extern crate maplit;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-#[macro_use]
-extern crate downcast_rs;
-
 #[cfg(feature = "mmap")]
 #[cfg(test)]
 mod functional_test;
