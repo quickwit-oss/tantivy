@@ -17,6 +17,7 @@ use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
 use crate::Result;
+use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;

@@ -90,7 +90,7 @@ use crate::Result;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use downcast_rs;
+use downcast_rs::impl_downcast;
 
 mod count_collector;
 pub use self::count_collector::Count;

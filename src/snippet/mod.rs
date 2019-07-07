@@ -334,6 +334,7 @@ mod tests {
     use crate::tokenizer::{box_tokenizer, SimpleTokenizer};
     use crate::Index;
     use crate::SnippetGenerator;
+    use maplit::btreemap;
     use std::collections::BTreeMap;
     use std::iter::Iterator;
 

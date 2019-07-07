@@ -1,9 +1,10 @@
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
+use crate::DocAddress;
 use crate::Result;
 use crate::Term;
-use crate::{downcast_rs, DocAddress};
+use downcast_rs::impl_downcast;
 use std::collections::BTreeSet;
 use std::fmt;
 

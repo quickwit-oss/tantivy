@@ -3,6 +3,7 @@ use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::WatchCallbackList;
 use crate::directory::WritePtr;
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
+use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};

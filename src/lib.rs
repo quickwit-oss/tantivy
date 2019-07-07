@@ -123,33 +123,8 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 
-#[cfg(feature = "mmap")]
-extern crate atomicwrites;
-#[cfg(feature = "mmap")]
-extern crate memmap;
-
-#[cfg(test)]
-#[macro_use]
-extern crate matches;
-
-#[cfg(windows)]
-extern crate winapi;
-
-#[cfg(test)]
-extern crate rand;
-
-#[cfg(test)]
-#[macro_use]
-extern crate maplit;
-
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
-
-#[macro_use]
-extern crate downcast_rs;
-
-#[macro_use]
-extern crate fail;
 
 #[cfg(feature = "mmap")]
 #[cfg(test)]

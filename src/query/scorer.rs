@@ -2,7 +2,7 @@ use crate::common::BitSet;
 use crate::docset::{DocSet, SkipResult};
 use crate::DocId;
 use crate::Score;
-use downcast_rs;
+use downcast_rs::impl_downcast;
 use std::ops::DerefMut;
 
 /// Scored set of documents matching a query within a specific segment.

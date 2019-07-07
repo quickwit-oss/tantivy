@@ -356,6 +356,7 @@ mod tests {
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::schema::DocParsingError::NotJSON;
     use crate::schema::*;
+    use matches::{assert_matches, matches};
     use serde_json;
 
     #[test]

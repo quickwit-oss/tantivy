@@ -509,6 +509,7 @@ mod test {
         LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager,
     };
     use crate::Index;
+    use matches::assert_matches;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = Schema::builder();
