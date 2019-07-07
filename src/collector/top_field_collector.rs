@@ -170,6 +170,7 @@ mod tests {
     use crate::Index;
     use crate::IndexWriter;
     use crate::TantivyError;
+    use matches::assert_matches;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";

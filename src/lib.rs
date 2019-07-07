@@ -123,14 +123,6 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 
-#[cfg(test)]
-#[macro_use]
-extern crate matches;
-
-#[cfg(test)]
-#[macro_use]
-extern crate maplit;
-
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
