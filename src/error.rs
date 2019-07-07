@@ -77,9 +77,6 @@ pub enum TantivyError {
     /// An Error appeared related to the schema.
     #[fail(display = "Schema error: '{}'", _0)]
     SchemaError(String),
-    /// Tried to access a fastfield reader for a field not configured accordingly.
-    #[fail(display = "Fast field not available: '{:?}'", _0)]
-    FastFieldError(#[cause] FastFieldNotAvailableError),
     /// System error. (e.g.: We failed spawning a new thread)
     #[fail(display = "System error.'{}'", _0)]
     SystemError(String),
@@ -93,7 +90,7 @@ impl From<DataCorruption> for TantivyError {
 
 impl From<FastFieldNotAvailableError> for TantivyError {
     fn from(fastfield_error: FastFieldNotAvailableError) -> TantivyError {
-        TantivyError::FastFieldError(fastfield_error)
+        TantivyError::SchemaError(format!("{}", fastfield_error))
     }
 }
 

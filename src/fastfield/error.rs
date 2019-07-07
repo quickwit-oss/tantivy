@@ -5,7 +5,7 @@ use std::result;
 /// user requested for a fast field reader, and the field was not
 /// defined in the schema as a fast field.
 #[derive(Debug, Fail)]
-#[fail(display = "field not available: '{:?}'", field_name)]
+#[fail(display = "Fast field not available: '{:?}'", field_name)]
 pub struct FastFieldNotAvailableError {
     field_name: String,
 }

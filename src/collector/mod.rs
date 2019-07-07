@@ -66,7 +66,7 @@ let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
 
 The `Collector` trait is implemented for up to 4 collectors.
 If you have more than 4 collectors, you can either group them into
-tuples of tuples `(a,(b,(c,d)))`, or rely on `MultiCollector`'s.
+tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
 
 # Combining several collectors dynamically
 
@@ -103,8 +103,11 @@ mod top_collector;
 mod top_score_collector;
 pub use self::top_score_collector::TopDocs;
 
-mod top_field_collector;
-pub use self::top_field_collector::TopDocsByField;
+mod custom_score_top_collector;
+pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
+
+mod tweak_score_top_collector;
+pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;

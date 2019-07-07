@@ -3,6 +3,8 @@ Tantivy 0.10.0
 
 *Tantivy 0.10.0 index format is compatible with the index format in 0.9.0.*
 
+- Added an API to easily tweak or entirely replace the 
+ default score. See `TopDocs::tweak_score`and `TopScore::custom_score` (@pmasurel)
 - Added an ASCII folding filter (@drusellers)
 - Bugfix in `query.count` in presence of deletes (@pmasurel)
 - Added `.explain(...)` in `Query` and `Weight` to (@pmasurel)
