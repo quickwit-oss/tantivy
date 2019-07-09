@@ -6,10 +6,9 @@ use serde;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
-}
+static INVENTORY: Lazy<Inventory<InnerSegmentMeta>> = Lazy::new(|| { Inventory::new() });
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {

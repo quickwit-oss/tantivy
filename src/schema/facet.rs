@@ -7,6 +7,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{self, Read, Write};
 use std::str;
 use std::string::FromUtf8Error;
+use once_cell::sync::Lazy;
 
 const SLASH_BYTE: u8 = b'/';
 const ESCAPE_BYTE: u8 = b'\\';
@@ -183,9 +184,8 @@ impl Display for Facet {
 }
 
 fn escape_slashes(s: &str) -> Cow<'_, str> {
-    lazy_static! {
-        static ref SLASH_PTN: Regex = Regex::new(r"[\\/]").unwrap();
-    }
+    static SLASH_PTN: Lazy<Regex> = Lazy::new(|| { Regex::new(r"[\\/]").unwrap() });
+
     SLASH_PTN.replace_all(s, "\\/")
 }
 

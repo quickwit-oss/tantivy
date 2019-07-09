@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 #[cfg(test)]
 use std::sync::atomic;
+#[cfg(test)]
+use once_cell::sync::Lazy;
 
 /// Uuid identifying a segment.
 ///
@@ -17,10 +19,10 @@ use std::sync::atomic;
 pub struct SegmentId(Uuid);
 
 #[cfg(test)]
-lazy_static! {
-    static ref AUTO_INC_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::default();
-    static ref ZERO_ARRAY: [u8; 8] = [0u8; 8];
-}
+static AUTO_INC_COUNTER: Lazy<atomic::AtomicUsize> = Lazy::new(|| { atomic::AtomicUsize::default() });
+
+#[cfg(test)]
+static ZERO_ARRAY: Lazy<[u8; 8]> = Lazy::new(|| { [0u8; 8] });
 
 // During tests, we generate the segment id in a autoincrement manner
 // for consistency of segment id between run.

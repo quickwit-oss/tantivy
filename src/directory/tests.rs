@@ -8,10 +8,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time;
 use std::time::Duration;
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
-}
+static TEST_PATH: Lazy<&'static Path> = Lazy::new(|| { Path::new("some_path_for_test") });
 
 #[test]
 fn test_ram_directory() {
