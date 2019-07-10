@@ -109,9 +109,6 @@
 //! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
 
 #[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
 extern crate serde_derive;
 
 #[cfg_attr(test, macro_use)]

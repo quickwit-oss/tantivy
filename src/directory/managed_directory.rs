@@ -266,11 +266,10 @@ mod tests {
         use super::super::*;
         use std::path::Path;
         use tempdir::TempDir;
+        use once_cell::sync::Lazy;
 
-        lazy_static! {
-            static ref TEST_PATH1: &'static Path = Path::new("some_path_for_test");
-            static ref TEST_PATH2: &'static Path = Path::new("some_path_for_test2");
-        }
+        static TEST_PATH1: Lazy<&'static Path> = Lazy::new (|| { Path::new("some_path_for_test") });
+        static TEST_PATH2: Lazy<&'static Path> = Lazy::new (|| { Path::new("some_path_for_test2") });
 
         use crate::directory::MmapDirectory;
         use std::io::Write;

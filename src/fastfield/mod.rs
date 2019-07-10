@@ -138,15 +138,15 @@ mod tests {
     use rand::SeedableRng;
     use std::collections::HashMap;
     use std::path::Path;
+    use once_cell::sync::Lazy;
 
-    lazy_static! {
-        pub static ref SCHEMA: Schema = {
-            let mut schema_builder = Schema::builder();
-            schema_builder.add_u64_field("field", FAST);
-            schema_builder.build()
-        };
-        pub static ref FIELD: Field = { SCHEMA.get_field("field").unwrap() };
-    }
+    pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("field", FAST);
+        schema_builder.build()
+    });
+
+    pub static FIELD: Lazy<Field> = Lazy::new(|| { SCHEMA.get_field("field").unwrap() });
 
     #[test]
     pub fn test_fastfield() {
