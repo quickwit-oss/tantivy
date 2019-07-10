@@ -43,7 +43,7 @@ owning_ref = "0.4"
 stable_deref_trait = "1.0.0"
 rust-stemmers = "1.1"
 downcast-rs = { version="1.0" }
-bitpacking = "0.7"
+bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
 census = "0.2"
 fnv = "1.0.6"
 owned-read = "0.4"

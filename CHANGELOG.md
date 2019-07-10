@@ -26,11 +26,11 @@ only require a read lock. (@pmasurel)
 - Introducing `Opstamp` as an expressive type alias for `u64`. (@petr-tik)
 - Stamper now relies on `AtomicU64` on all platforms (@petr-tik)
 - Bugfix - Files get deleted slightly earlier
+- Compilation resources improved (@fdb-hiroshima)
 
 ## How to update?
 
-Your existing indexes are usable as is, but you may need some 
-trivial updates.
+Your program should be usable as is.
 
 ### Fast fields
 
