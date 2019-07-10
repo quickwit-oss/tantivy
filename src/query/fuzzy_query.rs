@@ -3,8 +3,8 @@ use crate::schema::Term;
 use crate::Result;
 use crate::Searcher;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
-use std::collections::HashMap;
 use once_cell::sync::Lazy;
+use std::collections::HashMap;
 
 static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
     let mut lev_builder_cache = HashMap::new();

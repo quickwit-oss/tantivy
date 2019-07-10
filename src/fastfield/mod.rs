@@ -133,12 +133,12 @@ mod tests {
     use crate::schema::Field;
     use crate::schema::Schema;
     use crate::schema::FAST;
+    use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use std::collections::HashMap;
     use std::path::Path;
-    use once_cell::sync::Lazy;
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -146,7 +146,7 @@ mod tests {
         schema_builder.build()
     });
 
-    pub static FIELD: Lazy<Field> = Lazy::new(|| { SCHEMA.get_field("field").unwrap() });
+    pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
 
     #[test]
     pub fn test_fastfield() {

@@ -63,10 +63,10 @@ pub mod tests {
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use crate::DocId;
     use crate::Score;
+    use once_cell::sync::Lazy;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::iter;
-    use once_cell::sync::Lazy;
 
     #[test]
     pub fn test_position_write() {

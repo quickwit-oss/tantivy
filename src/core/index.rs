@@ -38,7 +38,7 @@ fn load_metas(directory: &dyn Directory) -> Result<IndexMeta> {
     serde_json::from_str(&meta_string)
         .map_err(|e| {
             DataCorruption::new(
-                META_FILEPATH.clone(),
+                META_FILEPATH.to_path_buf(),
                 format!("Meta file cannot be deserialized. {:?}.", e),
             )
         })
