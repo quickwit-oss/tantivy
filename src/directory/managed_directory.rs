@@ -69,7 +69,7 @@ impl ManagedDirectory {
                 let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
                     .map_err(|e| {
                         DataCorruption::new(
-                            MANAGED_FILEPATH.clone(),
+                            MANAGED_FILEPATH.to_path_buf(),
                             format!("Managed file cannot be deserialized: {:?}. ", e),
                         )
                     })?;
@@ -264,13 +264,12 @@ mod tests {
     mod mmap_specific {
 
         use super::super::*;
+        use once_cell::sync::Lazy;
         use std::path::Path;
         use tempdir::TempDir;
 
-        lazy_static! {
-            static ref TEST_PATH1: &'static Path = Path::new("some_path_for_test");
-            static ref TEST_PATH2: &'static Path = Path::new("some_path_for_test2");
-        }
+        static TEST_PATH1: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test"));
+        static TEST_PATH2: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test2"));
 
         use crate::directory::MmapDirectory;
         use std::io::Write;

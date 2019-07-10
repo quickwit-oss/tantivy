@@ -1,4 +1,5 @@
 use crate::common::BinarySerializable;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
@@ -183,9 +184,7 @@ impl Display for Facet {
 }
 
 fn escape_slashes(s: &str) -> Cow<'_, str> {
-    lazy_static! {
-        static ref SLASH_PTN: Regex = Regex::new(r"[\\/]").unwrap();
-    }
+    static SLASH_PTN: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\\/]").unwrap());
     SLASH_PTN.replace_all(s, "\\/")
 }
 

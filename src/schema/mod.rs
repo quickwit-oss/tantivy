@@ -146,6 +146,7 @@ pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;
 
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// Validator for a potential `field_name`.
@@ -154,9 +155,8 @@ use regex::Regex;
 /// A field name must start by a letter `[a-zA-Z]`.
 /// The other characters can be any alphanumic character `[a-ZA-Z0-9]` or `_`.
 pub fn is_valid_field_name(field_name: &str) -> bool {
-    lazy_static! {
-        static ref FIELD_NAME_PTN: Regex = Regex::new("^[a-zA-Z][_a-zA-Z0-9]*$").unwrap();
-    }
+    static FIELD_NAME_PTN: Lazy<Regex> =
+        Lazy::new(|| Regex::new("^[a-zA-Z][_a-zA-Z0-9]*$").unwrap());
     FIELD_NAME_PTN.is_match(field_name)
 }
 

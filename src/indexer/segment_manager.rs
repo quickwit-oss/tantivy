@@ -81,7 +81,7 @@ impl SegmentManager {
     /// but have not yet been deleted by the garbage collector.
     pub fn list_files(&self) -> HashSet<PathBuf> {
         let mut files = HashSet::new();
-        files.insert(META_FILEPATH.clone());
+        files.insert(META_FILEPATH.to_path_buf());
         for segment_meta in SegmentMeta::all() {
             files.extend(segment_meta.list_files());
         }

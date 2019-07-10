@@ -1,4 +1,5 @@
 use super::*;
+use once_cell::sync::Lazy;
 use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -9,9 +10,7 @@ use std::thread;
 use std::time;
 use std::time::Duration;
 
-lazy_static! {
-    static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
-}
+static TEST_PATH: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test"));
 
 #[test]
 fn test_ram_directory() {

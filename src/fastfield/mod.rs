@@ -133,20 +133,20 @@ mod tests {
     use crate::schema::Field;
     use crate::schema::Schema;
     use crate::schema::FAST;
+    use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use std::collections::HashMap;
     use std::path::Path;
 
-    lazy_static! {
-        pub static ref SCHEMA: Schema = {
-            let mut schema_builder = Schema::builder();
-            schema_builder.add_u64_field("field", FAST);
-            schema_builder.build()
-        };
-        pub static ref FIELD: Field = { SCHEMA.get_field("field").unwrap() };
-    }
+    pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_u64_field("field", FAST);
+        schema_builder.build()
+    });
+
+    pub static FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("field").unwrap());
 
     #[test]
     pub fn test_fastfield() {

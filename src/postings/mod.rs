@@ -63,6 +63,7 @@ pub mod tests {
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use crate::DocId;
     use crate::Score;
+    use once_cell::sync::Lazy;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::iter;
@@ -509,53 +510,52 @@ pub mod tests {
         }
     }
 
-    lazy_static! {
-        pub static ref TERM_A: Term = {
-            let field = Field(0);
-            Term::from_field_text(field, "a")
-        };
-        pub static ref TERM_B: Term = {
-            let field = Field(0);
-            Term::from_field_text(field, "b")
-        };
-        pub static ref TERM_C: Term = {
-            let field = Field(0);
-            Term::from_field_text(field, "c")
-        };
-        pub static ref TERM_D: Term = {
-            let field = Field(0);
-            Term::from_field_text(field, "d")
-        };
-        pub static ref INDEX: Index = {
-            let mut schema_builder = Schema::builder();
-            let text_field = schema_builder.add_text_field("text", STRING);
-            let schema = schema_builder.build();
+    pub static TERM_A: Lazy<Term> = Lazy::new(|| {
+        let field = Field(0);
+        Term::from_field_text(field, "a")
+    });
+    pub static TERM_B: Lazy<Term> = Lazy::new(|| {
+        let field = Field(0);
+        Term::from_field_text(field, "b")
+    });
+    pub static TERM_C: Lazy<Term> = Lazy::new(|| {
+        let field = Field(0);
+        Term::from_field_text(field, "c")
+    });
+    pub static TERM_D: Lazy<Term> = Lazy::new(|| {
+        let field = Field(0);
+        Term::from_field_text(field, "d")
+    });
 
-            let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
+    pub static INDEX: Lazy<Index> = Lazy::new(|| {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
 
-            let index = Index::create_in_ram(schema);
-            let posting_list_size = 1_000_000;
-            {
-                let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-                for _ in 0..posting_list_size {
-                    let mut doc = Document::default();
-                    if rng.gen_bool(1f64 / 15f64) {
-                        doc.add_text(text_field, "a");
-                    }
-                    if rng.gen_bool(1f64 / 10f64) {
-                        doc.add_text(text_field, "b");
-                    }
-                    if rng.gen_bool(1f64 / 5f64) {
-                        doc.add_text(text_field, "c");
-                    }
-                    doc.add_text(text_field, "d");
-                    index_writer.add_document(doc);
+        let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
+
+        let index = Index::create_in_ram(schema);
+        let posting_list_size = 1_000_000;
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            for _ in 0..posting_list_size {
+                let mut doc = Document::default();
+                if rng.gen_bool(1f64 / 15f64) {
+                    doc.add_text(text_field, "a");
                 }
-                assert!(index_writer.commit().is_ok());
+                if rng.gen_bool(1f64 / 10f64) {
+                    doc.add_text(text_field, "b");
+                }
+                if rng.gen_bool(1f64 / 5f64) {
+                    doc.add_text(text_field, "c");
+                }
+                doc.add_text(text_field, "d");
+                index_writer.add_document(doc);
             }
-            index
-        };
-    }
+            assert!(index_writer.commit().is_ok());
+        }
+        index
+    });
 
     /// Wraps a given docset, and forward alls call but the
     /// `.skip_next(...)`. This is useful to test that a specialized

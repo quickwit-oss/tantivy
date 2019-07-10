@@ -2,14 +2,13 @@ use super::SegmentComponent;
 use crate::core::SegmentId;
 use crate::Opstamp;
 use census::{Inventory, TrackedObject};
+use once_cell::sync::Lazy;
 use serde;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
 
-lazy_static! {
-    static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
-}
+static INVENTORY: Lazy<Inventory<InnerSegmentMeta>> = Lazy::new(Inventory::new);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {

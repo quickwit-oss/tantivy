@@ -3,21 +3,20 @@ use crate::schema::Term;
 use crate::Result;
 use crate::Searcher;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
+use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
-lazy_static! {
-    static ref LEV_BUILDER: HashMap<(u8, bool), LevenshteinAutomatonBuilder> = {
-        let mut lev_builder_cache = HashMap::new();
-        // TODO make population lazy on a `(distance, val)` basis
-        for distance in 0..3 {
-            for &transposition in &[false, true] {
-                let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
-                lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
-            }
+static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
+    let mut lev_builder_cache = HashMap::new();
+    // TODO make population lazy on a `(distance, val)` basis
+    for distance in 0..3 {
+        for &transposition in &[false, true] {
+            let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
+            lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
         }
-        lev_builder_cache
-    };
-}
+    }
+    lev_builder_cache
+});
 
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is within
