@@ -105,8 +105,8 @@
 //!
 //! A good place for you to get started is to check out
 //! the example code (
-//! [literate programming](http://fulmicoton.com/tantivy-examples/simple_search.html) /
-//! [source code](https://github.com/fulmicoton/tantivy/blob/master/examples/simple_search.rs))
+//! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
+//! [source code](https://github.com/tantivy-search/tantivy/blob/master/examples/basic_search.rs))
 
 #[macro_use]
 extern crate serde_derive;
