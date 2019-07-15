@@ -74,11 +74,10 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-# by default no-fail is disabled. We manually enable it when running test.
-default = ["mmap", "no_fail"]
+default = ["mmap"]
 mmap = ["atomicwrites", "fs2", "memmap", "notify"]
 lz4-compression = ["lz4"]
-no_fail = ["fail/no_fail"]
+failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
