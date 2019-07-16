@@ -159,35 +159,30 @@ pub fn compute_deleted_bitset(
     target_opstamp: Opstamp,
 ) -> Result<bool> {
     let mut might_have_changed = false;
-
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
-    loop {
-        if let Some(delete_op) = delete_cursor.get() {
-            if delete_op.opstamp > target_opstamp {
-                break;
-            } else {
-                // A delete operation should only affect
-                // document that were inserted after it.
-                //
-                // Limit doc helps identify the first document
-                // that may be affected by the delete operation.
-                let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-                let inverted_index = segment_reader.inverted_index(delete_op.term.field());
-                if let Some(mut docset) =
-                    inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
-                {
-                    while docset.advance() {
-                        let deleted_doc = docset.doc();
-                        if deleted_doc < limit_doc {
-                            delete_bitset.insert(deleted_doc as usize);
-                            might_have_changed = true;
-                        }
-                    }
-                }
-            }
-        } else {
+    while let Some(delete_op) = delete_cursor.get() {
+        if delete_op.opstamp > target_opstamp {
             break;
         }
+
+        // A delete operation should only affect
+        // document that were inserted after it.
+        //
+        // Limit doc helps identify the first document
+        // that may be affected by the delete operation.
+        let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+        let inverted_index = segment_reader.inverted_index(delete_op.term.field());
+        if let Some(mut docset) =
+            inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
+        {
+            while docset.advance() {
+                let deleted_doc = docset.doc();
+                if deleted_doc < limit_doc {
+                    delete_bitset.insert(deleted_doc as usize);
+                    might_have_changed = true;
+                }
+            }
+        }
+
         delete_cursor.advance();
     }
     Ok(might_have_changed)
@@ -283,29 +278,45 @@ fn index_documents(
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
-    let delete_bitset_opt = if delete_cursor.get().is_some() {
-        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-        let segment_reader = SegmentReader::open(segment)?;
-        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-        let may_have_deletes = compute_deleted_bitset(
-            &mut deleted_bitset,
-            &segment_reader,
-            &mut delete_cursor,
-            &doc_to_opstamps,
-            last_docstamp,
-        )?;
-        if may_have_deletes {
-            Some(deleted_bitset)
-        } else {
-            None
-        }
-    } else {
-        // if there are no delete operation in the queue, no need
-        // to even open the segment.
-        None
-    };
+    let delete_bitset_opt = apply_deletes(
+        &segment,
+        &mut delete_cursor,
+        num_docs,
+        &doc_opstamps,
+        last_docstamp,
+    )?;
+
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
     Ok(segment_updater.add_segment(generation, segment_entry))
+}
+
+fn apply_deletes(
+    segment: &Segment,
+    mut delete_cursor: &mut DeleteCursor,
+    num_docs: u32,
+    doc_opstamps: &[u64],
+    last_docstamp: u64,
+) -> Result<Option<BitSet<u32>>> {
+    if delete_cursor.get().is_none() {
+        // if there are no delete operation in the queue, no need
+        // to even open the segment.
+        return Ok(None);
+    }
+    let segment_reader = SegmentReader::open(segment)?;
+    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+    let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+    let may_have_deletes = compute_deleted_bitset(
+        &mut deleted_bitset,
+        &segment_reader,
+        &mut delete_cursor,
+        &doc_to_opstamps,
+        last_docstamp,
+    )?;
+    Ok(if may_have_deletes {
+        Some(deleted_bitset)
+    } else {
+        None
+    })
 }
 
 impl IndexWriter {

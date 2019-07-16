@@ -67,8 +67,6 @@ impl SegmentWriter {
         mut segment: Segment,
         schema: &Schema,
     ) -> Result<SegmentWriter> {
-        // We shoot for using at most one third of the memory budget in the hash table.
-        // It's a lot, but
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
