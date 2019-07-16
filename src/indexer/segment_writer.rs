@@ -4,6 +4,7 @@ use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
 use crate::schema::FieldEntry;
 use crate::schema::FieldType;
@@ -16,8 +17,25 @@ use crate::tokenizer::{TokenStream, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
 use crate::Result;
+use crate::TantivyError;
 use std::io;
 use std::str;
+
+/// Computes the initial size of the hash table.
+///
+/// Returns a number of bit `b`, such that the recommended initial table size is 2^b.
+fn initial_table_size(per_thread_memory_budget: usize) -> Result<usize> {
+    let table_memory_upper_bound = per_thread_memory_budget / 3;
+    if let Some(limit) = (10..)
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_memory_upper_bound)
+        .last()
+    {
+        Ok(limit.min(19)) // we cap it at 2^19 = 512K.
+    } else {
+        Err(TantivyError::InvalidArgument(
+            format!("per thread memory budget (={}) is too small. Raise the memory budget or lower the number of threads.", per_thread_memory_budget)))
+    }
+}
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// set of documents.
@@ -45,12 +63,15 @@ impl SegmentWriter {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(
-        table_bits: usize,
+        memory_budget: usize,
         mut segment: Segment,
         schema: &Schema,
     ) -> Result<SegmentWriter> {
+        // We shoot for using at most one third of the memory budget in the hash table.
+        // It's a lot, but
+        let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits);
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers =
             schema
                 .fields()
@@ -253,4 +274,18 @@ impl SerializableSegment for SegmentWriter {
         )?;
         Ok(max_doc)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::initial_table_size;
+
+    #[test]
+    fn test_hashmap_size() {
+        assert_eq!(initial_table_size(100_000).unwrap(), 11);
+        assert_eq!(initial_table_size(1_000_000).unwrap(), 14);
+        assert_eq!(initial_table_size(10_000_000).unwrap(), 17);
+        assert_eq!(initial_table_size(1_000_000_000).unwrap(), 19);
+    }
+
 }
