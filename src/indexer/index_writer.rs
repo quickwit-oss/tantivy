@@ -18,7 +18,6 @@ use crate::indexer::stamper::Stamper;
 use crate::indexer::MergePolicy;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentWriter;
-use crate::postings::compute_table_size;
 use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
@@ -47,27 +46,6 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type OperationSender = channel::Sender<Vec<AddOperation>>;
 type OperationReceiver = channel::Receiver<Vec<AddOperation>>;
-
-/// Split the thread memory budget into
-/// - the heap size
-/// - the hash table "table" itself.
-///
-/// Returns (the heap size in bytes, the hash table size in number of bits)
-fn initial_table_size(per_thread_memory_budget: usize) -> usize {
-    assert!(per_thread_memory_budget > 1_000);
-    let table_size_limit: usize = per_thread_memory_budget / 3;
-    if let Some(limit) = (1..)
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
-        .last()
-    {
-        limit.min(19) // we cap it at 2^19 = 512K.
-    } else {
-        unreachable!(
-            "Per thread memory is too small: {}",
-            per_thread_memory_budget
-        );
-    }
-}
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -274,8 +252,7 @@ fn index_documents(
 ) -> Result<bool> {
     let schema = segment.schema();
     let segment_id = segment.id();
-    let table_size = initial_table_size(memory_budget);
-    let mut segment_writer = SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
     for documents in document_iterator {
         for doc in documents {
             segment_writer.add_document(doc, &schema)?;
@@ -772,7 +749,6 @@ impl IndexWriter {
 mod tests {
 
     use super::super::operation::UserOperation;
-    use super::initial_table_size;
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
@@ -1062,14 +1038,6 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
-    }
-
-    #[test]
-    fn test_hashmap_size() {
-        assert_eq!(initial_table_size(100_000), 11);
-        assert_eq!(initial_table_size(1_000_000), 14);
-        assert_eq!(initial_table_size(10_000_000), 17);
-        assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
     #[cfg(not(feature = "no_fail"))]
