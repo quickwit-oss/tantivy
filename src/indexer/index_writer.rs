@@ -931,6 +931,7 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
+        let _guard = fail::FailScenario::setup();
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1041,10 +1042,10 @@ mod tests {
         assert_eq!(num_docs_containing("b"), 100);
     }
 
-    #[cfg(not(feature = "no_fail"))]
+    #[cfg(feature = "failpoints")]
     #[test]
     fn test_write_commit_fails() {
-        use fail;
+        let _guard = fail::FailScenario::setup();
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1065,7 +1066,6 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a"), 100);
         assert_eq!(num_docs_containing("b"), 0);
-        fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
     }
 
     #[test]
