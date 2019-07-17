@@ -53,6 +53,7 @@ fail = "0.2"
 scoped-pool = "1.0"
 murmurhash32 = "0.2"
 chrono = "0.4"
+smallvec = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
