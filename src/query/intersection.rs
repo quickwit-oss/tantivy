@@ -91,7 +91,6 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> 
 }
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::never_loop))]
     fn advance(&mut self) -> bool {
         let (left, right) = (&mut self.left, &mut self.right);
 

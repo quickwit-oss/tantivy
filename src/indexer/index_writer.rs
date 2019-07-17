@@ -73,8 +73,6 @@ pub struct IndexWriter {
 
     num_threads: usize,
 
-    generation: usize,
-
     delete_queue: DeleteQueue,
 
     stamper: Stamper,
@@ -143,8 +141,6 @@ pub fn open_index_writer(
         committed_opstamp: current_opstamp,
         stamper,
 
-        generation: 0,
-
         worker_id: 0,
     };
     index_writer.start_workers()?;
@@ -159,35 +155,30 @@ pub fn compute_deleted_bitset(
     target_opstamp: Opstamp,
 ) -> Result<bool> {
     let mut might_have_changed = false;
-
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
-    loop {
-        if let Some(delete_op) = delete_cursor.get() {
-            if delete_op.opstamp > target_opstamp {
-                break;
-            } else {
-                // A delete operation should only affect
-                // document that were inserted after it.
-                //
-                // Limit doc helps identify the first document
-                // that may be affected by the delete operation.
-                let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-                let inverted_index = segment_reader.inverted_index(delete_op.term.field());
-                if let Some(mut docset) =
-                    inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
-                {
-                    while docset.advance() {
-                        let deleted_doc = docset.doc();
-                        if deleted_doc < limit_doc {
-                            delete_bitset.insert(deleted_doc as usize);
-                            might_have_changed = true;
-                        }
-                    }
-                }
-            }
-        } else {
+    while let Some(delete_op) = delete_cursor.get() {
+        if delete_op.opstamp > target_opstamp {
             break;
         }
+
+        // A delete operation should only affect
+        // document that were inserted after it.
+        //
+        // Limit doc helps identify the first document
+        // that may be affected by the delete operation.
+        let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+        let inverted_index = segment_reader.inverted_index(delete_op.term.field());
+        if let Some(mut docset) =
+            inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
+        {
+            while docset.advance() {
+                let deleted_doc = docset.doc();
+                if deleted_doc < limit_doc {
+                    delete_bitset.insert(deleted_doc as usize);
+                    might_have_changed = true;
+                }
+            }
+        }
+
         delete_cursor.advance();
     }
     Ok(might_have_changed)
@@ -207,8 +198,8 @@ pub fn advance_deletes(
         }
 
         let segment_reader = SegmentReader::open(&segment)?;
-        let max_doc = segment_reader.max_doc();
 
+        let max_doc = segment_reader.max_doc();
         let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
             Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
             None => BitSet::with_capacity(max_doc as usize),
@@ -245,16 +236,15 @@ pub fn advance_deletes(
 fn index_documents(
     memory_budget: usize,
     segment: &Segment,
-    generation: usize,
-    document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
+    grouped_document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     let schema = segment.schema();
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
-    for documents in document_iterator {
-        for doc in documents {
+    for document_group in grouped_document_iterator {
+        for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
         }
         let mem_usage = segment_writer.mem_usage();
@@ -283,29 +273,39 @@ fn index_documents(
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
-    let delete_bitset_opt = if delete_cursor.get().is_some() {
-        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-        let segment_reader = SegmentReader::open(segment)?;
-        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-        let may_have_deletes = compute_deleted_bitset(
-            &mut deleted_bitset,
-            &segment_reader,
-            &mut delete_cursor,
-            &doc_to_opstamps,
-            last_docstamp,
-        )?;
-        if may_have_deletes {
-            Some(deleted_bitset)
-        } else {
-            None
-        }
-    } else {
+    let delete_bitset_opt =
+        apply_deletes(&segment, &mut delete_cursor, &doc_opstamps, last_docstamp)?;
+
+    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
+    Ok(segment_updater.add_segment(segment_entry))
+}
+
+fn apply_deletes(
+    segment: &Segment,
+    mut delete_cursor: &mut DeleteCursor,
+    doc_opstamps: &[u64],
+    last_docstamp: u64,
+) -> Result<Option<BitSet<u32>>> {
+    if delete_cursor.get().is_none() {
         // if there are no delete operation in the queue, no need
         // to even open the segment.
+        return Ok(None);
+    }
+    let segment_reader = SegmentReader::open(segment)?;
+    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+    let mut deleted_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
+    let may_have_deletes = compute_deleted_bitset(
+        &mut deleted_bitset,
+        &segment_reader,
+        &mut delete_cursor,
+        &doc_to_opstamps,
+        last_docstamp,
+    )?;
+    Ok(if may_have_deletes {
+        Some(deleted_bitset)
+    } else {
         None
-    };
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
-    Ok(segment_updater.add_segment(generation, segment_entry))
+    })
 }
 
 impl IndexWriter {
@@ -343,8 +343,7 @@ impl IndexWriter {
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater
-            .add_segment(self.generation, segment_entry);
+        self.segment_updater.add_segment(segment_entry);
     }
 
     /// Creates a new segment.
@@ -365,17 +364,12 @@ impl IndexWriter {
         let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
 
-        let generation = self.generation;
-
         let mut delete_cursor = self.delete_queue.cursor();
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
         let index = self.index.clone();
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
-            .name(format!(
-                "thrd-tantivy-index{}-gen{}",
-                self.worker_id, generation
-            ))
+            .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
                 loop {
                     let mut document_iterator =
@@ -404,7 +398,6 @@ impl IndexWriter {
                     index_documents(
                         mem_budget,
                         &segment,
-                        generation,
                         &mut document_iterator,
                         &mut segment_updater,
                         delete_cursor.clone(),
@@ -436,7 +429,7 @@ impl IndexWriter {
     /// Detects and removes the files that
     /// are not used by the index anymore.
     pub fn garbage_collect_files(&mut self) -> Result<()> {
-        self.segment_updater.garbage_collect_files()
+        self.segment_updater.garbage_collect_files().wait()
     }
 
     /// Deletes all documents from the index
@@ -585,10 +578,10 @@ impl IndexWriter {
         // all of the segment update for this commit have been
         // sent.
         //
-        // No document belonging to the next generation have been
+        // No document belonging to the next commit have been
         // pushed too, because add_document can only happen
         // on this thread.
-
+        //
         // This will move uncommitted segments to the state of
         // committed segments.
         info!("Preparing commit");
@@ -604,7 +597,6 @@ impl IndexWriter {
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
             indexing_worker_result?;
-            // add a new worker for the next generation.
             self.add_indexing_worker()?;
         }
 

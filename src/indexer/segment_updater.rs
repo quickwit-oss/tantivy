@@ -145,7 +145,6 @@ struct InnerSegmentUpdater {
     merge_policy: RwLock<Arc<Box<dyn MergePolicy>>>,
     merging_thread_id: AtomicUsize,
     merging_threads: RwLock<HashMap<usize, JoinHandle<Result<()>>>>,
-    generation: AtomicUsize,
     killed: AtomicBool,
     stamper: Stamper,
     merge_operations: MergeOperationInventory,
@@ -172,7 +171,6 @@ impl SegmentUpdater {
             merge_policy: RwLock::new(Arc::new(Box::new(DefaultMergePolicy::default()))),
             merging_thread_id: AtomicUsize::default(),
             merging_threads: RwLock::new(HashMap::new()),
-            generation: AtomicUsize::default(),
             killed: AtomicBool::new(false),
             stamper,
             merge_operations: Default::default(),
@@ -200,18 +198,14 @@ impl SegmentUpdater {
         self.0.pool.spawn_fn(move || Ok(f(me_clone)))
     }
 
-    pub fn add_segment(&self, generation: usize, segment_entry: SegmentEntry) -> bool {
-        if generation >= self.0.generation.load(Ordering::Acquire) {
-            self.run_async(|segment_updater| {
-                segment_updater.0.segment_manager.add_segment(segment_entry);
-                segment_updater.consider_merge_options();
-                true
-            })
-            .forget();
+    pub fn add_segment(&self, segment_entry: SegmentEntry) -> bool {
+        self.run_async(|segment_updater| {
+            segment_updater.0.segment_manager.add_segment(segment_entry);
+            segment_updater.consider_merge_options();
             true
-        } else {
-            false
-        }
+        })
+        .forget();
+        true
     }
 
     /// Orders `SegmentManager` to remove all segments
@@ -272,11 +266,10 @@ impl SegmentUpdater {
         }
     }
 
-    pub fn garbage_collect_files(&self) -> Result<()> {
+    pub fn garbage_collect_files(&self) -> CpuFuture<(), TantivyError> {
         self.run_async(move |segment_updater| {
             segment_updater.garbage_collect_files_exec();
         })
-        .wait()
     }
 
     fn garbage_collect_files_exec(&self) {

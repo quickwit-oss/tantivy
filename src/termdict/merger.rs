@@ -81,19 +81,14 @@ impl<'a> TermMerger<'a> {
     /// Advance the term iterator to the next term.
     /// Returns true if there is indeed another term
     /// False if there is none.
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
         if let Some(head) = self.heap.pop() {
             self.current_streamers.push(head);
-            loop {
-                if let Some(next_streamer) = self.heap.peek() {
-                    if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
-                        break;
-                    }
-                } else {
+            while let Some(next_streamer) = self.heap.peek() {
+                if self.current_streamers[0].streamer.key() != next_streamer.streamer.key() {
                     break;
-                } // no more streamer.
+                }
                 let next_heap_it = self.heap.pop().unwrap(); // safe : we peeked beforehand
                 self.current_streamers.push(next_heap_it);
             }
