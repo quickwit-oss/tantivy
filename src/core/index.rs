@@ -12,7 +12,6 @@ use crate::directory::INDEX_WRITER_LOCK;
 use crate::directory::{Directory, RAMDirectory};
 use crate::error::DataCorruption;
 use crate::error::TantivyError;
-use crate::indexer::index_writer::open_index_writer;
 use crate::indexer::index_writer::HEAP_SIZE_MIN;
 use crate::indexer::segment_updater::save_new_metas;
 use crate::reader::IndexReader;
@@ -265,7 +264,7 @@ impl Index {
                 )
             })?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        open_index_writer(
+        IndexWriter::new(
             self,
             num_threads,
             heap_size_in_bytes_per_thread,
