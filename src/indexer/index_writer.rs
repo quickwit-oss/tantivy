@@ -73,8 +73,6 @@ pub struct IndexWriter {
 
     num_threads: usize,
 
-    generation: usize,
-
     delete_queue: DeleteQueue,
 
     stamper: Stamper,
@@ -143,8 +141,6 @@ pub fn open_index_writer(
         committed_opstamp: current_opstamp,
         stamper,
 
-        generation: 0,
-
         worker_id: 0,
     };
     index_writer.start_workers()?;
@@ -202,8 +198,8 @@ pub fn advance_deletes(
         }
 
         let segment_reader = SegmentReader::open(&segment)?;
-        let max_doc = segment_reader.max_doc();
 
+        let max_doc = segment_reader.max_doc();
         let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
             Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
             None => BitSet::with_capacity(max_doc as usize),
@@ -240,7 +236,6 @@ pub fn advance_deletes(
 fn index_documents(
     memory_budget: usize,
     segment: &Segment,
-    generation: usize,
     document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
@@ -287,7 +282,7 @@ fn index_documents(
     )?;
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
-    Ok(segment_updater.add_segment(generation, segment_entry))
+    Ok(segment_updater.add_segment(segment_entry))
 }
 
 fn apply_deletes(
@@ -354,8 +349,7 @@ impl IndexWriter {
     pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater
-            .add_segment(self.generation, segment_entry);
+        self.segment_updater.add_segment(segment_entry);
     }
 
     /// Creates a new segment.
@@ -376,17 +370,12 @@ impl IndexWriter {
         let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
 
-        let generation = self.generation;
-
         let mut delete_cursor = self.delete_queue.cursor();
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
         let index = self.index.clone();
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
-            .name(format!(
-                "thrd-tantivy-index{}-gen{}",
-                self.worker_id, generation
-            ))
+            .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
                 loop {
                     let mut document_iterator =
@@ -415,7 +404,6 @@ impl IndexWriter {
                     index_documents(
                         mem_budget,
                         &segment,
-                        generation,
                         &mut document_iterator,
                         &mut segment_updater,
                         delete_cursor.clone(),
@@ -447,7 +435,7 @@ impl IndexWriter {
     /// Detects and removes the files that
     /// are not used by the index anymore.
     pub fn garbage_collect_files(&mut self) -> Result<()> {
-        self.segment_updater.garbage_collect_files()
+        self.segment_updater.garbage_collect_files().wait()
     }
 
     /// Deletes all documents from the index
@@ -596,10 +584,10 @@ impl IndexWriter {
         // all of the segment update for this commit have been
         // sent.
         //
-        // No document belonging to the next generation have been
+        // No document belonging to the next commit have been
         // pushed too, because add_document can only happen
         // on this thread.
-
+        //
         // This will move uncommitted segments to the state of
         // committed segments.
         info!("Preparing commit");
@@ -615,7 +603,6 @@ impl IndexWriter {
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
             indexing_worker_result?;
-            // add a new worker for the next generation.
             self.add_indexing_worker()?;
         }
 
