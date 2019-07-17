@@ -224,8 +224,8 @@ fn index_documents(
 fn apply_deletes(
     segment: &Segment,
     mut delete_cursor: &mut DeleteCursor,
-    doc_opstamps: &[u64],
-    last_docstamp: u64,
+    doc_opstamps: &[Opstamp],
+    last_docstamp: Opstamp,
 ) -> Result<Option<BitSet<u32>>> {
     if delete_cursor.get().is_none() {
         // if there are no delete operation in the queue, no need
@@ -750,7 +750,7 @@ impl IndexWriter {
 mod tests {
 
     use super::super::operation::UserOperation;
-    use crate::collector::TopDocs;
+    use crate::collector::TopDocs;gi
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::indexer::NoMergePolicy;
