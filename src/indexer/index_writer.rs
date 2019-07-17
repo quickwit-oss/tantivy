@@ -236,15 +236,15 @@ pub fn advance_deletes(
 fn index_documents(
     memory_budget: usize,
     segment: &Segment,
-    document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
+    grouped_document_iterator: &mut dyn Iterator<Item = Vec<AddOperation>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     let schema = segment.schema();
     let segment_id = segment.id();
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
-    for documents in document_iterator {
-        for doc in documents {
+    for document_group in grouped_document_iterator {
+        for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
         }
         let mem_usage = segment_writer.mem_usage();
@@ -273,13 +273,8 @@ fn index_documents(
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
-    let delete_bitset_opt = apply_deletes(
-        &segment,
-        &mut delete_cursor,
-        num_docs,
-        &doc_opstamps,
-        last_docstamp,
-    )?;
+    let delete_bitset_opt =
+        apply_deletes(&segment, &mut delete_cursor, &doc_opstamps, last_docstamp)?;
 
     let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
     Ok(segment_updater.add_segment(segment_entry))
@@ -288,7 +283,6 @@ fn index_documents(
 fn apply_deletes(
     segment: &Segment,
     mut delete_cursor: &mut DeleteCursor,
-    num_docs: u32,
     doc_opstamps: &[u64],
     last_docstamp: u64,
 ) -> Result<Option<BitSet<u32>>> {
@@ -299,7 +293,7 @@ fn apply_deletes(
     }
     let segment_reader = SegmentReader::open(segment)?;
     let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-    let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+    let mut deleted_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,
