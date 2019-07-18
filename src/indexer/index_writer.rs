@@ -556,7 +556,7 @@ impl IndexWriter {
         //
         // This will reach an end as the only document_sender
         // was dropped with the index_writer.
-        for _ in document_receiver.clone() {}
+        for _ in document_receiver {}
 
         Ok(self.committed_opstamp)
     }
@@ -750,7 +750,7 @@ impl IndexWriter {
 mod tests {
 
     use super::super::operation::UserOperation;
-    use crate::collector::TopDocs;gi
+    use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::indexer::NoMergePolicy;
