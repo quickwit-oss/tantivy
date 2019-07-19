@@ -761,6 +761,7 @@ mod tests {
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
+    use fail;
 
     #[test]
     fn test_operations_group() {
@@ -933,7 +934,7 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
-        let _guard = fail::FailScenario::setup();
+        let _fail_scenario_guard = fail::FailScenario::setup();
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1044,10 +1045,9 @@ mod tests {
         assert_eq!(num_docs_containing("b"), 100);
     }
 
-    #[cfg(feature = "failpoints")]
     #[test]
     fn test_write_commit_fails() {
-        let _guard = fail::FailScenario::setup();
+        let _fail_scenario_guard = fail::FailScenario::setup();
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1062,6 +1062,7 @@ mod tests {
             index_writer.add_document(doc!(text_field => "b"));
         }
         assert!(index_writer.commit().is_err());
+
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
             index.reader().unwrap().searcher().doc_freq(&term_a)

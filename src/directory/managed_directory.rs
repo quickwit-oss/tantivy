@@ -262,10 +262,43 @@ impl Clone for ManagedDirectory {
 mod tests_mmap_specific {
 
     use crate::directory::{Directory, ManagedDirectory, MmapDirectory};
+    use fail::FailScenario;
     use std::collections::HashSet;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use tempdir::TempDir;
+
+    #[test]
+    fn test_managed_directory_gc_if_delete_fails() {
+        fail::cfg("MmapDirectory::delete", "return").unwrap();
+
+        let tempdir = TempDir::new("tantivy-test").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+
+        let test_path: &'static Path = Path::new("some_path_for_test");
+
+        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+        managed_directory
+            .open_write(test_path)
+            .unwrap()
+            .flush()
+            .unwrap();
+        assert!(managed_directory.exists(test_path));
+
+        // triggering gc and setting the delete operation to fail.
+        //
+        // We are checking that the gc operation is not removing the
+        // file from managed.json to ensure that the file will be removed
+        // in the next gc.
+        let scenario = FailScenario::setup();
+        managed_directory.garbage_collect(Default::default);
+        assert!(managed_directory.exists(test_path));
+
+        // running the gc a second time should remove the file.
+        managed_directory.garbage_collect(Default::default);
+        assert!(!managed_directory.exists(test_path));
+    }
 
     #[test]
     fn test_managed_directory() {
