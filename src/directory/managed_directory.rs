@@ -257,100 +257,80 @@ impl Clone for ManagedDirectory {
     }
 }
 
+#[cfg(feature = "mmap")]
 #[cfg(test)]
-mod tests {
+mod tests_mmap_specific {
 
-    #[cfg(feature = "mmap")]
-    mod mmap_specific {
+    use crate::directory::{Directory, ManagedDirectory, MmapDirectory};
+    use std::collections::HashSet;
+    use std::io::Write;
+    use std::path::{Path, PathBuf};
+    use tempdir::TempDir;
 
-        use super::super::*;
-        use once_cell::sync::Lazy;
-        use std::path::Path;
-        use tempdir::TempDir;
+    #[test]
+    fn test_managed_directory() {
+        let tempdir = TempDir::new("tantivy-test").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
 
-        static TEST_PATH1: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test"));
-        static TEST_PATH2: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test2"));
-
-        use crate::directory::MmapDirectory;
-        use std::io::Write;
-
-        #[test]
-        fn test_managed_directory() {
-            let tempdir = TempDir::new("index").unwrap();
-            let tempdir_path = PathBuf::from(tempdir.path());
-            {
-                let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-                let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-                {
-                    let mut write_file = managed_directory.open_write(*TEST_PATH1).unwrap();
-                    write_file.flush().unwrap();
-                }
-                {
-                    managed_directory
-                        .atomic_write(*TEST_PATH2, &vec![0u8, 1u8])
-                        .unwrap();
-                }
-                {
-                    assert!(managed_directory.exists(*TEST_PATH1));
-                    assert!(managed_directory.exists(*TEST_PATH2));
-                }
-                {
-                    let living_files: HashSet<PathBuf> =
-                        [TEST_PATH1.to_owned()].into_iter().cloned().collect();
-                    managed_directory.garbage_collect(|| living_files);
-                }
-                {
-                    assert!(managed_directory.exists(*TEST_PATH1));
-                    assert!(!managed_directory.exists(*TEST_PATH2));
-                }
-            }
-            {
-                let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-                let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-                {
-                    assert!(managed_directory.exists(*TEST_PATH1));
-                    assert!(!managed_directory.exists(*TEST_PATH2));
-                }
-                {
-                    let living_files: HashSet<PathBuf> = HashSet::new();
-                    managed_directory.garbage_collect(|| living_files);
-                }
-                {
-                    assert!(!managed_directory.exists(*TEST_PATH1));
-                    assert!(!managed_directory.exists(*TEST_PATH2));
-                }
-            }
-        }
-
-        #[test]
-        fn test_managed_directory_gc_while_mmapped() {
-            let tempdir = TempDir::new("index").unwrap();
-            let tempdir_path = PathBuf::from(tempdir.path());
-            let living_files = HashSet::new();
-
+        let test_path1: &'static Path = Path::new("some_path_for_test");
+        let test_path2: &'static Path = Path::new("some_path_for_test_2");
+        {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
             let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+            let mut write_file = managed_directory.open_write(test_path1).unwrap();
+            write_file.flush().unwrap();
             managed_directory
-                .atomic_write(*TEST_PATH1, &vec![0u8, 1u8])
+                .atomic_write(test_path2, &[0u8, 1u8])
                 .unwrap();
-            assert!(managed_directory.exists(*TEST_PATH1));
-
-            let _mmap_read = managed_directory.open_read(*TEST_PATH1).unwrap();
-            managed_directory.garbage_collect(|| living_files.clone());
-            if cfg!(target_os = "windows") {
-                // On Windows, gc should try and fail the file as it is mmapped.
-                assert!(managed_directory.exists(*TEST_PATH1));
-                // unmap should happen here.
-                drop(_mmap_read);
-                // The file should still be in the list of managed file and
-                // eventually be deleted once mmap is released.
-                managed_directory.garbage_collect(|| living_files);
-                assert!(!managed_directory.exists(*TEST_PATH1));
-            } else {
-                assert!(!managed_directory.exists(*TEST_PATH1));
-            }
+            assert!(managed_directory.exists(test_path1));
+            assert!(managed_directory.exists(test_path2));
+            let living_files: HashSet<PathBuf> =
+                [test_path1.to_owned()].into_iter().cloned().collect();
+            managed_directory.garbage_collect(|| living_files);
+            assert!(managed_directory.exists(test_path1));
+            assert!(!managed_directory.exists(test_path2));
         }
+        {
+            let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+            let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+            assert!(managed_directory.exists(test_path1));
+            assert!(!managed_directory.exists(test_path2));
+            let living_files: HashSet<PathBuf> = HashSet::new();
+            managed_directory.garbage_collect(|| living_files);
+            assert!(!managed_directory.exists(test_path1));
+            assert!(!managed_directory.exists(test_path2));
+        }
+    }
 
+    #[test]
+    fn test_managed_directory_gc_while_mmapped() {
+        let test_path1: &'static Path = Path::new("some_path_for_test");
+
+        let tempdir = TempDir::new("index").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+        let living_files = HashSet::new();
+
+        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+        managed_directory
+            .atomic_write(test_path1, &vec![0u8, 1u8])
+            .unwrap();
+        assert!(managed_directory.exists(test_path1));
+
+        let _mmap_read = managed_directory.open_read(test_path1).unwrap();
+        managed_directory.garbage_collect(|| living_files.clone());
+        if cfg!(target_os = "windows") {
+            // On Windows, gc should try and fail the file as it is mmapped.
+            assert!(managed_directory.exists(test_path1));
+            // unmap should happen here.
+            drop(_mmap_read);
+            // The file should still be in the list of managed file and
+            // eventually be deleted once mmap is released.
+            managed_directory.garbage_collect(|| living_files);
+            assert!(!managed_directory.exists(test_path1));
+        } else {
+            assert!(!managed_directory.exists(test_path1));
+        }
     }
 
 }
