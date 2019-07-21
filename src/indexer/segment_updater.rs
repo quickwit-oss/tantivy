@@ -33,6 +33,7 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -125,7 +126,9 @@ fn perform_merge(
 
     let num_docs = merger.write(segment_serializer)?;
 
-    let segment_meta = SegmentMeta::new(merged_segment.id(), num_docs);
+    let segment_meta = index
+        .inventory()
+        .new_segment_meta(merged_segment.id(), num_docs);
 
     let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None);
     Ok(after_merge_segment_entry)
@@ -272,12 +275,23 @@ impl SegmentUpdater {
         })
     }
 
+    /// List the files that are useful to the index.
+    ///
+    /// This does not include lock files, or files that are obsolete
+    /// but have not yet been deleted by the garbage collector.
+    fn list_files(&self) -> HashSet<PathBuf> {
+        let mut files = HashSet::new();
+        files.insert(META_FILEPATH.to_path_buf());
+        for segment_meta in self.0.index.inventory().all() {
+            files.extend(segment_meta.list_files());
+        }
+        files
+    }
+
     fn garbage_collect_files_exec(&self) {
         info!("Running garbage collection");
         let mut index = self.0.index.clone();
-        index
-            .directory_mut()
-            .garbage_collect(|| self.0.segment_manager.list_files());
+        index.directory_mut().garbage_collect(|| self.list_files());
     }
 
     pub fn commit(&self, opstamp: Opstamp, payload: Option<String>) -> Result<()> {

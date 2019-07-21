@@ -1,5 +1,4 @@
 use super::*;
-use once_cell::sync::Lazy;
 use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -9,8 +8,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time;
 use std::time::Duration;
-
-static TEST_PATH: Lazy<&'static Path> = Lazy::new(|| Path::new("some_path_for_test"));
 
 #[test]
 fn test_ram_directory() {
@@ -28,76 +25,78 @@ fn test_mmap_directory() {
 #[test]
 #[should_panic]
 fn ram_directory_panics_if_flush_forgotten() {
+    let test_path: &'static Path = Path::new("some_path_for_test");
     let mut ram_directory = RAMDirectory::create();
-    let mut write_file = ram_directory.open_write(*TEST_PATH).unwrap();
+    let mut write_file = ram_directory.open_write(test_path).unwrap();
     assert!(write_file.write_all(&[4]).is_ok());
 }
 
 fn test_simple(directory: &mut dyn Directory) {
+    let test_path: &'static Path = Path::new("some_path_for_test");
     {
-        let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-        assert!(directory.exists(*TEST_PATH));
+        let mut write_file = directory.open_write(test_path).unwrap();
+        assert!(directory.exists(test_path));
         write_file.write_all(&[4]).unwrap();
         write_file.write_all(&[3]).unwrap();
         write_file.write_all(&[7, 3, 5]).unwrap();
         write_file.flush().unwrap();
     }
     {
-        let read_file = directory.open_read(*TEST_PATH).unwrap();
+        let read_file = directory.open_read(test_path).unwrap();
         let data: &[u8] = &*read_file;
         assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
     }
-    assert!(directory.delete(*TEST_PATH).is_ok());
-    assert!(!directory.exists(*TEST_PATH));
+    assert!(directory.delete(test_path).is_ok());
+    assert!(!directory.exists(test_path));
 }
 
 fn test_rewrite_forbidden(directory: &mut dyn Directory) {
+    let test_path: &'static Path = Path::new("some_path_for_test");
     {
-        directory.open_write(*TEST_PATH).unwrap();
-        assert!(directory.exists(*TEST_PATH));
+        directory.open_write(test_path).unwrap();
+        assert!(directory.exists(test_path));
     }
     {
-        assert!(directory.open_write(*TEST_PATH).is_err());
+        assert!(directory.open_write(test_path).is_err());
     }
-    assert!(directory.delete(*TEST_PATH).is_ok());
+    assert!(directory.delete(test_path).is_ok());
 }
 
 fn test_write_create_the_file(directory: &mut dyn Directory) {
+    let test_path: &'static Path = Path::new("some_path_for_test");
     {
-        assert!(directory.open_read(*TEST_PATH).is_err());
-        let _w = directory.open_write(*TEST_PATH).unwrap();
-        assert!(directory.exists(*TEST_PATH));
-        assert!(directory.open_read(*TEST_PATH).is_ok());
-        assert!(directory.delete(*TEST_PATH).is_ok());
+        assert!(directory.open_read(test_path).is_err());
+        let _w = directory.open_write(test_path).unwrap();
+        assert!(directory.exists(test_path));
+        assert!(directory.open_read(test_path).is_ok());
+        assert!(directory.delete(test_path).is_ok());
     }
 }
 
 fn test_directory_delete(directory: &mut dyn Directory) {
-    assert!(directory.open_read(*TEST_PATH).is_err());
-    let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+    let test_path: &'static Path = Path::new("some_path_for_test");
+    assert!(directory.open_read(test_path).is_err());
+    let mut write_file = directory.open_write(&test_path).unwrap();
     write_file.write_all(&[1, 2, 3, 4]).unwrap();
     write_file.flush().unwrap();
     {
-        let read_handle = directory.open_read(*TEST_PATH).unwrap();
-        {
+        let read_handle = directory.open_read(&test_path).unwrap();
+        assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+        // Mapped files can't be deleted on Windows
+        if !cfg!(windows) {
+            assert!(directory.delete(&test_path).is_ok());
             assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
-
-            // Mapped files can't be deleted on Windows
-            if !cfg!(windows) {
-                assert!(directory.delete(*TEST_PATH).is_ok());
-                assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
-            }
-
-            assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
         }
+
+        assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
     }
 
     if cfg!(windows) {
-        assert!(directory.delete(*TEST_PATH).is_ok());
+        assert!(directory.delete(&test_path).is_ok());
     }
 
-    assert!(directory.open_read(*TEST_PATH).is_err());
-    assert!(directory.delete(*TEST_PATH).is_err());
+    assert!(directory.open_read(&test_path).is_err());
+    assert!(directory.delete(&test_path).is_err());
 }
 
 fn test_directory(directory: &mut dyn Directory) {

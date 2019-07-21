@@ -1,14 +1,12 @@
 use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::core::META_FILEPATH;
 use crate::error::TantivyError;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
 use crate::Result as TantivyResult;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::path::PathBuf;
 use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
@@ -73,19 +71,6 @@ impl SegmentManager {
         let mut segment_entries = registers_lock.uncommitted.segment_entries();
         segment_entries.extend(registers_lock.committed.segment_entries());
         segment_entries
-    }
-
-    /// List the files that are useful to the index.
-    ///
-    /// This does not include lock files, or files that are obsolete
-    /// but have not yet been deleted by the garbage collector.
-    pub fn list_files(&self) -> HashSet<PathBuf> {
-        let mut files = HashSet::new();
-        files.insert(META_FILEPATH.to_path_buf());
-        for segment_meta in SegmentMeta::all() {
-            files.extend(segment_meta.list_files());
-        }
-        files
     }
 
     // Lock poisoning should never happen :
