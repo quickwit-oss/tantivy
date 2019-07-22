@@ -250,7 +250,7 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 #[cfg(test)]
 mod tests {
 
-    use crate::collector::tests::TestCollector;
+    use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::DocSet;
     use crate::query::BooleanQuery;
@@ -737,7 +737,7 @@ mod tests {
             let searcher = reader.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let topdocs = searcher.search(&query, &TestCollector).unwrap();
+                let topdocs = searcher.search(&query, &TEST_COLLECTOR_WITH_SCORE).unwrap();
                 topdocs.docs().to_vec()
             };
             assert_eq!(
