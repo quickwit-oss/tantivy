@@ -163,11 +163,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_exists(&mut self) -> bool {
-        {
-            self.intersection_docset
-                .docset_mut_specialized(0)
-                .positions(&mut self.left);
-        }
+        self.intersection_docset
+            .docset_mut_specialized(0)
+            .positions(&mut self.left);
         let mut intersection_len = self.left.len();
         for i in 1..self.num_terms - 1 {
             {
