@@ -135,28 +135,28 @@ impl ManagedDirectory {
                         files_to_delete.push(managed_path.clone());
                     }
                 }
+            } else {
+                error!("Failed to acquire lock for GC");
             }
         }
 
         let mut deleted_files = vec![];
-        {
-            for file_to_delete in files_to_delete {
-                match self.delete(&file_to_delete) {
-                    Ok(_) => {
-                        info!("Deleted {:?}", file_to_delete);
-                        deleted_files.push(file_to_delete);
-                    }
-                    Err(file_error) => {
-                        match file_error {
-                            DeleteError::FileDoesNotExist(_) => {
-                                deleted_files.push(file_to_delete);
-                            }
-                            DeleteError::IOError(_) => {
-                                if !cfg!(target_os = "windows") {
-                                    // On windows, delete is expected to fail if the file
-                                    // is mmapped.
-                                    error!("Failed to delete {:?}", file_to_delete);
-                                }
+        for file_to_delete in files_to_delete {
+            match self.delete(&file_to_delete) {
+                Ok(_) => {
+                    info!("Deleted {:?}", file_to_delete);
+                    deleted_files.push(file_to_delete);
+                }
+                Err(file_error) => {
+                    match file_error {
+                        DeleteError::FileDoesNotExist(_) => {
+                            deleted_files.push(file_to_delete);
+                        }
+                        DeleteError::IOError(_) => {
+                            if !cfg!(target_os = "windows") {
+                                // On windows, delete is expected to fail if the file
+                                // is mmapped.
+                                error!("Failed to delete {:?}", file_to_delete);
                             }
                         }
                     }
@@ -171,11 +171,9 @@ impl ManagedDirectory {
                 .meta_informations
                 .write()
                 .expect("Managed directory wlock poisoned (2).");
-            {
-                let managed_paths_write = &mut meta_informations_wlock.managed_paths;
-                for delete_file in &deleted_files {
-                    managed_paths_write.remove(delete_file);
-                }
+            let managed_paths_write = &mut meta_informations_wlock.managed_paths;
+            for delete_file in &deleted_files {
+                managed_paths_write.remove(delete_file);
             }
             if save_managed_paths(self.directory.as_mut(), &meta_informations_wlock).is_err() {
                 error!("Failed to save the list of managed files.");

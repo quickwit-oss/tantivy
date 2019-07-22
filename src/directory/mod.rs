@@ -29,7 +29,7 @@ use std::io::{BufWriter, Write};
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
-pub(crate) use self::managed_directory::ManagedDirectory;
+pub use self::managed_directory::ManagedDirectory;
 
 /// Write object for Directory.
 ///

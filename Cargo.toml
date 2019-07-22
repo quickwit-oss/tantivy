@@ -83,3 +83,19 @@ wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
+
+[dev-dependencies.fail]
+features = ["failpoints"]
+
+
+# Following the "fail" crate best practises, we isolate
+# tests that define specific behavior in fail check points
+# in a different binary.
+#
+# We do that because, fail rely on a global definition of
+# failpoints behavior and hence, it is incompatible with
+# multithreading.
+[[test]]
+name = "failpoints"
+path = "tests/failpoints/mod.rs"
+required-features = ["fail/failpoints"]
