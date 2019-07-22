@@ -934,7 +934,6 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
-        let _fail_scenario_guard = fail::FailScenario::setup();
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1043,32 +1042,6 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
-    }
-
-    #[test]
-    fn test_write_commit_fails() {
-        let _fail_scenario_guard = fail::FailScenario::setup();
-        let mut schema_builder = schema::Schema::builder();
-        let text_field = schema_builder.add_text_field("text", schema::TEXT);
-        let index = Index::create_in_ram(schema_builder.build());
-
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        for _ in 0..100 {
-            index_writer.add_document(doc!(text_field => "a"));
-        }
-        index_writer.commit().unwrap();
-        fail::cfg("RAMDirectory::atomic_write", "return(error_write_failed)").unwrap();
-        for _ in 0..100 {
-            index_writer.add_document(doc!(text_field => "b"));
-        }
-        assert!(index_writer.commit().is_err());
-
-        let num_docs_containing = |s: &str| {
-            let term_a = Term::from_field_text(text_field, s);
-            index.reader().unwrap().searcher().doc_freq(&term_a)
-        };
-        assert_eq!(num_docs_containing("a"), 100);
-        assert_eq!(num_docs_containing("b"), 0);
     }
 
     #[test]

@@ -20,7 +20,6 @@ use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
 use crate::directory::WritePtr;
 use atomicwrites;
-use fail::fail_point;
 use memmap::Mmap;
 use std::collections::HashMap;
 use std::convert::From;
@@ -418,11 +417,6 @@ impl Directory for MmapDirectory {
     /// Any entry associated to the path in the mmap will be
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        fail_point!("MmapDirectory::delete", |_| {
-            let io_error = IOError::from(io::Error::from(io::ErrorKind::Other));
-            Err(DeleteError::from(io_error))
-        });
-        debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         match fs::remove_file(&full_path) {
             Ok(_) => self
