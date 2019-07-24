@@ -82,6 +82,26 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a new f64 field.
+    /// Returns the associated field handle
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
+    /// by the second one.
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_f64_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_f64(field_name, field_options.into());
+        self.add_field(field_entry)
+    }
+
     /// Adds a new date field.
     /// Returns the associated field handle
     /// Internally, Tantivy simply stores dates as i64 UTC timestamps,
@@ -376,10 +396,14 @@ mod tests {
         let popularity_options = IntOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
+        let score_options = IntOptions::default()
+            .set_indexed()
+            .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
         schema_builder.add_text_field("author", STRING);
         schema_builder.add_u64_field("count", count_options);
         schema_builder.add_i64_field("popularity", popularity_options);
+        schema_builder.add_f64_field("score", score_options);
         let schema = schema_builder.build();
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         let expected = r#"[
@@ -422,6 +446,15 @@ mod tests {
       "fast": "single",
       "stored": true
     }
+  },
+  {
+    "name": "score",
+    "type": "f64",
+    "options": {
+      "indexed": true,
+      "fast": "single",
+      "stored": false
+    }
   }
 ]"#;
         assert_eq!(schema_json, expected);
@@ -434,6 +467,8 @@ mod tests {
         assert_eq!("author", fields.next().unwrap().name());
         assert_eq!("count", fields.next().unwrap().name());
         assert_eq!("popularity", fields.next().unwrap().name());
+        assert_eq!("score", fields.next().unwrap().name());
+        assert!(fields.next().is_none());
     }
 
     #[test]
@@ -466,10 +501,14 @@ mod tests {
         let popularity_options = IntOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
+        let score_options = IntOptions::default()
+            .set_indexed()
+            .set_fast(Cardinality::SingleValue);
         let title_field = schema_builder.add_text_field("title", TEXT);
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);
         let popularity_field = schema_builder.add_i64_field("popularity", popularity_options);
+        let score_field = schema_builder.add_i64_field("score", score_options);
         let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();
@@ -482,7 +521,8 @@ mod tests {
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
-                "popularity": 10
+                "popularity": 10,
+                "score": 80.5
             }"#,
                 )
                 .unwrap();
@@ -493,6 +533,7 @@ mod tests {
             );
             assert_eq!(doc.get_first(count_field).unwrap().u64_value(), 4);
             assert_eq!(doc.get_first(popularity_field).unwrap().i64_value(), 10);
+            assert_eq!(doc.get_first(score_field).unwrap().f64_value(), 80.5);
         }
         {
             let json_err = schema.parse_document(
@@ -501,6 +542,7 @@ mod tests {
                 "author": "fulmicoton",
                 "count": 4,
                 "popularity": 10,
+                "score": 80.5,
                 "jambon": "bayonne"
             }"#,
             );
@@ -513,6 +555,7 @@ mod tests {
                 "author": "fulmicoton",
                 "count": "5",
                 "popularity": "10",
+                "score": "80.5",
                 "jambon": "bayonne"
             }"#,
             );
@@ -527,7 +570,8 @@ mod tests {
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": -5,
-                "popularity": 10
+                "popularity": 10,
+                "score": 80.5
             }"#,
             );
             assert_matches!(
@@ -541,7 +585,8 @@ mod tests {
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 9223372036854775808,
-                "popularity": 10
+                "popularity": 10,
+                "score": 80.5
             }"#,
             );
             assert!(!matches!(
@@ -555,7 +600,8 @@ mod tests {
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 50,
-                "popularity": 9223372036854775808
+                "popularity": 9223372036854775808,
+                "score": 80.5
             }"#,
             );
             assert_matches!(

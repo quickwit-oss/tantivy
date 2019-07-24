@@ -25,13 +25,13 @@ impl FastFieldsWriter {
 
         for (field_id, field_entry) in schema.fields().iter().enumerate() {
             let field = Field(field_id as u32);
-            let default_value = if let FieldType::I64(_) = *field_entry.field_type() {
-                common::i64_to_u64(0i64)
-            } else {
-                0u64
+            let default_value = match *field_entry.field_type() {
+                FieldType::I64(_) => common::i64_to_u64(0i64),
+                FieldType::F64(_) => common::f64_to_u64(0.0f64),
+                _ => 0u64,
             };
             match *field_entry.field_type() {
-                FieldType::I64(ref int_options) | FieldType::U64(ref int_options) => {
+                FieldType::I64(ref int_options) | FieldType::U64(ref int_options) | FieldType::F64(ref int_options) => {
                     match int_options.get_fastfield_cardinality() {
                         Some(Cardinality::SingleValue) => {
                             let mut fast_field_writer = IntFastFieldWriter::new(field);
@@ -142,9 +142,9 @@ impl FastFieldsWriter {
 /// bitpacked and the number of bits required for bitpacking
 /// can only been known once we have seen all of the values.
 ///
-/// Both u64, and i64 use the same writer.
-/// i64 are just remapped to the `0..2^64 - 1`
-/// using `common::i64_to_u64`.
+/// Both u64, i64 and f64 use the same writer.
+/// i64 and f64 are just remapped to the `0..2^64 - 1`
+/// using `common::i64_to_u64` and `common::f64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
     vals: Vec<u8>,
@@ -203,8 +203,8 @@ impl IntFastFieldWriter {
     /// Extract the value associated to the fast field for
     /// this document.
     ///
-    /// i64 are remapped to u64 using the logic
-    /// in `common::i64_to_u64`.
+    /// i64 and f64 are remapped to u64 using the logic
+    /// in `common::i64_to_u64` and `common::f64_to_u64`.
     ///
     /// If the value is missing, then the default value is used
     /// instead.

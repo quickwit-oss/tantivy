@@ -19,15 +19,27 @@ where
     B: AsRef<[u8]>;
 
 impl Term {
-    /// Builds a term given a field, and a u64-value
+    /// Builds a term given a field, and a i64-value
     ///
-    /// Assuming the term has a field id of 1, and a u64 value of 3234,
+    /// Assuming the term has a field id of 1, and a i64 value of 3234,
     /// the Term will have 8 bytes.
     ///
     /// The first four byte are dedicated to storing the field id as a u64.
     /// The 4 following bytes are encoding the u64 value.
     pub fn from_field_i64(field: Field, val: i64) -> Term {
         let val_u64: u64 = common::i64_to_u64(val);
+        Term::from_field_u64(field, val_u64)
+    }
+
+    /// Builds a term given a field, and a f64-value
+    ///
+    /// Assuming the term has a field id of 1, and a u64 value of 3234,
+    /// the Term will have 8 bytes. <= this is wrong
+    ///
+    /// The first four byte are dedicated to storing the field id as a u64.
+    /// The 4 following bytes are encoding the u64 value.
+    pub fn from_field_f64(field: Field, val: f64) -> Term {
+        let val_u64: u64 = common::f64_to_u64(val);
         Term::from_field_u64(field, val_u64)
     }
 
@@ -112,6 +124,11 @@ impl Term {
         self.set_u64(common::i64_to_u64(val));
     }
 
+    /// Sets a `f64` value in the term.
+    pub fn set_f64(&mut self, val: f64) {
+        self.set_u64(common::f64_to_u64(val));
+    }
+
     fn set_bytes(&mut self, bytes: &[u8]) {
         self.0.resize(4, 0u8);
         self.0.extend(bytes);
@@ -159,6 +176,15 @@ where
     /// if the term is not a `i64` field.
     pub fn get_i64(&self) -> i64 {
         common::u64_to_i64(BigEndian::read_u64(&self.0.as_ref()[4..]))
+    }
+
+    /// Returns the `f64` value stored in a term.
+    ///
+    /// # Panics
+    /// ... or returns an invalid value
+    /// if the term is not a `i64` field.
+    pub fn get_f64(&self) -> f64 {
+        common::u64_to_f64(BigEndian::read_u64(&self.0.as_ref()[4..]))
     }
 
     /// Returns the text associated with the term.

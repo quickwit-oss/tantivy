@@ -48,7 +48,7 @@ mod readers;
 mod serializer;
 mod writer;
 
-/// Trait for types that are allowed for fast fields: (u64 or i64).
+/// Trait for types that are allowed for fast fields: (u64, i64 and f64).
 pub trait FastValue: Default + Clone + Copy + Send + Sync + PartialOrd {
     /// Converts a value from u64
     ///
@@ -114,11 +114,33 @@ impl FastValue for i64 {
     }
 }
 
+impl FastValue for f64 {
+    fn from_u64(val: u64) -> Self {
+        common::u64_to_f64(val)
+    }
+
+    fn to_u64(&self) -> u64 {
+        common::f64_to_u64(*self)
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::F64(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        self.to_bits()
+    }
+}
+
 fn value_to_u64(value: &Value) -> u64 {
     match *value {
         Value::U64(ref val) => *val,
         Value::I64(ref val) => common::i64_to_u64(*val),
-        _ => panic!("Expected a u64/i64 field, got {:?} ", value),
+        Value::F64(ref val) => common::f64_to_u64(*val),
+        _ => panic!("Expected a u64/i64/f64 field, got {:?} ", value),
     }
 }
 

@@ -142,6 +142,39 @@ impl RangeQuery {
         }
     }
 
+    /// Creates a new `RangeQuery` over a `f64` field.
+    ///
+    /// If the field is not of the type `f64`, tantivy
+    /// will panic when the `Weight` object is created.
+    pub fn new_f64(field: Field, range: Range<f64>) -> RangeQuery {
+        RangeQuery::new_f64_bounds(
+            field,
+            Bound::Included(range.start),
+            Bound::Excluded(range.end),
+        )
+    }
+
+    /// Create a new `RangeQuery` over a `f64` field.
+    ///
+    /// The two `Bound` arguments make it possible to create more complex
+    /// ranges than semi-inclusive range.
+    ///
+    /// If the field is not of the type `f64`, tantivy
+    /// will panic when the `Weight` object is created.
+    pub fn new_f64_bounds(
+        field: Field,
+        left_bound: Bound<f64>,
+        right_bound: Bound<f64>,
+    ) -> RangeQuery {
+        let make_term_val = |val: &f64| Term::from_field_f64(field, *val).value_bytes().to_owned();
+        RangeQuery {
+            field,
+            value_type: Type::F64,
+            left_bound: map_bound(&left_bound, &make_term_val),
+            right_bound: map_bound(&right_bound, &make_term_val),
+        }
+    }
+
     /// Create a new `RangeQuery` over a `u64` field.
     ///
     /// The two `Bound` arguments make it possible to create more complex
@@ -391,6 +424,63 @@ mod tests {
             count_multiples(RangeQuery::new_i64_bounds(
                 int_field,
                 Bound::Included(9),
+                Bound::Unbounded
+            )),
+            91
+        );
+    }
+
+    #[test]
+    fn test_range_float() {
+        let float_field: Field;
+        let schema = {
+            let mut schema_builder = Schema::builder();
+            float_field = schema_builder.add_f64_field("floatfield", INDEXED);
+            schema_builder.build()
+        };
+
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
+
+            for i in 1..100 {
+                let mut doc = Document::new();
+                for j in 1..100 {
+                    if i % j == 0 {
+                        doc.add_f64(float_field, j as f64);
+                    }
+                }
+                index_writer.add_document(doc);
+            }
+
+            index_writer.commit().unwrap();
+        }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let count_multiples =
+            |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
+
+        assert_eq!(count_multiples(RangeQuery::new_f64(float_field, 10.0..11.0)), 9);
+        assert_eq!(
+            count_multiples(RangeQuery::new_f64_bounds(
+                float_field,
+                Bound::Included(10.0),
+                Bound::Included(11.0)
+            )),
+            18
+        );
+        assert_eq!(
+            count_multiples(RangeQuery::new_f64_bounds(
+                float_field,
+                Bound::Excluded(9.0),
+                Bound::Included(10.0)
+            )),
+            9
+        );
+        assert_eq!(
+            count_multiples(RangeQuery::new_f64_bounds(
+                float_field,
+                Bound::Included(9.0),
                 Bound::Unbounded
             )),
             91

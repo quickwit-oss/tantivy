@@ -207,6 +207,7 @@ impl IndexMerger {
                 }
                 FieldType::U64(ref options)
                 | FieldType::I64(ref options)
+                | FieldType::F64(ref options)
                 | FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
                     Some(Cardinality::SingleValue) => {
                         self.write_single_fast_field(field, fast_field_serializer)?;

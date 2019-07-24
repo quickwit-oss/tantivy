@@ -18,7 +18,7 @@ use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
 use combine::Parser;
 use std::borrow::Cow;
-use std::num::ParseIntError;
+use std::num::{ParseIntError, ParseFloatError};
 use std::ops::Bound;
 use std::str::FromStr;
 
@@ -30,9 +30,12 @@ pub enum QueryParserError {
     /// `FieldDoesNotExist(field_name: String)`
     /// The query references a field that is not in the schema
     FieldDoesNotExist(String),
-    /// The query contains a term for a `u64`-field, but the value
-    /// is not a u64.
+    /// The query contains a term for a `u64` or `i64`-field, but the value
+    /// is neither.
     ExpectedInt(ParseIntError),
+    /// The query contains a term for a `f64`-field, but the value
+    /// is not a f64.
+    ExpectedFloat(ParseFloatError),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
     AllButQueryForbidden,
     /// If no default field is declared, running a query without any
@@ -57,6 +60,12 @@ pub enum QueryParserError {
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
         QueryParserError::ExpectedInt(err)
+    }
+}
+
+impl From<ParseFloatError> for QueryParserError {
+    fn from(err: ParseFloatError) -> QueryParserError {
+        QueryParserError::ExpectedFloat(err)
     }
 }
 
@@ -239,6 +248,11 @@ impl QueryParser {
                 let term = Term::from_field_i64(field, val);
                 Ok(vec![(0, term)])
             }
+            FieldType::F64(_) => {
+                let val: f64 = f64::from_str(phrase)?;
+                let term = Term::from_field_f64(field, val);
+                Ok(vec![(0, term)])
+            } 
             FieldType::Date(_) => match chrono::DateTime::parse_from_rfc3339(phrase) {
                 Ok(x) => Ok(vec![(
                     0,
@@ -529,6 +543,7 @@ mod test {
         schema_builder.add_text_field("nottokenized", STRING);
         schema_builder.add_text_field("with_stop_words", text_options);
         schema_builder.add_date_field("date", INDEXED);
+        schema_builder.add_f64_field("float", INDEXED);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
@@ -634,6 +649,13 @@ mod test {
         assert!(query_parser
             .parse_query("unsigned:\"18446744073709551615\"")
             .is_ok());
+        assert!(query_parser.parse_query("float:\"3.1\"").is_ok());
+        assert!(query_parser.parse_query("float:\"-2.4\"").is_ok());
+        assert!(query_parser.parse_query("float:\"2.1.2\"").is_err());
+        assert!(query_parser.parse_query("float:\"2.1a\"").is_err());
+        assert!(query_parser
+            .parse_query("float:\"18446744073709551615.0\"")
+            .is_ok());
         test_parse_query_to_logical_ast_helper(
             "unsigned:2324",
             "Term([0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 9, 20])",
@@ -643,6 +665,12 @@ mod test {
         test_parse_query_to_logical_ast_helper(
             "signed:-2324",
             &format!("{:?}", Term::from_field_i64(Field(2u32), -2324)),
+            false,
+        );
+
+        test_parse_query_to_logical_ast_helper(
+            "float:2.5",
+            &format!("{:?}", Term::from_field_f64(Field(10u32), 2.5)),
             false,
         );
     }
@@ -785,6 +813,11 @@ mod test {
         assert_matches!(
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
+        );
+        assert!(query_parser.parse_query("float:\"1.8\"").is_ok());
+        assert_matches!(
+            query_parser.parse_query("float:1.8a"),
+            Err(QueryParserError::ExpectedFloat(_))
         );
     }
 
