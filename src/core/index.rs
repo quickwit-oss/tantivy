@@ -26,9 +26,10 @@ use crate::IndexWriter;
 use crate::Result;
 use num_cpus;
 use std::borrow::BorrowMut;
+use std::collections::HashSet;
 use std::fmt;
 #[cfg(feature = "mmap")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 fn load_metas(directory: &dyn Directory, inventory: &SegmentMetaInventory) -> Result<IndexMeta> {
@@ -367,6 +368,11 @@ impl Index {
             .iter()
             .map(SegmentMeta::id)
             .collect())
+    }
+
+    /// Returns the set of corrupted files
+    pub fn validate_checksum(&self) -> Result<HashSet<PathBuf>> {
+        self.directory.list_damaged().map_err(Into::into)
     }
 }
 

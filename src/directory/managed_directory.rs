@@ -8,6 +8,7 @@ use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
 use crate::Result;
+use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
@@ -16,6 +17,8 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
+
+const CRC_SIZE: usize = 4;
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -207,26 +210,98 @@ impl ManagedDirectory {
         }
         Ok(())
     }
+
+    /// Verify checksum of a managed file
+    pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
+        let reader = self.directory.open_read(path)?;
+        let data = reader.as_slice();
+        let len = data.len() - CRC_SIZE;
+        let mut hasher = Hasher::new();
+        hasher.update(&data[..len]);
+        let crc = hasher.finalize().to_be_bytes();
+        Ok(data[len..]==crc)
+    }
+
+    /// List files for which checksum does not match content
+    pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
+        let mut hashset = HashSet::new();
+        let meta_informations_rlock = self
+            .meta_informations
+            .read()
+            .expect("Managed directory rlock poisoned in list damaged.");
+
+        println!("list_of_segments={:?}", meta_informations_rlock.managed_paths);
+        for path in &meta_informations_rlock.managed_paths {
+            if !self.validate_checksum(path)? {
+                hashset.insert(path.clone());
+            }
+        }
+        Ok(hashset)
+    }
 }
+
+struct CrcProxy<W: Write> {
+    hasher: Option<Hasher>,
+    writer: W,
+}
+
+impl<W: Write> CrcProxy<W> {
+    fn new(writer: W) -> Self {
+        CrcProxy {
+            hasher: Some(Hasher::new()),
+            writer
+        }
+    }
+}
+
+impl<W: Write> Drop for CrcProxy<W> {
+    fn drop(&mut self) {
+        // this should probably be logged
+        let _ = self.writer.write_all(&self.hasher.take().unwrap().finalize().to_be_bytes());
+    }
+}
+
+impl<W: Write> Write for CrcProxy<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let count = self.writer.write(buf)?;
+        self.hasher.as_mut().unwrap().update(&buf[..count]);
+        Ok(count)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.writer.flush()
+    }
+}
+
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.directory.open_read(path)
+        self.directory.open_read(path).map(|ros| ros.slice_to(ros.as_slice().len() - CRC_SIZE))
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|e| IOError::with_path(path.to_owned(), e))?;
-        self.directory.open_write(path)
+        Ok(io::BufWriter::new(Box::new(
+            CrcProxy::new(self.directory.open_write(path)?.into_inner().map_err(|_|()).expect("buffer is empty"))
+        )))
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
-        self.directory.atomic_write(path, data)
+        let mut with_crc = Vec::with_capacity(data.len() + CRC_SIZE);
+        with_crc.extend_from_slice(&data);
+        let mut hasher = Hasher::new();
+        hasher.update(&data);
+        let crc = hasher.finalize().to_be_bytes();
+        with_crc.extend_from_slice(&crc);
+        self.directory.atomic_write(path, &with_crc)
     }
 
     fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
-        self.directory.atomic_read(path)
+        let mut vec = self.directory.atomic_read(path)?;
+        vec.resize(vec.len() - CRC_SIZE, 0);
+        Ok(vec)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
