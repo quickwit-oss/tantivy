@@ -258,6 +258,7 @@ impl<W: Write> Drop for CrcProxy<W> {
     fn drop(&mut self) {
         // this should probably be logged
         let _ = self.writer.write_all(&self.hasher.take().unwrap().finalize().to_be_bytes());
+        let _ = self.writer.flush();
     }
 }
 
