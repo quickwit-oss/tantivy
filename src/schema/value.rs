@@ -116,10 +116,7 @@ impl<'de> Deserialize<'de> for Value {
 
 impl Value {
     /// Returns the text value, provided the value is of the `Str` type.
-    ///
-    /// # Panics
-    /// If the value is not of type `Str`
-    /// #TODO doc comment is wrong
+    /// (Returns None if the value is not of the `Str` type).
     pub fn text(&self) -> Option<&str> {
         match *self {
             Value::Str(ref text) => Some(text),
