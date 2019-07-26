@@ -508,7 +508,7 @@ mod tests {
         let author_field = schema_builder.add_text_field("author", STRING);
         let count_field = schema_builder.add_u64_field("count", count_options);
         let popularity_field = schema_builder.add_i64_field("popularity", popularity_options);
-        let score_field = schema_builder.add_i64_field("score", score_options);
+        let score_field = schema_builder.add_f64_field("score", score_options);
         let schema = schema_builder.build();
         {
             let doc = schema.parse_document("{}").unwrap();

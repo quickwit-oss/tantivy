@@ -149,7 +149,7 @@ impl Value {
     /// Returns the f64-value, provided the value is of the `F64` type.
     ///
     /// # Panics
-    /// If the value is not of type `I64`
+    /// If the value is not of type `F64`
     pub fn f64_value(&self) -> f64 {
         match *self {
             Value::F64(ref value) => *value,

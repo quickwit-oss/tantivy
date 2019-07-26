@@ -20,7 +20,7 @@ parser! {
 parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
-        many1(satisfy(char::is_alphanumeric))
+        many1(satisfy(|c: char| c.is_alphanumeric() || c=='.'))
                .and_then(|s: String| {
                    match s.as_str() {
                      "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
@@ -266,6 +266,7 @@ mod test {
         test_parse_query_to_ast_helper("(+a)", "+(\"a\")");
         test_parse_query_to_ast_helper("(+a +b)", "(+(\"a\") +(\"b\"))");
         test_parse_query_to_ast_helper("abc:toto", "abc:\"toto\"");
+        test_parse_query_to_ast_helper("abc:1.1", "abc:\"1.1\"");
         test_parse_query_to_ast_helper("+abc:toto", "+(abc:\"toto\")");
         test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+(abc:\"toto\") -(\"titi\"))");
         test_parse_query_to_ast_helper("-abc:toto", "-(abc:\"toto\")");
@@ -277,6 +278,7 @@ mod test {
         test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
         test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:[\"*\" TO \"toto\"}");
         test_parse_query_to_ast_helper("foo:[1 TO *}", "foo:[\"1\" TO \"*\"}");
+        test_parse_query_to_ast_helper("foo:[1.1 TO *}", "foo:[\"1.1\" TO \"*\"}");
         test_is_parse_err("abc +    ");
     }
 }

@@ -252,7 +252,7 @@ impl QueryParser {
                 let val: f64 = f64::from_str(phrase)?;
                 let term = Term::from_field_f64(field, val);
                 Ok(vec![(0, term)])
-            } 
+            }
             FieldType::Date(_) => match chrono::DateTime::parse_from_rfc3339(phrase) {
                 Ok(x) => Ok(vec![(
                     0,
