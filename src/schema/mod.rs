@@ -54,7 +54,7 @@ On the other hand setting the field as stored or not determines whether the fiel
 when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called.
 
 
-## Setting a u64 or a i64 field
+## Setting a u64, a i64 or a f64 field
 
 ### Example
 

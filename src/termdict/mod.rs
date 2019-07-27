@@ -14,6 +14,9 @@ lexicographical order matches the natural order of integers.
 `i64`-terms are transformed to `u64` using a continuous mapping `val ⟶ val - i64::min_value()`
 and then treated as a `u64`.
 
+`f64`-terms are transformed to `u64` using a mapping that preserve order, and are then treated
+as `u64`.
+
 A second datastructure makes it possible to access a [`TermInfo`](../postings/struct.TermInfo.html).
 */
 

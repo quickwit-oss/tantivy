@@ -22,7 +22,7 @@ pub const STORED: SchemaFlagList<StoredFlag, ()> = SchemaFlagList {
 pub struct IndexedFlag;
 /// Flag to mark the field as indexed.
 ///
-/// The `INDEXED` flag can only be used when building `IntOptions` (`u64` and `i64` fields)
+/// The `INDEXED` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
 /// Of course, text fields can also be indexed... But this is expressed by using either the
 /// `STRING` (untokenized) or `TEXT` (tokenized with the english tokenizer) flags.
 pub const INDEXED: SchemaFlagList<IndexedFlag, ()> = SchemaFlagList {
@@ -36,7 +36,7 @@ pub struct FastFlag;
 ///
 /// Fast fields can be random-accessed rapidly. Fields useful for scoring, filtering
 /// or collection should be mark as fast fields.
-/// The `FAST` flag can only be used when building `IntOptions` (`u64` and `i64` fields)
+/// The `FAST` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
 pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
     head: FastFlag,
     tail: (),

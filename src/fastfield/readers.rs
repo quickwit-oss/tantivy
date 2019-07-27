@@ -14,8 +14,10 @@ use std::collections::HashMap;
 pub struct FastFieldReaders {
     fast_field_i64: HashMap<Field, FastFieldReader<i64>>,
     fast_field_u64: HashMap<Field, FastFieldReader<u64>>,
+    fast_field_f64: HashMap<Field, FastFieldReader<f64>>,
     fast_field_i64s: HashMap<Field, MultiValueIntFastFieldReader<i64>>,
     fast_field_u64s: HashMap<Field, MultiValueIntFastFieldReader<u64>>,
+    fast_field_f64s: HashMap<Field, MultiValueIntFastFieldReader<f64>>,
     fast_bytes: HashMap<Field, BytesFastFieldReader>,
     fast_fields_composite: CompositeFile,
 }
@@ -23,6 +25,7 @@ pub struct FastFieldReaders {
 enum FastType {
     I64,
     U64,
+    F64,
 }
 
 fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality)> {
@@ -33,6 +36,9 @@ fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality
         FieldType::I64(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::I64, cardinality)),
+        FieldType::F64(options) => options
+            .get_fastfield_cardinality()
+            .map(|cardinality| (FastType::F64, cardinality)),
         FieldType::HierarchicalFacet => Some((FastType::U64, Cardinality::MultiValues)),
         _ => None,
     }
@@ -46,8 +52,10 @@ impl FastFieldReaders {
         let mut fast_field_readers = FastFieldReaders {
             fast_field_i64: Default::default(),
             fast_field_u64: Default::default(),
+            fast_field_f64: Default::default(),
             fast_field_i64s: Default::default(),
             fast_field_u64s: Default::default(),
+            fast_field_f64s: Default::default(),
             fast_bytes: Default::default(),
             fast_fields_composite: fast_fields_composite.clone(),
         };
@@ -82,6 +90,12 @@ impl FastFieldReaders {
                                         FastFieldReader::open(fast_field_data.clone()),
                                     );
                                 }
+                                FastType::F64 => {
+                                    fast_field_readers.fast_field_f64.insert(
+                                        field,
+                                        FastFieldReader::open(fast_field_data.clone()),
+                                    );
+                                }
                             }
                         } else {
                             return Err(From::from(FastFieldNotAvailableError::new(field_entry)));
@@ -107,6 +121,14 @@ impl FastFieldReaders {
                                         MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
                                     fast_field_readers
                                         .fast_field_u64s
+                                        .insert(field, multivalued_int_fast_field);
+                                }
+                                FastType::F64 => {
+                                    let vals_reader = FastFieldReader::open(fast_field_data);
+                                    let multivalued_int_fast_field =
+                                        MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
+                                    fast_field_readers
+                                        .fast_field_f64s
                                         .insert(field, multivalued_int_fast_field);
                                 }
                             }
@@ -135,6 +157,8 @@ impl FastFieldReaders {
     /// If the field is a i64-fast field, return the associated u64 reader. Values are
     /// mapped from i64 to u64 using a (well the, it is unique) monotonic mapping.    ///
     ///
+    ///TODO should it also be lenient with f64?
+    ///
     /// This method is useful when merging segment reader.
     pub(crate) fn u64_lenient(&self, field: Field) -> Option<FastFieldReader<u64>> {
         if let Some(u64_ff_reader) = self.u64(field) {
@@ -151,6 +175,13 @@ impl FastFieldReaders {
     /// If `field` is not a i64 fast field, this method returns `None`.
     pub fn i64(&self, field: Field) -> Option<FastFieldReader<i64>> {
         self.fast_field_i64.get(&field).cloned()
+    }
+
+    /// Returns the `f64` fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a f64 fast field, this method returns `None`.
+    pub fn f64(&self, field: Field) -> Option<FastFieldReader<f64>> {
+        self.fast_field_f64.get(&field).cloned()
     }
 
     /// Returns a `u64s` multi-valued fast field reader reader associated to `field`.
@@ -180,6 +211,13 @@ impl FastFieldReaders {
     /// If `field` is not a i64 multi-valued fast field, this method returns `None`.
     pub fn i64s(&self, field: Field) -> Option<MultiValueIntFastFieldReader<i64>> {
         self.fast_field_i64s.get(&field).cloned()
+    }
+
+    /// Returns a `f64s` multi-valued fast field reader reader associated to `field`.
+    ///
+    /// If `field` is not a f64 multi-valued fast field, this method returns `None`.
+    pub fn f64s(&self, field: Field) -> Option<MultiValueIntFastFieldReader<f64>> {
+        self.fast_field_f64s.get(&field).cloned()
     }
 
     /// Returns the `bytes` fast field reader associated to `field`.

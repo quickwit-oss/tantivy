@@ -35,6 +35,8 @@ pub enum Type {
     U64,
     /// `i64`
     I64,
+    /// `f64`
+    F64,
     /// `date(i64) timestamp`
     Date,
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
@@ -53,6 +55,8 @@ pub enum FieldType {
     U64(IntOptions),
     /// Signed 64-bits integers 64 field type configuration
     I64(IntOptions),
+    /// 64-bits float 64 field type configuration
+    F64(IntOptions),
     /// Signed 64-bits Date 64 field type configuration,
     Date(IntOptions),
     /// Hierachical Facet
@@ -68,6 +72,7 @@ impl FieldType {
             FieldType::Str(_) => Type::Str,
             FieldType::U64(_) => Type::U64,
             FieldType::I64(_) => Type::I64,
+            FieldType::F64(_) => Type::F64,
             FieldType::Date(_) => Type::Date,
             FieldType::HierarchicalFacet => Type::HierarchicalFacet,
             FieldType::Bytes => Type::Bytes,
@@ -78,7 +83,7 @@ impl FieldType {
     pub fn is_indexed(&self) -> bool {
         match *self {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
-            FieldType::U64(ref int_options) | FieldType::I64(ref int_options) => {
+            FieldType::U64(ref int_options) | FieldType::I64(ref int_options) | FieldType::F64(ref int_options) => {
                 int_options.is_indexed()
             }
             FieldType::Date(ref date_options) => date_options.is_indexed(),
@@ -98,6 +103,7 @@ impl FieldType {
                 .map(TextFieldIndexing::index_option),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options)
             | FieldType::Date(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
@@ -119,7 +125,7 @@ impl FieldType {
         match *json {
             JsonValue::String(ref field_text) => match *self {
                 FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::Date(_) => Err(
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => Err(
                     ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
                 ),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
@@ -144,6 +150,14 @@ impl FieldType {
                         Ok(Value::U64(field_val_u64))
                     } else {
                         let msg = format!("Expected a u64 int, got {:?}", json);
+                        Err(ValueParsingError::OverflowError(msg))
+                    }
+                },
+                FieldType::F64(_) => {
+                    if let Some(field_val_f64) = field_val_num.as_f64() {
+                        Ok(Value::F64(field_val_f64))
+                    } else {
+                        let msg = format!("Expected a f64 int, got {:?}", json);
                         Err(ValueParsingError::OverflowError(msg))
                     }
                 }

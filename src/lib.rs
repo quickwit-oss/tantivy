@@ -179,7 +179,7 @@ pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
 pub use crate::schema::{Document, Term};
 
-pub use crate::common::{i64_to_u64, u64_to_i64};
+pub use crate::common::{i64_to_u64, u64_to_i64, f64_to_u64, u64_to_f64};
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
@@ -626,6 +626,30 @@ mod tests {
     }
 
     #[test]
+    fn test_indexed_f64() {
+        let mut schema_builder = Schema::builder();
+        let value_field = schema_builder.add_f64_field("value", INDEXED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let val = std::f64::consts::PI;
+        index_writer.add_document(doc!(value_field => val));
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let term = Term::from_field_f64(value_field, val);
+        let mut postings = searcher
+            .segment_reader(0)
+            .inverted_index(term.field())
+            .read_postings(&term, IndexRecordOption::Basic)
+            .unwrap();
+        assert!(postings.advance());
+        assert_eq!(postings.doc(), 0);
+        assert!(!postings.advance());
+    }
+
+    #[test]
     fn test_indexedfield_not_in_documents() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -817,6 +841,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
+        let fast_field_float = schema_builder.add_f64_field("float", FAST);
         let text_field = schema_builder.add_text_field("text", TEXT);
         let stored_int_field = schema_builder.add_u64_field("text", STORED);
         let schema = schema_builder.build();
@@ -824,7 +849,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
         {
-            let document = doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64);
+            let document = doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64, fast_field_float=>4f64);
             index_writer.add_document(document);
             index_writer.commit().unwrap();
         }
@@ -844,10 +869,14 @@ mod tests {
             assert!(fast_field_reader_opt.is_none());
         }
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().i64(fast_field_signed);
+            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_float);
+            assert!(fast_field_reader_opt.is_none());
+        }
+        {
+            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
             assert!(fast_field_reader_opt.is_some());
             let fast_field_reader = fast_field_reader_opt.unwrap();
-            assert_eq!(fast_field_reader.get(0), 4i64)
+            assert_eq!(fast_field_reader.get(0), 4u64)
         }
 
         {
@@ -855,6 +884,13 @@ mod tests {
             assert!(fast_field_reader_opt.is_some());
             let fast_field_reader = fast_field_reader_opt.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
+        }
+
+        {
+            let fast_field_reader_opt = segment_reader.fast_fields().f64(fast_field_float);
+            assert!(fast_field_reader_opt.is_some());
+            let fast_field_reader = fast_field_reader_opt.unwrap();
+            assert_eq!(fast_field_reader.get(0), 4f64)
         }
     }
 }

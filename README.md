@@ -50,9 +50,9 @@ performance for different type of queries / collection.
 - Multithreaded indexing (indexing English Wikipedia takes < 3 minutes on my desktop)
 - Mmap directory
 - SIMD integer compression when the platform/CPU includes the SSE2 instruction set.
-- Single valued and multivalued u64 and i64 fast fields (equivalent of doc values in Lucene)
+- Single valued and multivalued u64, i64 and f64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
-- Text, i64, u64, dates and hierarchical facet fields
+- Text, i64, u64, f64, dates and hierarchical facet fields
 - LZ4 compressed document store
 - Range queries
 - Faceted search

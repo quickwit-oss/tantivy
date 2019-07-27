@@ -88,6 +88,11 @@ impl Document {
         self.add(FieldValue::new(field, Value::I64(value)));
     }
 
+    /// Add a f64 field
+    pub fn add_f64(&mut self, field: Field, value: f64) {
+        self.add(FieldValue::new(field, Value::F64(value)));
+    }
+
     /// Add a date field
     pub fn add_date(&mut self, field: Field, value: &DateTime) {
         self.add(FieldValue::new(field, Value::Date(*value)));
