@@ -225,15 +225,16 @@ impl ManagedDirectory {
     /// List files for which checksum does not match content
     pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
         let mut hashset = HashSet::new();
-        let meta_informations_rlock = self
+        let managed_paths = self
             .meta_informations
             .read()
-            .expect("Managed directory rlock poisoned in list damaged.");
+            .expect("Managed directory rlock poisoned in list damaged.")
+            .managed_paths
+            .clone();
 
-        println!("list_of_segments={:?}", meta_informations_rlock.managed_paths);
-        for path in &meta_informations_rlock.managed_paths {
-            if !self.validate_checksum(path)? {
-                hashset.insert(path.clone());
+        for path in managed_paths.into_iter() {
+            if !self.validate_checksum(&path)? {
+                hashset.insert(path);
             }
         }
         Ok(hashset)
@@ -290,19 +291,11 @@ impl Directory for ManagedDirectory {
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
-        let mut with_crc = Vec::with_capacity(data.len() + CRC_SIZE);
-        with_crc.extend_from_slice(&data);
-        let mut hasher = Hasher::new();
-        hasher.update(&data);
-        let crc = hasher.finalize().to_be_bytes();
-        with_crc.extend_from_slice(&crc);
-        self.directory.atomic_write(path, &with_crc)
+        self.directory.atomic_write(path, data)
     }
 
     fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
-        let mut vec = self.directory.atomic_read(path)?;
-        vec.resize(vec.len() - CRC_SIZE, 0);
-        Ok(vec)
+        self.directory.atomic_read(path)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
