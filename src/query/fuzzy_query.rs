@@ -1,3 +1,4 @@
+use crate::error::TantivyError::InvalidArgument;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
 use crate::Result;
@@ -100,10 +101,20 @@ impl FuzzyTermQuery {
     }
 
     fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
-        let automaton = LEV_BUILDER.get(&(self.distance, false))
-            .unwrap() // TODO return an error
-            .build_dfa(self.term.text());
-        Ok(AutomatonWeight::new(self.term.field(), automaton))
+        // LEV_BUILDER is a HashMap, whose `get` method returns an Option
+        match LEV_BUILDER.get(&(self.distance, false)) {
+            // Unwrap the option and build the Ok(AutomatonWeight)
+            Some(automaton_builder) => {
+                let automaton = automaton_builder.build_dfa(self.term.text());
+                Ok(AutomatonWeight::new(self.term.field(), automaton))
+            }
+            None => {
+                return Err(InvalidArgument(format!(
+                    "Levenshtein distance of {} is not allowed. You may choose between [0, 1, 2]",
+                    self.distance
+                )))
+            }
+        }
     }
 }
 
