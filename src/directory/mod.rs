@@ -24,18 +24,29 @@ pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;
 pub(crate) use self::watch_event_router::WatchCallbackList;
 pub use self::watch_event_router::{WatchCallback, WatchHandle};
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
 pub use self::managed_directory::ManagedDirectory;
 
+
+/// Trait used to indicate when no more write need to be done on a writer
+pub trait TerminatingWrite: Write {
+    /// Indicate that the writer will no longer be used
+    fn terminate(mut self) -> io::Result<()> where Self: Sized {
+        self.flush()
+    }
+}
+
+impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {}
+
 /// Write object for Directory.
 ///
 /// `WritePtr` are required to implement both Write
 /// and Seek.
-pub type WritePtr = BufWriter<Box<dyn Write>>;
+pub type WritePtr = BufWriter<Box<dyn TerminatingWrite>>;
 
 #[cfg(test)]
 mod tests;

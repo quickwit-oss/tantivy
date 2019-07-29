@@ -1,7 +1,7 @@
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::WatchCallbackList;
-use crate::directory::WritePtr;
+use crate::directory::{TerminatingWrite, WritePtr};
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use fail::fail_point;
 use std::collections::HashMap;
@@ -70,6 +70,8 @@ impl Write for VecWriter {
         Ok(())
     }
 }
+
+impl TerminatingWrite for VecWriter {}
 
 #[derive(Default)]
 struct InnerDirectory {

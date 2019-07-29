@@ -18,7 +18,7 @@ use crate::directory::ReadOnlySource;
 use crate::directory::WatchCallback;
 use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
-use crate::directory::WritePtr;
+use crate::directory::{TerminatingWrite, WritePtr};
 use atomicwrites;
 use memmap::Mmap;
 use std::collections::HashMap;
@@ -411,6 +411,8 @@ impl Seek for SafeFileWriter {
         self.0.seek(pos)
     }
 }
+
+impl TerminatingWrite for SafeFileWriter {}
 
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {

@@ -1,8 +1,9 @@
-use crate::core::MANAGED_FILEPATH;
+use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
 use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::DirectoryLock;
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
+use crate::directory::TerminatingWrite;
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
@@ -18,8 +19,6 @@ use std::result;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 
-const CRC_SIZE: usize = 4;
-
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
 ///
@@ -30,6 +29,13 @@ fn is_managed(path: &Path) -> bool {
         .map(|p_str| !p_str.starts_with('.'))
         .unwrap_or(true)
 }
+
+/// Returns true iff the file require a footer.
+fn require_footer(path: &Path) -> bool {
+    is_managed(path) &
+        ![*MANAGED_FILEPATH, *META_FILEPATH].contains(&path)
+}
+
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
@@ -215,11 +221,12 @@ impl ManagedDirectory {
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
         let data = reader.as_slice();
-        let len = data.len() - CRC_SIZE;
+        let footer = Footer::from_bytes(data);
+        let data = &data[..data.len() - footer.size() as usize];
         let mut hasher = Hasher::new();
-        hasher.update(&data[..len]);
-        let crc = hasher.finalize().to_be_bytes();
-        Ok(data[len..]==crc)
+        hasher.update(data);
+        let crc = hasher.finalize();
+        Ok(crc == footer.crc())
     }
 
     /// List files for which checksum does not match content
@@ -241,32 +248,114 @@ impl ManagedDirectory {
     }
 }
 
-struct CrcProxy<W: Write> {
-    hasher: Option<Hasher>,
+#[derive(Debug, Copy, Clone)]
+pub enum Footer {
+    V0(V0)
+}
+
+impl Footer {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Footer::V0(f) => f.to_bytes()
+        }
+    }
+
+    pub fn from_bytes(data: &[u8]) -> Self {
+        let len = data.len();
+        assert!(len >= 2);
+        let size = u16::from_be_bytes([data[len - 2], data[len - 1]]);
+        assert_eq!(size, 10);
+        let footer = &data[len - size as usize..];
+        let index_version = footer[0];
+        match index_version {
+            0 => Footer::V0(V0::from_bytes(data)),
+            _ => panic!("unsuported index_version")
+        }
+    }
+
+
+    pub fn index_version(&self) -> u8 {
+        match self {
+            Footer::V0(_) => 0,
+        }
+    }
+
+    pub fn tantivy_version(&self) -> (u8, u8, u8) {
+        match self {
+            Footer::V0(f) => f.tantivy_version,
+        }
+    }
+
+    pub fn crc(&self) -> u32 {
+        match self {
+            Footer::V0(f) => f.crc,
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Footer::V0(_) => V0::size() as usize,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct V0 {
+    pub tantivy_version: (u8,u8,u8),
+    pub crc: u32,
+}
+
+impl V0 {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let crc = self.crc.to_be_bytes();
+        let size = Self::size().to_be_bytes();
+        let mut res = vec![0, self.tantivy_version.0, self.tantivy_version.1, self.tantivy_version.2];
+        res.extend_from_slice(&crc);
+        res.extend_from_slice(&size);
+        res
+    }
+
+    pub fn from_bytes(footer: &[u8]) -> Self {
+        assert_eq!(footer[0], 0);
+        assert_eq!(u16::from_be_bytes([footer[8], footer[9]]), 10);
+        let tantivy_version = (footer[1], footer[2], footer[3]);
+        let crc = u32::from_be_bytes([footer[4], footer[5], footer[6], footer[7]]);
+
+        V0 {
+            tantivy_version,
+            crc
+        }
+    }
+
+    pub fn from_crc(crc: u32) -> Self {
+        Self {
+            tantivy_version: (0,10,0),
+            crc
+        }
+    }
+    pub fn size() -> u16 {
+        10
+    }
+}
+
+struct FooterProxy<W: TerminatingWrite> {
+    hasher: Hasher,
     writer: W,
 }
 
-impl<W: Write> CrcProxy<W> {
+impl<W: TerminatingWrite> FooterProxy<W> {
     fn new(writer: W) -> Self {
-        CrcProxy {
-            hasher: Some(Hasher::new()),
+        FooterProxy {
+            hasher: Hasher::new(),
             writer
         }
     }
 }
 
-impl<W: Write> Drop for CrcProxy<W> {
-    fn drop(&mut self) {
-        // this should probably be logged
-        let _ = self.writer.write_all(&self.hasher.take().unwrap().finalize().to_be_bytes());
-        let _ = self.writer.flush();
-    }
-}
-
-impl<W: Write> Write for CrcProxy<W> {
+impl<W: TerminatingWrite> Write for FooterProxy<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let count = self.writer.write(buf)?;
-        self.hasher.as_mut().unwrap().update(&buf[..count]);
+        self.hasher.update(&buf[..count]);
         Ok(count)
     }
 
@@ -275,27 +364,61 @@ impl<W: Write> Write for CrcProxy<W> {
     }
 }
 
+impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
+    fn terminate(mut self) -> io::Result<()> {
+        let crc = self.hasher.finalize();
+        let footer = V0::from_crc(crc).to_bytes();
+        self.writer.write_all(&footer)?;
+        self.writer.flush()?;//should we assuse calling terminate on inner already flush?
+        self.writer.terminate()
+    }
+}
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.directory.open_read(path).map(|ros| ros.slice_to(ros.as_slice().len() - CRC_SIZE))
+        let ros = self.directory.open_read(path)?;
+        if require_footer(path) {
+            let footer_size = Footer::from_bytes(ros.as_slice()).size();
+            Ok(ros.slice_to(ros.as_slice().len() - footer_size))
+        } else {
+            Ok(ros)
+        }
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|e| IOError::with_path(path.to_owned(), e))?;
-        Ok(io::BufWriter::new(Box::new(
-            CrcProxy::new(self.directory.open_write(path)?.into_inner().map_err(|_|()).expect("buffer is empty"))
-        )))
+        if require_footer(path) {
+            Ok(io::BufWriter::new(Box::new(
+                FooterProxy::new(self.directory.open_write(path)?.into_inner().map_err(|_|()).expect("buffer should be empty"))
+            )))
+        } else {
+           self.directory.open_write(path)
+        }
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
-        self.directory.atomic_write(path, data)
+        if require_footer(path) {
+            let mut with_footer = Vec::with_capacity(data.len() + V0::size() as usize);
+            with_footer.extend_from_slice(&data);
+            let mut hasher = Hasher::new();
+            hasher.update(&data);
+            let crc = hasher.finalize();
+            with_footer.append(&mut V0::from_crc(crc).to_bytes());
+            self.directory.atomic_write(path, &with_footer)
+        } else {
+            self.directory.atomic_write(path, &data)
+        }
     }
 
     fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
-        self.directory.atomic_read(path)
+        let mut vec = self.directory.atomic_read(path)?;
+        if require_footer(path) {
+            let footer_size = Footer::from_bytes(&vec).size();
+            vec.resize(vec.len() - footer_size, 0);
+        }
+        Ok(vec)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
