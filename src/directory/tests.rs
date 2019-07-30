@@ -122,7 +122,7 @@ fn test_watch(directory: &mut dyn Directory) {
     thread::sleep(Duration::new(0, 10_000));
     assert_eq!(0, counter.load(Ordering::SeqCst));
 
-    let watch_handle = directory.watch(watch_callback);
+    let watch_handle = directory.watch(watch_callback).unwrap();
     for i in 0..10 {
         assert_eq!(i, counter.load(Ordering::SeqCst));
         assert!(directory

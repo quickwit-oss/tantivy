@@ -1,3 +1,11 @@
+Tantivy 0.10.1
+=====================
+
+- Closes #544.  A few users experienced problems with the directory watching system.
+Avoid watching the mmap directory until someone effectively creates a reader that uses
+this functionality.
+
+
 Tantivy 0.10.0
 =====================
 

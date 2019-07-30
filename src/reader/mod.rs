@@ -85,7 +85,10 @@ impl IndexReaderBuilder {
                         );
                     }
                 };
-                let watch_handle = inner_reader_arc.index.directory().watch(Box::new(callback));
+                let watch_handle = inner_reader_arc
+                    .index
+                    .directory()
+                    .watch(Box::new(callback))?;
                 watch_handle_opt = Some(watch_handle);
             }
         }

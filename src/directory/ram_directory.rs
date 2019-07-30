@@ -188,7 +188,7 @@ impl Directory for RAMDirectory {
         Ok(())
     }
 
-    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
-        self.fs.write().unwrap().watch(watch_callback)
+    fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
+        Ok(self.fs.write().unwrap().watch(watch_callback))
     }
 }
