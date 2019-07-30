@@ -6,11 +6,16 @@ use crate::Searcher;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::ops::Range;
+
+/// A range of Levenshtein distances that we will build DFAs for our terms
+/// The computation is exponential, so best keep it to low single digits
+const VALID_LEVENSHTEIN_DISTANCE_RANGE: Range<u8> = (0..3);
 
 static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
     let mut lev_builder_cache = HashMap::new();
     // TODO make population lazy on a `(distance, val)` basis
-    for distance in 0..3 {
+    for distance in VALID_LEVENSHTEIN_DISTANCE_RANGE {
         for &transposition in &[false, true] {
             let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
             lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
@@ -110,8 +115,8 @@ impl FuzzyTermQuery {
             }
             None => {
                 return Err(InvalidArgument(format!(
-                    "Levenshtein distance of {} is not allowed. You may choose between [0, 1, 2]",
-                    self.distance
+                    "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
+                    self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
                 )))
             }
         }
