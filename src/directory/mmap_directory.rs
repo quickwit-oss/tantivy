@@ -161,7 +161,7 @@ impl InnerWatcherWrapper {
 }
 
 #[derive(Clone)]
-pub(crate) struct WatcherWrapper {
+struct WatcherWrapper {
     inner: Arc<InnerWatcherWrapper>,
 }
 
@@ -231,7 +231,7 @@ struct MmapDirectoryInner {
     root_path: PathBuf,
     mmap_cache: RwLock<MmapCache>,
     _temp_directory: Option<TempDir>,
-    watcher: RwLock<WatcherWrapper>,
+    watcher: RwLock<Option<WatcherWrapper>>,
 }
 
 impl MmapDirectoryInner {
@@ -239,19 +239,36 @@ impl MmapDirectoryInner {
         root_path: PathBuf,
         temp_directory: Option<TempDir>,
     ) -> Result<MmapDirectoryInner, OpenDirectoryError> {
-        let watch_wrapper = WatcherWrapper::new(&root_path)?;
         let mmap_directory_inner = MmapDirectoryInner {
             root_path,
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
-            watcher: RwLock::new(watch_wrapper),
+            watcher: RwLock::new(None),
         };
         Ok(mmap_directory_inner)
     }
 
-    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
-        let mut wlock = self.watcher.write().unwrap();
-        wlock.watch(watch_callback)
+    fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
+        // a lot of juggling here, to ensure we don't do anything that panics
+        // while the rwlock is held. That way we ensure that the rwlock cannot
+        // be poisoned.
+        //
+        // The downside is that we might create a watch wrapper that is not useful.
+        let need_initialization = self.watcher.read().unwrap().is_none();
+        if need_initialization {
+            let watch_wrapper = WatcherWrapper::new(&self.root_path)?;
+            let mut watch_wlock = self.watcher.write().unwrap();
+            // the watcher could have been initialized when we released the lock, and
+            // we do not want to lose the watched files that were set.
+            if watch_wlock.is_none() {
+                *watch_wlock = Some(watch_wrapper);
+            }
+        }
+        if let Some(watch_wrapper) = self.watcher.write().unwrap().as_mut() {
+            return Ok(watch_wrapper.watch(watch_callback));
+        } else {
+            unreachable!("At this point, watch wrapper is supposed to be initialized");
+        }
     }
 }
 
@@ -514,7 +531,7 @@ impl Directory for MmapDirectory {
         })))
     }
 
-    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+    fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.inner.watch(watch_callback)
     }
 }

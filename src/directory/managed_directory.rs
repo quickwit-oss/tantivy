@@ -241,7 +241,7 @@ impl Directory for ManagedDirectory {
         self.directory.acquire_lock(lock)
     }
 
-    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+    fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.directory.watch(watch_callback)
     }
 }
