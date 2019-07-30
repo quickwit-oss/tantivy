@@ -71,14 +71,12 @@ Tantivy works on stable rust (>= 1.27) and supports Linux, MacOS and Windows.
 
 # Getting started
 
-- [tantivy's simple search example](http://fulmicoton.com/tantivy-examples/simple_search.html)
+- [tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
 - [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
 `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
 index documents and search via the CLI or a small server with a REST API.
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
-- [reference doc]
-    - [For the last released version](https://docs.rs/tantivy/)
-    - [For the last master branch](https://tantivy-search.github.io/tantivy/tantivy/index.html)
+- [reference doc for the last released version](https://docs.rs/tantivy/)
 
 # How can I support this project?
 

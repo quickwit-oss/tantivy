@@ -7,7 +7,7 @@ pub use self::boolean_query::BooleanQuery;
 mod tests {
 
     use super::*;
-    use crate::collector::tests::TestCollector;
+    use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::Intersection;
@@ -134,7 +134,7 @@ mod tests {
         let matching_docs = |boolean_query: &dyn Query| {
             reader
                 .searcher()
-                .search(boolean_query, &TestCollector)
+                .search(boolean_query, &TEST_COLLECTOR_WITH_SCORE)
                 .unwrap()
                 .docs()
                 .iter()
@@ -195,7 +195,7 @@ mod tests {
         let score_docs = |boolean_query: &dyn Query| {
             let fruit = reader
                 .searcher()
-                .search(boolean_query, &TestCollector)
+                .search(boolean_query, &TEST_COLLECTOR_WITH_SCORE)
                 .unwrap();
             fruit.scores().to_vec()
         };

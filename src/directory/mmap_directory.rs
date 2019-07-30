@@ -434,7 +434,6 @@ impl Directory for MmapDirectory {
     /// Any entry associated to the path in the mmap will be
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
         match fs::remove_file(&full_path) {
             Ok(_) => self

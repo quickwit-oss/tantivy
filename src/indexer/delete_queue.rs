@@ -24,7 +24,7 @@ struct InnerDeleteQueue {
     last_block: Option<Arc<Block>>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct DeleteQueue {
     inner: Arc<RwLock<InnerDeleteQueue>>,
 }
@@ -37,6 +37,7 @@ impl DeleteQueue {
         };
 
         let next_block = NextBlock::from(delete_queue.clone());
+
         {
             let mut delete_queue_wlock = delete_queue.inner.write().unwrap();
             delete_queue_wlock.last_block = Some(Arc::new(Block {

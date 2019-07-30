@@ -4,6 +4,7 @@ use crate::core::Executor;
 use crate::core::IndexMeta;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
+use crate::core::SegmentMetaInventory;
 use crate::core::META_FILEPATH;
 use crate::directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
@@ -12,7 +13,6 @@ use crate::directory::INDEX_WRITER_LOCK;
 use crate::directory::{Directory, RAMDirectory};
 use crate::error::DataCorruption;
 use crate::error::TantivyError;
-use crate::indexer::index_writer::open_index_writer;
 use crate::indexer::index_writer::HEAP_SIZE_MIN;
 use crate::indexer::segment_updater::save_new_metas;
 use crate::reader::IndexReader;
@@ -25,17 +25,16 @@ use crate::tokenizer::TokenizerManager;
 use crate::IndexWriter;
 use crate::Result;
 use num_cpus;
-use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::sync::Arc;
 
-fn load_metas(directory: &dyn Directory) -> Result<IndexMeta> {
+fn load_metas(directory: &dyn Directory, inventory: &SegmentMetaInventory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
-    serde_json::from_str(&meta_string)
+    IndexMeta::deserialize(&meta_string, &inventory)
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
@@ -52,6 +51,7 @@ pub struct Index {
     schema: Schema,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
+    inventory: SegmentMetaInventory,
 }
 
 impl Index {
@@ -148,19 +148,23 @@ impl Index {
     fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
-        Index::create_from_metas(directory, &metas)
+        Index::create_from_metas(directory, &metas, SegmentMetaInventory::default())
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
-    fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
+    fn create_from_metas(
+        directory: ManagedDirectory,
+        metas: &IndexMeta,
+        inventory: SegmentMetaInventory,
+    ) -> Result<Index> {
         let schema = metas.schema.clone();
-        let index = Index {
+        Ok(Index {
             directory,
             schema,
             tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
-        };
-        Ok(index)
+            inventory,
+        })
     }
 
     /// Accessor for the tokenizer manager.
@@ -212,16 +216,21 @@ impl Index {
         Index::open(mmap_directory)
     }
 
+    pub(crate) fn inventory(&self) -> &SegmentMetaInventory {
+        &self.inventory
+    }
+
     /// Open the index using the provided directory
     pub fn open<D: Directory>(directory: D) -> Result<Index> {
         let directory = ManagedDirectory::wrap(directory)?;
-        let metas = load_metas(&directory)?;
-        Index::create_from_metas(directory, &metas)
+        let inventory = SegmentMetaInventory::default();
+        let metas = load_metas(&directory, &inventory)?;
+        Index::create_from_metas(directory, &metas, inventory)
     }
 
     /// Reads the index meta file from the directory.
     pub fn load_metas(&self) -> Result<IndexMeta> {
-        load_metas(self.directory())
+        load_metas(self.directory(), &self.inventory)
     }
 
     /// Open a new index writer. Attempts to acquire a lockfile.
@@ -265,7 +274,7 @@ impl Index {
                 )
             })?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        open_index_writer(
+        IndexWriter::new(
             self,
             num_threads,
             heap_size_in_bytes_per_thread,
@@ -315,7 +324,9 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = SegmentMeta::new(SegmentId::generate_random(), 0);
+        let segment_meta = self
+            .inventory
+            .new_segment_meta(SegmentId::generate_random(), 0);
         self.segment(segment_meta)
     }
 

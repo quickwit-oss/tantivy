@@ -72,13 +72,16 @@ impl PhraseQuery {
             .map(|(_, term)| term.clone())
             .collect::<Vec<Term>>()
     }
-}
 
-impl Query for PhraseQuery {
-    /// Create the weight associated to a query.
+    /// Returns the `PhraseWeight` for the given phrase query given a specific `searcher`.  
     ///
-    /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    /// This function is the same as `.weight(...)` except it returns
+    /// a specialized type `PhraseWeight` instead of a Boxed trait.
+    pub(crate) fn phrase_weight(
+        &self,
+        searcher: &Searcher,
+        scoring_enabled: bool,
+    ) -> Result<PhraseWeight> {
         let schema = searcher.schema();
         let field_entry = schema.get_field_entry(self.field);
         let has_positions = field_entry
@@ -95,9 +98,20 @@ impl Query for PhraseQuery {
         }
         let terms = self.phrase_terms();
         let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+        Ok(PhraseWeight::new(
+            self.phrase_terms.clone(),
+            bm25_weight,
+            scoring_enabled,
+        ))
+    }
+}
 
-        let phrase_weight: PhraseWeight =
-            PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, scoring_enabled);
+impl Query for PhraseQuery {
+    /// Create the weight associated to a query.
+    ///
+    /// See [`Weight`](./trait.Weight.html).
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+        let phrase_weight = self.phrase_weight(searcher, scoring_enabled)?;
         Ok(Box::new(phrase_weight))
     }
 

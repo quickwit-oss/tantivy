@@ -1,6 +1,5 @@
 use crate::DocId;
 use crate::Opstamp;
-use std::sync::Arc;
 
 // Doc to opstamp is used to identify which
 // document should be deleted.
@@ -18,18 +17,18 @@ use std::sync::Arc;
 // This mapping is (for the moment) stricly increasing
 // because of the way document id are allocated.
 #[derive(Clone)]
-pub enum DocToOpstampMapping {
-    WithMap(Arc<Vec<u64>>),
+pub enum DocToOpstampMapping<'a> {
+    WithMap(&'a [Opstamp]),
     None,
 }
 
-impl From<Vec<u64>> for DocToOpstampMapping {
-    fn from(opstamps: Vec<Opstamp>) -> DocToOpstampMapping {
-        DocToOpstampMapping::WithMap(Arc::new(opstamps))
+impl<'a> From<&'a [u64]> for DocToOpstampMapping<'a> {
+    fn from(opstamps: &[Opstamp]) -> DocToOpstampMapping {
+        DocToOpstampMapping::WithMap(opstamps)
     }
 }
 
-impl DocToOpstampMapping {
+impl<'a> DocToOpstampMapping<'a> {
     /// Given an opstamp return the limit doc id L
     /// such that all doc id D such that
     // D >= L iff opstamp(D) >= than `target_opstamp`.
@@ -65,17 +64,18 @@ mod tests {
     #[test]
     fn test_doc_to_opstamp_mapping_complex() {
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![]);
+            let doc_to_opstamp_mapping = DocToOpstampMapping::from(&[][..]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(2u64), 0);
         }
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![1u64]);
+            let doc_to_opstamp_mapping = DocToOpstampMapping::from(&[1u64][..]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(2u64), 1);
         }
         {
-            let doc_to_opstamp_mapping = DocToOpstampMapping::from(vec![1u64, 12u64, 17u64, 23u64]);
+            let doc_to_opstamp_mapping =
+                DocToOpstampMapping::from(&[1u64, 12u64, 17u64, 23u64][..]);
             assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(0u64), 0);
             for i in 2u64..13u64 {
                 assert_eq!(doc_to_opstamp_mapping.compute_doc_limit(i), 1);

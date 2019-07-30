@@ -37,7 +37,7 @@ impl PhraseWeight {
         reader.get_fieldnorms_reader(field)
     }
 
-    fn phrase_scorer(
+    pub fn phrase_scorer(
         &self,
         reader: &SegmentReader,
     ) -> Result<Option<PhraseScorer<SegmentPostings>>> {

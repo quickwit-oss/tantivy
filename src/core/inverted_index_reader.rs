@@ -32,7 +32,7 @@ pub struct InvertedIndexReader {
 }
 
 impl InvertedIndexReader {
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))] // for symetry
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))] // for symmetry
     pub(crate) fn new(
         termdict: TermDictionary,
         postings_source: ReadOnlySource,

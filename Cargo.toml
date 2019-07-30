@@ -49,10 +49,11 @@ fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"
 htmlescape = "0.3.1"
-fail = "0.2"
+fail = "0.3"
 scoped-pool = "1.0"
 murmurhash32 = "0.2"
 chrono = "0.4"
+smallvec = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
@@ -73,13 +74,28 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-# by default no-fail is disabled. We manually enable it when running test.
-default = ["mmap", "no_fail"]
+default = ["mmap"]
 mmap = ["atomicwrites", "fs2", "memmap", "notify"]
 lz4-compression = ["lz4"]
-no_fail = ["fail/no_fail"]
+failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
+
+[dev-dependencies.fail]
+features = ["failpoints"]
+
+
+# Following the "fail" crate best practises, we isolate
+# tests that define specific behavior in fail check points
+# in a different binary.
+#
+# We do that because, fail rely on a global definition of
+# failpoints behavior and hence, it is incompatible with
+# multithreading.
+[[test]]
+name = "failpoints"
+path = "tests/failpoints/mod.rs"
+required-features = ["fail/failpoints"]

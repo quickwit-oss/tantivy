@@ -8,13 +8,23 @@ use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 
+pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
+    compute_score: true,
+};
+
+pub const TEST_COLLECTOR_WITHOUT_SCORE: TestCollector = TestCollector {
+    compute_score: true,
+};
+
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
 /// It is unusable in pr
 ///
 /// actise, as it does not store
 /// the segment ordinals
-pub struct TestCollector;
+pub struct TestCollector {
+    pub compute_score: bool,
+}
 
 pub struct TestSegmentCollector {
     segment_id: SegmentLocalId,
@@ -32,7 +42,6 @@ impl TestFruit {
     pub fn docs(&self) -> &[DocAddress] {
         &self.docs[..]
     }
-
     pub fn scores(&self) -> &[Score] {
         &self.scores[..]
     }
@@ -54,7 +63,7 @@ impl Collector for TestCollector {
     }
 
     fn requires_scoring(&self) -> bool {
-        true
+        self.compute_score
     }
 
     fn merge_fruits(&self, mut children: Vec<TestFruit>) -> Result<TestFruit> {

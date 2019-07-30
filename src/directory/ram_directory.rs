@@ -145,6 +145,11 @@ impl Directory for RAMDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        fail_point!("RAMDirectory::delete", |_| {
+            use crate::directory::error::IOError;
+            let io_error = IOError::from(io::Error::from(io::ErrorKind::Other));
+            Err(DeleteError::from(io_error))
+        });
         self.fs.write().unwrap().delete(path)
     }
 

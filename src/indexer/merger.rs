@@ -692,7 +692,7 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
-    use crate::collector::tests::TestCollector;
+    use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
@@ -807,7 +807,7 @@ mod tests {
             let searcher = reader.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let top_docs = searcher.search(&query, &TestCollector).unwrap();
+                let top_docs = searcher.search(&query, &TEST_COLLECTOR_WITH_SCORE).unwrap();
                 top_docs.docs().to_vec()
             };
             {
