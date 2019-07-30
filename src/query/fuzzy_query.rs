@@ -1,3 +1,4 @@
+use crate::error::TantivyError::InvalidArgument;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
 use crate::Result;
@@ -5,11 +6,16 @@ use crate::Searcher;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::ops::Range;
+
+/// A range of Levenshtein distances that we will build DFAs for our terms
+/// The computation is exponential, so best keep it to low single digits
+const VALID_LEVENSHTEIN_DISTANCE_RANGE: Range<u8> = (0..3);
 
 static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
     let mut lev_builder_cache = HashMap::new();
     // TODO make population lazy on a `(distance, val)` basis
-    for distance in 0..3 {
+    for distance in VALID_LEVENSHTEIN_DISTANCE_RANGE {
         for &transposition in &[false, true] {
             let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
             lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
@@ -100,10 +106,20 @@ impl FuzzyTermQuery {
     }
 
     fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
-        let automaton = LEV_BUILDER.get(&(self.distance, false))
-            .unwrap() // TODO return an error
-            .build_dfa(self.term.text());
-        Ok(AutomatonWeight::new(self.term.field(), automaton))
+        // LEV_BUILDER is a HashMap, whose `get` method returns an Option
+        match LEV_BUILDER.get(&(self.distance, false)) {
+            // Unwrap the option and build the Ok(AutomatonWeight)
+            Some(automaton_builder) => {
+                let automaton = automaton_builder.build_dfa(self.term.text());
+                Ok(AutomatonWeight::new(self.term.field(), automaton))
+            }
+            None => {
+                return Err(InvalidArgument(format!(
+                    "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
+                    self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
+                )))
+            }
+        }
     }
 }
 
