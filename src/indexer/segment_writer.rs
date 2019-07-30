@@ -214,6 +214,17 @@ impl SegmentWriter {
                         }
                     }
                 }
+                FieldType::F64(ref int_option) => {
+                    if int_option.is_indexed() {
+                        for field_value in field_values {
+                            let term = Term::from_field_f64(
+                                field_value.field(),
+                                field_value.value().f64_value(),
+                            );
+                            self.multifield_postings.subscribe(doc_id, &term);
+                        }
+                    }
+                }
                 FieldType::Bytes => {
                     // Do nothing. Bytes only supports fast fields.
                 }

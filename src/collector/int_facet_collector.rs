@@ -82,6 +82,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let num_field_i64 = schema_builder.add_i64_field("num_i64", FAST);
         let num_field_u64 = schema_builder.add_u64_field("num_u64", FAST);
+        let num_field_f64 = schema_builder.add_f64_field("num_f64", FAST);
         let text_field = schema_builder.add_text_field("text", STRING);
         let schema = schema_builder.build();
 
@@ -94,6 +95,7 @@ mod tests {
                     index_writer.add_document(doc!(
                         num_field_i64 => ((i as i64) % 3i64) as i64,
                         num_field_u64 => (i % 2u64) as u64,
+                        num_field_f64 => (i % 4u64) as f64,
                         text_field => "text"
                     ));
                 }
@@ -104,10 +106,11 @@ mod tests {
         let searcher = index.reader().searcher();
         let mut ffvf_i64: IntFacetCollector<I64FastFieldReader> = IntFacetCollector::new(num_field_i64);
         let mut ffvf_u64: IntFacetCollector<U64FastFieldReader> = IntFacetCollector::new(num_field_u64);
+        let mut ffvf_f64: IntFacetCollector<F64FastFieldReader> = IntFacetCollector::new(num_field_f64);
 
         {
             // perform the query
-            let mut facet_collectors = chain().push(&mut ffvf_i64).push(&mut ffvf_u64);
+            let mut facet_collectors = chain().push(&mut ffvf_i64).push(&mut ffvf_u64).push(&mut ffvf_f64);
             let mut query_parser = QueryParser::for_index(index, vec![text_field]);
             let query = query_parser.parse_query("text:text").unwrap();
             query.search(&searcher, &mut facet_collectors).unwrap();
@@ -117,6 +120,8 @@ mod tests {
         assert_eq!(ffvf_u64.counters[&1], 5);
         assert_eq!(ffvf_i64.counters[&0], 4);
         assert_eq!(ffvf_i64.counters[&1], 3);
+        assert_eq!(ffvf_f64.counters[&0.0], 3);
+        assert_eq!(ffvf_f64.counters[&2.0], 2);
 
     }
 }

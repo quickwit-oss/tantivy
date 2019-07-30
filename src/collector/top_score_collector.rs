@@ -160,6 +160,7 @@ impl TopDocs {
                 .fast_fields()
                 .u64(field)
                 .expect("Field requested is not a i64/u64 fast field.");
+            //TODO error message missmatch actual behavior for i64
             move |doc: DocId| ff_reader.get(doc)
         })
     }
