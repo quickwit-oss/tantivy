@@ -18,7 +18,7 @@ use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
 use combine::Parser;
 use std::borrow::Cow;
-use std::num::{ParseIntError, ParseFloatError};
+use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
 
@@ -676,7 +676,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_parse_query_to_ast_disjunction() {
+    pub fn test_parse_query_to_ast_single_term() {
         test_parse_query_to_logical_ast_helper(
             "title:toto",
             "Term([0, 0, 0, 0, 116, 111, 116, 111])",
@@ -700,6 +700,10 @@ mod test {
                 .unwrap(),
             QueryParserError::AllButQueryForbidden
         );
+    }
+
+    #[test]
+    pub fn test_parse_query_to_ast_two_terms() {
         test_parse_query_to_logical_ast_helper(
             "title:a b",
             "(Term([0, 0, 0, 0, 97]) (Term([0, 0, 0, 0, 98]) \
@@ -712,6 +716,10 @@ mod test {
              (1, Term([0, 0, 0, 0, 98]))]\"",
             false,
         );
+    }
+
+    #[test]
+    pub fn test_parse_query_to_ast_ranges() {
         test_parse_query_to_logical_ast_helper(
             "title:[a TO b]",
             "(Included(Term([0, 0, 0, 0, 97])) TO \
@@ -877,6 +885,17 @@ mod test {
             "\"[(0, Term([0, 0, 0, 0, 97])), \
              (1, Term([0, 0, 0, 0, 98]))]\"",
             true,
+        );
+    }
+
+    #[test]
+    pub fn test_query_parser_hyphen() {
+        test_parse_query_to_logical_ast_helper(
+            "title:www-form-encoded",
+            "\"[(0, Term([0, 0, 0, 0, 119, 119, 119])), \
+             (1, Term([0, 0, 0, 0, 102, 111, 114, 109])), \
+             (2, Term([0, 0, 0, 0, 101, 110, 99, 111, 100, 101, 100]))]\"",
+            false,
         );
     }
 }

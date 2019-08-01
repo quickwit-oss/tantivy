@@ -20,15 +20,19 @@ parser! {
 parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
-        many1(satisfy(|c: char| c.is_alphanumeric() || c=='.'))
-               .and_then(|s: String| {
-                   match s.as_str() {
-                     "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
-                     "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
-                     "NOT" => Err(StreamErrorFor::<I>::unexpected_static_message("NOT")),
-                     _ => Ok(s)
-                   }
-               })
+        (
+            satisfy(|c: char| c.is_alphanumeric()),
+            many(satisfy(|c: char| !c.is_whitespace() && ![':', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
+        )
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+        .and_then(|s: String| {
+           match s.as_str() {
+             "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
+             "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
+             "NOT" => Err(StreamErrorFor::<I>::unexpected_static_message("NOT")),
+             _ => Ok(s)
+           }
+        })
     }
 }
 
@@ -115,9 +119,7 @@ parser! {
             )
          )
         .or(attempt(
-            range().map(UserInputAST::from)
-            )
-        )
+            range().map(UserInputAST::from)))
         .or(literal().map(|leaf| UserInputAST::Leaf(Box::new(leaf))))
     }
 }
@@ -226,6 +228,13 @@ mod test {
     }
 
     #[test]
+    fn test_parse_query_to_ast_hyphen() {
+        test_parse_query_to_ast_helper("\"www-form-encoded\"", "\"www-form-encoded\"");
+        test_parse_query_to_ast_helper("www-form-encoded", "\"www-form-encoded\"");
+        test_parse_query_to_ast_helper("www-form-encoded", "\"www-form-encoded\"");
+    }
+
+    #[test]
     fn test_parse_query_to_ast_not_op() {
         assert_eq!(
             format!("{:?}", parse_to_ast().parse("NOT")),
@@ -272,6 +281,11 @@ mod test {
         test_parse_query_to_ast_helper("-abc:toto", "-(abc:\"toto\")");
         test_parse_query_to_ast_helper("abc:a b", "(abc:\"a\" \"b\")");
         test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
+        test_is_parse_err("abc +    ");
+    }
+
+    #[test]
+    fn test_parse_query_to_ast_range() {
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "foo:[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
@@ -279,6 +293,5 @@ mod test {
         test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:[\"*\" TO \"toto\"}");
         test_parse_query_to_ast_helper("foo:[1 TO *}", "foo:[\"1\" TO \"*\"}");
         test_parse_query_to_ast_helper("foo:[1.1 TO *}", "foo:[\"1.1\" TO \"*\"}");
-        test_is_parse_err("abc +    ");
     }
 }

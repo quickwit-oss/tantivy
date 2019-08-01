@@ -8,7 +8,7 @@ use tantivy::{Index, Term};
 
 #[test]
 fn test_failpoints_managed_directory_gc_if_delete_fails() {
-    let scenario = fail::FailScenario::setup();
+    let _scenario = fail::FailScenario::setup();
 
     let test_path: &'static Path = Path::new("some_path_for_test");
 

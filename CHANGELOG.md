@@ -2,6 +2,7 @@ Tantivy 0.11.0
 =====================
 
 - Added f64 field. Internally reuse u64 code the same way i64 does (@fdb-hiroshima)
+- Closes #609. Better handling of hyphens in query parser.
 
 Tantivy 0.10.1
 =====================
