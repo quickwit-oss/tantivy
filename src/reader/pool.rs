@@ -123,6 +123,10 @@ impl<T> Pool<T> {
     }
 }
 
+/// A LeasedItem holds an object borrowed from a Pool.
+///
+/// Upon drop, the object is automatically returned
+/// into the pool.
 pub struct LeasedItem<T> {
     gen_item: Option<GenerationItem<T>>,
     recycle_queue: Arc<Queue<GenerationItem<T>>>,

@@ -1,6 +1,7 @@
 mod pool;
 
-use self::pool::{LeasedItem, Pool};
+pub use self::pool::LeasedItem;
+use self::pool::Pool;
 use crate::core::Segment;
 use crate::directory::Directory;
 use crate::directory::WatchHandle;
