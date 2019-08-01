@@ -13,6 +13,7 @@ use crate::Result;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
+use std::fmt;
 
 /// The Top Score Collector keeps track of the K documents
 /// sorted by their score.
@@ -67,6 +68,12 @@ use crate::SegmentReader;
 /// }
 /// ```
 pub struct TopDocs(TopCollector<Score>);
+
+impl fmt::Debug for TopDocs {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TopDocs({})", self.0.limit())
+    }
+}
 
 impl TopDocs {
     /// Creates a top score collector, with a number of documents equal to "limit".

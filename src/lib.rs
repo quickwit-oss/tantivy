@@ -171,15 +171,15 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
 
+pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::SegmentComponent;
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
 pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
+pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
-
-pub use crate::common::{i64_to_u64, u64_to_i64, f64_to_u64, u64_to_f64};
 
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
@@ -849,7 +849,8 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 50_000_000).unwrap();
         {
-            let document = doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64, fast_field_float=>4f64);
+            let document =
+                doc!(fast_field_unsigned => 4u64, fast_field_signed=>4i64, fast_field_float=>4f64);
             index_writer.add_document(document);
             index_writer.commit().unwrap();
         }
