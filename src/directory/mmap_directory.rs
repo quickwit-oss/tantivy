@@ -36,7 +36,7 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
@@ -294,7 +294,7 @@ impl MmapDirectory {
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RAMDirectory.
     pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
-        let tempdir = TempDir::new("index").map_err(OpenDirectoryError::IoError)?;
+        let tempdir = TempDir::new().map_err(OpenDirectoryError::IoError)?;
         let tempdir_path = PathBuf::from(tempdir.path());
         MmapDirectory::new(tempdir_path, Some(tempdir))
     }
@@ -642,7 +642,7 @@ mod tests {
     fn test_watch_wrapper() {
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
-        let tmp_dir: TempDir = tempdir::TempDir::new("test_watch_wrapper").unwrap();
+        let tmp_dir = tempfile::TempDir::new().unwrap();
         let tmp_dirpath = tmp_dir.path().to_owned();
         let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath).unwrap();
         let tmp_file = tmp_dirpath.join("coucou");

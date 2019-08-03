@@ -18,11 +18,12 @@ use tantivy::collector::FacetCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::*;
 use tantivy::Index;
+use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
     // sake of this example
-    let index_path = TempDir::new("tantivy_facet_example_dir")?;
+    let index_path = TempDir::new()?;
     let mut schema_builder = Schema::builder();
 
     schema_builder.add_text_field("name", TEXT | STORED);
@@ -75,4 +76,3 @@ fn main() -> tantivy::Result<()> {
     Ok(())
 }
 
-use tempdir::TempDir;

@@ -263,11 +263,11 @@ mod tests_mmap_specific {
     use std::collections::HashSet;
     use std::io::Write;
     use std::path::{Path, PathBuf};
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     #[test]
     fn test_managed_directory() {
-        let tempdir = TempDir::new("tantivy-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
 
         let test_path1: &'static Path = Path::new("some_path_for_test");
@@ -304,7 +304,7 @@ mod tests_mmap_specific {
     fn test_managed_directory_gc_while_mmapped() {
         let test_path1: &'static Path = Path::new("some_path_for_test");
 
-        let tempdir = TempDir::new("index").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
         let living_files = HashSet::new();
 

@@ -459,13 +459,13 @@ mod tests {
 
         use super::*;
         use std::path::PathBuf;
-        use tempdir::TempDir;
+        use tempfile::TempDir;
 
         #[test]
         fn test_index_on_commit_reload_policy_mmap() {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
-            let tempdir = TempDir::new("index").unwrap();
+            let tempdir = TempDir::new().unwrap();
             let tempdir_path = PathBuf::from(tempdir.path());
             let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
             let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
@@ -504,7 +504,7 @@ mod tests {
         fn test_index_on_commit_reload_policy_different_directories() {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
-            let tempdir = TempDir::new("index").unwrap();
+            let tempdir = TempDir::new().unwrap();
             let tempdir_path = PathBuf::from(tempdir.path());
             let write_index = Index::create_in_dir(&tempdir_path, schema).unwrap();
             let read_index = Index::open_in_dir(&tempdir_path).unwrap();

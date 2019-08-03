@@ -19,12 +19,12 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
 use tantivy::ReloadPolicy;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
     // sake of this example
-    let index_path = TempDir::new("tantivy_example_dir")?;
+    let index_path = TempDir::new()?;
 
     // # Defining the schema
     //
