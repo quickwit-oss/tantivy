@@ -761,7 +761,6 @@ mod tests {
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
-    use fail;
 
     #[test]
     fn test_operations_group() {

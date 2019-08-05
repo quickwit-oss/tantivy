@@ -25,7 +25,6 @@ atomicwrites = {version="0.2.2", optional=true}
 tempfile = "3.0"
 log = "0.4"
 combine = ">=3.6.0,<4.0.0"
-tempdir = "0.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -36,7 +35,7 @@ levenshtein_automata = {version="0.1", features=["fst_automaton"]}
 notify = {version="4", optional=true}
 bit-set = "0.5"
 uuid = { version = "0.7.2", features = ["v4", "serde"] }
-crossbeam = "0.5"
+crossbeam = "0.7"
 futures = "0.1"
 futures-cpupool = "0.1"
 owning_ref = "0.4"
