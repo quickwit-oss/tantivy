@@ -19,7 +19,6 @@ use crate::directory::WatchCallback;
 use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
 use crate::directory::WritePtr;
-use atomicwrites;
 use memmap::Mmap;
 use std::collections::HashMap;
 use std::convert::From;
@@ -37,6 +36,7 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempfile::TempDir;
+use tempfile::NamedTempFile;
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
@@ -506,8 +506,9 @@ impl Directory for MmapDirectory {
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
-        let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
-        meta_file.write(|f| f.write_all(data))?;
+        let mut temp = NamedTempFile::new_in(full_path.parent().expect("has filename"))?;
+        temp.as_file_mut().write_all(data)?;
+        temp.persist(full_path)?;
         Ok(())
     }
 

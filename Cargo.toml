@@ -21,7 +21,6 @@ tantivy-fst = "0.1"
 memmap = {version = "0.7", optional=true}
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
-atomicwrites = {version="0.2.2", optional=true}
 tempfile = "3.0"
 log = "0.4"
 combine = ">=3.6.0,<4.0.0"
@@ -74,7 +73,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap"]
-mmap = ["atomicwrites", "fs2", "memmap", "notify"]
+mmap = ["fs2", "memmap", "notify"]
 lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
