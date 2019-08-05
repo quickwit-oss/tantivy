@@ -261,6 +261,24 @@ impl Schema {
         NamedFieldDocument(field_map)
     }
 
+    /// Converts a named doc into a document.
+    pub fn from_named_doc(
+        &self,
+        named_doc: NamedFieldDocument,
+    ) -> Result<Document, DocParsingError> {
+        let mut doc = Document::default();
+        for (field_name, field_values) in named_doc.0 {
+            if let Some(field) = self.get_field(&field_name) {
+                for field_value in field_values {
+                    doc.add(FieldValue::new(field, field_value));
+                }
+            } else {
+                return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone()));
+            }
+        }
+        Ok(doc)
+    }
+
     /// Encode the schema in JSON.
     ///
     /// Encoding a document cannot fail.
@@ -279,7 +297,6 @@ impl Schema {
                 };
                 DocParsingError::NotJSON(doc_json_sample)
             })?;
-
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
             match self.get_field(field_name) {
