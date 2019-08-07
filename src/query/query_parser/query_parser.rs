@@ -369,6 +369,7 @@ impl QueryParser {
         match *bound {
             UserInputBound::Inclusive(_) => Ok(Bound::Included(term)),
             UserInputBound::Exclusive(_) => Ok(Bound::Excluded(term)),
+            UserInputBound::Unbounded => Ok(Bound::Unbounded),
         }
     }
 

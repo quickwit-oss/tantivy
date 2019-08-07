@@ -52,6 +52,7 @@ impl fmt::Debug for UserInputLiteral {
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
+    Unbounded,
 }
 
 impl UserInputBound {
@@ -59,6 +60,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{}\"", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
+            UserInputBound::Unbounded => write!(formatter, "{{*"),
         }
     }
 
@@ -66,6 +68,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),
+            UserInputBound::Unbounded => write!(formatter, "*}}"),
         }
     }
 
@@ -73,6 +76,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref contents) => contents,
             UserInputBound::Exclusive(ref contents) => contents,
+            UserInputBound::Unbounded => &"*",
         }
     }
 }

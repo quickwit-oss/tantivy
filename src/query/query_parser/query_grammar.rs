@@ -83,14 +83,25 @@ parser! {
             word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
         };
         let lower_bound = {
-            let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
-            let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
-            attempt(excl).or(incl)
+            let excl = (choice([char('{'), char('>')]), term_val())
+                        .map(|(_, w)| UserInputBound::Exclusive(w));
+
+            let incl = (choice([string("["), string(">=")]), term_val())
+                .map(|(_, w)| UserInputBound::Inclusive(w));
+
+            // parsers are greedy if '>' will match before '>=',
+            // hence inverse order
+            attempt(incl).or(excl)
         };
+
         let upper_bound = {
-            let excl = (term_val(), char('}')).map(|(w, _)| UserInputBound::Exclusive(w));
-            let incl = (term_val(), char(']')).map(|(w, _)| UserInputBound::Inclusive(w));
-            attempt(excl).or(incl)
+            let excl = (choice([char('}'), char('<')]), term_val())
+                .map(|(_, w)| UserInputBound::Exclusive(w));
+
+            let incl = (choice([string("]"), string("<=")]), term_val())
+                .map(|(_, w)| UserInputBound::Inclusive(w));
+            // if incl didn't match, restart with excl
+            attempt(incl).or(excl)
         };
         (
             optional((field(), char(':')).map(|x| x.0)),
@@ -104,6 +115,29 @@ parser! {
                 lower,
                 upper
         })
+    }
+}
+
+parser! {
+    /// Parser to support ElasticSearch-style query syntax
+    /// for queries unbounded on one and only one end.
+    fn elastic_range[I]()(I) -> UserInputLeaf
+    where [I: Stream<Item = char>] {
+        let term_val = || {
+            word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
+        };
+        let lower_bound = {
+            let excl = (char('>'), char('='), term_val()).map(|(_, _, w)| UserInputBound::Inclusive(w));
+            let incl = (char('>'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
+            attempt(excl).or(incl)
+        };
+        (
+        optional((field(), char(':')).map(|x| x.0)),
+        lower_bound,
+    ).map(|(field, lower) | UserInputLeaf::Range {
+        field, lower, upper: UserInputBound::Unbounded
+    }
+        )
     }
 }
 
@@ -266,6 +300,27 @@ mod test {
             format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")),
             "Err(UnexpectedParse)"
         );
+    }
+
+    #[test]
+    fn test_parse_elastic_query_ranges() {
+        test_parse_query_to_ast_helper("title:>a", "title:{\"a\" TO \"*\"]");
+        test_parse_query_to_ast_helper("title:>=a", "title:[\"a\" TO \"*\"]");
+        test_parse_query_to_ast_helper("title:<a", "title:{\"*\" TO \"a\"}");
+        test_parse_query_to_ast_helper("title:<=a", "title:{\"*\" TO \"a\"]");
+
+        test_parse_query_to_ast_helper("weight:>70", "weight:{\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight:>=70", "weight:[\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight:<70", "weight:{\"*\" TO \"70\"}");
+        test_parse_query_to_ast_helper("weight:<=70", "weight:{\"*\" TO \"70\"]");
+    }
+
+    #[test]
+    fn test_elastic_syntax() {
+        let expected = "title:{\"a\" TO *}";
+        // no PartialEq trait for UserInputLeaf, so compare format strings
+        // comparing strings is more brittle
+        assert_eq!(format!("{:?}", elastic_range().parse("title:>a").unwrap().0), expected);
     }
 
     #[test]
