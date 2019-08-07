@@ -338,39 +338,33 @@ mod tests {
     use crate::collector::Count;
     use crate::schema::{Document, Field, Schema, INDEXED};
     use crate::Index;
-    use crate::Result;
     use std::collections::Bound;
 
     #[test]
     fn test_range_query_simple() {
-        fn run() -> Result<()> {
-            let mut schema_builder = Schema::builder();
-            let year_field = schema_builder.add_u64_field("year", INDEXED);
-            let schema = schema_builder.build();
+        let mut schema_builder = Schema::builder();
+        let year_field = schema_builder.add_u64_field("year", INDEXED);
+        let schema = schema_builder.build();
 
-            let index = Index::create_in_ram(schema);
-            {
-                let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
-                for year in 1950u64..2017u64 {
-                    let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
-                    for _ in 0..num_docs_within_year {
-                        index_writer.add_document(doc!(year_field => year));
-                    }
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
+            for year in 1950u64..2017u64 {
+                let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
+                for _ in 0..num_docs_within_year {
+                    index_writer.add_document(doc!(year_field => year));
                 }
-                index_writer.commit().unwrap();
             }
-            let reader = index.reader().unwrap();
-            let searcher = reader.searcher();
-
-            let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
-
-            // ... or `1960..=1969` if inclusive range is enabled.
-            let count = searcher.search(&docs_in_the_sixties, &Count)?;
-            assert_eq!(count, 2285);
-            Ok(())
+            index_writer.commit().unwrap();
         }
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
 
-        run().unwrap();
+        let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
+
+        // ... or `1960..=1969` if inclusive range is enabled.
+        let count = searcher.search(&docs_in_the_sixties, &Count).unwrap();
+        assert_eq!(count, 2285);
     }
 
     #[test]
@@ -460,7 +454,10 @@ mod tests {
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
 
-        assert_eq!(count_multiples(RangeQuery::new_f64(float_field, 10.0..11.0)), 9);
+        assert_eq!(
+            count_multiples(RangeQuery::new_f64(float_field, 10.0..11.0)),
+            9
+        );
         assert_eq!(
             count_multiples(RangeQuery::new_f64_bounds(
                 float_field,
