@@ -765,6 +765,19 @@ mod test {
             "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO Unbounded)",
             false,
         );
+        test_parse_query_to_logical_ast_helper(
+            "signed:{-5 TO 3}",
+            "(Excluded(Term([0, 0, 0, 2, 127, 255, 255, 255, 255, 255, 255, 251])) TO \
+            Excluded(Term([0, 0, 0, 2, 128, 0, 0, 0, 0, 0, 0, 3])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "float:{-1.5 TO 1.5}",
+            "(Excluded(Term([0, 0, 0, 10, 64, 7, 255, 255, 255, 255, 255, 255])) TO \
+            Excluded(Term([0, 0, 0, 10, 191, 248, 0, 0, 0, 0, 0, 0])))",
+            false,
+        );
+
         test_parse_query_to_logical_ast_helper("*", "*", false);
     }
 

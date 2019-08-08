@@ -63,8 +63,15 @@ parser! {
     fn negative_number[I]()(I) -> String
     where [I: Stream<Item = char>]
     {
-        (char('-'), many1(satisfy(char::is_numeric)))
-            .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+        (char('-'), many1(satisfy(char::is_numeric)),
+         optional((char('.'), many1(satisfy(char::is_numeric)))))
+            .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
+                if let Some(('.', s3)) = s3 {
+                    format!("{}{}.{}", s1, s2, s3)
+                } else {
+                    format!("{}{}", s1, s2)
+                }
+            })
     }
 }
 
