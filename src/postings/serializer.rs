@@ -1,6 +1,6 @@
 use super::TermInfo;
+use crate::common::CountingWriter;
 use crate::common::{BinarySerializable, VInt};
-use crate::common::{CompositeWrite, CountingWriter};
 use crate::core::Segment;
 use crate::directory::WritePtr;
 use crate::positions::PositionSerializer;
@@ -10,6 +10,7 @@ use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
+use crate::CompositeWrite;
 use crate::DocId;
 use crate::Result;
 use std::io::{self, Write};

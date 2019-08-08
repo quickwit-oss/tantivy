@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_term_info_block() {
-        common::test::fixed_size_test::<TermInfoBlockMeta>();
+        common::fixed_size_test::<TermInfoBlockMeta>();
     }
 
     #[test]

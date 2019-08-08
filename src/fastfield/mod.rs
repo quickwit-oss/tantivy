@@ -148,13 +148,13 @@ fn value_to_u64(value: &Value) -> u64 {
 mod tests {
 
     use super::*;
-    use crate::common::CompositeFile;
     use crate::directory::{Directory, RAMDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use crate::schema::Document;
     use crate::schema::Field;
     use crate::schema::Schema;
     use crate::schema::FAST;
+    use crate::CompositeFile;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;

@@ -124,6 +124,10 @@ mod tests {
     use crate::common::BitSet;
     use crate::docset::{DocSet, SkipResult};
     use crate::DocId;
+    use rand::distributions::Uniform;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use std::collections::BTreeSet;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
@@ -216,7 +220,6 @@ mod tests {
             assert!(!docset.advance());
         }
     }
-
 }
 
 #[cfg(all(test, feature = "unstable"))]

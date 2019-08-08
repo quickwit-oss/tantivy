@@ -1,4 +1,3 @@
-use crate::common::CompositeFile;
 use crate::common::HasLen;
 use crate::core::InvertedIndexReader;
 use crate::core::Segment;
@@ -15,6 +14,7 @@ use crate::schema::Schema;
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
+use crate::CompositeFile;
 use crate::DocId;
 use crate::Result;
 use fail::fail_point;

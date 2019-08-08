@@ -45,7 +45,7 @@ impl BinarySerializable for TermInfo {
 mod tests {
 
     use super::TermInfo;
-    use crate::common::test::fixed_size_test;
+    use crate::common::fixed_size_test;
 
     #[test]
     fn test_fixed_size() {

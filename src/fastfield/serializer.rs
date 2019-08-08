@@ -1,10 +1,10 @@
 use crate::common::bitpacker::BitPacker;
 use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
-use crate::common::CompositeWrite;
 use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;
+use crate::CompositeWrite;
 use std::io::{self, Write};
 
 /// `FastFieldSerializer` is in charge of serializing

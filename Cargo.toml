@@ -54,6 +54,10 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "0.6"
 
+tantivy-schema = {path= "./tantivy-schema"}
+tantivy-tokenizer = {path= "./tantivy-tokenizer"}
+tantivy-common = {path="./tantivy-common"}
+
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
 
@@ -97,3 +101,7 @@ features = ["failpoints"]
 name = "failpoints"
 path = "tests/failpoints/mod.rs"
 required-features = ["fail/failpoints"]
+
+
+[workspace]
+members = ["tantivy-schema", "tantivy-common", "tantivy-tokenizer"]

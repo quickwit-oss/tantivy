@@ -1,6 +1,6 @@
-use crate::common::CompositeWrite;
 use crate::directory::WritePtr;
 use crate::schema::Field;
+use crate::CompositeWrite;
 use std::io;
 use std::io::Write;
 

@@ -539,7 +539,7 @@ impl Directory for MmapDirectory {
 #[cfg(test)]
 mod tests {
 
-    // There are more tests in directory/mod.rs
+    // There are more tests in directory/lib.rs
     // The following tests are specific to the MmapDirectory
 
     use super::*;

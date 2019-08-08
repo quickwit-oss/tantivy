@@ -1,0 +1,13 @@
+[package]
+name = "tantivy-tokenizer"
+version = "0.1.0"
+authors = ["Paul Masurel <paul.masurel@gmail.com>"]
+edition = "2018"
+workspace = ".."
+
+[dependencies]
+fnv = "*"
+rust-stemmers = "*"
+serde = "*"
+serde_derive = "*"
+tantivy-schema = {path="../tantivy-schema"}
