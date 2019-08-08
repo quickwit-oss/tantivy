@@ -18,7 +18,6 @@ pub enum LogicalLiteral {
     All,
 }
 
-#[derive(Clone)]
 pub enum LogicalAST {
     Clause(Vec<(Occur, LogicalAST)>),
     Leaf(Box<LogicalLiteral>),
