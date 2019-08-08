@@ -108,7 +108,9 @@ impl FieldEntry {
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_int_fast(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) | FieldType::I64(ref options) | FieldType::F64(ref options) => options.is_fast(),
+            FieldType::U64(ref options)
+            | FieldType::I64(ref options)
+            | FieldType::F64(ref options) => options.is_fast(),
             _ => false,
         }
     }

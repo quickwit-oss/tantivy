@@ -31,7 +31,9 @@ impl FastFieldsWriter {
                 _ => 0u64,
             };
             match *field_entry.field_type() {
-                FieldType::I64(ref int_options) | FieldType::U64(ref int_options) | FieldType::F64(ref int_options) => {
+                FieldType::I64(ref int_options)
+                | FieldType::U64(ref int_options)
+                | FieldType::F64(ref int_options) => {
                     match int_options.get_fastfield_cardinality() {
                         Some(Cardinality::SingleValue) => {
                             let mut fast_field_writer = IntFastFieldWriter::new(field);

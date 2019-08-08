@@ -460,7 +460,10 @@ mod tests {
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
 
-        assert_eq!(count_multiples(RangeQuery::new_f64(float_field, 10.0..11.0)), 9);
+        assert_eq!(
+            count_multiples(RangeQuery::new_f64(float_field, 10.0..11.0)),
+            9
+        );
         assert_eq!(
             count_multiples(RangeQuery::new_f64_bounds(
                 float_field,

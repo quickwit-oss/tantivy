@@ -177,7 +177,7 @@ impl Directory for RAMDirectory {
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         fail_point!("RAMDirectory::atomic_write", |msg| Err(io::Error::new(
             io::ErrorKind::Other,
-            msg.unwrap_or("Undefined".to_string())
+            msg.unwrap_or_else(|| "Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
 

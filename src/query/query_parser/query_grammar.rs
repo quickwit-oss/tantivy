@@ -186,7 +186,7 @@ parser! {
     pub fn parse_to_ast[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>]
     {
-        spaces().with(optional(ast()).skip(eof())).map(|opt_ast| opt_ast.unwrap_or(UserInputAST::empty_query()))
+        spaces().with(optional(ast()).skip(eof())).map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
     }
 }
 
