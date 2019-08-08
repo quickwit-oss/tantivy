@@ -80,9 +80,6 @@ impl UserInputBound {
 pub enum UserInputAST {
     Clause(Vec<UserInputAST>),
     Unary(Occur, Box<UserInputAST>),
-    //    Not(Box<UserInputAST>),
-    //    Should(Box<UserInputAST>),
-    //    Must(Box<UserInputAST>),
     Leaf(Box<UserInputLeaf>),
 }
 
@@ -92,7 +89,7 @@ impl UserInputAST {
     }
 
     fn compose(occur: Occur, asts: Vec<UserInputAST>) -> UserInputAST {
-        assert!(occur != Occur::MustNot);
+        assert_ne!(occur, Occur::MustNot);
         assert!(!asts.is_empty());
         if asts.len() == 1 {
             asts.into_iter().next().unwrap() //< safe
@@ -105,6 +102,10 @@ impl UserInputAST {
         }
     }
 
+    pub fn empty_query() -> UserInputAST {
+        UserInputAST::Clause(Vec::default())
+    }
+
     pub fn and(asts: Vec<UserInputAST>) -> UserInputAST {
         UserInputAST::compose(Occur::Must, asts)
     }
@@ -113,42 +114,6 @@ impl UserInputAST {
         UserInputAST::compose(Occur::Should, asts)
     }
 }
-
-/*
-impl UserInputAST {
-
-    fn compose_occur(self, occur: Occur) -> UserInputAST {
-        match self {
-            UserInputAST::Not(other) => {
-                let new_occur = compose_occur(Occur::MustNot, occur);
-                other.simplify()
-            }
-            _ => {
-                self
-            }
-        }
-    }
-
-    pub fn simplify(self) -> UserInputAST {
-        match self {
-            UserInputAST::Clause(els) => {
-                if els.len() == 1 {
-                    return els.into_iter().next().unwrap();
-                } else {
-                    return self;
-                }
-            }
-            UserInputAST::Not(els) => {
-                if els.len() == 1 {
-                    return els.into_iter().next().unwrap();
-                } else {
-                    return self;
-                }
-            }
-        }
-    }
-}
-*/
 
 impl From<UserInputLiteral> for UserInputLeaf {
     fn from(literal: UserInputLiteral) -> UserInputLeaf {
