@@ -75,4 +75,3 @@ fn main() -> tantivy::Result<()> {
 
     Ok(())
 }
-

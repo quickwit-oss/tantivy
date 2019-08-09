@@ -113,12 +113,10 @@ impl FuzzyTermQuery {
                 let automaton = automaton_builder.build_dfa(self.term.text());
                 Ok(AutomatonWeight::new(self.term.field(), automaton))
             }
-            None => {
-                return Err(InvalidArgument(format!(
-                    "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
-                    self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
-                )))
-            }
+            None => Err(InvalidArgument(format!(
+                "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
+                self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
+            ))),
         }
     }
 }

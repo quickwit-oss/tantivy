@@ -83,9 +83,9 @@ impl FieldType {
     pub fn is_indexed(&self) -> bool {
         match *self {
             FieldType::Str(ref text_options) => text_options.get_indexing_options().is_some(),
-            FieldType::U64(ref int_options) | FieldType::I64(ref int_options) | FieldType::F64(ref int_options) => {
-                int_options.is_indexed()
-            }
+            FieldType::U64(ref int_options)
+            | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::HierarchicalFacet => true,
             FieldType::Bytes => false,
@@ -125,9 +125,12 @@ impl FieldType {
         match *json {
             JsonValue::String(ref field_text) => match *self {
                 FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => Err(
-                    ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
-                ),
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {
+                    Err(ValueParsingError::TypeError(format!(
+                        "Expected an integer, got {:?}",
+                        json
+                    )))
+                }
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
                 FieldType::Bytes => decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64(format!(
@@ -152,7 +155,7 @@ impl FieldType {
                         let msg = format!("Expected a u64 int, got {:?}", json);
                         Err(ValueParsingError::OverflowError(msg))
                     }
-                },
+                }
                 FieldType::F64(_) => {
                     if let Some(field_val_f64) = field_val_num.as_f64() {
                         Ok(Value::F64(field_val_f64))

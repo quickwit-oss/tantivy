@@ -2,7 +2,7 @@ use crate::schema::Facet;
 use crate::DateTime;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{fmt, cmp::Ordering};
+use std::{cmp::Ordering, fmt};
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -27,7 +27,7 @@ pub enum Value {
 impl Eq for Value {}
 impl Ord for Value {
     fn cmp(&self, other: &Self) -> Ordering {
-        match (self,other) {
+        match (self, other) {
             (Value::Str(l), Value::Str(r)) => l.cmp(r),
             (Value::U64(l), Value::U64(r)) => l.cmp(r),
             (Value::I64(l), Value::I64(r)) => l.cmp(r),
@@ -35,7 +35,7 @@ impl Ord for Value {
             (Value::Facet(l), Value::Facet(r)) => l.cmp(r),
             (Value::Bytes(l), Value::Bytes(r)) => l.cmp(r),
             (Value::F64(l), Value::F64(r)) => {
-                match (l.is_nan(),r.is_nan()) {
+                match (l.is_nan(), r.is_nan()) {
                     (false, false) => l.partial_cmp(r).unwrap(), // only fail on NaN
                     (true, true) => Ordering::Equal,
                     (true, false) => Ordering::Less, // we define NaN as less than -∞
@@ -155,7 +155,7 @@ impl Value {
             Value::F64(ref value) => *value,
             _ => panic!("This is not a f64 field."),
         }
-    }    
+    }
 
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
@@ -219,7 +219,7 @@ impl From<Vec<u8>> for Value {
 
 mod binary_serialize {
     use super::Value;
-    use crate::common::{BinarySerializable, f64_to_u64, u64_to_f64};
+    use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use crate::schema::Facet;
     use chrono::{TimeZone, Utc};
     use std::io::{self, Read, Write};
