@@ -67,10 +67,12 @@ impl<Item: FastValue> FastFieldReader<Item> {
     ///
     /// May panic if `doc` is greater than the segment
     // `maxdoc`.
+    #[inline(always)]
     pub fn get(&self, doc: DocId) -> Item {
         self.get_u64(u64::from(doc))
     }
 
+    #[inline(always)]
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
         Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc))
     }

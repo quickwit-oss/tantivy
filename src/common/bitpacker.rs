@@ -86,6 +86,7 @@ where
         }
     }
 
+    #[inline(always)]
     pub fn get(&self, idx: u64) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
