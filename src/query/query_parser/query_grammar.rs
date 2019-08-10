@@ -44,9 +44,9 @@ parser! {
         };
         let term_val_with_field = negative_number().or(term_val());
         let term_query =
-            (field(), term_val_with_field)
-            .map(|(field_name, phrase)| UserInputLiteral {
-                field_name: Some(field_name),
+            (optional(field()), term_val_with_field)
+            .map(|(some_field_name, phrase)| UserInputLiteral {
+                field_name: some_field_name,
                 phrase,
             });
         let term_default_field = term_val().map(|phrase| UserInputLiteral {
@@ -83,51 +83,57 @@ parser! {
 }
 
 parser! {
+    /// Function that parser a range out of the Stream
+    /// Supports ranges like [5 TO 10], [* TO 10], [10 TO *], >5, <=10
+    ///
     fn range[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>] {
-//         let term_val = || {
-//             word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
-//         };
-//         let lower_bound = {
-//             let excl = (choice([char('{'), char('>')]), term_val())
-//                         .map(|(_, w)| UserInputBound::Exclusive(w));
-
-//             let incl = (choice([string("["), string(">=")]), term_val())
-//                 .map(|(_, w)| UserInputBound::Inclusive(w));
-
-//             // parsers are greedy if '>' will match before '>=',
-//             // hence inverse order
-//             attempt(incl).or(excl)
-//         };
-
-//         let upper_bound = {
-//             let excl = (choice([char('}'), char('<')]), term_val())
-//                 .map(|(_, w)| UserInputBound::Exclusive(w));
-
-//             let incl = (choice([string("]"), string("<=")]), term_val())
-//                 .map(|(_, w)| UserInputBound::Inclusive(w));
-//             // if incl didn't match, restart with excl
-//             attempt(incl).or(excl)
         let range_term_val = || {
             word().or(negative_number()).or(char('*').with(value("*".to_string())))
         };
+
+        // check for unbounded range in the form of <5, <=10, >5, >=5
+        let unbounded_range = (choice([string(">="), string("<="),
+                                       string("<"), string(">")]),
+                               range_term_val()).
+            map(|(comparison_sign, bound): (&str, String)|
+                match comparison_sign {
+                    ">=" => return (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
+                    "<=" => return (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
+                    "<" => return (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
+                    ">" => return (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
+                    _ => return (UserInputBound::Unbounded, UserInputBound::Unbounded)
+                });
         let lower_bound = (one_of("{[".chars()), range_term_val())
             .map(|(boundary_char, lower_bound): (char, String)|
-                if boundary_char == '{' { UserInputBound::Exclusive(lower_bound) }
-                else { UserInputBound::Inclusive(lower_bound) });
+                 if boundary_char == '{' {
+                     UserInputBound::Exclusive(lower_bound)
+                 } else {
+                     UserInputBound::Inclusive(lower_bound)
+                 });
         let upper_bound = (range_term_val(), one_of("}]".chars()))
             .map(|(higher_bound, boundary_char): (String, char)|
-                if boundary_char == '}' { UserInputBound::Exclusive(higher_bound) }
-                else { UserInputBound::Inclusive(higher_bound) });
-        (
-            optional(field()),
-            lower_bound
-            .skip((spaces(), string("TO"), spaces())),
-            upper_bound,
-        ).map(|(field, lower, upper)| UserInputLeaf::Range {
-                field,
-                lower,
-                upper
+                 if boundary_char == '}' {
+                     UserInputBound::Exclusive(higher_bound)
+                 } else {
+                     UserInputBound::Inclusive(higher_bound) });
+
+        let find_lower_and_upper = (lower_bound.
+                                    skip((spaces(),
+                                          string("TO"),
+                                          spaces())),
+                                    upper_bound);
+
+        (optional(field()),
+         // try elastic first, if it matches, the range is unbounded
+         attempt(unbounded_range).or(find_lower_and_upper))
+            .map(|(field, (lower, upper))|
+                 // Construct the leaf from extracted field (optional)
+                 // and bounds
+                 UserInputLeaf::Range {
+                     field,
+                     lower,
+                     upper
         })
     }
 }
@@ -138,29 +144,6 @@ fn negate(expr: UserInputAST) -> UserInputAST {
 
 fn must(expr: UserInputAST) -> UserInputAST {
     expr.unary(Occur::Must)
-}
-
-parser! {
-    /// Parser to support ElasticSearch-style query syntax
-    /// for queries unbounded on one and only one end.
-    fn elastic_range[I]()(I) -> UserInputLeaf
-    where [I: Stream<Item = char>] {
-        let term_val = || {
-            word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
-        };
-        let lower_bound = {
-            let excl = (char('>'), char('='), term_val()).map(|(_, _, w)| UserInputBound::Inclusive(w));
-            let incl = (char('>'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
-            attempt(excl).or(incl)
-        };
-        (
-        optional((field(), char(':')).map(|x| x.0)),
-        lower_bound,
-    ).map(|(field, lower) | UserInputLeaf::Range {
-        field, lower, upper: UserInputBound::Unbounded
-    }
-        )
-    }
 }
 
 parser! {
@@ -315,16 +298,10 @@ mod test {
         test_parse_query_to_ast_helper("weight:>=70", "weight:[\"70\" TO \"*\"}");
         test_parse_query_to_ast_helper("weight:<70", "weight:{\"*\" TO \"70\"}");
         test_parse_query_to_ast_helper("weight:<=70", "weight:{\"*\" TO \"70\"]");
+        test_parse_query_to_ast_helper("weight:>60.7", "weight:{\"60.7\" TO \"*\"}");
     }
 
     #[test]
-    fn test_elastic_syntax() {
-        let expected = "title:{\"a\" TO *}";
-        // no PartialEq trait for UserInputLeaf, so compare format strings
-        // comparing strings is more brittle
-        assert_eq!(format!("{:?}", elastic_range().parse("title:>a").unwrap().0), expected);
-    }
-    
     fn test_parse_query_to_triming_spaces() {
         test_parse_query_to_ast_helper("   abc", "\"abc\"");
         test_parse_query_to_ast_helper("abc ", "\"abc\"");
