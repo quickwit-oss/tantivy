@@ -3,6 +3,7 @@ use std::fmt::{Debug, Formatter};
 
 use crate::query::Occur;
 
+#[derive(PartialEq)]
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -35,6 +36,7 @@ impl Debug for UserInputLeaf {
     }
 }
 
+#[derive(PartialEq)]
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
     pub phrase: String,
@@ -49,6 +51,7 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
+#[derive(PartialEq)]
 pub enum UserInputBound {
     Inclusive(String),
     Exclusive(String),
@@ -60,7 +63,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{}\"", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
-            UserInputBound::Unbounded => write!(formatter, "{{*"),
+            UserInputBound::Unbounded => write!(formatter, "{{\"*\""),
         }
     }
 
@@ -68,7 +71,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),
-            UserInputBound::Unbounded => write!(formatter, "*}}"),
+            UserInputBound::Unbounded => write!(formatter, "\"*\"}}"),
         }
     }
 
