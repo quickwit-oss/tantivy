@@ -160,9 +160,9 @@ impl VIntEncoder for BlockEncoder {
 }
 
 impl VIntDecoder for BlockDecoder {
-    fn uncompress_vint_sorted<'a>(
+    fn uncompress_vint_sorted(
         &mut self,
-        compressed_data: &'a [u8],
+        compressed_data: &[u8],
         offset: u32,
         num_els: usize,
     ) -> usize {
@@ -170,7 +170,7 @@ impl VIntDecoder for BlockDecoder {
         vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset)
     }
 
-    fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize {
+    fn uncompress_vint_unsorted(&mut self, compressed_data: &[u8], num_els: usize) -> usize {
         self.output_len = num_els;
         vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
     }
@@ -268,78 +268,17 @@ pub mod tests {
             }
         }
     }
-}
-
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-
-    use super::*;
-    use rand::SeedableRng;
-    use rand::{Rng, XorShiftRng};
-    use test::Bencher;
-
-    fn generate_array_with_seed(n: usize, ratio: f64, seed_val: u8) -> Vec<u32> {
-        let seed: &[u8; 16] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0u32..).filter(|_| rng.gen_bool(ratio)).take(n).collect()
-    }
-
-    pub fn generate_array(n: usize, ratio: f64) -> Vec<u32> {
-        generate_array_with_seed(n, ratio, 4)
-    }
-
-    #[bench]
-    fn bench_compress(b: &mut Bencher) {
-        let mut encoder = BlockEncoder::new();
-        let data = generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
-        b.iter(|| {
-            encoder.compress_block_sorted(&data, 0u32);
-        });
-    }
-
-    #[bench]
-    fn bench_uncompress(b: &mut Bencher) {
-        let mut encoder = BlockEncoder::new();
-        let data = generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
-        let (num_bits, compressed) = encoder.compress_block_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new();
-        b.iter(|| {
-            decoder.uncompress_block_sorted(compressed, 0u32, num_bits);
-        });
-    }
 
     #[test]
     fn test_all_docs_compression_numbits() {
-        for expected_num_bits in 0u8.. {
+        for expected_num_bits in 0u8..33u8 {
             let mut data = [0u32; 128];
             if expected_num_bits > 0 {
-                data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
+                data[0] = (1u64 << (expected_num_bits as u64) - 1u64) as u32;
             }
             let mut encoder = BlockEncoder::new();
             let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
             assert_eq!(compressed.len(), compressed_block_size(num_bits));
         }
-    }
-
-    const NUM_INTS_BENCH_VINT: usize = 10;
-
-    #[bench]
-    fn bench_compress_vint(b: &mut Bencher) {
-        let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
-        b.iter(|| {
-            encoder.compress_vint_sorted(&data, 0u32);
-        });
-    }
-
-    #[bench]
-    fn bench_uncompress_vint(b: &mut Bencher) {
-        let mut encoder = BlockEncoder::new();
-        let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
-        let compressed = encoder.compress_vint_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new();
-        b.iter(|| {
-            decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
-        });
     }
 }

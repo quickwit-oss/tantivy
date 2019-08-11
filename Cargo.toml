@@ -75,6 +75,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap"]
+forbench = []
 mmap = ["atomicwrites", "fs2", "memmap", "notify"]
 lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
@@ -99,11 +100,14 @@ name = "failpoints"
 path = "tests/failpoints/mod.rs"
 required-features = ["fail/failpoints"]
 
+[profile.bench]
+lto = true
+
+[[bench]]
+name = "vint"
+harness = false
+
 
 [[bench]]
 name = "fastfield"
 harness = false
-path = "bench/fastfield.rs"
-
-[profile.bench]
-lto = true

@@ -6,7 +6,7 @@ mod serialize;
 mod vint;
 
 pub use self::bitset::BitSet;
-pub(crate) use self::bitset::TinySet;
+pub use self::bitset::TinySet;
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::counting_writer::CountingWriter;
 pub use self::serialize::{BinarySerializable, FixedSize};

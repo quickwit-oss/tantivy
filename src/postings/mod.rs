@@ -3,6 +3,7 @@ Postings module (also called inverted index)
 */
 
 mod block_search;
+
 pub(crate) mod compression;
 /// Postings module
 ///

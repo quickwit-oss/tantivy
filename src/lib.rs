@@ -249,7 +249,6 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 #[cfg(test)]
 mod tests {
-
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::DocSet;
@@ -893,5 +892,17 @@ mod tests {
             let fast_field_reader = fast_field_reader_opt.unwrap();
             assert_eq!(fast_field_reader.get(0), 4f64)
         }
+    }
+}
+
+#[cfg(feature = "forbench")]
+pub mod forbench {
+    pub mod compression {
+        pub use crate::postings::compression::*;
+    }
+
+    pub mod bitset {
+        pub use crate::common::BitSet;
+        pub use crate::common::TinySet;
     }
 }
