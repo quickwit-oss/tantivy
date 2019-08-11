@@ -10,13 +10,16 @@ environment:
 install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
   - rustup-init -yv --default-toolchain %channel% --default-host %target%
+  - rustup component add rustfmt
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - if defined msys_bits set PATH=%PATH%;C:\msys64\mingw%msys_bits%\bin
   - rustc -vV
   - cargo -vV
+  - cargo-fmt --version
 
 build: false
 
 test_script:
   - REM SET RUST_LOG=tantivy,test & cargo test --verbose --no-default-features --features mmap
   - REM SET RUST_BACKTRACE=1 & cargo build --examples
+  - cargo fmt --all -- --check

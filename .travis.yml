@@ -47,6 +47,7 @@ matrix:
 before_install:
   - set -e
   - rustup self update
+  - rustup component add rustfmt
 
 install:
   - sh ci/install.sh
@@ -60,6 +61,7 @@ before_script:
 
 script:
   - bash ci/script.sh
+  - cargo fmt --all -- --check
 
 before_deploy:
   - sh ci/before_deploy.sh
