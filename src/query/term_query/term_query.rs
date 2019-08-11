@@ -7,6 +7,7 @@ use crate::Result;
 use crate::Searcher;
 use crate::Term;
 use std::collections::BTreeSet;
+use std::fmt;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -61,10 +62,16 @@ use std::collections::BTreeSet;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TermQuery {
     term: Term,
     index_record_option: IndexRecordOption,
+}
+
+impl fmt::Debug for TermQuery {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TermQuery({:?})", self.term)
+    }
 }
 
 impl TermQuery {

@@ -102,34 +102,30 @@ parser! {
                                        range_term_val()).
             map(|(comparison_sign, bound): (&str, String)|
                 match comparison_sign {
-                    ">=" => return (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
-                    "<=" => return (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
-                    "<" => return (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
-                    ">" => return (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
+                    ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
+                    "<=" => (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
+                    "<" => (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
+                    ">" => (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
                     // default case
-                    _ => return (UserInputBound::Unbounded, UserInputBound::Unbounded)
+                    _ => (UserInputBound::Unbounded, UserInputBound::Unbounded)
                 });
         let lower_bound = (one_of("{[".chars()), range_term_val())
             .map(|(boundary_char, lower_bound): (char, String)|
                  if lower_bound == "*" {
                      UserInputBound::Unbounded
-                 } else {
-                     if boundary_char == '{' {
+                 } else if boundary_char == '{' {
                          UserInputBound::Exclusive(lower_bound)
-                     } else {
-                         UserInputBound::Inclusive(lower_bound)
-                     }
+                 } else {
+                     UserInputBound::Inclusive(lower_bound)
                  });
         let upper_bound = (range_term_val(), one_of("}]".chars()))
             .map(|(higher_bound, boundary_char): (String, char)|
                  if higher_bound == "*" {
                      UserInputBound::Unbounded
+                 } else if boundary_char == '}' {
+                     UserInputBound::Exclusive(higher_bound)
                  } else {
-                     if boundary_char == '}' {
-                         UserInputBound::Exclusive(higher_bound)
-                     } else {
-                         UserInputBound::Inclusive(higher_bound)
-                     }
+                     UserInputBound::Inclusive(higher_bound)
                  });
          // return only lower and upper
         let lower_to_upper = (lower_bound.

@@ -247,7 +247,7 @@ impl Schema {
     }
 
     /// Create a named document off the doc.
-    pub fn from_named_doc(
+    pub fn convert_named_doc(
         &self,
         named_doc: NamedFieldDocument,
     ) -> Result<Document, DocParsingError> {
@@ -534,7 +534,7 @@ mod tests {
             vec![Value::from(14u64), Value::from(-1i64)],
         );
         let doc = schema
-            .from_named_doc(NamedFieldDocument(named_doc_map))
+            .convert_named_doc(NamedFieldDocument(named_doc_map))
             .unwrap();
         assert_eq!(
             doc.get_all(title),
@@ -551,15 +551,14 @@ mod tests {
 
     #[test]
     pub fn test_document_from_nameddoc_error() {
-        let mut schema_builder = Schema::builder();
-        let schema = schema_builder.build();
+        let schema = Schema::builder().build();
         let mut named_doc_map = BTreeMap::default();
         named_doc_map.insert(
             "title".to_string(),
             vec![Value::from("title1"), Value::from("title2")],
         );
         let err = schema
-            .from_named_doc(NamedFieldDocument(named_doc_map))
+            .convert_named_doc(NamedFieldDocument(named_doc_map))
             .unwrap_err();
         assert_eq!(
             err,
