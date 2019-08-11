@@ -118,7 +118,8 @@ parser! {
                          UserInputBound::Exclusive(lower_bound)
                      } else {
                          UserInputBound::Inclusive(lower_bound)
-                     }});
+                     }
+                 });
         let upper_bound = (range_term_val(), one_of("}]".chars()))
             .map(|(higher_bound, boundary_char): (String, char)|
                  if higher_bound == "*" {
@@ -128,7 +129,8 @@ parser! {
                          UserInputBound::Exclusive(higher_bound)
                      } else {
                          UserInputBound::Inclusive(higher_bound)
-                     }});
+                     }
+                 });
          // return only lower and upper
         let lower_to_upper = (lower_bound.
                                     skip((spaces(),
