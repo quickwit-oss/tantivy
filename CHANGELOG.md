@@ -5,6 +5,7 @@ Tantivy 0.11.0
 - Various bugfixes in the query parser.
     - Better handling of hyphens in query parser. (#609)
     - Better handling of whitespaces.
+- Closes #498 - add support for Elastic-style unbounded range queries for alphanumeric types eg. "title:>hello", "weight:>=70.5", "height:<200" (@petr-tik)
 
 
 Tantivy 0.10.1

@@ -83,28 +83,71 @@ parser! {
 }
 
 parser! {
+    /// Function that parses a range out of a Stream
+    /// Supports ranges like:
+    /// [5 TO 10], {5 TO 10}, [* TO 10], [10 TO *], {10 TO *], >5, <=10
+    /// [a TO *], [a TO c], [abc TO bcd}
     fn range[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>] {
         let range_term_val = || {
             word().or(negative_number()).or(char('*').with(value("*".to_string())))
         };
+
+        // check for unbounded range in the form of <5, <=10, >5, >=5
+        let elastic_unbounded_range = (choice([attempt(string(">=")),
+                                               attempt(string("<=")),
+                                               attempt(string("<")),
+                                               attempt(string(">"))])
+                                       .skip(spaces()),
+                                       range_term_val()).
+            map(|(comparison_sign, bound): (&str, String)|
+                match comparison_sign {
+                    ">=" => return (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
+                    "<=" => return (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
+                    "<" => return (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
+                    ">" => return (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
+                    // default case
+                    _ => return (UserInputBound::Unbounded, UserInputBound::Unbounded)
+                });
         let lower_bound = (one_of("{[".chars()), range_term_val())
             .map(|(boundary_char, lower_bound): (char, String)|
-                if boundary_char == '{' { UserInputBound::Exclusive(lower_bound) }
-                else { UserInputBound::Inclusive(lower_bound) });
+                 if lower_bound == "*" {
+                     UserInputBound::Unbounded
+                 } else {
+                     if boundary_char == '{' {
+                         UserInputBound::Exclusive(lower_bound)
+                     } else {
+                         UserInputBound::Inclusive(lower_bound)
+                     }
+                 });
         let upper_bound = (range_term_val(), one_of("}]".chars()))
             .map(|(higher_bound, boundary_char): (String, char)|
-                if boundary_char == '}' { UserInputBound::Exclusive(higher_bound) }
-                else { UserInputBound::Inclusive(higher_bound) });
-        (
-            optional(field()),
-            lower_bound
-            .skip((spaces(), string("TO"), spaces())),
-            upper_bound,
-        ).map(|(field, lower, upper)| UserInputLeaf::Range {
-                field,
-                lower,
-                upper
+                 if higher_bound == "*" {
+                     UserInputBound::Unbounded
+                 } else {
+                     if boundary_char == '}' {
+                         UserInputBound::Exclusive(higher_bound)
+                     } else {
+                         UserInputBound::Inclusive(higher_bound)
+                     }
+                 });
+         // return only lower and upper
+        let lower_to_upper = (lower_bound.
+                                    skip((spaces(),
+                                          string("TO"),
+                                          spaces())),
+                                    upper_bound);
+
+        (optional(field()).skip(spaces()),
+         // try elastic first, if it matches, the range is unbounded
+         attempt(elastic_unbounded_range).or(lower_to_upper))
+            .map(|(field, (lower, upper))|
+                 // Construct the leaf from extracted field (optional)
+                 // and bounds
+                 UserInputLeaf::Range {
+                     field,
+                     lower,
+                     upper
         })
     }
 }
@@ -259,6 +302,49 @@ mod test {
     }
 
     #[test]
+    fn test_parse_elastic_query_ranges() {
+        test_parse_query_to_ast_helper("title: >a", "title:{\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper("title:>=a", "title:[\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper("title: <a", "title:{\"*\" TO \"a\"}");
+        test_parse_query_to_ast_helper("title:<=a", "title:{\"*\" TO \"a\"]");
+        test_parse_query_to_ast_helper("title:<=bsd", "title:{\"*\" TO \"bsd\"]");
+
+        test_parse_query_to_ast_helper("weight: >70", "weight:{\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight:>=70", "weight:[\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight: <70", "weight:{\"*\" TO \"70\"}");
+        test_parse_query_to_ast_helper("weight:<=70", "weight:{\"*\" TO \"70\"]");
+        test_parse_query_to_ast_helper("weight: >60.7", "weight:{\"60.7\" TO \"*\"}");
+
+        test_parse_query_to_ast_helper("weight: <= 70", "weight:{\"*\" TO \"70\"]");
+
+        test_parse_query_to_ast_helper("weight: <= 70.5", "weight:{\"*\" TO \"70.5\"]");
+    }
+
+    #[test]
+    fn test_range_parser() {
+        // testing the range() parser separately
+        let res = range().parse("title: <hello").unwrap().0;
+        let expected = UserInputLeaf::Range {
+            field: Some("title".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Exclusive("hello".to_string()),
+        };
+        let res2 = range().parse("title:{* TO hello}").unwrap().0;
+        assert_eq!(res, expected);
+        assert_eq!(res2, expected);
+        let expected_weight = UserInputLeaf::Range {
+            field: Some("weight".to_string()),
+            lower: UserInputBound::Inclusive("71.2".to_string()),
+            upper: UserInputBound::Unbounded,
+        };
+
+        let res3 = range().parse("weight: >=71.2").unwrap().0;
+        let res4 = range().parse("weight:[71.2 TO *}").unwrap().0;
+        assert_eq!(res3, expected_weight);
+        assert_eq!(res4, expected_weight);
+    }
+
+    #[test]
     fn test_parse_query_to_triming_spaces() {
         test_parse_query_to_ast_helper("   abc", "\"abc\"");
         test_parse_query_to_ast_helper("abc ", "\"abc\"");
@@ -291,7 +377,7 @@ mod test {
         test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
         test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
-        test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:[\"*\" TO \"toto\"}");
+        test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:{\"*\" TO \"toto\"}");
         test_parse_query_to_ast_helper("foo:[1 TO *}", "foo:[\"1\" TO \"*\"}");
         test_parse_query_to_ast_helper("foo:[1.1 TO *}", "foo:[\"1.1\" TO \"*\"}");
         test_is_parse_err("abc +    ");
