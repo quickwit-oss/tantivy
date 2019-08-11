@@ -10,7 +10,7 @@ use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ValueParsingError {
     /// Encountered a numerical value that overflows or underflow its integer type.
     OverflowError(String),

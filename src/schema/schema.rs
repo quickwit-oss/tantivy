@@ -247,6 +247,25 @@ impl Schema {
     }
 
     /// Create a named document off the doc.
+    pub fn from_named_doc(
+        &self,
+        named_doc: NamedFieldDocument,
+    ) -> Result<Document, DocParsingError> {
+        let mut document = Document::new();
+        for (field_name, values) in named_doc.0 {
+            if let Some(field) = self.get_field(&field_name) {
+                for value in values {
+                    let field_value = FieldValue::new(field, value);
+                    document.add(field_value);
+                }
+            } else {
+                return Err(DocParsingError::NoSuchFieldInSchema(field_name));
+            }
+        }
+        Ok(document)
+    }
+
+    /// Create a named document off the doc.
     pub fn to_named_doc(&self, doc: &Document) -> NamedFieldDocument {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {
@@ -360,7 +379,7 @@ impl<'de> Deserialize<'de> for Schema {
 
 /// Error that may happen when deserializing
 /// a document from JSON.
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, PartialEq)]
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
     #[fail(display = "The provided string is not valid JSON")]
@@ -369,7 +388,10 @@ pub enum DocParsingError {
     #[fail(display = "The field '{:?}' could not be parsed: {:?}", _0, _1)]
     ValueError(String, ValueParsingError),
     /// The json-document contains a field that is not declared in the schema.
-    #[fail(display = "The json-document contains an unknown field: {:?}", _0)]
+    #[fail(
+        display = "The document contains a field that is not declared in the schema: {:?}",
+        _0
+    )]
     NoSuchFieldInSchema(String),
 }
 
@@ -381,6 +403,7 @@ mod tests {
     use crate::schema::*;
     use matches::{assert_matches, matches};
     use serde_json;
+    use std::collections::BTreeMap;
 
     #[test]
     pub fn is_indexed_test() {
@@ -493,6 +516,55 @@ mod tests {
 
         let doc_serdeser = schema.parse_document(&schema.to_json(&doc)).unwrap();
         assert_eq!(doc, doc_serdeser);
+    }
+
+    #[test]
+    pub fn test_document_from_nameddoc() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let val = schema_builder.add_i64_field("val", INDEXED);
+        let schema = schema_builder.build();
+        let mut named_doc_map = BTreeMap::default();
+        named_doc_map.insert(
+            "title".to_string(),
+            vec![Value::from("title1"), Value::from("title2")],
+        );
+        named_doc_map.insert(
+            "val".to_string(),
+            vec![Value::from(14u64), Value::from(-1i64)],
+        );
+        let doc = schema
+            .from_named_doc(NamedFieldDocument(named_doc_map))
+            .unwrap();
+        assert_eq!(
+            doc.get_all(title),
+            vec![
+                &Value::from("title1".to_string()),
+                &Value::from("title2".to_string())
+            ]
+        );
+        assert_eq!(
+            doc.get_all(val),
+            vec![&Value::from(14u64), &Value::from(-1i64)]
+        );
+    }
+
+    #[test]
+    pub fn test_document_from_nameddoc_error() {
+        let mut schema_builder = Schema::builder();
+        let schema = schema_builder.build();
+        let mut named_doc_map = BTreeMap::default();
+        named_doc_map.insert(
+            "title".to_string(),
+            vec![Value::from("title1"), Value::from("title2")],
+        );
+        let err = schema
+            .from_named_doc(NamedFieldDocument(named_doc_map))
+            .unwrap_err();
+        assert_eq!(
+            err,
+            DocParsingError::NoSuchFieldInSchema("title".to_string())
+        );
     }
 
     #[test]
