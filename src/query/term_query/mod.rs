@@ -12,7 +12,7 @@ mod tests {
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::query::{Query, QueryParser, Scorer, TermQuery};
-    use crate::schema::{IndexRecordOption, Schema, STRING, TEXT};
+    use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
     use crate::tests::assert_nearly_equals;
     use crate::Index;
     use crate::Term;
@@ -113,5 +113,17 @@ mod tests {
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let reader = index.reader().unwrap();
         assert_eq!(term_query.count(&*reader.searcher()).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_term_query_debug() {
+        let term_query = TermQuery::new(
+            Term::from_field_text(Field(1), "hello"),
+            IndexRecordOption::WithFreqs,
+        );
+        assert_eq!(
+            format!("{:?}", term_query),
+            "TermQuery(Term(field=1,bytes=[104, 101, 108, 108, 111]))"
+        );
     }
 }

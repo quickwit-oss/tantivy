@@ -224,7 +224,12 @@ where
 
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Term({:?})", &self.0[..])
+        write!(
+            f,
+            "Term(field={},bytes={:?})",
+            self.field().0,
+            self.value_bytes()
+        )
     }
 }
 
