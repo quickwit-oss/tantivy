@@ -56,8 +56,6 @@ pub trait Tokenizer<'a>: Sized + Clone {
     /// # Example
     ///
     /// ```rust
-    /// # extern crate tantivy;
-    ///
     /// use tantivy::tokenizer::*;
     ///
     /// # fn main() {
@@ -80,7 +78,7 @@ pub trait Tokenizer<'a>: Sized + Clone {
 }
 
 /// A boxed tokenizer
-pub trait BoxedTokenizer: Send + Sync {
+trait BoxedTokenizerTrait: Send + Sync {
     /// Tokenize a `&str`
     fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a>;
 
@@ -92,7 +90,41 @@ pub trait BoxedTokenizer: Send + Sync {
     fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b>;
 
     /// Return a boxed clone of the tokenizer
-    fn boxed_clone(&self) -> Box<dyn BoxedTokenizer>;
+    fn boxed_clone(&self) -> BoxedTokenizer;
+}
+
+/// A boxed tokenizer
+pub struct BoxedTokenizer(Box<dyn BoxedTokenizerTrait>);
+
+impl<T> From<T> for BoxedTokenizer
+where
+    T: 'static + Send + Sync + for<'a> Tokenizer<'a>,
+{
+    fn from(tokenizer: T) -> BoxedTokenizer {
+        BoxedTokenizer(Box::new(BoxableTokenizer(tokenizer)))
+    }
+}
+
+impl BoxedTokenizer {
+    /// Tokenize a `&str`
+    pub fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        self.0.token_stream(text)
+    }
+
+    /// Tokenize an array`&str`
+    ///
+    /// The resulting `TokenStream` is equivalent to what would be obtained if the &str were
+    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
+    /// to prevent accidental `PhraseQuery` to match accross two terms.
+    pub fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b> {
+        self.0.token_stream_texts(texts)
+    }
+}
+
+impl Clone for BoxedTokenizer {
+    fn clone(&self) -> BoxedTokenizer {
+        self.0.boxed_clone()
+    }
 }
 
 #[derive(Clone)]
@@ -100,7 +132,7 @@ struct BoxableTokenizer<A>(A)
 where
     A: for<'a> Tokenizer<'a> + Send + Sync;
 
-impl<A> BoxedTokenizer for BoxableTokenizer<A>
+impl<A> BoxedTokenizerTrait for BoxableTokenizer<A>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
@@ -125,16 +157,9 @@ where
         }
     }
 
-    fn boxed_clone(&self) -> Box<dyn BoxedTokenizer> {
-        Box::new(self.clone())
+    fn boxed_clone(&self) -> BoxedTokenizer {
+        self.0.clone().into()
     }
-}
-
-pub(crate) fn box_tokenizer<A>(a: A) -> Box<dyn BoxedTokenizer>
-where
-    A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
-{
-    Box::new(BoxableTokenizer(a))
 }
 
 impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
@@ -161,7 +186,6 @@ impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
 /// # Example
 ///
 /// ```
-/// extern crate tantivy;
 /// use tantivy::tokenizer::*;
 ///
 /// # fn main() {
@@ -203,7 +227,6 @@ pub trait TokenStream {
     /// and `.token()`.
     ///
     /// ```
-    /// # extern crate tantivy;
     /// # use tantivy::tokenizer::*;
     /// #
     /// # fn main() {

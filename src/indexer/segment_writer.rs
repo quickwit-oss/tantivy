@@ -49,7 +49,7 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<Box<dyn BoxedTokenizer>>>,
+    tokenizers: Vec<Option<BoxedTokenizer>>,
 }
 
 impl SegmentWriter {
