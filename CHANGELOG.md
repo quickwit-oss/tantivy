@@ -6,7 +6,11 @@ Tantivy 0.11.0
     - Better handling of hyphens in query parser. (#609)
     - Better handling of whitespaces.
 - Closes #498 - add support for Elastic-style unbounded range queries for alphanumeric types eg. "title:>hello", "weight:>=70.5", "height:<200" (@petr-tik)
+- API change around `Box<BoxableTokenizer>`. See detail in #629
 
+## How to update?
+
+`Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
 
 Tantivy 0.10.1
 =====================

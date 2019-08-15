@@ -1,4 +1,3 @@
-use crate::tokenizer::box_tokenizer;
 use crate::tokenizer::stemmer::Language;
 use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::LowerCaser;
@@ -8,7 +7,6 @@ use crate::tokenizer::SimpleTokenizer;
 use crate::tokenizer::Stemmer;
 use crate::tokenizer::Tokenizer;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 /// The tokenizer manager serves as a store for
@@ -25,16 +23,16 @@ use std::sync::{Arc, RwLock};
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, Box<dyn BoxedTokenizer>>>>,
+    tokenizers: Arc<RwLock<HashMap<String, BoxedTokenizer>>>,
 }
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
     where
-        A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
+        A: Into<BoxedTokenizer>,
     {
-        let boxed_tokenizer = box_tokenizer(tokenizer);
+        let boxed_tokenizer = tokenizer.into();
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
@@ -42,13 +40,12 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn BoxedTokenizer>> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<BoxedTokenizer> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
             .get(tokenizer_name)
-            .map(Deref::deref)
-            .map(BoxedTokenizer::boxed_clone)
+            .cloned()
     }
 }
 

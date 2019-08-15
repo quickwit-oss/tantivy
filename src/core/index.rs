@@ -173,11 +173,11 @@ impl Index {
     }
 
     /// Helper to access the tokenizer associated to a specific field.
-    pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<dyn BoxedTokenizer>> {
+    pub fn tokenizer_for_field(&self, field: Field) -> Result<BoxedTokenizer> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let tokenizer_manager: &TokenizerManager = self.tokenizers();
-        let tokenizer_name_opt: Option<Box<dyn BoxedTokenizer>> = match field_type {
+        let tokenizer_name_opt: Option<BoxedTokenizer> = match field_type {
             FieldType::Str(text_options) => text_options
                 .get_indexing_options()
                 .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
