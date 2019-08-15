@@ -216,7 +216,7 @@ impl Index {
         Index::open(mmap_directory)
     }
 
-    pub(crate) fn inventory(&self) -> &SegmentMetaInventory {
+    pub fn inventory(&self) -> &SegmentMetaInventory {
         &self.inventory
     }
 

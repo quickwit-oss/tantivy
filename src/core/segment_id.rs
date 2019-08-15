@@ -46,6 +46,12 @@ impl SegmentId {
         SegmentId(create_uuid())
     }
 
+    /// Creates a new segment id from a uuid string.
+    pub fn from_uuid_string(uuid_string: &str) -> Result<SegmentId, uuid::parser::ParseError> {
+        let uuid = Uuid::parse_str(uuid_string)?;
+        Ok(SegmentId(uuid))
+    }
+
     /// Returns a shorter identifier of the segment.
     ///
     /// We are using UUID4, so only 6 bits are fixed,
