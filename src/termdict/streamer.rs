@@ -2,7 +2,7 @@ use super::TermDictionary;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use tantivy_fst::automaton::AlwaysMatch;
-use tantivy_fst::map::{Stream, StreamBuilder};
+use tantivy_fst::map::{Stream, StreamBuilder, StreamWithState};
 use tantivy_fst::Automaton;
 use tantivy_fst::{IntoStreamer, Streamer};
 
@@ -11,6 +11,7 @@ use tantivy_fst::{IntoStreamer, Streamer};
 pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
 where
     A: Automaton,
+    A::State: Clone,
 {
     fst_map: &'a TermDictionary,
     stream_builder: StreamBuilder<'a, A>,
@@ -19,6 +20,7 @@ where
 impl<'a, A> TermStreamerBuilder<'a, A>
 where
     A: Automaton,
+    A::State: Clone + Default + Sized,
 {
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
@@ -56,10 +58,11 @@ where
     pub fn into_stream(self) -> TermStreamer<'a, A> {
         TermStreamer {
             fst_map: self.fst_map,
-            stream: self.stream_builder.into_stream(),
+            stream: self.stream_builder.with_state().into_stream(),
             term_ord: 0u64,
             current_key: Vec::with_capacity(100),
             current_value: TermInfo::default(),
+            state: Default::default(),
         }
     }
 }
@@ -69,27 +72,31 @@ where
 pub struct TermStreamer<'a, A = AlwaysMatch>
 where
     A: Automaton,
+    A::State: Clone + Default + Sized,
 {
     fst_map: &'a TermDictionary,
-    stream: Stream<'a, A>,
+    stream: StreamWithState<'a, A>,
     term_ord: TermOrdinal,
     current_key: Vec<u8>,
     current_value: TermInfo,
+    state: A::State,
 }
 
 impl<'a, A> TermStreamer<'a, A>
 where
     A: Automaton,
+    A::State: Clone + Default + Sized,
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an unitialized state.
     pub fn advance(&mut self) -> bool {
-        if let Some((term, term_ord)) = self.stream.next() {
+        if let Some((term, term_ord, state)) = self.stream.next() {
             self.current_key.clear();
             self.current_key.extend_from_slice(term);
             self.term_ord = term_ord;
             self.current_value = self.fst_map.term_info_from_ord(term_ord);
+            self.state = state;
             true
         } else {
             false
@@ -116,6 +123,10 @@ where
     /// Before any call to `.next()`, `.key()` returns an empty array.
     pub fn key(&self) -> &[u8] {
         &self.current_key
+    }
+
+    pub fn state(&self) -> &A::State {
+        &self.state
     }
 
     /// Accesses the current value.

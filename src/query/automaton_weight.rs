@@ -14,6 +14,7 @@ use tantivy_fst::Automaton;
 pub struct AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
+    A::State: Clone + Default + Sized,
 {
     field: Field,
     automaton: A,
@@ -22,6 +23,7 @@ where
 impl<A> AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
+    A::State: Clone + Default + Sized,
 {
     /// Create a new AutomationWeight
     pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
@@ -37,6 +39,7 @@ where
 impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
+    A::State: Clone + Default + Sized,
 {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
