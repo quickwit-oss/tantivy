@@ -128,7 +128,7 @@ impl TopDocs {
     /// ///
     /// /// `field` is required to be a FAST field.
     /// fn docs_sorted_by_rating(searcher: &Searcher,
-    ///                          query: &Query,
+    ///                          query: &dyn Query,
     ///                          sort_by_field: Field)
     ///     -> Result<Vec<(u64, DocAddress)>> {
     ///
