@@ -450,12 +450,10 @@ impl IndexWriter {
     /// by clearing and resubmitting necessary documents
     ///
     /// ```rust
-    /// #[macro_use]
-    /// extern crate tantivy;
-    /// use tantivy::query::QueryParser;
     /// use tantivy::collector::TopDocs;
+    /// use tantivy::query::QueryParser;
     /// use tantivy::schema::*;
-    /// use tantivy::Index;
+    /// use tantivy::{doc, Index};
     ///
     /// fn main() -> tantivy::Result<()> {
     ///     let mut schema_builder = Schema::builder();

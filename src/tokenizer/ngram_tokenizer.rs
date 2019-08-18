@@ -29,8 +29,7 @@ use super::{Token, TokenStream, Tokenizer};
 ///
 /// # Example
 ///
-/// ```
-/// # extern crate tantivy;
+/// ```rust
 /// use tantivy::tokenizer::*;
 /// # fn main() {
 /// let tokenizer = NgramTokenizer::new(2, 3, false);

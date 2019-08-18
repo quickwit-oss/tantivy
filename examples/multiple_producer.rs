@@ -25,14 +25,11 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tantivy::schema::{Schema, STORED, TEXT};
-use tantivy::Opstamp;
-use tantivy::{Index, IndexWriter};
+use tantivy::{doc, Index, IndexWriter, Opstamp};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema

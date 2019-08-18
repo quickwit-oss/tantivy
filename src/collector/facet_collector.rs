@@ -81,12 +81,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{Facet, Schema, TEXT};
-/// use tantivy::{Index, Result};
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
+/// use tantivy::schema::{Facet, Schema, TEXT};
+/// use tantivy::{doc, Index, Result};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {

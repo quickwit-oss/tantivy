@@ -4,8 +4,7 @@
 //! You must define in your schema which tokenizer should be used for
 //! each of your fields :
 //!
-//! ```
-//! extern crate tantivy;
+//! ```rust
 //! use tantivy::schema::*;
 //!
 //! # fn main() {
@@ -65,8 +64,6 @@
 //! For instance, the `en_stem` is defined as follows.
 //!
 //! ```rust
-//! # extern crate tantivy;
-//!
 //! use tantivy::tokenizer::*;
 //!
 //! # fn main() {
@@ -80,8 +77,7 @@
 //! Once your tokenizer is defined, you need to
 //! register it with a name in your index's [`TokenizerManager`](./struct.TokenizerManager.html).
 //!
-//! ```
-//! # extern crate tantivy;
+//! ```rust
 //! # use tantivy::schema::Schema;
 //! # use tantivy::tokenizer::*;
 //! # use tantivy::Index;
@@ -101,8 +97,7 @@
 //!
 //! # Example
 //!
-//! ```
-//! extern crate tantivy;
+//! ```rust
 //! use tantivy::schema::{Schema, IndexRecordOption, TextOptions, TextFieldIndexing};
 //! use tantivy::tokenizer::*;
 //! use tantivy::Index;

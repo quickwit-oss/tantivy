@@ -20,12 +20,10 @@ use std::fmt;
 /// * `field norm` - number of tokens in the field.
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{Schema, TEXT, IndexRecordOption};
-/// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::TermQuery;
+/// use tantivy::schema::{Schema, TEXT, IndexRecordOption};
+/// use tantivy::{doc, Index, Result, Term};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {

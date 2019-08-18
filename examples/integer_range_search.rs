@@ -2,14 +2,10 @@
 //
 // Below is an example of creating an indexed integer field in your schema
 // You can use RangeQuery to get a Count of all occurrences in a given range.
-
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::Count;
 use tantivy::query::RangeQuery;
 use tantivy::schema::{Schema, INDEXED};
-use tantivy::Index;
-use tantivy::Result;
+use tantivy::{doc, Index, Result};
 
 fn run() -> Result<()> {
     // For the sake of simplicity, this schema will only have 1 field

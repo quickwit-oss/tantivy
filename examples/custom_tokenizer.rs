@@ -2,14 +2,11 @@
 //
 // In this example, we'll see how to define a tokenizer pipeline
 // by aligning a bunch of `TokenFilter`.
-
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::NgramTokenizer;
-use tantivy::Index;
+use tantivy::{doc, Index};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema

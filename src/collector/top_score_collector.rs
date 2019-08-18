@@ -23,13 +23,10 @@ use std::fmt;
 /// is `O(n log K)`.
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::DocAddress;
-/// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{Index, Result};
 /// use tantivy::collector::TopDocs;
 /// use tantivy::query::QueryParser;
+/// use tantivy::schema::{Schema, TEXT};
+/// use tantivy::{doc, DocAddress, Index, Result};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
@@ -87,10 +84,8 @@ impl TopDocs {
     /// Set top-K to rank documents by a given fast field.
     ///
     /// ```rust
-    /// #[macro_use]
-    /// extern crate tantivy;
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{Index, Result, DocAddress};
+    /// # use tantivy::{doc, Index, Result, DocAddress};
     /// # use tantivy::query::{Query, QueryParser};
     /// use tantivy::Searcher;
     /// use tantivy::collector::TopDocs;
@@ -197,10 +192,8 @@ impl TopDocs {
     /// learning-to-rank model over various features
     ///
     /// ```rust
-    /// #[macro_use]
-    /// extern crate tantivy;
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{Index, DocAddress, DocId, Score};
+    /// # use tantivy::{doc, Index, DocAddress, DocId, Score};
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
@@ -302,10 +295,8 @@ impl TopDocs {
     /// # Example
     ///
     /// ```rust
-    /// # #[macro_use]
-    /// # extern crate tantivy;
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{Index, DocAddress, DocId};
+    /// # use tantivy::{doc, Index, DocAddress, DocId};
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;

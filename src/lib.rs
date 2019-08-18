@@ -11,21 +11,12 @@
 //! Think `Lucene`, but in Rust.
 //!
 //! ```rust
-
-//! # extern crate tempfile;
-//! #
-//! #[macro_use]
-//! extern crate tantivy;
-//!
-//! // ...
-//!
 //! # use std::path::Path;
 //! # use tempfile::TempDir;
-//! # use tantivy::Index;
-//! # use tantivy::schema::*;
-//! # use tantivy::{Score, DocAddress};
 //! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
+//! # use tantivy::schema::*;
+//! # use tantivy::{doc, DocAddress, Index, Score};
 //! #
 //! # fn main() {
 //! #     // Let's create a temporary directory for the

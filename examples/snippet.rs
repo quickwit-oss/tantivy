@@ -7,13 +7,10 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
-use tantivy::Index;
-use tantivy::{Snippet, SnippetGenerator};
+use tantivy::{doc, Index, Snippet, SnippetGenerator};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {

@@ -38,14 +38,10 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// # Example
 ///
 /// ```rust
-///
-/// # #[macro_use]
-/// # extern crate tantivy;
-/// # use tantivy::Index;
-/// # use tantivy::schema::{Schema, INDEXED};
 /// # use tantivy::collector::Count;
-/// # use tantivy::Result;
 /// # use tantivy::query::RangeQuery;
+/// # use tantivy::schema::{Schema, INDEXED};
+/// # use tantivy::{doc, Index, Result};
 /// #
 /// # fn run() -> Result<()> {
 /// #     let mut schema_builder = Schema::builder();

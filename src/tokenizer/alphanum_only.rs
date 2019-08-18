@@ -1,6 +1,5 @@
 //! # Example
-//! ```
-//! extern crate tantivy;
+//! ```rust
 //! use tantivy::tokenizer::*;
 //!
 //! # fn main() {

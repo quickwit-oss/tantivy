@@ -14,12 +14,10 @@ use tantivy_fst::Regex;
 /// Levenshtein distance
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::Count;
 /// use tantivy::query::RegexQuery;
+/// use tantivy::schema::{Schema, TEXT};
+/// use tantivy::{doc, Index, Result, Term};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {

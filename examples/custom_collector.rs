@@ -9,15 +9,12 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::SegmentReader;
-use tantivy::{Index, TantivyError};
+use tantivy::{doc, Index, SegmentReader, TantivyError};
 
 #[derive(Default)]
 struct Stats {

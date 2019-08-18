@@ -213,11 +213,9 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// # Example
 ///
 /// ```rust
-/// # #[macro_use]
-/// # extern crate tantivy;
-/// # use tantivy::Index;
-/// # use tantivy::schema::{Schema, TEXT};
 /// # use tantivy::query::QueryParser;
+/// # use tantivy::schema::{Schema, TEXT};
+/// # use tantivy::{doc, Index};
 /// use tantivy::SnippetGenerator;
 ///
 /// # fn main() -> tantivy::Result<()> {
