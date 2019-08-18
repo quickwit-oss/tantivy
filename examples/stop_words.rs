@@ -11,13 +11,11 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::*;
-use tantivy::Index;
+use tantivy::{doc, Index};
 
 fn main() -> tantivy::Result<()> {
     // this example assumes you understand the content in `basic_search`

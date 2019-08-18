@@ -9,11 +9,8 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::schema::*;
-use tantivy::Index;
-use tantivy::{DocId, DocSet, Postings};
+use tantivy::{doc, DocId, DocSet, Index, Postings};
 
 fn main() -> tantivy::Result<()> {
     // We first create a schema for the sake of the

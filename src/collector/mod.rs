@@ -35,7 +35,6 @@ The resulting `Fruit` will then be a typed tuple with each collector's original 
 in their respective position.
 
 ```rust
-# extern crate tantivy;
 # use tantivy::schema::*;
 # use tantivy::*;
 # use tantivy::query::*;

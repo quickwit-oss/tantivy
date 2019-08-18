@@ -8,13 +8,10 @@
 //
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::TopDocs;
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
-use tantivy::Index;
-use tantivy::IndexReader;
+use tantivy::{doc, Index, IndexReader};
 
 // A simple helper function to fetch a single document
 // given its id from our index.

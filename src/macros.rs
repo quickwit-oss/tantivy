@@ -22,11 +22,9 @@
 ///
 /// # Example
 ///
-/// ```
-/// #[macro_use]
-/// extern crate tantivy;
-///
+/// ```rust
 /// use tantivy::schema::{Schema, TEXT, FAST};
+/// use tantivy::doc;
 ///
 /// //...
 ///

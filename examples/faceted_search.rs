@@ -12,12 +12,10 @@
 
 // ---
 // Importing tantivy...
-#[macro_use]
-extern crate tantivy;
 use tantivy::collector::FacetCollector;
 use tantivy::query::AllQuery;
 use tantivy::schema::*;
-use tantivy::Index;
+use tantivy::{doc, Index};
 use tempfile::TempDir;
 
 fn main() -> tantivy::Result<()> {

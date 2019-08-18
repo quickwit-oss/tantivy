@@ -105,12 +105,10 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// [Combining several collectors section of the collector documentation](./index.html#combining-several-collectors).
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{Index, Result};
 /// use tantivy::collector::{Count, TopDocs, MultiCollector};
 /// use tantivy::query::QueryParser;
+/// use tantivy::schema::{Schema, TEXT};
+/// use tantivy::{doc, Index, Result};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {

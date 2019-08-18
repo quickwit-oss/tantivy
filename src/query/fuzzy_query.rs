@@ -28,12 +28,10 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 /// containing a specific term that is within
 /// Levenshtein distance
 /// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::FuzzyTermQuery;
+/// use tantivy::schema::{Schema, TEXT};
+/// use tantivy::{doc, Index, Result, Term};
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
