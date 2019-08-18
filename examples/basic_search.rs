@@ -5,10 +5,10 @@
 //
 // We will :
 // - define our schema
-// = create an index in a directory
-// - index few documents in our index
-// - search for the best document matchings "sea whale"
-// - retrieve the best document original content.
+// - create an index in a directory
+// - index a few documents into our index
+// - search for the best document matching a basic query
+// - retrieve the best document's original content.
 
 // ---
 // Importing tantivy...
@@ -33,7 +33,7 @@ fn main() -> tantivy::Result<()> {
     // and for each field, its type and "the way it should
     // be indexed".
 
-    // first we need to define a schema ...
+    // First we need to define a schema ...
     let mut schema_builder = Schema::builder();
 
     // Our first field is title.
@@ -48,7 +48,7 @@ fn main() -> tantivy::Result<()> {
     //
     // `STORED` means that the field will also be saved
     // in a compressed, row-oriented key-value store.
-    // This store is useful to reconstruct the
+    // This store is useful for reconstructing the
     // documents that were selected during the search phase.
     schema_builder.add_text_field("title", TEXT | STORED);
 
@@ -57,8 +57,7 @@ fn main() -> tantivy::Result<()> {
     // need to be able to be able to retrieve it
     // for our application.
     //
-    // We can make our index lighter and
-    // by omitting `STORED` flag.
+    // We can make our index lighter by omitting the `STORED` flag.
     schema_builder.add_text_field("body", TEXT);
 
     let schema = schema_builder.build();
@@ -71,7 +70,7 @@ fn main() -> tantivy::Result<()> {
     // with our schema in the directory.
     let index = Index::create_in_dir(&index_path, schema.clone())?;
 
-    // To insert document we need an index writer.
+    // To insert a document we will need an index writer.
     // There must be only one writer at a time.
     // This single `IndexWriter` is already
     // multithreaded.
@@ -149,8 +148,8 @@ fn main() -> tantivy::Result<()> {
     // At this point our documents are not searchable.
     //
     //
-    // We need to call .commit() explicitly to force the
-    // index_writer to finish processing the documents in the queue,
+    // We need to call `.commit()` explicitly to force the
+    // `index_writer` to finish processing the documents in the queue,
     // flush the current index to the disk, and advertise
     // the existence of new documents.
     //
@@ -162,14 +161,14 @@ fn main() -> tantivy::Result<()> {
     // persistently indexed.
     //
     // In the scenario of a crash or a power failure,
-    // tantivy behaves as if has rolled back to its last
+    // tantivy behaves as if it has rolled back to its last
     // commit.
 
     // # Searching
     //
     // ### Searcher
     //
-    // A reader is required to get search the index.
+    // A reader is required first in order to search an index.
     // It acts as a `Searcher` pool that reloads itself,
     // depending on a `ReloadPolicy`.
     //
@@ -185,7 +184,7 @@ fn main() -> tantivy::Result<()> {
 
     // We now need to acquire a searcher.
     //
-    // A searcher points to snapshotted, immutable version of the index.
+    // A searcher points to a snapshotted, immutable version of the index.
     //
     // Some search experience might require more than
     // one query. Using the same searcher ensures that all of these queries will run on the
@@ -205,7 +204,7 @@ fn main() -> tantivy::Result<()> {
     // in both title and body.
     let query_parser = QueryParser::for_index(&index, vec![title, body]);
 
-    // QueryParser may fail if the query is not in the right
+    // `QueryParser` may fail if the query is not in the right
     // format. For user facing applications, this can be a problem.
     // A ticket has been opened regarding this problem.
     let query = query_parser.parse_query("sea whale")?;
@@ -221,7 +220,7 @@ fn main() -> tantivy::Result<()> {
     //
     // We are not interested in all of the documents but
     // only in the top 10. Keeping track of our top 10 best documents
-    // is the role of the TopDocs.
+    // is the role of the `TopDocs` collector.
 
     // We can now perform our query.
     let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
