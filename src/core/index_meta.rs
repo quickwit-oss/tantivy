@@ -30,7 +30,6 @@ impl SegmentMetaInventory {
             .collect::<Vec<_>>()
     }
 
-    #[doc(hidden)]
     pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,

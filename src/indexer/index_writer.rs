@@ -209,10 +209,7 @@ fn index_documents(
     assert!(num_docs > 0);
 
     let doc_opstamps: Vec<Opstamp> = segment_writer.finalize()?;
-    let segment_meta = segment
-        .index()
-        .inventory()
-        .new_segment_meta(segment_id, num_docs);
+    let segment_meta = segment.index().new_segment_meta(segment_id, num_docs);
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
