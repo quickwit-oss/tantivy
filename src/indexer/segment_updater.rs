@@ -126,9 +126,7 @@ fn perform_merge(
 
     let num_docs = merger.write(segment_serializer)?;
 
-    let segment_meta = index
-        .inventory()
-        .new_segment_meta(merged_segment.id(), num_docs);
+    let segment_meta = index.new_segment_meta(merged_segment.id(), num_docs);
 
     let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None);
     Ok(after_merge_segment_entry)
@@ -282,7 +280,7 @@ impl SegmentUpdater {
     fn list_files(&self) -> HashSet<PathBuf> {
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.to_path_buf());
-        for segment_meta in self.0.index.inventory().all() {
+        for segment_meta in self.0.index.list_all_segment_metas() {
             files.extend(segment_meta.list_files());
         }
         files

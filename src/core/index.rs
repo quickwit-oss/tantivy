@@ -216,8 +216,22 @@ impl Index {
         Index::open(mmap_directory)
     }
 
-    pub(crate) fn inventory(&self) -> &SegmentMetaInventory {
-        &self.inventory
+    /// Returns the list of the segment metas tracked by the index.
+    ///
+    /// Such segments can of course be part of the index,
+    /// but also they could be segments being currently built or in the middle of a merge
+    /// operation.
+    pub fn list_all_segment_metas(&self) -> Vec<SegmentMeta> {
+        self.inventory.all()
+    }
+
+    /// Creates a new segment_meta (Advanced user only).
+    ///
+    /// As long as the `SegmentMeta` lives, the files associated with the
+    /// `SegmentMeta` are guaranteed to not be garbage collected, regardless of
+    /// whether the segment is recorded as part of the index or not.
+    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+        self.inventory.new_segment_meta(segment_id, max_doc)
     }
 
     /// Open the index using the provided directory
