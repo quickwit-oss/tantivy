@@ -4,7 +4,8 @@ use crate::schema::Field;
 use crate::Result;
 use crate::Searcher;
 use std::clone::Clone;
-use tantivy_fst::Regex;
+use std::sync::Arc;
+use tantivy_fst::{Automaton, Regex};
 
 /// A Regex Query matches all of the documents
 /// containing a specific term that matches
@@ -51,30 +52,53 @@ use tantivy_fst::Regex;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RegexQuery {
-    regex_pattern: String,
+    regex: ShareableRegex,
     field: Field,
+}
+
+#[derive(Debug, Clone)]
+struct ShareableRegex(Arc<Regex>);
+
+impl Automaton for ShareableRegex {
+    type State = <Regex as Automaton>::State;
+
+    #[inline]
+    fn start(&self) -> Self::State {
+        self.0.start()
+    }
+
+    #[inline]
+    fn is_match(&self, state: &Self::State) -> bool {
+        self.0.is_match(state)
+    }
+
+    #[inline]
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        self.0.accept(state, byte)
+    }
 }
 
 impl RegexQuery {
     /// Creates a new RegexQuery
     pub fn new(regex_pattern: String, field: Field) -> RegexQuery {
+        let regex = Regex::new(&regex_pattern)
+            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.clone()))
+            .expect("can't build Regex"); // TODO: convert into a Result
+
         RegexQuery {
-            regex_pattern,
+            regex: ShareableRegex(Arc::new(regex)),
             field,
         }
     }
 
-    fn specialized_weight(&self) -> Result<AutomatonWeight<Regex>> {
-        let automaton = Regex::new(&self.regex_pattern)
-            .map_err(|_| TantivyError::InvalidArgument(self.regex_pattern.clone()))?;
-
-        Ok(AutomatonWeight::new(self.field, automaton))
+    fn specialized_weight(&self) -> AutomatonWeight<ShareableRegex> {
+        AutomatonWeight::new(self.field, self.regex.clone())
     }
 }
 
 impl Query for RegexQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
-        Ok(Box::new(self.specialized_weight()?))
+        Ok(Box::new(self.specialized_weight()))
     }
 }
 
