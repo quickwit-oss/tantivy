@@ -6,12 +6,9 @@ use crate::Searcher;
 use std::clone::Clone;
 use tantivy_fst::Regex;
 
-// A Regex Query matches all of the documents
+/// A Regex Query matches all of the documents
 /// containing a specific term that matches
-/// a regex pattern
-/// A Fuzzy Query matches all of the documents
-/// containing a specific term that is within
-/// Levenshtein distance
+/// a regex pattern.
 ///
 /// ```rust
 /// use tantivy::collector::Count;
@@ -59,7 +56,7 @@ pub struct RegexQuery {
 }
 
 impl RegexQuery {
-    /// Creates a new Fuzzy Query
+    /// Creates a new RegexQuery
     pub fn new(regex_pattern: String, field: Field) -> RegexQuery {
         RegexQuery {
             regex_pattern,
