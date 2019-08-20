@@ -44,7 +44,7 @@ use tantivy_fst::{Automaton, Regex};
 ///     let searcher = reader.searcher();
 ///
 ///     let term = Term::from_field_text(title, "Diary");
-///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
+///     let query = RegexQuery::from_pattern("d[ai]{2}ry", title)?;
 ///     let count = searcher.search(&query, &Count)?;
 ///     assert_eq!(count, 3);
 ///     Ok(())
@@ -79,16 +79,15 @@ impl Automaton for ShareableRegex {
 }
 
 impl RegexQuery {
-    /// Creates a new RegexQuery
-    pub fn new(regex_pattern: String, field: Field) -> RegexQuery {
+    /// Creates a new RegexQuery from a given pattern
+    pub fn from_pattern(regex_pattern: &str, field: Field) -> Result<Self> {
         let regex = Regex::new(&regex_pattern)
-            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.clone()))
-            .expect("can't build Regex"); // TODO: convert into a Result
+            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_owned()))?;
 
-        RegexQuery {
+        Ok(RegexQuery {
             regex: ShareableRegex(Arc::new(regex)),
             field,
-        }
+        })
     }
 
     fn specialized_weight(&self) -> AutomatonWeight<ShareableRegex> {
@@ -130,7 +129,7 @@ mod test {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         {
-            let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
+            let regex_query = RegexQuery::from_pattern("jap[ao]n", country_field).unwrap();
             let scored_docs = searcher
                 .search(&regex_query, &TopDocs::with_limit(2))
                 .unwrap();
@@ -138,7 +137,7 @@ mod test {
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
         }
-        let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
+        let regex_query = RegexQuery::from_pattern("jap[A-Z]n", country_field).unwrap();
         let top_docs = searcher
             .search(&regex_query, &TopDocs::with_limit(2))
             .unwrap();
