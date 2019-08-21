@@ -13,7 +13,7 @@ use tantivy_fst::Automaton;
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
 where
-    A: Automaton + Send + Sync + 'static,
+    A: Automaton + Send + Sync,
 {
     field: Field,
     automaton: A,
@@ -21,7 +21,7 @@ where
 
 impl<A> AutomatonWeight<A>
 where
-    A: Automaton + Send + Sync + 'static,
+    A: Automaton + Send + Sync,
 {
     /// Create a new AutomationWeight
     pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
@@ -36,7 +36,7 @@ where
 
 impl<A> Weight for AutomatonWeight<A>
 where
-    A: Automaton + Send + Sync + 'static,
+    A: Automaton + Send + Sync,
 {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();

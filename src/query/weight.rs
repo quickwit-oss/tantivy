@@ -7,7 +7,7 @@ use crate::{DocId, Result};
 /// for a given set of segments.
 ///
 /// See [`Query`](./trait.Query.html).
-pub trait Weight: Send + Sync + 'static {
+pub trait Weight: Send + Sync {
     /// Returns the scorer for the given segment.
     /// See [`Query`](./trait.Query.html).
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>>;
