@@ -41,7 +41,7 @@ impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         let sub_weights = self
             .subqueries
             .iter()

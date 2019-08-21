@@ -104,7 +104,7 @@ impl RegexQuery {
 }
 
 impl Query for RegexQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, _searcher: &'b Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         Ok(Box::new(self.specialized_weight()))
     }
 }

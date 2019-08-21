@@ -14,7 +14,7 @@ use crate::Score;
 pub struct AllQuery;
 
 impl Query for AllQuery {
-    fn weight(&self, _: &Searcher, _: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, _: &'b Searcher, _: bool) -> Result<Box<dyn Weight + 'a>> {
         Ok(Box::new(AllWeight))
     }
 }

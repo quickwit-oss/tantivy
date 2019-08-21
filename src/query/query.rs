@@ -48,7 +48,7 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     /// can increase performances.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>>;
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>>;
 
     /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
@@ -86,7 +86,7 @@ where
 }
 
 impl Query for Box<dyn Query> {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         self.as_ref().weight(searcher, scoring_enabled)
     }
 

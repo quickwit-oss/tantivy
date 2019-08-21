@@ -104,7 +104,7 @@ impl TermQuery {
 }
 
 impl Query for TermQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
     }
     fn query_terms(&self, term_set: &mut BTreeSet<Term>) {

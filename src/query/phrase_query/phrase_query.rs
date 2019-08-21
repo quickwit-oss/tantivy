@@ -110,7 +110,7 @@ impl Query for PhraseQuery {
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         let phrase_weight = self.phrase_weight(searcher, scoring_enabled)?;
         Ok(Box::new(phrase_weight))
     }

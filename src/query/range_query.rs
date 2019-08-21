@@ -254,7 +254,7 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, searcher: &'b Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         let schema = searcher.schema();
         let value_type = schema.get_field_entry(self.field).field_type().value_type();
         if value_type != self.value_type {

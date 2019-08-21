@@ -16,7 +16,7 @@ use crate::SegmentReader;
 pub struct EmptyQuery;
 
 impl Query for EmptyQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight<'a, 'b>(&'a self, _searcher: &'b Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight + 'a>> {
         Ok(Box::new(EmptyWeight))
     }
 

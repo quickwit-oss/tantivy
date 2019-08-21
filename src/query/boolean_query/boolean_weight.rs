@@ -40,13 +40,13 @@ where
     scorer
 }
 
-pub struct BooleanWeight {
-    weights: Vec<(Occur, Box<dyn Weight>)>,
+pub struct BooleanWeight<'a> {
+    weights: Vec<(Occur, Box<dyn Weight + 'a>)>,
     scoring_enabled: bool,
 }
 
-impl BooleanWeight {
-    pub fn new(weights: Vec<(Occur, Box<dyn Weight>)>, scoring_enabled: bool) -> BooleanWeight {
+impl BooleanWeight<'_> {
+    pub fn new<'a>(weights: Vec<(Occur, Box<dyn Weight + 'a>)>, scoring_enabled: bool) -> BooleanWeight {
         BooleanWeight {
             weights,
             scoring_enabled,
@@ -112,7 +112,7 @@ impl BooleanWeight {
     }
 }
 
-impl Weight for BooleanWeight {
+impl Weight for BooleanWeight<'_> {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
