@@ -8,15 +8,13 @@ use crate::termdict::{TermDictionary, TermStreamer};
 use crate::DocId;
 use crate::TantivyError;
 use crate::{Result, SkipResult};
+use std::sync::Arc;
 use tantivy_fst::Automaton;
 
 /// A weight struct for Fuzzy Term and Regex Queries
-pub struct AutomatonWeight<A>
-where
-    A: Automaton + Send + Sync + 'static,
-{
+pub struct AutomatonWeight<A> {
     field: Field,
-    automaton: A,
+    automaton: Arc<A>,
 }
 
 impl<A> AutomatonWeight<A>
@@ -24,12 +22,16 @@ where
     A: Automaton + Send + Sync + 'static,
 {
     /// Create a new AutomationWeight
-    pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
-        AutomatonWeight { field, automaton }
+    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> AutomatonWeight<A> {
+        AutomatonWeight {
+            field,
+            automaton: automaton.into(),
+        }
     }
 
     fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
-        let term_stream_builder = term_dict.search(&self.automaton);
+        let automaton: &A = &*self.automaton;
+        let term_stream_builder = term_dict.search(automaton);
         term_stream_builder.into_stream()
     }
 }

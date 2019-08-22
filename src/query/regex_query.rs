@@ -5,7 +5,7 @@ use crate::Result;
 use crate::Searcher;
 use std::clone::Clone;
 use std::sync::Arc;
-use tantivy_fst::{Automaton, Regex};
+use tantivy_fst::Regex;
 
 /// A Regex Query matches all of the documents
 /// containing a specific term that matches
@@ -52,53 +52,27 @@ use tantivy_fst::{Automaton, Regex};
 /// ```
 #[derive(Debug, Clone)]
 pub struct RegexQuery {
-    regex: ShareableRegex,
+    regex: Arc<Regex>,
     field: Field,
-}
-
-#[derive(Debug, Clone)]
-struct ShareableRegex(Arc<Regex>);
-
-impl Automaton for ShareableRegex {
-    type State = <Regex as Automaton>::State;
-
-    #[inline]
-    fn start(&self) -> Self::State {
-        self.0.start()
-    }
-
-    #[inline]
-    fn is_match(&self, state: &Self::State) -> bool {
-        self.0.is_match(state)
-    }
-
-    #[inline]
-    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
-        self.0.accept(state, byte)
-    }
 }
 
 impl RegexQuery {
     /// Creates a new RegexQuery from a given pattern
     pub fn from_pattern(regex_pattern: &str, field: Field) -> Result<Self> {
         let regex = Regex::new(&regex_pattern)
-            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_owned()))?;
-
-        Ok(RegexQuery {
-            regex: ShareableRegex(Arc::new(regex)),
-            field,
-        })
+            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_string()))?;
+        Ok(RegexQuery::from_regex(regex, field))
     }
 
     /// Creates a new RegexQuery from a fully built Regex
     pub fn from_regex<T: Into<Arc<Regex>>>(regex: T, field: Field) -> Self {
         RegexQuery {
-            regex: ShareableRegex(regex.into()),
+            regex: regex.into(),
             field,
         }
     }
 
-    fn specialized_weight(&self) -> AutomatonWeight<ShareableRegex> {
+    fn specialized_weight(&self) -> AutomatonWeight<Regex> {
         AutomatonWeight::new(self.field, self.regex.clone())
     }
 }
@@ -187,13 +161,13 @@ mod test {
 
         let (reader, field) = build_test_index();
 
-        let matching_one = RegexQuery::from_regex(r1.clone(), field.clone());
-        let matching_zero = RegexQuery::from_regex(r2.clone(), field.clone());
+        let matching_one = RegexQuery::from_regex(r1.clone(), field);
+        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
 
         verify_regex_query(matching_one, matching_zero, reader.clone());
 
-        let matching_one = RegexQuery::from_regex(r1.clone(), field.clone());
-        let matching_zero = RegexQuery::from_regex(r2.clone(), field.clone());
+        let matching_one = RegexQuery::from_regex(r1.clone(), field);
+        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
 
         verify_regex_query(matching_one, matching_zero, reader.clone());
     }
