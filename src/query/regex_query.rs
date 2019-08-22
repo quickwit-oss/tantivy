@@ -4,14 +4,12 @@ use crate::schema::Field;
 use crate::Result;
 use crate::Searcher;
 use std::clone::Clone;
+use std::sync::Arc;
 use tantivy_fst::Regex;
 
-// A Regex Query matches all of the documents
+/// A Regex Query matches all of the documents
 /// containing a specific term that matches
-/// a regex pattern
-/// A Fuzzy Query matches all of the documents
-/// containing a specific term that is within
-/// Levenshtein distance
+/// a regex pattern.
 ///
 /// ```rust
 /// use tantivy::collector::Count;
@@ -46,7 +44,7 @@ use tantivy_fst::Regex;
 ///     let searcher = reader.searcher();
 ///
 ///     let term = Term::from_field_text(title, "Diary");
-///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
+///     let query = RegexQuery::from_pattern("d[ai]{2}ry", title)?;
 ///     let count = searcher.search(&query, &Count)?;
 ///     assert_eq!(count, 3);
 ///     Ok(())
@@ -54,30 +52,34 @@ use tantivy_fst::Regex;
 /// ```
 #[derive(Debug, Clone)]
 pub struct RegexQuery {
-    regex_pattern: String,
+    regex: Arc<Regex>,
     field: Field,
 }
 
 impl RegexQuery {
-    /// Creates a new Fuzzy Query
-    pub fn new(regex_pattern: String, field: Field) -> RegexQuery {
+    /// Creates a new RegexQuery from a given pattern
+    pub fn from_pattern(regex_pattern: &str, field: Field) -> Result<Self> {
+        let regex = Regex::new(&regex_pattern)
+            .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_string()))?;
+        Ok(RegexQuery::from_regex(regex, field))
+    }
+
+    /// Creates a new RegexQuery from a fully built Regex
+    pub fn from_regex<T: Into<Arc<Regex>>>(regex: T, field: Field) -> Self {
         RegexQuery {
-            regex_pattern,
+            regex: regex.into(),
             field,
         }
     }
 
-    fn specialized_weight(&self) -> Result<AutomatonWeight<Regex>> {
-        let automaton = Regex::new(&self.regex_pattern)
-            .map_err(|_| TantivyError::InvalidArgument(self.regex_pattern.clone()))?;
-
-        Ok(AutomatonWeight::new(self.field, automaton))
+    fn specialized_weight(&self) -> AutomatonWeight<Regex> {
+        AutomatonWeight::new(self.field, self.regex.clone())
     }
 }
 
 impl Query for RegexQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
-        Ok(Box::new(self.specialized_weight()?))
+        Ok(Box::new(self.specialized_weight()))
     }
 }
 
@@ -85,13 +87,14 @@ impl Query for RegexQuery {
 mod test {
     use super::RegexQuery;
     use crate::collector::TopDocs;
-    use crate::schema::Schema;
     use crate::schema::TEXT;
+    use crate::schema::{Field, Schema};
     use crate::tests::assert_nearly_equals;
-    use crate::Index;
+    use crate::{Index, IndexReader};
+    use std::sync::Arc;
+    use tantivy_fst::Regex;
 
-    #[test]
-    pub fn test_regex_query() {
+    fn build_test_index() -> (IndexReader, Field) {
         let mut schema_builder = Schema::builder();
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
@@ -107,20 +110,65 @@ mod test {
             index_writer.commit().unwrap();
         }
         let reader = index.reader().unwrap();
+
+        (reader, country_field)
+    }
+
+    fn verify_regex_query(
+        query_matching_one: RegexQuery,
+        query_matching_zero: RegexQuery,
+        reader: IndexReader,
+    ) {
         let searcher = reader.searcher();
         {
-            let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             let scored_docs = searcher
-                .search(&regex_query, &TopDocs::with_limit(2))
+                .search(&query_matching_one, &TopDocs::with_limit(2))
                 .unwrap();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
         }
-        let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
         let top_docs = searcher
-            .search(&regex_query, &TopDocs::with_limit(2))
+            .search(&query_matching_zero, &TopDocs::with_limit(2))
             .unwrap();
         assert!(top_docs.is_empty(), "Expected ZERO document");
+    }
+
+    #[test]
+    pub fn test_regex_query() {
+        let (reader, field) = build_test_index();
+
+        let matching_one = RegexQuery::from_pattern("jap[ao]n", field).unwrap();
+        let matching_zero = RegexQuery::from_pattern("jap[A-Z]n", field).unwrap();
+
+        verify_regex_query(matching_one, matching_zero, reader);
+    }
+
+    #[test]
+    pub fn test_construct_from_regex() {
+        let (reader, field) = build_test_index();
+
+        let matching_one = RegexQuery::from_regex(Regex::new("jap[ao]n").unwrap(), field);
+        let matching_zero = RegexQuery::from_regex(Regex::new("jap[A-Z]n").unwrap(), field);
+
+        verify_regex_query(matching_one, matching_zero, reader);
+    }
+
+    #[test]
+    pub fn test_construct_from_reused_regex() {
+        let r1 = Arc::new(Regex::new("jap[ao]n").unwrap());
+        let r2 = Arc::new(Regex::new("jap[A-Z]n").unwrap());
+
+        let (reader, field) = build_test_index();
+
+        let matching_one = RegexQuery::from_regex(r1.clone(), field);
+        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
+
+        verify_regex_query(matching_one, matching_zero, reader.clone());
+
+        let matching_one = RegexQuery::from_regex(r1.clone(), field);
+        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
+
+        verify_regex_query(matching_one, matching_zero, reader.clone());
     }
 }

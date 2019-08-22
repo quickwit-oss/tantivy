@@ -7,10 +7,13 @@ Tantivy 0.11.0
     - Better handling of whitespaces.
 - Closes #498 - add support for Elastic-style unbounded range queries for alphanumeric types eg. "title:>hello", "weight:>=70.5", "height:<200" (@petr-tik)
 - API change around `Box<BoxableTokenizer>`. See detail in #629
-
+- Avoid rebuilding Regex automaton whenever a regex query is reused. #630 (@brainlock)
+ 
 ## How to update?
 
-`Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
+- `Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
+- Regex are now compiled when the `RegexQuery` instance is built. As a result, it can now return
+an error and handling the `Result` is required.
 
 Tantivy 0.10.1
 =====================
