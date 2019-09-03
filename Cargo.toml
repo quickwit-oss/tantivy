@@ -16,7 +16,7 @@ edition = "2018"
 base64 = "0.10.0"
 byteorder = "1.0"
 once_cell = "1.0"
-regex = "1.0"
+regex ={version = "1.3.0", default-features = false, features = ["std"]}
 tantivy-fst = "0.1"
 memmap = {version = "0.7", optional=true}
 lz4 = {version="1.20", optional=true}
@@ -84,6 +84,7 @@ wasm-bindgen = ["uuid/wasm-bindgen"]
 travis-ci = { repository = "tantivy-search/tantivy" }
 
 [dev-dependencies.fail]
+version = "0.3"
 features = ["failpoints"]
 
 # Following the "fail" crate best practises, we isolate
