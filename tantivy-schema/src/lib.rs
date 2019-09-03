@@ -26,7 +26,7 @@ directory.
 ### Example
 
 ```
-use tantivy::schema::*;
+use tantivy_schema::*;
 let mut schema_builder = Schema::builder();
 let title_options = TextOptions::default()
     .set_stored()
@@ -59,7 +59,7 @@ when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called
 ### Example
 
 ```
-use tantivy::schema::*;
+use tantivy_schema::*;
 let mut schema_builder = Schema::builder();
 let num_stars_options = IntOptions::default()
     .set_stored()
@@ -93,7 +93,7 @@ using the  `|` operator.
 For instance, a schema containing the two fields defined in the example above could be rewritten :
 
 ```
-use tantivy::schema::*;
+use tantivy_schema::*;
 let mut schema_builder = Schema::builder();
 schema_builder.add_u64_field("num_stars", INDEXED | STORED);
 schema_builder.add_text_field("title", TEXT | STORED);

@@ -252,7 +252,6 @@ mod tests {
     use crate::Postings;
     use crate::ReloadPolicy;
     use rand::distributions::Bernoulli;
-    use rand::distributions::Uniform;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
@@ -276,10 +275,6 @@ mod tests {
             .enumerate()
             .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
             .collect()
-    }
-
-    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
-        sample_with_seed(n, ratio, 4)
     }
 
     #[test]
