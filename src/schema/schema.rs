@@ -301,28 +301,26 @@ impl Schema {
 
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
-            match self.get_field(field_name) {
-                Some(field) => {
-                    let field_entry = self.get_field_entry(field);
-                    let field_type = field_entry.field_type();
-                    match *json_value {
-                        JsonValue::Array(ref json_items) => {
-                            for json_item in json_items {
-                                let value = field_type.value_from_json(json_item).map_err(|e| {
-                                    DocParsingError::ValueError(field_name.clone(), e)
-                                })?;
-                                doc.add(FieldValue::new(field, value));
-                            }
-                        }
-                        _ => {
-                            let value = field_type
-                                .value_from_json(json_value)
-                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add(FieldValue::new(field, value));
-                        }
+            let field = self
+                .get_field(field_name)
+                .ok_or_else(|| DocParsingError::NoSuchFieldInSchema(field_name.clone()))?;
+            let field_entry = self.get_field_entry(field);
+            let field_type = field_entry.field_type();
+            match *json_value {
+                JsonValue::Array(ref json_items) => {
+                    for json_item in json_items {
+                        let value = field_type
+                            .value_from_json(json_item)
+                            .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                        doc.add(FieldValue::new(field, value));
                     }
                 }
-                None => return Err(DocParsingError::NoSuchFieldInSchema(field_name.clone())),
+                _ => {
+                    let value = field_type
+                        .value_from_json(json_value)
+                        .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                    doc.add(FieldValue::new(field, value));
+                }
             }
         }
         Ok(doc)
