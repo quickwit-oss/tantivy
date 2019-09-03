@@ -31,16 +31,27 @@ pub use self::mmap_directory::MmapDirectory;
 
 pub use self::managed_directory::ManagedDirectory;
 
+/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite#method.terminate_ref) directly
+pub struct AntiCallToken(());
 
 /// Trait used to indicate when no more write need to be done on a writer
 pub trait TerminatingWrite: Write {
-    /// Indicate that the writer will no longer be used
+    /// Indicate that the writer will no longer be used. Internally call terminate_ref.
     fn terminate(mut self) -> io::Result<()> where Self: Sized {
+        self.terminate_ref(AntiCallToken(()))
+    }
+
+    /// You should implement this function to define custom behavior.
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         self.flush()
     }
 }
 
-impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {}
+impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {
+    fn terminate(mut self) -> io::Result<()> {
+        self.as_mut().terminate_ref(AntiCallToken(()))
+    }
+}
 
 /// Write object for Directory.
 ///
