@@ -244,13 +244,13 @@ impl ManagedDirectory {
 
 #[derive(Debug, Copy, Clone)]
 pub enum Footer {
-    V0(V0)
+    V0(V0),
 }
 
 impl Footer {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Footer::V0(f) => f.to_bytes()
+            Footer::V0(f) => f.to_bytes(),
         }
     }
 
@@ -258,15 +258,19 @@ impl Footer {
         let len = data.len();
         assert!(len >= 2);
         let size = LittleEndian::read_u16(&data[len - 2..]);
-        assert!(len >= size as usize, "len({}) is smaller than size({})", len, size);
+        assert!(
+            len >= size as usize,
+            "len({}) is smaller than size({})",
+            len,
+            size
+        );
         let footer = &data[len - size as usize..];
         let index_version = footer[0];
         match index_version {
             0 => Footer::V0(V0::from_bytes(footer)),
-            _ => panic!("unsuported index_version")
+            _ => panic!("unsuported index_version"),
         }
     }
-
 
     pub fn index_version(&self) -> u8 {
         match self {
@@ -295,7 +299,7 @@ impl Footer {
 
 #[derive(Debug, Copy, Clone)]
 pub struct V0 {
-    pub tantivy_version: (u8,u8,u8),
+    pub tantivy_version: (u8, u8, u8),
     pub crc: u32,
 }
 
@@ -319,18 +323,18 @@ impl V0 {
 
         V0 {
             tantivy_version,
-            crc
+            crc,
         }
     }
 
     pub fn from_crc(crc: u32) -> Self {
         Self {
             tantivy_version: (
-                 env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
-                 env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
-                 env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+                env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+                env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+                env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
             ),
-            crc
+            crc,
         }
     }
     pub fn size() -> u16 {
@@ -372,7 +376,7 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
         let footer = Footer::V0(V0::from_crc(crc)).to_bytes();
         let mut writer = self.writer.take().unwrap();
         writer.write_all(&footer)?;
-        writer.flush()?;//should we assume calling terminate on inner already flush?
+        writer.flush()?; //should we assume calling terminate on inner already flush?
         writer.terminate()
     }
 }
@@ -387,9 +391,13 @@ impl Directory for ManagedDirectory {
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|e| IOError::with_path(path.to_owned(), e))?;
-        Ok(io::BufWriter::new(Box::new(
-            FooterProxy::new(self.directory.open_write(path)?.into_inner().map_err(|_|()).expect("buffer should be empty"))
-        )))
+        Ok(io::BufWriter::new(Box::new(FooterProxy::new(
+            self.directory
+                .open_write(path)?
+                .into_inner()
+                .map_err(|_| ())
+                .expect("buffer should be empty"),
+        ))))
     }
 
     // TODO: to be correct, this require an non enforced contract, atomic writes must only be
@@ -484,9 +492,7 @@ mod tests_mmap_specific {
 
         let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
         let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-        let mut write = managed_directory
-            .open_write(test_path1)
-            .unwrap();
+        let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();
         write.terminate().unwrap();
         assert!(managed_directory.exists(test_path1));

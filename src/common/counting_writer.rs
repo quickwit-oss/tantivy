@@ -1,7 +1,7 @@
-use std::io;
-use std::io::Write;
 use crate::directory::AntiCallToken;
 use crate::directory::TerminatingWrite;
+use std::io;
+use std::io::Write;
 
 pub struct CountingWriter<W> {
     underlying: W,
