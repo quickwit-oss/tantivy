@@ -3,6 +3,7 @@ use super::skiplist::SkipListBuilder;
 use super::StoreReader;
 use crate::common::CountingWriter;
 use crate::common::{BinarySerializable, VInt};
+use crate::directory::TerminatingWrite;
 use crate::directory::WritePtr;
 use crate::schema::Document;
 use crate::DocId;
@@ -109,6 +110,6 @@ impl StoreWriter {
         self.offset_index_writer.write(&mut self.writer)?;
         header_offset.serialize(&mut self.writer)?;
         self.doc.serialize(&mut self.writer)?;
-        self.writer.flush()
+        self.writer.terminate()
     }
 }

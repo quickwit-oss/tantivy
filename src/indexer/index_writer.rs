@@ -7,6 +7,7 @@ use crate::core::SegmentComponent;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::SegmentReader;
+use crate::directory::TerminatingWrite;
 use crate::directory::DirectoryLock;
 use crate::docset::DocSet;
 use crate::error::TantivyError;
@@ -168,6 +169,7 @@ pub(crate) fn advance_deletes(
             segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
+            delete_file.terminate()?;
         }
     }
     segment_entry.set_meta(segment.meta().clone());

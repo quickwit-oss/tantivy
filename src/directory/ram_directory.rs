@@ -1,5 +1,6 @@
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
@@ -71,7 +72,11 @@ impl Write for VecWriter {
     }
 }
 
-impl TerminatingWrite for VecWriter {}
+impl TerminatingWrite for VecWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.flush()
+    }
+}
 
 #[derive(Default)]
 struct InnerDirectory {

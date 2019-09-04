@@ -55,6 +55,8 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "0.6"
 
+drop_bomb = "0.1.4"
+
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
 

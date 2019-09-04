@@ -1,5 +1,7 @@
 use std::io;
 use std::io::Write;
+use crate::directory::AntiCallToken;
+use crate::directory::TerminatingWrite;
 
 pub struct CountingWriter<W> {
     underlying: W,
@@ -39,6 +41,13 @@ impl<W: Write> Write for CountingWriter<W> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.underlying.flush()
+    }
+}
+
+impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
+    fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
+        self.flush()?;
+        self.underlying.terminate_ref(token)
     }
 }
 

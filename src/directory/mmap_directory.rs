@@ -11,6 +11,7 @@ use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::read_only_source::BoxedData;
+use crate::directory::AntiCallToken;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
 use crate::directory::Lock;
@@ -412,7 +413,11 @@ impl Seek for SafeFileWriter {
     }
 }
 
-impl TerminatingWrite for SafeFileWriter {}
+impl TerminatingWrite for SafeFileWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.flush()
+    }
+}
 
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {

@@ -42,14 +42,19 @@ pub trait TerminatingWrite: Write {
     }
 
     /// You should implement this function to define custom behavior.
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.flush()
-    }
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()>;
 }
 
 impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {
-    fn terminate(mut self) -> io::Result<()> {
-        self.as_mut().terminate_ref(AntiCallToken(()))
+    fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
+        self.as_mut().terminate_ref(token)
+    }
+}
+
+impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
+    fn terminate_ref(&mut self, a: AntiCallToken) -> io::Result<()> {
+        self.flush()?;
+        self.get_mut().terminate_ref(a)
     }
 }
 

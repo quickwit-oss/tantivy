@@ -258,11 +258,11 @@ impl Footer {
         let len = data.len();
         assert!(len >= 2);
         let size = LittleEndian::read_u16(&data[len - 2..]);
-        assert_eq!(size, 10);
+        assert!(len >= size as usize, "len({}) is smaller than size({})", len, size);
         let footer = &data[len - size as usize..];
         let index_version = footer[0];
         match index_version {
-            0 => Footer::V0(V0::from_bytes(data)),
+            0 => Footer::V0(V0::from_bytes(footer)),
             _ => panic!("unsuported index_version")
         }
     }
@@ -325,7 +325,11 @@ impl V0 {
 
     pub fn from_crc(crc: u32) -> Self {
         Self {
-            tantivy_version: (0,10,0),
+            tantivy_version: (
+                 env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+                 env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+                 env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+            ),
             crc
         }
     }
@@ -339,13 +343,15 @@ struct FooterProxy<W: TerminatingWrite> {
     hasher: Option<Hasher>,
     /// always Some except after terminate call
     writer: Option<W>,
+    bomb: drop_bomb::DropBomb,
 }
 
 impl<W: TerminatingWrite> FooterProxy<W> {
     fn new(writer: W) -> Self {
         FooterProxy {
             hasher: Some(Hasher::new()),
-            writer: Some(writer)
+            writer: Some(writer),
+            bomb: drop_bomb::DropBomb::new("This must be terminated before dropping"),
         }
     }
 }
@@ -364,6 +370,7 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
 
 impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.bomb.defuse();
         let crc = self.hasher.take().unwrap().finalize();
         let footer = V0::from_crc(crc).to_bytes();
         let mut writer = self.writer.take().unwrap();
@@ -429,7 +436,7 @@ impl Clone for ManagedDirectory {
 #[cfg(test)]
 mod tests_mmap_specific {
 
-    use crate::directory::{Directory, ManagedDirectory, MmapDirectory};
+    use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
     use std::collections::HashSet;
     use std::io::Write;
     use std::path::{Path, PathBuf};
@@ -445,8 +452,8 @@ mod tests_mmap_specific {
         {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
             let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-            let mut write_file = managed_directory.open_write(test_path1).unwrap();
-            write_file.flush().unwrap();
+            let write_file = managed_directory.open_write(test_path1).unwrap();
+            write_file.terminate().unwrap();
             managed_directory
                 .atomic_write(test_path2, &[0u8, 1u8])
                 .unwrap();
@@ -480,9 +487,11 @@ mod tests_mmap_specific {
 
         let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
         let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-        managed_directory
-            .atomic_write(test_path1, &vec![0u8, 1u8])
+        let mut write = managed_directory
+            .open_write(test_path1)
             .unwrap();
+        write.write_all(&[0u8, 1u8]).unwrap();
+        write.terminate().unwrap();
         assert!(managed_directory.exists(test_path1));
 
         let _mmap_read = managed_directory.open_read(test_path1).unwrap();

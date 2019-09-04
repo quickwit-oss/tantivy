@@ -2,7 +2,7 @@ use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
 use crate::common::VInt;
 use crate::directory::ReadOnlySource;
-use crate::directory::WritePtr;
+use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Field;
 use crate::space_usage::FieldUsage;
 use crate::space_usage::PerFieldSpaceUsage;
@@ -42,7 +42,7 @@ pub struct CompositeWrite<W = WritePtr> {
     offsets: HashMap<FileAddr, u64>,
 }
 
-impl<W: Write> CompositeWrite<W> {
+impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     /// Crate a new API writer that writes a composite file
     /// in a given write.
     pub fn wrap(w: W) -> CompositeWrite<W> {
@@ -91,8 +91,7 @@ impl<W: Write> CompositeWrite<W> {
 
         let footer_len = (self.write.written_bytes() - footer_offset) as u32;
         footer_len.serialize(&mut self.write)?;
-        self.write.flush()?;
-        Ok(())
+        self.write.terminate()
     }
 }
 
