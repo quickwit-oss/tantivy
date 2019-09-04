@@ -443,6 +443,7 @@ mod tests_mmap_specific {
 
     use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
     use std::collections::HashSet;
+    use std::fs::OpenOptions;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use tempfile::TempDir;
@@ -513,4 +514,38 @@ mod tests_mmap_specific {
         }
     }
 
+    #[test]
+    fn test_checksum() {
+        let test_path1: &'static Path = Path::new("some_path_for_test");
+        let test_path2: &'static Path = Path::new("other_test_path");
+
+        let tempdir = TempDir::new().unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+
+        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
+        let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+        let mut write = managed_directory.open_write(test_path1).unwrap();
+        write.write_all(&[0u8, 1u8]).unwrap();
+        write.terminate().unwrap();
+
+        let mut write = managed_directory.open_write(test_path2).unwrap();
+        write.write_all(&[3u8, 4u8, 5u8]).unwrap();
+        write.terminate().unwrap();
+
+        assert!(managed_directory.list_damaged().unwrap().is_empty());
+
+        let mut corrupted_path = tempdir_path.clone();
+        corrupted_path.push(test_path2);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .open(&corrupted_path)
+            .unwrap();
+        file.write_all(&[255u8]).unwrap();
+        file.flush().unwrap();
+        drop(file);
+
+        let damaged = managed_directory.list_damaged().unwrap();
+        assert_eq!(damaged.len(), 1);
+        assert!(damaged.contains(test_path2));
+    }
 }
