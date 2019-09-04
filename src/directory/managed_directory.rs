@@ -343,7 +343,6 @@ struct FooterProxy<W: TerminatingWrite> {
     hasher: Option<Hasher>,
     /// always Some except after terminate call
     writer: Option<W>,
-    bomb: drop_bomb::DropBomb,
 }
 
 impl<W: TerminatingWrite> FooterProxy<W> {
@@ -351,7 +350,6 @@ impl<W: TerminatingWrite> FooterProxy<W> {
         FooterProxy {
             hasher: Some(Hasher::new()),
             writer: Some(writer),
-            bomb: drop_bomb::DropBomb::new("This must be terminated before dropping"),
         }
     }
 }
@@ -370,9 +368,8 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
 
 impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.bomb.defuse();
         let crc = self.hasher.take().unwrap().finalize();
-        let footer = V0::from_crc(crc).to_bytes();
+        let footer = Footer::V0(V0::from_crc(crc)).to_bytes();
         let mut writer = self.writer.take().unwrap();
         writer.write_all(&footer)?;
         writer.flush()?;//should we assume calling terminate on inner already flush?
