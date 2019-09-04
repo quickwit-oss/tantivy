@@ -7,7 +7,7 @@ set -ex
 main() {
     if [ ! -z $CODECOV ]; then
         echo "Codecov"
-        cargo build --verbose && cargo coverage --verbose && bash <(curl -s https://codecov.io/bash) -s target/kcov
+        cargo build --verbose && cargo coverage --verbose --all && bash <(curl -s https://codecov.io/bash) -s target/kcov
     else
         echo "Build"
         cross build --target $TARGET
@@ -15,7 +15,8 @@ main() {
             return
         fi
         echo "Test"
-        cross test --target $TARGET --no-default-features --features mmap -- --test-threads 1
+        cross test --target $TARGET --no-default-features --features mmap
+        cross test --target $TARGET --no-default-features --features mmap query-grammar
     fi
     for example in $(ls examples/*.rs)
     do

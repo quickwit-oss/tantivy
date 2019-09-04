@@ -12,7 +12,6 @@ mod exclude;
 mod explanation;
 mod fuzzy_query;
 mod intersection;
-mod occur;
 mod phrase_query;
 mod query;
 mod query_parser;
@@ -43,7 +42,6 @@ pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
-pub use self::occur::Occur;
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::Query;
 pub use self::query_parser::QueryParser;
@@ -55,6 +53,7 @@ pub use self::scorer::ConstScorer;
 pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
+pub use tantivy_query_grammar::Occur;
 
 #[cfg(test)]
 mod tests {

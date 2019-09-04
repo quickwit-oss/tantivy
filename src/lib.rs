@@ -1,5 +1,4 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![recursion_limit = "100"]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]

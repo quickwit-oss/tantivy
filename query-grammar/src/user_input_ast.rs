@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
-use crate::query::Occur;
+use crate::Occur;
 
 #[derive(PartialEq)]
 pub enum UserInputLeaf {
