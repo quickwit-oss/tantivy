@@ -1,9 +1,5 @@
 use super::logical_ast::*;
-use super::query_grammar::parse_to_ast;
-use super::user_input_ast::*;
 use crate::core::Index;
-use crate::query::occur::compose_occur;
-use crate::query::query_parser::logical_ast::LogicalAST;
 use crate::query::AllQuery;
 use crate::query::BooleanQuery;
 use crate::query::EmptyQuery;
@@ -16,11 +12,11 @@ use crate::schema::IndexRecordOption;
 use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
-use combine::Parser;
 use std::borrow::Cow;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
+use tantivy_query_grammar::{UserInputAST, UserInputBound, UserInputLeaf};
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Fail)]
@@ -222,9 +218,8 @@ impl QueryParser {
 
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
-        let (user_input_ast, _remaining) = parse_to_ast()
-            .parse(query)
-            .map_err(|_| QueryParserError::SyntaxError)?;
+        let user_input_ast =
+            tantivy_query_grammar::parse_query(query).map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -399,7 +394,7 @@ impl QueryParser {
                 let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
                 for sub_query in sub_queries {
                     let (occur, sub_ast) = self.compute_logical_ast_with_occur(sub_query)?;
-                    let new_occur = compose_occur(default_occur, occur);
+                    let new_occur = Occur::compose(default_occur, occur);
                     logical_sub_queries.push((new_occur, sub_ast));
                 }
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
@@ -407,7 +402,7 @@ impl QueryParser {
             UserInputAST::Unary(left_occur, subquery) => {
                 let (right_occur, logical_sub_queries) =
                     self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(left_occur, right_occur), logical_sub_queries))
+                Ok((Occur::compose(left_occur, right_occur), logical_sub_queries))
             }
             UserInputAST::Leaf(leaf) => {
                 let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;

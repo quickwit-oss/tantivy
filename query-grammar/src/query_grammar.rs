@@ -1,6 +1,5 @@
 use super::user_input_ast::*;
-use crate::query::occur::Occur;
-use crate::query::query_parser::user_input_ast::UserInputBound;
+use crate::Occur;
 use combine::char::*;
 use combine::error::StreamError;
 use combine::stream::StreamErrorFor;
