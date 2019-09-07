@@ -1,9 +1,10 @@
 use crate::error::TantivyError::InvalidArgument;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
+use crate::termdict::WrappedDFA;
 use crate::Result;
 use crate::Searcher;
-use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -102,26 +103,31 @@ impl FuzzyTermQuery {
             prefix: true,
         }
     }
+}
 
-    fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
+impl Query for FuzzyTermQuery {
+    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
-                let automaton = automaton_builder.build_dfa(self.term.text());
-                Ok(AutomatonWeight::new(self.term.field(), automaton))
+                let wrapped_dfa = WrappedDFA {
+                    dfa: automaton_builder.build_dfa(self.term.text()),
+                    condition: |distance: Distance| -> bool {
+                        match distance {
+                            Distance::Exact(_) => true,
+                            Distance::AtLeast(_) => false,
+                        }
+                    },
+                };
+                let automaton_weight = AutomatonWeight::new(self.term.field(), wrapped_dfa);
+                Ok(Box::new(automaton_weight))
             }
             None => Err(InvalidArgument(format!(
                 "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
                 self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
             ))),
         }
-    }
-}
-
-impl Query for FuzzyTermQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
-        Ok(Box::new(self.specialized_weight()?))
     }
 }
 

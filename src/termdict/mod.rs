@@ -31,14 +31,43 @@ mod termdict;
 pub use self::merger::TermMerger;
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
+use levenshtein_automata::{Distance, DFA, SINK_STATE};
+use tantivy_fst::Automaton;
+
+pub(crate) struct WrappedDFA<Cond> {
+    pub dfa: DFA,
+    pub condition: Cond,
+}
+
+impl<Cond: Fn(Distance) -> bool> Automaton for WrappedDFA<Cond> {
+    type State = u32;
+
+    fn start(&self) -> Self::State {
+        self.dfa.initial_state()
+    }
+
+    fn is_match(&self, state: &Self::State) -> bool {
+        let distance = self.dfa.distance(*state);
+        (self.condition)(distance)
+    }
+
+    fn can_match(&self, state: &Self::State) -> bool {
+        *state != SINK_STATE
+    }
+
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        self.dfa.transition(*state, byte)
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
+    use super::{TermDictionary, TermDictionaryBuilder, TermStreamer, WrappedDFA};
     use crate::core::Index;
     use crate::directory::{Directory, RAMDirectory, ReadOnlySource};
     use crate::postings::TermInfo;
     use crate::schema::{Document, FieldType, Schema, TEXT};
+    use levenshtein_automata::Distance;
     use std::path::PathBuf;
     use std::str;
 
@@ -423,9 +452,14 @@ mod tests {
 
         // We can now build an entire dfa.
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
-        let automaton = lev_automaton_builder.build_dfa("Spaen");
-
-        let mut range = term_dict.search(automaton).into_stream();
+        let wrapped_dfa = WrappedDFA {
+            dfa: lev_automaton_builder.build_dfa("Spaen"),
+            condition: |distance| match distance {
+                Distance::Exact(_) => true,
+                Distance::AtLeast(_) => false,
+            },
+        };
+        let mut range = term_dict.search(wrapped_dfa).into_stream();
 
         // get the first finding
         assert!(range.advance());

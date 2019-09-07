@@ -30,7 +30,7 @@ serde_json = "1.0"
 num_cpus = "1.2"
 fs2={version="0.4", optional=true}
 itertools = "0.8"
-levenshtein_automata = {version="0.1", features=["fst_automaton"]}
+levenshtein_automata = "0.1"
 notify = {version="4", optional=true}
 bit-set = "0.5"
 uuid = { version = "0.7.2", features = ["v4", "serde"] }
