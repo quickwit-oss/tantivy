@@ -12,6 +12,7 @@ use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
 use crate::DocId;
 use crate::Result;
+use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
@@ -127,12 +128,12 @@ impl MultiFieldPostingsWriter {
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
-    ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
+    ) -> Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
 
-        let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
+        let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
             HashMap::new();
 
         let field_offsets = make_field_partition(&term_offsets);
@@ -147,7 +148,7 @@ impl MultiFieldPostingsWriter {
                     let unordered_term_ids = term_offsets[start..stop]
                         .iter()
                         .map(|&(_, _, bucket)| bucket);
-                    let mapping: HashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
+                    let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
                         .enumerate()
                         .map(|(term_ord, unord_term_id)| {
                             (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)

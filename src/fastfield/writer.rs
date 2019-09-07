@@ -6,6 +6,7 @@ use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldType, Schema};
 use crate::termdict::TermOrdinal;
+use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
 
@@ -116,7 +117,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: &HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>,
+        mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;
