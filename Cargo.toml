@@ -21,6 +21,7 @@ tantivy-fst = "0.1"
 memmap = {version = "0.7", optional=true}
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
+derive_builder = "0.7"
 atomicwrites = {version="0.2.2", optional=true}
 tempfile = "3.0"
 log = "0.4"

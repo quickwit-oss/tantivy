@@ -1,3 +1,3 @@
 test:
 	echo "Run test only... No examples."
-	cargo test --tests --lib
+	cargo test --all --tests --lib

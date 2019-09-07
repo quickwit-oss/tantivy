@@ -4,10 +4,11 @@ use crate::schema::Term;
 use crate::termdict::WrappedDFA;
 use crate::Result;
 use crate::Searcher;
-use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder};
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::ops::Range;
+use derive_builder::Builder;
 
 /// A range of Levenshtein distances that we will build DFAs for our terms
 /// The computation is exponential, so best keep it to low single digits
@@ -24,6 +25,38 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
     }
     lev_builder_cache
 });
+
+
+#[derive(Builder, Default, Clone, Debug)]
+pub struct FuzzyConfiguration {
+    /// How many changes are we going to allow
+    pub distance: u8,
+    /// Should a transposition cost 1 or 2?
+    #[builder(default)]
+    pub transposition_cost_one: bool,
+    #[builder(default)]
+    pub prefix: bool,
+    /// If true, only the term with a levenshtein of exactly `distance` will match.
+    /// If false, terms at a distance `<=` to `distance` will match.
+    #[builder(default)]
+    pub exact_distance: bool,
+}
+
+fn build_dfa(fuzzy_configuration: &FuzzyConfiguration, term_text: &str) -> Result<DFA> {
+    let automaton_builder = LEV_BUILDER
+        .get(&(fuzzy_configuration.distance, fuzzy_configuration.transposition_cost_one))
+        .ok_or_else(|| {
+            InvalidArgument(format!(
+                "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
+                fuzzy_configuration.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
+            ))
+        })?;
+    if fuzzy_configuration.prefix {
+        Ok(automaton_builder.build_prefix_dfa(term_text))
+    } else {
+        Ok(automaton_builder.build_dfa(term_text))
+    }
+}
 
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is within
@@ -62,86 +95,57 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 pub struct FuzzyTermQuery {
     /// What term are we searching
     term: Term,
-    /// How many changes are we going to allow
-    distance: u8,
-    /// Should a transposition cost 1 or 2?
-    transposition_cost_one: bool,
-    ///
-    prefix: bool,
-    /// If true, only the term with a levenshtein of exactly `distance` will match.
-    /// If false, terms at a distance `<=` to `distance` will match.
-    exact_distance: bool
+    configuration: FuzzyConfiguration
 }
 
 impl FuzzyTermQuery {
+    pub fn new_from_configuration(term: Term, configuration: FuzzyConfiguration) -> FuzzyTermQuery {
+        FuzzyTermQuery {
+            term,
+            configuration
+        }
+    }
+
     /// Creates a new Fuzzy Query
     pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
         FuzzyTermQuery {
             term,
-            distance,
-            transposition_cost_one,
-            prefix: false,
-            exact_distance: false
-        }
-    }
-
-    /// Creates a new Fuzzy Query in which term matching are exactly matching the
-    /// given distance.
-    pub fn new_exact(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
-        FuzzyTermQuery {
-            term,
-            distance,
-            transposition_cost_one,
-            prefix: false,
-            exact_distance: true
-        }
-    }
-
-    /// Creates a new Fuzzy Query that treats transpositions as cost one rather than two
-    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
-        FuzzyTermQuery {
-            term,
-            distance,
-            transposition_cost_one,
-            prefix: true,
-            exact_distance: false
+            configuration: FuzzyConfiguration {
+                distance,
+                transposition_cost_one,
+                prefix: false,
+                exact_distance: false
+            }
         }
     }
 }
 
 impl Query for FuzzyTermQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
-        // LEV_BUILDER is a HashMap, whose `get` method returns an Option
-        match LEV_BUILDER.get(&(self.distance, false)) {
-            // Unwrap the option and build the Ok(AutomatonWeight)
-            Some(automaton_builder) => {
-                let dfa = automaton_builder.build_dfa(self.term.text());
-                let target_distance = self.distance;
-                if self.exact_distance {
-                    let wrapped_dfa = WrappedDFA {
-                        dfa,
-                        condition: move |distance: Distance| {
-                            distance == Distance::Exact(target_distance)
-                        }
-                    };
-                    Ok(Box::new(AutomatonWeight::new(self.term.field(), wrapped_dfa)))
-                } else {
-                    let wrapped_dfa = WrappedDFA {
-                        dfa,
-                        condition: move |distance: Distance| {
-                            match distance {
-                                Distance::Exact(_) => true,
-                                Distance::AtLeast(_) => false,
-                            }
-                        }
-                    };
-                    Ok(Box::new(AutomatonWeight::new(self.term.field(), wrapped_dfa)))
-                }
-            }
-            None => Err(InvalidArgument(format!(
-                "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
-                self.distance, VALID_LEVENSHTEIN_DISTANCE_RANGE
-            ))),
+        let dfa = build_dfa(&self.configuration, self.term.text())?;
+        // TODO optimize for distance = 0 and possibly prefix
+        if self.configuration.exact_distance {
+            let target_distance = self.configuration.distance;
+            let wrapped_dfa = WrappedDFA {
+                dfa,
+                condition: move |distance: Distance| distance == Distance::Exact(target_distance),
+            };
+            Ok(Box::new(AutomatonWeight::new(
+                self.term.field(),
+                wrapped_dfa,
+            )))
+        } else {
+            let wrapped_dfa = WrappedDFA {
+                dfa,
+                condition: move |distance: Distance| match distance {
+                    Distance::Exact(_) => true,
+                    Distance::AtLeast(_) => false,
+                },
+            };
+            Ok(Box::new(AutomatonWeight::new(
+                self.term.field(),
+                wrapped_dfa,
+            )))
         }
     }
 }
@@ -155,6 +159,7 @@ mod test {
     use crate::tests::assert_nearly_equals;
     use crate::Index;
     use crate::Term;
+    use super::FuzzyConfigurationBuilder;
 
     #[test]
     pub fn test_fuzzy_term() {
@@ -176,7 +181,6 @@ mod test {
         let searcher = reader.searcher();
         {
             let term = Term::from_field_text(country_field, "japon");
-
             let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
             let top_docs = searcher
                 .search(&fuzzy_query, &TopDocs::with_limit(2))
@@ -185,5 +189,73 @@ mod test {
             let (score, _) = top_docs[0];
             assert_nearly_equals(1f32, score);
         }
+        {
+            let term = Term::from_field_text(country_field, "japon");
+            let fuzzy_conf = FuzzyConfigurationBuilder::default()
+                .distance(2)
+                .exact_distance(true)
+                .build()
+                .unwrap();
+            let fuzzy_query = FuzzyTermQuery::new_from_configuration(term, fuzzy_conf);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert!(top_docs.is_empty());
+        }
+        {
+            let term = Term::from_field_text(country_field, "japon");
+            let fuzzy_conf = FuzzyConfigurationBuilder::default()
+                .distance(1)
+                .exact_distance(true)
+                .build()
+                .unwrap();
+            let fuzzy_query = FuzzyTermQuery::new_from_configuration(term, fuzzy_conf);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 1);
+        }
+        {
+            let term = Term::from_field_text(country_field, "jpp");
+            let fuzzy_conf = FuzzyConfigurationBuilder::default()
+                .distance(1)
+                .prefix(true)
+                .build()
+                .unwrap();
+            let fuzzy_query = FuzzyTermQuery::new_from_configuration(term, fuzzy_conf);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 1);
+        }
+        {
+            let term = Term::from_field_text(country_field, "jpaan");
+            let fuzzy_conf = FuzzyConfigurationBuilder::default()
+                .distance(1)
+                .exact_distance(true)
+                .transposition_cost_one(true)
+                .build()
+                .unwrap();
+            let fuzzy_query = FuzzyTermQuery::new_from_configuration(term, fuzzy_conf);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 1);
+        }
+        {
+            let term = Term::from_field_text(country_field, "jpaan");
+            let fuzzy_conf = FuzzyConfigurationBuilder::default()
+                .distance(2)
+                .exact_distance(true)
+                .transposition_cost_one(false)
+                .build()
+                .unwrap();
+            let fuzzy_query = FuzzyTermQuery::new_from_configuration(term, fuzzy_conf);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 1);
+        }
     }
+
 }
