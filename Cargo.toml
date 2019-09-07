@@ -81,7 +81,7 @@ unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [workspace]
-members = ["query-grammar"]
+members = ["query-grammar", "incremental-search"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
