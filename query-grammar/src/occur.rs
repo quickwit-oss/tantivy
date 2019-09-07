@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Write;
+
 /// Defines whether a term in a query must be present,
 /// should be present or must not be present.
 #[derive(Debug, Clone, Hash, Copy, Eq, PartialEq)]
@@ -18,7 +21,7 @@ impl Occur {
     /// - `Should` => '?',
     /// - `Must` => '+'
     /// - `Not` => '-'
-    pub fn to_char(self) -> char {
+    fn to_char(self) -> char {
         match self {
             Occur::Should => '?',
             Occur::Must => '+',
@@ -45,5 +48,11 @@ impl Occur {
                 }
             }
         }
+    }
+}
+
+impl fmt::Display for Occur {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char(self.to_char())
     }
 }

@@ -151,7 +151,7 @@ impl fmt::Debug for UserInputAST {
                 Ok(())
             }
             UserInputAST::Unary(ref occur, ref subquery) => {
-                write!(formatter, "{}({:?})", occur.to_char(), subquery)
+                write!(formatter, "{}({:?})", occur, subquery)
             }
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
