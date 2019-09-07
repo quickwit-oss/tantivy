@@ -265,7 +265,7 @@ impl MmapDirectoryInner {
             }
         }
         if let Some(watch_wrapper) = self.watcher.write().unwrap().as_mut() {
-            return Ok(watch_wrapper.watch(watch_callback));
+            Ok(watch_wrapper.watch(watch_callback))
         } else {
             unreachable!("At this point, watch wrapper is supposed to be initialized");
         }
