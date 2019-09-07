@@ -42,32 +42,19 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 ///     let index = Index::create_in_ram(schema);
 ///     {
 ///         let mut index_writer = index.writer(3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
+///         index_writer.add_document(doc!(title => "The Name of the Wind"));
+///         index_writer.add_document(doc!(title => "The Diary of Muadib"));
+///         index_writer.add_document(doc!(title => "A Dairy Cow"));
+///         index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
 ///         index_writer.commit().unwrap();
 ///     }
 ///     let reader = index.reader()?;
 ///     let searcher = reader.searcher();
-///
-///     {
-///
-///         let term = Term::from_field_text(title, "Diary");
-///         let query = FuzzyTermQuery::new(term, 1, true);
-///         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count)).unwrap();
-///         assert_eq!(count, 2);
-///         assert_eq!(top_docs.len(), 2);
-///     }
-///
+///     let term = Term::from_field_text(title, "Diary");
+///     let query = FuzzyTermQuery::new(term, 1, true);
+///     let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count)).unwrap();
+///     assert_eq!(count, 2);
+///     assert_eq!(top_docs.len(), 2);
 ///     Ok(())
 /// }
 /// ```
@@ -81,6 +68,9 @@ pub struct FuzzyTermQuery {
     transposition_cost_one: bool,
     ///
     prefix: bool,
+    /// If true, only the term with a levenshtein of exactly `distance` will match.
+    /// If false, terms at a distance `<=` to `distance` will match.
+    exact_distance: bool
 }
 
 impl FuzzyTermQuery {
@@ -91,6 +81,19 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: false,
+            exact_distance: false
+        }
+    }
+
+    /// Creates a new Fuzzy Query in which term matching are exactly matching the
+    /// given distance.
+    pub fn new_exact(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
+        FuzzyTermQuery {
+            term,
+            distance,
+            transposition_cost_one,
+            prefix: false,
+            exact_distance: true
         }
     }
 
@@ -101,6 +104,7 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: true,
+            exact_distance: false
         }
     }
 }
@@ -111,17 +115,28 @@ impl Query for FuzzyTermQuery {
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
-                let wrapped_dfa = WrappedDFA {
-                    dfa: automaton_builder.build_dfa(self.term.text()),
-                    condition: |distance: Distance| -> bool {
-                        match distance {
-                            Distance::Exact(_) => true,
-                            Distance::AtLeast(_) => false,
+                let dfa = automaton_builder.build_dfa(self.term.text());
+                let target_distance = self.distance;
+                if self.exact_distance {
+                    let wrapped_dfa = WrappedDFA {
+                        dfa,
+                        condition: move |distance: Distance| {
+                            distance == Distance::Exact(target_distance)
                         }
-                    },
-                };
-                let automaton_weight = AutomatonWeight::new(self.term.field(), wrapped_dfa);
-                Ok(Box::new(automaton_weight))
+                    };
+                    Ok(Box::new(AutomatonWeight::new(self.term.field(), wrapped_dfa)))
+                } else {
+                    let wrapped_dfa = WrappedDFA {
+                        dfa,
+                        condition: move |distance: Distance| {
+                            match distance {
+                                Distance::Exact(_) => true,
+                                Distance::AtLeast(_) => false,
+                            }
+                        }
+                    };
+                    Ok(Box::new(AutomatonWeight::new(self.term.field(), wrapped_dfa)))
+                }
             }
             None => Err(InvalidArgument(format!(
                 "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
