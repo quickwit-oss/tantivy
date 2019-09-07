@@ -5,9 +5,9 @@ use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
+use fnv::FnvHashMap;
 use itertools::Itertools;
 use std::io;
-use fnv::FnvHashMap;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.

@@ -6,9 +6,9 @@ use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldType, Schema};
 use crate::termdict::TermOrdinal;
+use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
-use fnv::FnvHashMap;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
