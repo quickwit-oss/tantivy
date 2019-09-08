@@ -29,22 +29,6 @@ pub enum IndexRecordOption {
 }
 
 impl IndexRecordOption {
-    /// Returns true iff the term frequency will be encoded.
-    pub fn is_termfreq_enabled(self) -> bool {
-        match self {
-            IndexRecordOption::WithFreqsAndPositions | IndexRecordOption::WithFreqs => true,
-            _ => false,
-        }
-    }
-
-    /// Returns true iff the term positions within the document are stored as well.
-    pub fn is_position_enabled(self) -> bool {
-        match self {
-            IndexRecordOption::WithFreqsAndPositions => true,
-            _ => false,
-        }
-    }
-
     /// Returns true iff this option includes encoding
     /// term frequencies.
     pub fn has_freq(self) -> bool {

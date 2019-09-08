@@ -141,10 +141,7 @@ impl<'a> FieldSerializer<'a> {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {
                     let index_option = text_indexing_options.index_option();
-                    (
-                        index_option.is_termfreq_enabled(),
-                        index_option.is_position_enabled(),
-                    )
+                    (index_option.has_freq(), index_option.has_positions())
                 } else {
                     (false, false)
                 }
