@@ -5,7 +5,7 @@ use Score;
 use SkipResult;
 
 
-/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
+/// Creates a `DocSet` that iterate through the intersection of two `DocSet`s.
 pub struct IntersectionTwoTerms<TDocSet> {
     left: TDocSet,
     right: TDocSet
