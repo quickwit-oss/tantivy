@@ -28,7 +28,7 @@ where
     }
 }
 
-/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
+/// Creates a `DocSet` that iterate through the union of two or more `DocSet`s.
 pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TScorer>,
     bitsets: Box<[TinySet; HORIZON_NUM_TINYBITSETS]>,
