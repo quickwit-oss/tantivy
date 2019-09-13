@@ -41,8 +41,8 @@ matrix:
     - env: TARGET=x86_64-unknown-linux-gnu CODECOV=1 #UPLOAD_DOCS=1
     # - env: TARGET=x86_64-unknown-linux-musl CODECOV=1
     # OSX
-    #- env: TARGET=x86_64-apple-darwin
-    #  os: osx
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
 
 before_install:
   - set -e
