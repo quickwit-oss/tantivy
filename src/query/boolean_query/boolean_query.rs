@@ -21,17 +21,22 @@ use std::collections::BTreeSet;
 /// * match at least one of the subqueries that is not
 /// a `MustNot` occurence.
 ///
+///
+/// You combine other query types and their `Occur`ances into one `BooleanQuery`
+///
 /// ```rust
 ///#[macro_use]
 ///extern crate tantivy;
 ///use tantivy::collector::Count;
-///use tantivy::query::QueryParser;
-///use tantivy::schema::{Schema, TEXT};
+///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
+///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
+///use tantivy::Term;
 ///use tantivy::{Index, Result};
 ///
 ///fn main() -> Result<()> {
 ///    let mut schema_builder = Schema::builder();
 ///    let title = schema_builder.add_text_field("title", TEXT);
+///    let body = schema_builder.add_text_field("body", TEXT);
 ///    let schema = schema_builder.build();
 ///    let index = Index::create_in_ram(schema);
 ///    {
@@ -44,6 +49,11 @@ use std::collections::BTreeSet;
 ///        ));
 ///        index_writer.add_document(doc!(
 ///            title => "A Dairy Cow",
+///            body => "find me",
+///        ));
+///        index_writer.add_document(doc!(
+///            title => "A Dairy Cow",
+///            body => "i won't be found",
 ///        ));
 ///        index_writer.add_document(doc!(
 ///            title => "The Diary of a Young Girl",
@@ -54,30 +64,61 @@ use std::collections::BTreeSet;
 ///    let reader = index.reader()?;
 ///    let searcher = reader.searcher();
 ///
-///    let query_parser = QueryParser::for_index(&index, vec![title]);
-///
-///    // TermQuery "diary" must and "girl" mustnot be present
-///    let query1 = query_parser.parse_query("+diary -girl")?;
+///    // TermQuery "diary" must and "girl" must not be present
+///    let girl_term_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(title, "girl"),
+///        IndexRecordOption::Basic,
+///    ));
+///    let diary_term_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(title, "diary"),
+///        IndexRecordOption::Basic,
+///    ));
+///    let queries_with_occurs1 = vec![
+///        (Occur::Must, diary_term_query.box_clone()),
+///        (Occur::MustNot, girl_term_query),
+///    ];
+///    let query1 = BooleanQuery::from(queries_with_occurs1);
 ///    let count1 = searcher.search(&query1, &Count)?;
 ///    assert_eq!(count1, 1);
 ///
-///    // "diary" must occur
-///    let query2 = query_parser.parse_query("+diary")?;
-///    let count2 = searcher.search(&query2, &Count)?;
-///    assert_eq!(count2, 2);
-///
 ///    // BooleanQuery with 2 `TermQuery`s
-///    let query3 = query_parser.parse_query("title:diary OR title:cow")?;
-///    let count3 = searcher.search(&query3, &Count)?;
-///    assert_eq!(count3, 3);
+///    // "title:diary OR title:cow"
+///    let cow_term_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(title, "cow"),
+///        IndexRecordOption::Basic,
+///    ));
+///    let query2 = BooleanQuery::from(vec![
+///        (Occur::Should, diary_term_query.box_clone()),
+///        (Occur::Should, cow_term_query),
+///    ]);
+///    let count3 = searcher.search(&query2, &Count)?;
+///    assert_eq!(count3, 4);
 ///
 ///    // BooleanQuery comprising of subqueries of different types:
 ///    // `TermQuery` and `PhraseQuery`
-///    let query4 = query_parser.parse_query("title:diary OR \"dairy cow\"")?;
+///    // "title:diary OR \"dairy cow\""
+///    let phrase_query: Box<dyn Query> = Box::new(PhraseQuery::new(vec![
+///        Term::from_field_text(title, "dairy"),
+///        Term::from_field_text(title, "cow"),
+///    ]));
+///    let query4 = BooleanQuery::from(vec![
+///        (Occur::Should, diary_term_query.box_clone()),
+///        (Occur::Should, phrase_query),
+///    ]);
 ///    let count4 = searcher.search(&query4, &Count)?;
-///    assert_eq!(count4, 3);
+///    assert_eq!(count4, 4);
+///
+///    // ("title:diary OR \"dairy cow\"") AND body:found
+///    let body_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(body, "found"),
+///        IndexRecordOption::Basic,
+///    ));
+///    let query5 = BooleanQuery::from(vec![(Occur::Must, body_query),
+///                                         (Occur::Must, query4)]);
+///    let count5 = searcher.search(&query5, &Count)?;
+///    assert_eq!(count5, 1);
 ///    Ok(())
-/// }
+///}
 /// ```
 #[derive(Debug)]
 pub struct BooleanQuery {
