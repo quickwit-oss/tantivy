@@ -25,6 +25,7 @@ use std::collections::BTreeSet;
 /// You combine other query types and their `Occur`ances into one `BooleanQuery`
 ///
 /// ```rust
+///use tantivy::doc;
 ///use tantivy::collector::Count;
 ///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
 ///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
@@ -112,7 +113,7 @@ use std::collections::BTreeSet;
 ///        IndexRecordOption::Basic,
 ///    ));
 ///    let query5 = BooleanQuery::from(vec![(Occur::Must, body_query),
-///                                         (Occur::Must, query4)]);
+///                                         (Occur::Must, Box::new(query4))]);
 ///    let count5 = searcher.search(&query5, &Count)?;
 ///    assert_eq!(count5, 1);
 ///    Ok(())
