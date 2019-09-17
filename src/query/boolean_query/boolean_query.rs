@@ -25,8 +25,6 @@ use std::collections::BTreeSet;
 /// You combine other query types and their `Occur`ances into one `BooleanQuery`
 ///
 /// ```rust
-///#[macro_use]
-///extern crate tantivy;
 ///use tantivy::collector::Count;
 ///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
 ///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
@@ -49,11 +47,11 @@ use std::collections::BTreeSet;
 ///        ));
 ///        index_writer.add_document(doc!(
 ///            title => "A Dairy Cow",
-///            body => "find me",
+///            body => "hidden",
 ///        ));
 ///        index_writer.add_document(doc!(
 ///            title => "A Dairy Cow",
-///            body => "i won't be found",
+///            body => "found",
 ///        ));
 ///        index_writer.add_document(doc!(
 ///            title => "The Diary of a Young Girl",
@@ -163,7 +161,6 @@ impl Query for BooleanQuery {
 impl BooleanQuery {
     /// Helper method to create a boolean query matching a given list of terms.
     /// The resulting query is a disjunction of the terms.
-    #[cfg(test)]
     pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
         let occur_term_queries: Vec<(Occur, Box<dyn Query>)> = terms
             .into_iter()
