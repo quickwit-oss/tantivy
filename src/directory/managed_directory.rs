@@ -1,15 +1,14 @@
 use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::DirectoryLock;
+use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
-use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
 use crate::Result;
-use byteorder::{ByteOrder, LittleEndian};
 use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
@@ -214,13 +213,12 @@ impl ManagedDirectory {
     /// Verify checksum of a managed file
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
-        let data = reader.as_slice();
-        let footer = Footer::from_bytes(data);
-        let data = &data[..data.len() - footer.size() as usize];
+        let (footer, data) = Footer::extract_footer(reader)
+            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
         let mut hasher = Hasher::new();
-        hasher.update(data);
+        hasher.update(data.as_slice());
         let crc = hasher.finalize();
-        Ok(crc == footer.crc())
+        Ok(footer.versioned_footer.crc().map(|v| v==crc).unwrap_or(false))
     }
 
     /// List files for which checksum does not match content
@@ -242,150 +240,14 @@ impl ManagedDirectory {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum Footer {
-    V0(V0),
-}
 
-impl Footer {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            Footer::V0(f) => f.to_bytes(),
-        }
-    }
-
-    pub fn from_bytes(data: &[u8]) -> Self {
-        let len = data.len();
-        assert!(len >= 2);
-        let size = LittleEndian::read_u16(&data[len - 2..]);
-        assert!(
-            len >= size as usize,
-            "len({}) is smaller than size({})",
-            len,
-            size
-        );
-        let footer = &data[len - size as usize..];
-        let index_version = footer[0];
-        match index_version {
-            0 => Footer::V0(V0::from_bytes(footer)),
-            _ => panic!("unsuported index_version"),
-        }
-    }
-
-    pub fn index_version(&self) -> u8 {
-        match self {
-            Footer::V0(_) => 0,
-        }
-    }
-
-    pub fn tantivy_version(&self) -> (u8, u8, u8) {
-        match self {
-            Footer::V0(footer) => footer.tantivy_version,
-        }
-    }
-
-    pub fn crc(&self) -> u32 {
-        match self {
-            Footer::V0(footer) => footer.crc,
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        match self {
-            Footer::V0(_) => V0::size() as usize,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct V0 {
-    pub tantivy_version: (u8, u8, u8),
-    pub crc: u32,
-}
-
-impl V0 {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res = vec![0; 10];
-        res[0] = 0;
-        res[1] = self.tantivy_version.0;
-        res[2] = self.tantivy_version.1;
-        res[3] = self.tantivy_version.2;
-        LittleEndian::write_u32(&mut res[4..8], self.crc);
-        LittleEndian::write_u16(&mut res[8..], Self::size());
-        res
-    }
-
-    pub fn from_bytes(footer: &[u8]) -> Self {
-        assert_eq!(footer[0], 0);
-        assert_eq!(LittleEndian::read_u16(&footer[8..10]), 10);
-        let tantivy_version = (footer[1], footer[2], footer[3]);
-        let crc = LittleEndian::read_u32(&footer[4..8]);
-
-        V0 {
-            tantivy_version,
-            crc,
-        }
-    }
-
-    pub fn from_crc(crc: u32) -> Self {
-        Self {
-            tantivy_version: (
-                env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
-                env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
-                env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
-            ),
-            crc,
-        }
-    }
-    pub fn size() -> u16 {
-        10
-    }
-}
-
-struct FooterProxy<W: TerminatingWrite> {
-    /// always Some except after terminate call
-    hasher: Option<Hasher>,
-    /// always Some except after terminate call
-    writer: Option<W>,
-}
-
-impl<W: TerminatingWrite> FooterProxy<W> {
-    fn new(writer: W) -> Self {
-        FooterProxy {
-            hasher: Some(Hasher::new()),
-            writer: Some(writer),
-        }
-    }
-}
-
-impl<W: TerminatingWrite> Write for FooterProxy<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let count = self.writer.as_mut().unwrap().write(buf)?;
-        self.hasher.as_mut().unwrap().update(&buf[..count]);
-        Ok(count)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.writer.as_mut().unwrap().flush()
-    }
-}
-
-impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        let crc = self.hasher.take().unwrap().finalize();
-        let footer = Footer::V0(V0::from_crc(crc)).to_bytes();
-        let mut writer = self.writer.take().unwrap();
-        writer.write_all(&footer)?;
-        writer.flush()?; //should we assume calling terminate on inner already flush?
-        writer.terminate()
-    }
-}
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         let read_only_source = self.directory.open_read(path)?;
-        let footer_size = Footer::from_bytes(read_only_source.as_slice()).size();
-        Ok(read_only_source.slice_to(read_only_source.as_slice().len() - footer_size))
+        let (_footer, reader) = Footer::extract_footer(read_only_source)
+            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        Ok(reader)
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
@@ -400,8 +262,6 @@ impl Directory for ManagedDirectory {
         ))))
     }
 
-    // TODO: to be correct, this require an non enforced contract, atomic writes must only be
-    // read back as atomics, and normal write must only be read by normal read
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
         self.directory.atomic_write(path, data)

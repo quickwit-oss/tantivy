@@ -13,6 +13,7 @@ mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod watch_event_router;
+mod footer;
 
 /// Errors specific to the directory module.
 pub mod error;
@@ -45,6 +46,7 @@ pub trait TerminatingWrite: Write {
     }
 
     /// You should implement this function to define custom behavior.
+    /// This function should flush any buffer it may hold.
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()>;
 }
 

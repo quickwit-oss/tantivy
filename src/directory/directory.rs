@@ -118,6 +118,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// Specifically, subsequent writes or flushes should
     /// have no effect on the returned `ReadOnlySource` object.
+    ///
+    /// You should only use this to read files create with [`open_write`]
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
 
     /// Removes a file
@@ -157,6 +159,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// atomic_write.
     ///
     /// This should only be used for small files.
+    ///
+    /// You should only use this to read files create with [`atomic_write`]
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
 
     /// Atomically replace the content of a file with data.
