@@ -1,7 +1,7 @@
 use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
-use crate::directory::DirectoryLock;
 use crate::directory::footer::{Footer, FooterProxy};
+use crate::directory::DirectoryLock;
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
 use crate::directory::{ReadOnlySource, WritePtr};
@@ -218,7 +218,11 @@ impl ManagedDirectory {
         let mut hasher = Hasher::new();
         hasher.update(data.as_slice());
         let crc = hasher.finalize();
-        Ok(footer.versioned_footer.crc().map(|v| v==crc).unwrap_or(false))
+        Ok(footer
+            .versioned_footer
+            .crc()
+            .map(|v| v == crc)
+            .unwrap_or(false))
     }
 
     /// List files for which checksum does not match content
@@ -239,8 +243,6 @@ impl ManagedDirectory {
         Ok(hashset)
     }
 }
-
-
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {

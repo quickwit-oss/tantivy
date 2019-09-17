@@ -9,11 +9,11 @@ mod mmap_directory;
 
 mod directory;
 mod directory_lock;
+mod footer;
 mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod watch_event_router;
-mod footer;
 
 /// Errors specific to the directory module.
 pub mod error;
