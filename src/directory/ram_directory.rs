@@ -1,8 +1,9 @@
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
-use crate::directory::WritePtr;
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
+use crate::directory::{TerminatingWrite, WritePtr};
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -68,6 +69,12 @@ impl Write for VecWriter {
         let mut fs = self.shared_directory.fs.write().unwrap();
         fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
+    }
+}
+
+impl TerminatingWrite for VecWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.flush()
     }
 }
 

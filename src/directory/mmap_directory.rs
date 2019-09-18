@@ -11,6 +11,7 @@ use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::directory::read_only_source::BoxedData;
+use crate::directory::AntiCallToken;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
 use crate::directory::Lock;
@@ -18,7 +19,7 @@ use crate::directory::ReadOnlySource;
 use crate::directory::WatchCallback;
 use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
-use crate::directory::WritePtr;
+use crate::directory::{TerminatingWrite, WritePtr};
 use atomicwrites;
 use memmap::Mmap;
 use std::collections::HashMap;
@@ -409,6 +410,12 @@ impl Write for SafeFileWriter {
 impl Seek for SafeFileWriter {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.0.seek(pos)
+    }
+}
+
+impl TerminatingWrite for SafeFileWriter {
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
+        self.flush()
     }
 }
 

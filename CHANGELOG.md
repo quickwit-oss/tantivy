@@ -8,6 +8,7 @@ Tantivy 0.11.0
 - Closes #498 - add support for Elastic-style unbounded range queries for alphanumeric types eg. "title:>hello", "weight:>=70.5", "height:<200" (@petr-tik)
 - API change around `Box<BoxableTokenizer>`. See detail in #629
 - Avoid rebuilding Regex automaton whenever a regex query is reused. #630 (@brainlock)
+- Add footer with some metadata to index files. #605 (@fdb-hiroshima)
  
 ## How to update?
 

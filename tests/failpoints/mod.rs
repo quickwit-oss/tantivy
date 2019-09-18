@@ -1,7 +1,7 @@
 use fail;
 use std::io::Write;
 use std::path::Path;
-use tantivy::directory::{Directory, ManagedDirectory, RAMDirectory};
+use tantivy::directory::{Directory, ManagedDirectory, RAMDirectory, TerminatingWrite};
 use tantivy::doc;
 use tantivy::schema::{Schema, TEXT};
 use tantivy::{Index, Term};
@@ -17,7 +17,7 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
     managed_directory
         .open_write(test_path)
         .unwrap()
-        .flush()
+        .terminate()
         .unwrap();
     assert!(managed_directory.exists(test_path));
     // triggering gc and setting the delete operation to fail.
