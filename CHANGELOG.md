@@ -3,6 +3,12 @@ Tantivy 0.11.0
 
 - Added f64 field. Internally reuse u64 code the same way i64 does (@fdb-hiroshima)
 
+
+Tantivy 0.10.2
+=====================
+
+- Closes #656. Solving memory leak.
+
 Tantivy 0.10.1
 =====================
 
