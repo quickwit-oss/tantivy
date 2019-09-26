@@ -101,13 +101,13 @@ pub enum VersionedFooter {
 impl VersionedFooter {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            Self::V0(crc) => {
+            VersionedFooter::V0(crc) => {
                 let mut res = vec![0; 8];
                 LittleEndian::write_u32(&mut res, 0);
                 LittleEndian::write_u32(&mut res[4..], *crc);
                 res
             }
-            Self::UnknownVersion { .. } => {
+            VersionedFooter::UnknownVersion { .. } => {
                 panic!("Unsupported index should never get serialized");
             }
         }
@@ -119,7 +119,7 @@ impl VersionedFooter {
         match version {
             0 => {
                 if footer.len() == 8 {
-                    Ok(Self::V0(LittleEndian::read_u32(&footer[4..])))
+                    Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
                 } else {
                     Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
@@ -130,7 +130,7 @@ impl VersionedFooter {
                     ))
                 }
             }
-            version => Ok(Self::UnknownVersion {
+            version => Ok(VersionedFooter::UnknownVersion {
                 version,
                 size: footer.len() as u32,
             }),
@@ -139,22 +139,22 @@ impl VersionedFooter {
 
     pub fn size(&self) -> u32 {
         match self {
-            Self::V0(_) => 8,
-            Self::UnknownVersion { size, .. } => *size,
+            VersionedFooter::V0(_) => 8,
+            VersionedFooter::UnknownVersion { size, .. } => *size,
         }
     }
 
     pub fn version(&self) -> u32 {
         match self {
-            Self::V0(_) => 0,
-            Self::UnknownVersion { version, .. } => *version,
+            VersionedFooter::V0(_) => 0,
+            VersionedFooter::UnknownVersion { version, .. } => *version,
         }
     }
 
     pub fn crc(&self) -> Option<u32> {
         match self {
-            Self::V0(crc) => Some(*crc),
-            Self::UnknownVersion { .. } => None,
+            VersionedFooter::V0(crc) => Some(*crc),
+            VersionedFooter::UnknownVersion { .. } => None,
         }
     }
 }
