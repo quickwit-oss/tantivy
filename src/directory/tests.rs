@@ -127,7 +127,7 @@ fn test_watch(directory: &mut dyn Directory) {
         assert!(directory
             .atomic_write(Path::new("meta.json"), b"random_test_data_2")
             .is_ok());
-        for _ in 0..100 {
+        for _ in 0..1_000 {
             if counter.load(Ordering::SeqCst) > i {
                 break;
             }
