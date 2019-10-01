@@ -142,42 +142,28 @@ impl MmapCache {
     }
 }
 
-struct InnerWatcherWrapper {
-    _watcher: Mutex<notify::RecommendedWatcher>,
-    watcher_router: WatchCallbackList,
-}
-
-impl InnerWatcherWrapper {
-    pub fn new(path: &Path) -> Result<(Self, Receiver<notify::RawEvent>), notify::Error> {
-        let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
-        // We need to initialize the
-        let mut watcher = notify::raw_watcher(tx)?;
-        watcher.watch(path, RecursiveMode::Recursive)?;
-        let inner = InnerWatcherWrapper {
-            _watcher: Mutex::new(watcher),
-            watcher_router: Default::default(),
-        };
-        Ok((inner, watcher_recv))
-    }
-}
-
-#[derive(Clone)]
 struct WatcherWrapper {
-    inner: Arc<InnerWatcherWrapper>,
+    _watcher: Mutex<notify::RecommendedWatcher>,
+    watcher_router: Arc<WatchCallbackList>,
 }
 
 impl WatcherWrapper {
     pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
-        let (inner, watcher_recv) = InnerWatcherWrapper::new(path).map_err(|err| match err {
-            notify::Error::PathNotFound => OpenDirectoryError::DoesNotExist(path.to_owned()),
-            _ => {
-                panic!("Unknown error while starting watching directory {:?}", path);
-            }
-        })?;
-        let watcher_wrapper = WatcherWrapper {
-            inner: Arc::new(inner),
-        };
-        let watcher_wrapper_clone = watcher_wrapper.clone();
+        let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
+        // We need to initialize the
+        let watcher = notify::raw_watcher(tx)
+            .and_then(|mut watcher| {
+                watcher.watch(path, RecursiveMode::Recursive)?;
+                Ok(watcher)
+            })
+            .map_err(|err| match err {
+                notify::Error::PathNotFound => OpenDirectoryError::DoesNotExist(path.to_owned()),
+                _ => {
+                    panic!("Unknown error while starting watching directory {:?}", path);
+                }
+            })?;
+        let watcher_router: Arc<WatchCallbackList> = Default::default();
+        let watcher_router_clone = watcher_router.clone();
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
             .spawn(move || {
@@ -188,7 +174,7 @@ impl WatcherWrapper {
                             // We might want to be more accurate than this at one point.
                             if let Some(filename) = changed_path.file_name() {
                                 if filename == *META_FILEPATH {
-                                    watcher_wrapper_clone.inner.watcher_router.broadcast();
+                                    watcher_router_clone.broadcast();
                                 }
                             }
                         }
@@ -201,13 +187,15 @@ impl WatcherWrapper {
                         }
                     }
                 }
-            })
-            .expect("Failed to spawn thread to watch meta.json");
-        Ok(watcher_wrapper)
+            })?;
+        Ok(WatcherWrapper {
+            _watcher: Mutex::new(watcher),
+            watcher_router,
+        })
     }
 
     pub fn watch(&mut self, watch_callback: WatchCallback) -> WatchHandle {
-        self.inner.watcher_router.subscribe(watch_callback)
+        self.watcher_router.subscribe(watch_callback)
     }
 }
 

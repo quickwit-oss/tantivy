@@ -16,6 +16,12 @@ Tantivy 0.11.0
 - Regex are now compiled when the `RegexQuery` instance is built. As a result, it can now return
 an error and handling the `Result` is required.
 
+
+Tantivy 0.10.2
+=====================
+
+- Closes #656. Solving memory leak.
+
 Tantivy 0.10.1
 =====================
 
