@@ -98,10 +98,6 @@ mod tests {
     #[test]
     fn test_lowercaser() {
         assert_eq!(lowercase_helper("Tree"), vec!["tree".to_string()]);
-        assert_eq!(
-            lowercase_helper("Русский"),
-            vec!["русский".to_string()]
-        );
+        assert_eq!(lowercase_helper("Русский"), vec!["русский".to_string()]);
     }
-
 }

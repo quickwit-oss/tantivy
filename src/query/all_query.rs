@@ -130,5 +130,4 @@ mod tests {
             assert!(!scorer.advance());
         }
     }
-
 }

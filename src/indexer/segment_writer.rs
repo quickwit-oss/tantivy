@@ -296,5 +296,4 @@ mod tests {
         assert_eq!(initial_table_size(10_000_000).unwrap(), 17);
         assert_eq!(initial_table_size(1_000_000_000).unwrap(), 19);
     }
-
 }

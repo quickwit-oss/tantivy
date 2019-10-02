@@ -174,5 +174,4 @@ mod tests {
         assert!(!is_valid_field_name("シャボン玉"));
         assert!(is_valid_field_name("my_text_field"));
     }
-
 }

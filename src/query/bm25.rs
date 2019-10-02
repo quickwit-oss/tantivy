@@ -137,5 +137,4 @@ mod tests {
     fn test_idf() {
         assert_nearly_equals(idf(1, 2), 0.6931472);
     }
-
 }

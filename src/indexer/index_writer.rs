@@ -1179,5 +1179,4 @@ mod tests {
         assert!(clear_again.is_ok());
         assert!(commit_again.is_ok());
     }
-
 }

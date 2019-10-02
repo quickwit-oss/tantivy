@@ -152,5 +152,4 @@ mod tests {
         thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(2, counter.load(Ordering::SeqCst));
     }
-
 }

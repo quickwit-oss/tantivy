@@ -460,5 +460,4 @@ mod tests {
         assert_eq!(it.next(), Some((8, 9)));
         assert_eq!(it.next(), None);
     }
-
 }

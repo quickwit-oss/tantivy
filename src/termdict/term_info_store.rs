@@ -328,5 +328,4 @@ mod tests {
             assert_eq!(term_info_store.get(i as u64), term_infos[i]);
         }
     }
-
 }

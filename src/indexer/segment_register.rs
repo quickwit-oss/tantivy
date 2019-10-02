@@ -134,5 +134,4 @@ mod tests {
         }
         assert_eq!(segment_ids(&segment_register), vec![segment_id_merged]);
     }
-
 }

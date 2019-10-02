@@ -120,7 +120,6 @@ pub mod tests {
             );
         }
     }
-
 }
 
 #[cfg(all(test, feature = "unstable"))]

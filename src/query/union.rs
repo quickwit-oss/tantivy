@@ -409,7 +409,6 @@ mod tests {
             vec![1, 2, 3, 7, 8, 9, 99, 100, 101, 500, 20000],
         );
     }
-
 }
 
 #[cfg(all(test, feature = "unstable"))]

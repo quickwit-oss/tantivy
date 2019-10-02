@@ -97,5 +97,4 @@ mod tests {
 
         assert!(!token_chain.advance());
     }
-
 }

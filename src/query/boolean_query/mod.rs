@@ -247,9 +247,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let query_parser = QueryParser::for_index(&index, vec![title, text]);
-        let query = query_parser
-            .parse_query("Оксана Лифенко")
-            .unwrap();
+        let query = query_parser.parse_query("Оксана Лифенко").unwrap();
         let weight = query.weight(&searcher, true).unwrap();
         let mut scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
         scorer.advance();
