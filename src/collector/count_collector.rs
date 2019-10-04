@@ -123,5 +123,4 @@ mod tests {
             assert_eq!(count_collector.harvest(), 2);
         }
     }
-
 }

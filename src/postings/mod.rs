@@ -622,7 +622,6 @@ pub mod tests {
             assert!(!postings_unopt.advance());
         }
     }
-
 }
 
 #[cfg(all(test, feature = "unstable"))]

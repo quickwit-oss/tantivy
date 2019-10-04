@@ -178,5 +178,4 @@ mod tests {
         doc.add_text(text_field, "My title");
         assert_eq!(doc.field_values().len(), 1);
     }
-
 }

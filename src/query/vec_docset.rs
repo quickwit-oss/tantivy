@@ -82,5 +82,4 @@ pub mod tests {
         }
         assert_eq!(postings.fill_buffer(&mut buffer[..]), 9);
     }
-
 }

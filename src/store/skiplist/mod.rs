@@ -165,5 +165,4 @@ mod tests {
         assert_eq!(output.len(), 65);
         assert_eq!(output[0], 128u8 + 3u8);
     }
-
 }

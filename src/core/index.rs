@@ -601,5 +601,4 @@ mod tests {
         assert_eq!(searcher.num_docs(), 8_000);
         assert!(mem_right_after_merge_finished < mem_right_after_commit);
     }
-
 }

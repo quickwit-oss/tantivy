@@ -592,5 +592,4 @@ mod tests {
         let query = query_parser.parse_query(query).unwrap();
         (index, query)
     }
-
 }

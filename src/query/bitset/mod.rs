@@ -216,7 +216,6 @@ mod tests {
             assert!(!docset.advance());
         }
     }
-
 }
 
 #[cfg(all(test, feature = "unstable"))]
