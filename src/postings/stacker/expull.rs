@@ -310,6 +310,7 @@ mod bench {
     use super::super::MemoryArena;
     use super::ExpUnrolledLinkedList;
     use byteorder::{NativeEndian, WriteBytesExt};
+    use std::iter;
     use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
@@ -335,11 +336,10 @@ mod bench {
     fn bench_push_stack(bench: &mut Bencher) {
         bench.iter(|| {
             let mut heap = MemoryArena::new();
-            let mut stacks = Vec::with_capacity(100);
-            for _ in 0..NUM_STACK {
-                let mut stack = ExpUnrolledLinkedList::new();
-                stacks.push(stack);
-            }
+            let mut stacks: Vec<ExpUnrolledLinkedList> =
+                iter::repeat_with(ExpUnrolledLinkedList::new)
+                    .take(NUM_STACK)
+                    .collect();
             for s in 0..NUM_STACK {
                 for i in 0u32..STACK_SIZE {
                     let t = s * 392017 % NUM_STACK;

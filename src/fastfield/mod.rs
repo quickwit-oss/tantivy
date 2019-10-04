@@ -436,9 +436,9 @@ mod bench {
     use super::tests::FIELD;
     use super::tests::{generate_permutation, SCHEMA};
     use super::*;
-    use common::CompositeFile;
-    use directory::{Directory, RAMDirectory, WritePtr};
-    use fastfield::FastFieldReader;
+    use crate::common::CompositeFile;
+    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::fastfield::FastFieldReader;
     use std::collections::HashMap;
     use std::path::Path;
     use test::{self, Bencher};

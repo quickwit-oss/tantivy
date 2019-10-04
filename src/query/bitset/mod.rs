@@ -223,13 +223,12 @@ mod bench {
 
     use super::BitSet;
     use super::BitSetDocSet;
-    use test;
-    use tests;
-    use DocSet;
+    use crate::test;
+    use crate::tests;
+    use crate::DocSet;
 
     #[bench]
     fn bench_bitset_1pct_insert(b: &mut test::Bencher) {
-        use tests;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         b.iter(|| {
             let mut bitset = BitSet::with_max_value(1_000_000);
@@ -241,7 +240,6 @@ mod bench {
 
     #[bench]
     fn bench_bitset_1pct_clone(b: &mut test::Bencher) {
-        use tests;
         let els = tests::generate_nonunique_unsorted(1_000_000u32, 10_000);
         let mut bitset = BitSet::with_max_value(1_000_000);
         for el in els {

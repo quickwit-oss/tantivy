@@ -604,13 +604,13 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use collector::FacetCollector;
-    use query::AllQuery;
-    use rand::{thread_rng, Rng};
-    use schema::Facet;
-    use schema::Schema;
+    use crate::collector::FacetCollector;
+    use crate::query::AllQuery;
+    use crate::schema::{Facet, Schema};
+    use crate::Index;
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
     use test::Bencher;
-    use Index;
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {
@@ -627,7 +627,7 @@ mod bench {
             }
         }
         // 40425 docs
-        thread_rng().shuffle(&mut docs[..]);
+        docs[..].shuffle(&mut thread_rng());
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {
@@ -636,7 +636,7 @@ mod bench {
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
         b.iter(|| {
-            let searcher = index.searcher();
+            let searcher = reader.searcher();
             let facet_collector = FacetCollector::for_field(facet_field);
             searcher.search(&AllQuery, &facet_collector).unwrap();
         });
