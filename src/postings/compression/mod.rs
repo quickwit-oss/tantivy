@@ -274,13 +274,15 @@ pub mod tests {
 mod bench {
 
     use super::*;
+    use rand::rngs::StdRng;
+    use rand::Rng;
     use rand::SeedableRng;
-    use rand::{Rng, XorShiftRng};
     use test::Bencher;
 
     fn generate_array_with_seed(n: usize, ratio: f64, seed_val: u8) -> Vec<u32> {
-        let seed: &[u8; 16] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+        let mut seed: [u8; 32] = [0; 32];
+        seed[31] = seed_val;
+        let mut rng = StdRng::from_seed(seed);
         (0u32..).filter(|_| rng.gen_bool(ratio)).take(n).collect()
     }
 

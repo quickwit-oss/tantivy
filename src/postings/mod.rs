@@ -628,16 +628,17 @@ pub mod tests {
 mod bench {
 
     use super::tests::*;
-    use docset::SkipResult;
-    use query::Intersection;
-    use schema::IndexRecordOption;
+    use crate::docset::SkipResult;
+    use crate::query::Intersection;
+    use crate::schema::IndexRecordOption;
+    use crate::tests;
+    use crate::DocSet;
     use test::{self, Bencher};
-    use tests;
-    use DocSet;
 
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
-        let searcher = INDEX.searcher();
+        let reader = INDEX.reader().unwrap();
+        let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
 
         b.iter(|| {
@@ -651,7 +652,8 @@ mod bench {
 
     #[bench]
     fn bench_segment_intersection(b: &mut Bencher) {
-        let searcher = INDEX.searcher();
+        let reader = INDEX.reader().unwrap();
+        let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
             let segment_postings_a = segment_reader
@@ -681,7 +683,8 @@ mod bench {
     }
 
     fn bench_skip_next(p: f64, b: &mut Bencher) {
-        let searcher = INDEX.searcher();
+        let reader = INDEX.reader().unwrap();
+        let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         let docs = tests::sample(segment_reader.num_docs(), p);
 
@@ -736,7 +739,8 @@ mod bench {
 
     #[bench]
     fn bench_iterate_segment_postings(b: &mut Bencher) {
-        let searcher = INDEX.searcher();
+        let reader = INDEX.reader().unwrap();
+        let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
         b.iter(|| {
             let n: u32 = test::black_box(17);

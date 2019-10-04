@@ -126,10 +126,10 @@ pub mod tests {
 mod bench {
 
     use super::tests::write_lorem_ipsum_store;
-    use directory::Directory;
-    use directory::RAMDirectory;
+    use crate::directory::Directory;
+    use crate::directory::RAMDirectory;
+    use crate::store::StoreReader;
     use std::path::Path;
-    use store::StoreReader;
     use test::Bencher;
 
     #[bench]

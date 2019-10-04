@@ -414,14 +414,12 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use query::score_combiner::DoNothingCombiner;
-    use query::ConstScorer;
-    use query::Union;
-    use query::VecDocSet;
+    use crate::query::score_combiner::DoNothingCombiner;
+    use crate::query::{ConstScorer, Union, VecDocSet};
+    use crate::tests;
+    use crate::DocId;
+    use crate::DocSet;
     use test::Bencher;
-    use tests;
-    use DocId;
-    use DocSet;
 
     #[bench]
     fn bench_union_3_high(bench: &mut Bencher) {
