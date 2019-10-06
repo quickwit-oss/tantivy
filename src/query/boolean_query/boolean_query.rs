@@ -22,11 +22,11 @@ use std::collections::BTreeSet;
 /// a `MustNot` occurence.
 ///
 ///
-/// You combine other query types and their `Occur`ances into one `BooleanQuery`
+/// You can combine other query types and their `Occur`ances into one `BooleanQuery`
 ///
 /// ```rust
-///use tantivy::doc;
 ///use tantivy::collector::Count;
+///use tantivy::doc;
 ///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
 ///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
 ///use tantivy::Term;
@@ -63,7 +63,7 @@ use std::collections::BTreeSet;
 ///    let reader = index.reader()?;
 ///    let searcher = reader.searcher();
 ///
-///    // TermQuery "diary" must and "girl" must not be present
+///    // Make TermQuery's for "girl" and "diary" in the title
 ///    let girl_term_query: Box<dyn Query> = Box::new(TermQuery::new(
 ///        Term::from_field_text(title, "girl"),
 ///        IndexRecordOption::Basic,
@@ -72,50 +72,58 @@ use std::collections::BTreeSet;
 ///        Term::from_field_text(title, "diary"),
 ///        IndexRecordOption::Basic,
 ///    ));
+///    // A TermQuery with "found" in the body
+///    let body_term_query: Box<dyn Query> = Box::new(TermQuery::new(
+///        Term::from_field_text(body, "found"),
+///        IndexRecordOption::Basic,
+///    ));
+///    // TermQuery "diary" must and "girl" must not be present
 ///    let queries_with_occurs1 = vec![
 ///        (Occur::Must, diary_term_query.box_clone()),
 ///        (Occur::MustNot, girl_term_query),
 ///    ];
-///    let query1 = BooleanQuery::from(queries_with_occurs1);
-///    let count1 = searcher.search(&query1, &Count)?;
+///    // Make a BooleanQuery equivalent to
+///    // title:+diary title:-girl
+///    let diary_must_and_girl_mustnot = BooleanQuery::from(queries_with_occurs1);
+///    let count1 = searcher.search(&diary_must_and_girl_mustnot, &Count)?;
 ///    assert_eq!(count1, 1);
 ///
-///    // BooleanQuery with 2 `TermQuery`s
-///    // "title:diary OR title:cow"
+///    // TermQuery for "cow" in the title
 ///    let cow_term_query: Box<dyn Query> = Box::new(TermQuery::new(
 ///        Term::from_field_text(title, "cow"),
 ///        IndexRecordOption::Basic,
 ///    ));
-///    let query2 = BooleanQuery::from(vec![
+///    // "title:diary OR title:cow"
+///    let title_diary_or_cow = BooleanQuery::from(vec![
 ///        (Occur::Should, diary_term_query.box_clone()),
 ///        (Occur::Should, cow_term_query),
 ///    ]);
-///    let count3 = searcher.search(&query2, &Count)?;
-///    assert_eq!(count3, 4);
+///    let count2 = searcher.search(&title_diary_or_cow, &Count)?;
+///    assert_eq!(count2, 4);
 ///
-///    // BooleanQuery comprising of subqueries of different types:
-///    // `TermQuery` and `PhraseQuery`
-///    // "title:diary OR \"dairy cow\""
+///    // Make a `PhraseQuery` from a vector of `Term`s
 ///    let phrase_query: Box<dyn Query> = Box::new(PhraseQuery::new(vec![
 ///        Term::from_field_text(title, "dairy"),
 ///        Term::from_field_text(title, "cow"),
 ///    ]));
-///    let query4 = BooleanQuery::from(vec![
+///    // You can combine subqueries of different types into 1 BooleanQuery:
+///    // `TermQuery` and `PhraseQuery`
+///    // "title:diary OR "dairy cow"
+///    let term_of_phrase_query = BooleanQuery::from(vec![
 ///        (Occur::Should, diary_term_query.box_clone()),
-///        (Occur::Should, phrase_query),
+///        (Occur::Should, phrase_query.box_clone()),
 ///    ]);
-///    let count4 = searcher.search(&query4, &Count)?;
-///    assert_eq!(count4, 4);
+///    let count3 = searcher.search(&term_of_phrase_query, &Count)?;
+///    assert_eq!(count3, 4);
 ///
-///    // ("title:diary OR \"dairy cow\"") AND body:found
-///    let body_query: Box<dyn Query> = Box::new(TermQuery::new(
-///        Term::from_field_text(body, "found"),
-///        IndexRecordOption::Basic,
-///    ));
-///    let query5 = BooleanQuery::from(vec![(Occur::Must, body_query),
-///                                         (Occur::Must, Box::new(query4))]);
-///    let count5 = searcher.search(&query5, &Count)?;
-///    assert_eq!(count5, 1);
+///    // You can nest one BooleanQuery inside another
+///    // body:found AND ("title:diary OR "dairy cow")
+///    let nested_query = BooleanQuery::from(vec![
+///        (Occur::Must, body_term_query),
+///        (Occur::Must, Box::new(term_of_phrase_query))
+///    ]);
+///    let count4 = searcher.search(&nested_query, &Count)?;
+///    assert_eq!(count4, 1);
 ///    Ok(())
 ///}
 /// ```
