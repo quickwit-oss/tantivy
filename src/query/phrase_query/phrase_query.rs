@@ -40,7 +40,7 @@ impl PhraseQuery {
         PhraseQuery::new_with_offset(terms_with_offset)
     }
 
-    /// Creates a new `PhraseQuery` given a list of terms and there offsets.
+    /// Creates a new `PhraseQuery` given a list of terms and their offsets.
     ///
     /// Can be used to provide custom offset for each term.
     pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhraseQuery {
@@ -73,7 +73,7 @@ impl PhraseQuery {
             .collect::<Vec<Term>>()
     }
 
-    /// Returns the `PhraseWeight` for the given phrase query given a specific `searcher`.  
+    /// Returns the `PhraseWeight` for the given phrase query given a specific `searcher`.
     ///
     /// This function is the same as `.weight(...)` except it returns
     /// a specialized type `PhraseWeight` instead of a Boxed trait.

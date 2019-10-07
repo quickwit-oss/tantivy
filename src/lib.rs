@@ -212,15 +212,13 @@ pub type Score = f32;
 pub type SegmentLocalId = u32;
 
 impl DocAddress {
-    /// Return the segment ordinal.
-    /// The segment ordinal is an id identifying the segment
-    /// hosting the document. It is only meaningful, in the context
-    /// of a searcher.
+    /// Return the segment ordinal id that identifies the segment
+    /// hosting the document in the `Searcher` it is called from.
     pub fn segment_ord(self) -> SegmentLocalId {
         self.0
     }
 
-    /// Return the segment local `DocId`
+    /// Return the segment-local `DocId`
     pub fn doc(self) -> DocId {
         self.1
     }
@@ -229,11 +227,11 @@ impl DocAddress {
 /// `DocAddress` contains all the necessary information
 /// to identify a document given a `Searcher` object.
 ///
-/// It consists in an id identifying its segment, and
-/// its segment-local `DocId`.
+/// It consists of an id identifying its segment, and
+/// a segment-local `DocId`.
 ///
 /// The id used for the segment is actually an ordinal
-/// in the list of segment hold by a `Searcher`.
+/// in the list of `Segment`s held by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
