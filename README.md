@@ -21,9 +21,9 @@
 [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
 
 
-**Tantivy** is a **full text search engine library** written in rust.
+**Tantivy** is a **full text search engine library** written in Rust.
 
-It is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elasticsearch](https://www.elastic.co/products/elasticsearch) and [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
+It is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elasticsearch](https://www.elastic.co/products/elasticsearch) or [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
 an off-the-shelf search engine server, but rather a crate that can be used
 to build such a search engine.
 
@@ -31,7 +31,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Benchmark
 
-Tantivy is typically faster than Lucene, but the results will depend on 
+Tantivy is typically faster than Lucene, but the results depend on 
 the nature of the queries in your workload.
 
 The following [benchmark](https://tantivy-search.github.io/bench/) break downs 
@@ -40,19 +40,19 @@ performance for different type of queries / collection.
 # Features
 
 - Full-text search
-- Configurable tokenizer. (stemming available for 17 latin languages. Third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)) and [Japanese](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)
+- Configurable tokenizer (stemming available for 17 Latin languages with third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)) and [Japanese](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter))
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command line tools
-- BM25 scoring (the same as lucene)
-- Natural query language `(michael AND jackson) OR "king of pop"`
-- Phrase queries search (`"michael jackson"`)
+- BM25 scoring (the same as Lucene)
+- Natural query language (e.g. `(michael AND jackson) OR "king of pop"`)
+- Phrase queries search (e.g. `"michael jackson"`)
 - Incremental indexing
 - Multithreaded indexing (indexing English Wikipedia takes < 3 minutes on my desktop)
 - Mmap directory
-- SIMD integer compression when the platform/CPU includes the SSE2 instruction set.
-- Single valued and multivalued u64, i64 and f64 fast fields (equivalent of doc values in Lucene)
+- SIMD integer compression when the platform/CPU includes the SSE2 instruction set
+- Single valued and multivalued u64, i64, and f64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
-- Text, i64, u64, f64, dates and hierarchical facet fields
+- Text, i64, u64, f64, dates, and hierarchical facet fields
 - LZ4 compressed document store
 - Range queries
 - Faceted search
@@ -61,43 +61,42 @@ performance for different type of queries / collection.
 
 # Non-features
 
-- Distributed search is out of the scope of tantivy. That being said, tantivy is meant as a
+- Distributed search is out of the scope of Tantivy. That being said, Tantivy is a
 library upon which one could build a distributed search. Serializable/mergeable collector state for instance, 
-are within the scope of tantivy.
+are within the scope of Tantivy.
 
 # Supported OS and compiler
 
-Tantivy works on stable rust (>= 1.27) and supports Linux, MacOS and Windows.
+Tantivy works on stable Rust (>= 1.27) and supports Linux, MacOS, and Windows.
 
 # Getting started
 
-- [tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
-- [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
-`tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
-index documents and search via the CLI or a small server with a REST API.
-It will walk you through getting a wikipedia search engine up and running in a few minutes.
-- [reference doc for the last released version](https://docs.rs/tantivy/)
+- [Tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
+- [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli) - `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
+index documents, and search via the CLI or a small server with a REST API.
+It walks you through getting a wikipedia search engine up and running in a few minutes.
+- [Reference doc for the last released version](https://docs.rs/tantivy/)
 
 # How can I support this project?
 
 There are many ways to support this project. 
 
-- Use tantivy and tell us about your experience on [gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
+- Use Tantivy and tell us about your experience on [Gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
 - Report bugs
 - Write a blog post
 - Help with documentation by asking questions or submitting PRs
-- Contribute code (you can join [our gitter](https://gitter.im/tantivy-search/tantivy) )
-- Talk about tantivy around you
+- Contribute code (you can join [our Gitter](https://gitter.im/tantivy-search/tantivy))
+- Talk about Tantivy around you
 - Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or even [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
 
 # Contributing code
 
-We use the GitHub Pull Request workflow - reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
+We use the GitHub Pull Request workflow: reference a GitHub ticket and/or include a comprehensive commit message when opening a PR.
 
 ## Clone and build locally
 
-Tantivy compiles on stable rust but requires `Rust >= 1.27`.
-To check out and run tests, you can simply run :
+Tantivy compiles on stable Rust but requires `Rust >= 1.27`.
+To check out and run tests, you can simply run:
 
 ```bash
     git clone https://github.com/tantivy-search/tantivy.git
@@ -108,7 +107,7 @@ To check out and run tests, you can simply run :
 ## Run tests
 
 Some tests will not run with just `cargo test` because of `fail-rs`.
-To run the tests exhaustively, run `./run-tests.sh`
+To run the tests exhaustively, run `./run-tests.sh`.
 
 ## Debug
 
@@ -116,13 +115,13 @@ You might find it useful to step through the programme with a debugger.
 
 ### A failing test
 
-Make sure you haven't run `cargo clean` after the most recent `cargo test` or `cargo build` to guarantee that `target/` dir exists. Use this bash script to find the most name of the most recent debug build of tantivy and run it under rust-gdb.
+Make sure you haven't run `cargo clean` after the most recent `cargo test` or `cargo build` to guarantee that the `target/` directory exists. Use this bash script to find the name of the most recent debug build of Tantivy and run it under `rust-gdb`:
 
 ```bash
 find target/debug/ -maxdepth 1 -executable -type f -name "tantivy*" -printf '%TY-%Tm-%Td %TT %p\n' | sort -r | cut -d " " -f 3 | xargs -I RECENT_DBG_TANTIVY rust-gdb RECENT_DBG_TANTIVY
 ```
 
-Now that you are in rust-gdb, you can set breakpoints on lines and methods that match your source-code and run the debug executable with flags that you normally pass to `cargo test` to like this
+Now that you are in `rust-gdb`, you can set breakpoints on lines and methods that match your source code and run the debug executable with flags that you normally pass to `cargo test` like this:
 
 ```bash
 $gdb run --test-threads 1 --test $NAME_OF_TEST
@@ -130,7 +129,7 @@ $gdb run --test-threads 1 --test $NAME_OF_TEST
 
 ### An example
 
-By default, rustc compiles everything in the `examples/` dir in debug mode. This makes it easy for you to make examples to reproduce bugs.
+By default, `rustc` compiles everything in the `examples/` directory in debug mode. This makes it easy for you to make examples to reproduce bugs:
 
 ```bash
 rust-gdb target/debug/examples/$EXAMPLE_NAME
