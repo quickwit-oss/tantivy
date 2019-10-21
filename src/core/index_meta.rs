@@ -285,6 +285,6 @@ mod tests {
             payload: None,
         };
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
-        assert_eq!(json, r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#);
+        assert_eq!(json, r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false,"tokenized":false}}],"opstamp":0}"#);
     }
 }

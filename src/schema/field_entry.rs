@@ -280,7 +280,8 @@ mod tests {
       "record": "position",
       "tokenizer": "default"
     },
-    "stored": false
+    "stored": false,
+    "tokenized": false
   }
 }"#;
         let field_value_json = serde_json::to_string_pretty(&field_value).unwrap();

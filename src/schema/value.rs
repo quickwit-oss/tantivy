@@ -1,4 +1,5 @@
 use crate::schema::Facet;
+use crate::tokenizer::TokenizedString;
 use crate::DateTime;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,6 +11,8 @@ use std::{cmp::Ordering, fmt};
 pub enum Value {
     /// The str type is used for any text information.
     Str(String),
+    /// Tokenized str type,
+    TokStr(TokenizedString),
     /// Unsigned 64-bits Integer `u64`
     U64(u64),
     /// Signed 64-bits Integer `i64`
@@ -29,6 +32,7 @@ impl Ord for Value {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Value::Str(l), Value::Str(r)) => l.cmp(r),
+            (Value::TokStr(l), Value::TokStr(r)) => l.cmp(r),
             (Value::U64(l), Value::U64(r)) => l.cmp(r),
             (Value::I64(l), Value::I64(r)) => l.cmp(r),
             (Value::Date(l), Value::Date(r)) => l.cmp(r),
@@ -44,6 +48,8 @@ impl Ord for Value {
             }
             (Value::Str(_), _) => Ordering::Less,
             (_, Value::Str(_)) => Ordering::Greater,
+            (Value::TokStr(_), _) => Ordering::Less,
+            (_, Value::TokStr(_)) => Ordering::Greater,
             (Value::U64(_), _) => Ordering::Less,
             (_, Value::U64(_)) => Ordering::Greater,
             (Value::I64(_), _) => Ordering::Less,
@@ -65,6 +71,7 @@ impl Serialize for Value {
     {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
+            Value::TokStr(ref v) => v.serialize(serializer),
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
@@ -221,6 +228,7 @@ mod binary_serialize {
     use super::Value;
     use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use crate::schema::Facet;
+    use crate::tokenizer::TokenizedString;
     use chrono::{TimeZone, Utc};
     use std::io::{self, Read, Write};
 
@@ -231,6 +239,11 @@ mod binary_serialize {
     const BYTES_CODE: u8 = 4;
     const DATE_CODE: u8 = 5;
     const F64_CODE: u8 = 6;
+    const EXT_CODE: u8 = 7;
+
+    // extended types
+
+    const TOK_STR_CODE: u8 = 0;
 
     impl BinarySerializable for Value {
         fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -238,6 +251,18 @@ mod binary_serialize {
                 Value::Str(ref text) => {
                     TEXT_CODE.serialize(writer)?;
                     text.serialize(writer)
+                }
+                Value::TokStr(ref tok_str) => {
+                    EXT_CODE.serialize(writer)?;
+                    TOK_STR_CODE.serialize(writer)?;
+                    if let Ok(text) = serde_json::to_string(tok_str) {
+                        text.serialize(writer)
+                    } else {
+                        Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "Failed to dump Value::TokStr(_) to json.",
+                        ))
+                    }
                 }
                 Value::U64(ref val) => {
                     U64_CODE.serialize(writer)?;
@@ -290,6 +315,29 @@ mod binary_serialize {
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),
+                EXT_CODE => {
+                    let ext_type_code = u8::deserialize(reader)?;
+                    match ext_type_code {
+                        TOK_STR_CODE => {
+                            let str_val = String::deserialize(reader)?;
+                            if let Ok(value) = serde_json::from_str::<TokenizedString>(&str_val) {
+                                Ok(Value::TokStr(value))
+                            } else {
+                                Err(io::Error::new(
+                                    io::ErrorKind::Other,
+                                    "Failed to parse string data as Value::TokStr(_).",
+                                ))
+                            }
+                        }
+                        _ => Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "No extened field type is associated with code {:?}",
+                                ext_type_code
+                            ),
+                        )),
+                    }
+                }
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {:?}", type_code),

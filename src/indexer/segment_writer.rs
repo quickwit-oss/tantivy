@@ -14,6 +14,7 @@ use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::FacetTokenizer;
 use crate::tokenizer::{TokenStream, Tokenizer};
+use crate::tokenizer::{TokenizedStream, TokenizedString};
 use crate::DocId;
 use crate::Opstamp;
 use crate::Result;
@@ -157,26 +158,46 @@ impl SegmentWriter {
                         }
                     }
                 }
-                FieldType::Str(_) => {
-                    let num_tokens = if let Some(ref mut tokenizer) =
-                        self.tokenizers[field.field_id() as usize]
-                    {
-                        let texts: Vec<&str> = field_values
+                FieldType::Str(ref text_options) => {
+                    let num_tokens = if text_options.is_tokenized() {
+                        let tok_strings: Vec<&TokenizedString> = field_values
                             .iter()
                             .flat_map(|field_value| match *field_value.value() {
-                                Value::Str(ref text) => Some(text.as_str()),
+                                Value::TokStr(ref tok_str) => Some(tok_str),
                                 _ => None,
                             })
                             .collect();
-                        if texts.is_empty() {
+                        if tok_strings.is_empty() {
                             0
                         } else {
-                            let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
+                            let mut token_stream =
+                                TokenizedStream::chain_tokenized_strings(&tok_strings[..]);
                             self.multifield_postings
                                 .index_text(doc_id, field, &mut token_stream)
                         }
                     } else {
-                        0
+                        if let Some(ref mut tokenizer) = self.tokenizers[field.field_id() as usize]
+                        {
+                            let texts: Vec<&str> = field_values
+                                .iter()
+                                .flat_map(|field_value| match *field_value.value() {
+                                    Value::Str(ref text) => Some(text.as_str()),
+                                    _ => None,
+                                })
+                                .collect();
+                            if texts.is_empty() {
+                                0
+                            } else {
+                                let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
+                                self.multifield_postings.index_text(
+                                    doc_id,
+                                    field,
+                                    &mut token_stream,
+                                )
+                            }
+                        } else {
+                            0
+                        }
                     };
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }

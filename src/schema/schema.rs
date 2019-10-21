@@ -443,7 +443,8 @@ mod tests {
         "record": "position",
         "tokenizer": "default"
       },
-      "stored": false
+      "stored": false,
+      "tokenized": false
     }
   },
   {
@@ -454,7 +455,8 @@ mod tests {
         "record": "basic",
         "tokenizer": "raw"
       },
-      "stored": false
+      "stored": false,
+      "tokenized": false
     }
   },
   {

@@ -9,6 +9,7 @@ use std::ops::BitOr;
 pub struct TextOptions {
     indexing: Option<TextFieldIndexing>,
     stored: bool,
+    tokenized: bool,
 }
 
 impl TextOptions {
@@ -33,6 +34,17 @@ impl TextOptions {
         self.indexing = Some(indexing);
         self
     }
+
+    /// Returns true if the text is already tokenized in the form of TokenString
+    pub fn is_tokenized(&self) -> bool {
+        self.tokenized
+    }
+
+    /// Sets the field as already tokenized
+    pub fn set_tokenized(mut self) -> TextOptions {
+        self.tokenized = true;
+        self
+    }
 }
 
 impl Default for TextOptions {
@@ -40,6 +52,7 @@ impl Default for TextOptions {
         TextOptions {
             indexing: None,
             stored: false,
+            tokenized: false,
         }
     }
 }
@@ -100,6 +113,7 @@ pub const STRING: TextOptions = TextOptions {
         record: IndexRecordOption::Basic,
     }),
     stored: false,
+    tokenized: false,
 };
 
 /// The field will be tokenized and indexed
@@ -109,6 +123,14 @@ pub const TEXT: TextOptions = TextOptions {
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
     stored: false,
+    tokenized: false,
+};
+
+/// The field is already tokenized, should come as TokenizedString
+pub const TOKENIZED: TextOptions = TextOptions {
+    indexing: None,
+    stored: false,
+    tokenized: true,
 };
 
 impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
@@ -119,6 +141,7 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
         let mut res = TextOptions::default();
         res.indexing = self.indexing.or(other.indexing);
         res.stored = self.stored | other.stored;
+        res.tokenized = self.tokenized | other.tokenized;
         res
     }
 }
@@ -134,6 +157,7 @@ impl From<StoredFlag> for TextOptions {
         TextOptions {
             indexing: None,
             stored: true,
+            tokenized: false,
         }
     }
 }
@@ -158,7 +182,13 @@ mod tests {
         {
             let field_options = STORED | TEXT;
             assert!(field_options.is_stored());
+            assert!(!field_options.is_tokenized());
             assert!(field_options.get_indexing_options().is_some());
+        }
+        {
+            let field_options = STORED | TOKENIZED;
+            assert!(field_options.is_stored());
+            assert!(field_options.is_tokenized());
         }
         {
             let mut schema_builder = Schema::builder();

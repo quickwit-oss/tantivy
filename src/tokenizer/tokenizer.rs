@@ -4,7 +4,7 @@ use crate::tokenizer::TokenStreamChain;
 use std::borrow::{Borrow, BorrowMut};
 
 /// Token
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Token {
     /// Offset (byte index) of the first character of the token.
     /// Offsets shall not be modified by token filters.

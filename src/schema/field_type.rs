@@ -1,11 +1,11 @@
 use base64::decode;
 
-use crate::schema::{IntOptions, TextOptions};
-
 use crate::schema::Facet;
 use crate::schema::IndexRecordOption;
 use crate::schema::TextFieldIndexing;
 use crate::schema::Value;
+use crate::schema::{IntOptions, TextOptions};
+use crate::tokenizer::TokenizedString;
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -166,6 +166,36 @@ impl FieldType {
                 }
                 FieldType::Str(_) | FieldType::HierarchicalFacet | FieldType::Bytes => {
                     let msg = format!("Expected a string, got {:?}", json);
+                    Err(ValueParsingError::TypeError(msg))
+                }
+            },
+            JsonValue::Object(_) => match *self {
+                FieldType::Str(ref text_options) => {
+                    if text_options.is_tokenized() {
+                        if let Ok(tok_str_val) =
+                            serde_json::from_value::<TokenizedString>(json.clone())
+                        {
+                            Ok(Value::TokStr(tok_str_val))
+                        } else {
+                            let msg = format!(
+                                "Json value {:?} cannot be translated to TokenizedString.",
+                                json
+                            );
+                            Err(ValueParsingError::TypeError(msg))
+                        }
+                    } else {
+                        let msg = format!(
+                            "Json value not supported error {:?}. Expected {:?}",
+                            json, self
+                        );
+                        Err(ValueParsingError::TypeError(msg))
+                    }
+                }
+                _ => {
+                    let msg = format!(
+                        "Json value not supported error {:?}. Expected {:?}",
+                        json, self
+                    );
                     Err(ValueParsingError::TypeError(msg))
                 }
             },
