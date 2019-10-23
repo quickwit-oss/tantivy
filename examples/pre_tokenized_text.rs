@@ -115,12 +115,27 @@ fn main() -> tantivy::Result<()> {
         .search(&query, &(TopDocs::with_limit(2), Count))
         .unwrap();
 
-    println!("Docs counts: {}", count);
+    assert_eq!(count, 2);
 
     for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("Document: {}", schema.to_json(&retrieved_doc));
     }
+
+    // In contrary to the previous query, when we search for the "man" term we
+    // should get no results, as it's not one of the indexed tokens. SimpleTokenizer
+    // only splits text on whitespace / interpunction.
+
+    let query = TermQuery::new(
+        Term::from_field_text(title, "nan"),
+        IndexRecordOption::Basic,
+    );
+
+    let (top_docs, count) = searcher
+        .search(&query, &(TopDocs::with_limit(2), Count))
+        .unwrap();
+
+    assert_eq!(count, 0);
 
     Ok(())
 }

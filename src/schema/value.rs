@@ -131,6 +131,15 @@ impl Value {
         }
     }
 
+    /// Returns the tokenized text, provided the value is of the `TokStr` type.
+    /// (Returns None if the value is not of the `TokStr` type).
+    pub fn tokenized_text(&self) -> Option<&TokenizedString> {
+        match *self {
+            Value::TokStr(ref tok_text) => Some(tok_text),
+            _ => None,
+        }
+    }
+
     /// Returns the u64-value, provided the value is of the `U64` type.
     ///
     /// # Panics

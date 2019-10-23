@@ -28,10 +28,10 @@ pub struct TokenizedStream {
     current_token: i64,
 }
 
-impl From<&TokenizedString> for TokenizedStream {
-    fn from(s: &TokenizedString) -> TokenizedStream {
+impl From<TokenizedString> for TokenizedStream {
+    fn from(s: TokenizedString) -> TokenizedStream {
         TokenizedStream {
-            tokenized_string: s.clone(),
+            tokenized_string: s,
             current_token: -1,
         }
     }
@@ -43,7 +43,7 @@ impl TokenizedStream {
         tok_strings: &'a [&'a TokenizedString],
     ) -> Box<dyn TokenStream + 'a> {
         if tok_strings.len() == 1 {
-            Box::new(TokenizedStream::from(tok_strings[0]))
+            Box::new(TokenizedStream::from((*tok_strings[0]).clone()))
         } else {
             let mut offsets = vec![];
             let mut total_offset = 0;
@@ -57,7 +57,7 @@ impl TokenizedStream {
             }
             let token_streams: Vec<_> = tok_strings
                 .iter()
-                .map(|tok_string| TokenizedStream::from(*tok_string))
+                .map(|tok_string| TokenizedStream::from((*tok_string).clone()))
                 .collect();
             Box::new(TokenStreamChain::new(offsets, token_streams))
         }
@@ -114,7 +114,7 @@ mod tests {
             ],
         };
 
-        let mut tok_stream = TokenizedStream::from(&tok_text);
+        let mut tok_stream = TokenizedStream::from(tok_text.clone());
 
         let mut i = 0;
         while tok_stream.advance() {
