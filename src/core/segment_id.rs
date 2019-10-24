@@ -76,7 +76,7 @@ impl SegmentId {
 }
 
 /// Error type used when parsing a `SegmentId` from a string fails.
-pub struct SegmentIdParseError(uuid::parser::ParseError);
+pub struct SegmentIdParseError(uuid::Error);
 
 impl Error for SegmentIdParseError {}
 
