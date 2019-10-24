@@ -3,7 +3,6 @@ use crate::DocId;
 use crate::Result;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use itertools::Itertools;
 use serde::export::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -25,29 +24,41 @@ struct ComparableDoc<T, D> {
     doc: D,
 }
 
-impl<T: PartialOrd, D> PartialOrd for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> PartialOrd for ComparableDoc<T, D> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: PartialOrd, D> Ord for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> Ord for ComparableDoc<T, D> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
-        other
+        // Reversed to make BinaryHeap work as a min-heap
+        let by_feature = other
             .feature
             .partial_cmp(&self.feature)
-            .unwrap_or_else(|| Ordering::Equal)
+            .unwrap_or_else(|| Ordering::Equal);
+
+        let lazy_by_doc_address = || {
+            self.doc
+                .partial_cmp(&other.doc)
+                .unwrap_or_else(|| Ordering::Equal)
+        };
+
+        // In case of a tie on the feature, we sort by ascending
+        // `DocAddress` in order to ensure a stable sorting of the
+        // documents.
+        by_feature.then_with(lazy_by_doc_address)
     }
 }
 
-impl<T: PartialOrd, D> PartialEq for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> PartialEq for ComparableDoc<T, D> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<T: PartialOrd, D> Eq for ComparableDoc<T, D> {}
+impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
     limit: usize,
@@ -96,8 +107,8 @@ where
             }
         }
         Ok(top_collector
+            .into_sorted_vec()
             .into_iter()
-            .sorted_by(stable_sort)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
@@ -136,10 +147,9 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
         let segment_id = self.segment_id;
-
         self.heap
+            .into_sorted_vec()
             .into_iter()
-            .sorted_by(stable_sort)
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
@@ -178,26 +188,6 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
             self.heap.push(ComparableDoc { feature, doc });
         }
     }
-}
-
-fn stable_sort<T, D>(a: &ComparableDoc<T, D>, b: &ComparableDoc<T, D>) -> Ordering
-where
-    T: PartialOrd,
-    D: PartialOrd,
-{
-    // Reversed since our ComparableDoc reverses the ordering (to
-    // make BinaryHeap work as a min-heap).
-    let by_feature = b
-        .feature
-        .partial_cmp(&a.feature)
-        .unwrap_or_else(|| Ordering::Equal);
-
-    let lazy_by_doc_address = || a.doc.partial_cmp(&b.doc).unwrap_or_else(|| Ordering::Equal);
-
-    // In case of a tie on the feature, we sort by ascending
-    // `DocAddress` in order to ensure a stable sorting of the
-    // documents.
-    by_feature.then_with(lazy_by_doc_address)
 }
 
 #[cfg(test)]
