@@ -3,6 +3,7 @@ use crate::DocId;
 use crate::Result;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
+use itertools::Itertools;
 use serde::export::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -11,6 +12,9 @@ use std::collections::BinaryHeap;
 ///
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
+///
+/// Additionally, it guarantees stable sorting: in case of a tie on the feature, the document
+/// address is used.
 ///
 /// WARNING: equality is not what you would expect here.
 /// Two elements are equal if their feature is equal, and regardless of whether `doc`
@@ -92,8 +96,8 @@ where
             }
         }
         Ok(top_collector
-            .into_sorted_vec()
             .into_iter()
+            .sorted_by(stable_sort)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
@@ -132,9 +136,10 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
         let segment_id = self.segment_id;
+
         self.heap
-            .into_sorted_vec()
             .into_iter()
+            .sorted_by(stable_sort)
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
@@ -175,6 +180,26 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     }
 }
 
+fn stable_sort<T, D>(a: &ComparableDoc<T, D>, b: &ComparableDoc<T, D>) -> Ordering
+where
+    T: PartialOrd,
+    D: PartialOrd,
+{
+    // Reversed since our ComparableDoc reverses the ordering (to
+    // make BinaryHeap work as a min-heap).
+    let by_feature = b
+        .feature
+        .partial_cmp(&a.feature)
+        .unwrap_or_else(|| Ordering::Equal);
+
+    let lazy_by_doc_address = || a.doc.partial_cmp(&b.doc).unwrap_or_else(|| Ordering::Equal);
+
+    // In case of a tie on the feature, we sort by ascending
+    // `DocAddress` in order to ensure a stable sorting of the
+    // documents.
+    by_feature.then_with(lazy_by_doc_address)
+}
+
 #[cfg(test)]
 mod tests {
     use super::TopSegmentCollector;
@@ -212,6 +237,30 @@ mod tests {
                 (0.3, DocAddress(0, 5)),
                 (0.2, DocAddress(0, 3))
             ]
+        );
+    }
+
+    #[test]
+    fn test_top_segment_collector_stable_ordering_for_equal_feature() {
+        // given that the documents are collected in ascending doc id order,
+        // when harvesting we have to guarantee stable sorting in case of a tie
+        // on the score
+        let doc_ids_collection = [4, 5, 6];
+        let score = 3.14;
+
+        let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2);
+        for id in &doc_ids_collection {
+            top_collector_limit_2.collect(*id, score);
+        }
+
+        let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3);
+        for id in &doc_ids_collection {
+            top_collector_limit_3.collect(*id, score);
+        }
+
+        assert_eq!(
+            top_collector_limit_2.harvest(),
+            top_collector_limit_3.harvest()[..2].to_vec(),
         );
     }
 }
