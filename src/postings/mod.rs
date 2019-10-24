@@ -356,9 +356,9 @@ pub mod tests {
 
     #[test]
     fn test_skip_next() {
-        let term_0 = Term::from_field_u64(Field(0), 0);
-        let term_1 = Term::from_field_u64(Field(0), 1);
-        let term_2 = Term::from_field_u64(Field(0), 2);
+        let term_0 = Term::from_field_u64(Field::from_field_id(0), 0);
+        let term_1 = Term::from_field_u64(Field::from_field_id(0), 1);
+        let term_2 = Term::from_field_u64(Field::from_field_id(0), 2);
 
         let num_docs = 300u32;
 
@@ -511,19 +511,19 @@ pub mod tests {
     }
 
     pub static TERM_A: Lazy<Term> = Lazy::new(|| {
-        let field = Field(0);
+        let field = Field::from_field_id(0);
         Term::from_field_text(field, "a")
     });
     pub static TERM_B: Lazy<Term> = Lazy::new(|| {
-        let field = Field(0);
+        let field = Field::from_field_id(0);
         Term::from_field_text(field, "b")
     });
     pub static TERM_C: Lazy<Term> = Lazy::new(|| {
-        let field = Field(0);
+        let field = Field::from_field_id(0);
         Term::from_field_text(field, "c")
     });
     pub static TERM_D: Lazy<Term> = Lazy::new(|| {
-        let field = Field(0);
+        let field = Field::from_field_id(0);
         Term::from_field_text(field, "d")
     });
 

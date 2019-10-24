@@ -24,8 +24,7 @@ impl FastFieldsWriter {
         let mut multi_values_writers = Vec::new();
         let mut bytes_value_writers = Vec::new();
 
-        for (field_id, field_entry) in schema.fields().iter().enumerate() {
-            let field = Field(field_id as u32);
+        for (field, field_entry) in schema.fields() {
             let default_value = match *field_entry.field_type() {
                 FieldType::I64(_) => common::i64_to_u64(0i64),
                 FieldType::F64(_) => common::f64_to_u64(0.0f64),

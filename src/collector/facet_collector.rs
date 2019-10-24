@@ -515,7 +515,7 @@ mod tests {
     #[should_panic(expected = "Tried to add a facet which is a descendant of \
                                an already added facet.")]
     fn test_misused_facet_collector() {
-        let mut facet_collector = FacetCollector::for_field(Field(0));
+        let mut facet_collector = FacetCollector::for_field(Field::from_field_id(0));
         facet_collector.add_facet(Facet::from("/country"));
         facet_collector.add_facet(Facet::from("/country/europe"));
     }
@@ -546,7 +546,7 @@ mod tests {
 
     #[test]
     fn test_non_used_facet_collector() {
-        let mut facet_collector = FacetCollector::for_field(Field(0));
+        let mut facet_collector = FacetCollector::for_field(Field::from_field_id(0));
         facet_collector.add_facet(Facet::from("/country"));
         facet_collector.add_facet(Facet::from("/countryeurope"));
     }

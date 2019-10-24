@@ -6,7 +6,18 @@ use std::io::Write;
 /// `Field` is represented by an unsigned 32-bit integer type
 /// The schema holds the mapping between field names and `Field` objects.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
-pub struct Field(pub u32);
+pub struct Field(u32);
+
+impl Field {
+    pub(crate) fn from_field_id(field_id: u32) -> Field {
+        Field(field_id)
+    }
+
+    /// Returns a u32 identifying uniquely a field within a schema.
+    pub fn field_id(&self) -> u32 {
+        self.0
+    }
+}
 
 impl BinarySerializable for Field {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {

@@ -1,5 +1,4 @@
 use fail;
-use std::io::Write;
 use std::path::Path;
 use tantivy::directory::{Directory, ManagedDirectory, RAMDirectory, TerminatingWrite};
 use tantivy::doc;

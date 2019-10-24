@@ -190,8 +190,7 @@ impl IndexMerger {
         fast_field_serializer: &mut FastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
     ) -> Result<()> {
-        for (field_id, field_entry) in self.schema.fields().iter().enumerate() {
-            let field = Field(field_id as u32);
+        for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match *field_type {
                 FieldType::HierarchicalFacet => {
@@ -649,15 +648,12 @@ impl IndexMerger {
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
-        for (field_ord, field_entry) in self.schema.fields().iter().enumerate() {
+        for (field, field_entry) in self.schema.fields() {
             if field_entry.is_indexed() {
-                let indexed_field = Field(field_ord as u32);
-                if let Some(term_ordinal_mapping) = self.write_postings_for_field(
-                    indexed_field,
-                    field_entry.field_type(),
-                    serializer,
-                )? {
-                    term_ordinal_mappings.insert(indexed_field, term_ordinal_mapping);
+                if let Some(term_ordinal_mapping) =
+                    self.write_postings_for_field(field, field_entry.field_type(), serializer)?
+                {
+                    term_ordinal_mappings.insert(field, term_ordinal_mapping);
                 }
             }
         }

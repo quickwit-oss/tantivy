@@ -199,13 +199,13 @@ mod test {
             let w = directory.open_write(path).unwrap();
             let mut composite_write = CompositeWrite::wrap(w);
             {
-                let mut write_0 = composite_write.for_field(Field(0u32));
+                let mut write_0 = composite_write.for_field(Field::from_field_id(0u32));
                 VInt(32431123u64).serialize(&mut write_0).unwrap();
                 write_0.flush().unwrap();
             }
 
             {
-                let mut write_4 = composite_write.for_field(Field(4u32));
+                let mut write_4 = composite_write.for_field(Field::from_field_id(4u32));
                 VInt(2).serialize(&mut write_4).unwrap();
                 write_4.flush().unwrap();
             }
@@ -215,14 +215,18 @@ mod test {
             let r = directory.open_read(path).unwrap();
             let composite_file = CompositeFile::open(&r).unwrap();
             {
-                let file0 = composite_file.open_read(Field(0u32)).unwrap();
+                let file0 = composite_file
+                    .open_read(Field::from_field_id(0u32))
+                    .unwrap();
                 let mut file0_buf = file0.as_slice();
                 let payload_0 = VInt::deserialize(&mut file0_buf).unwrap().0;
                 assert_eq!(file0_buf.len(), 0);
                 assert_eq!(payload_0, 32431123u64);
             }
             {
-                let file4 = composite_file.open_read(Field(4u32)).unwrap();
+                let file4 = composite_file
+                    .open_read(Field::from_field_id(4u32))
+                    .unwrap();
                 let mut file4_buf = file4.as_slice();
                 let payload_4 = VInt::deserialize(&mut file4_buf).unwrap().0;
                 assert_eq!(file4_buf.len(), 0);

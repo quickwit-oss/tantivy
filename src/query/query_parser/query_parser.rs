@@ -674,13 +674,19 @@ mod test {
 
         test_parse_query_to_logical_ast_helper(
             "signed:-2324",
-            &format!("{:?}", Term::from_field_i64(Field(2u32), -2324)),
+            &format!(
+                "{:?}",
+                Term::from_field_i64(Field::from_field_id(2u32), -2324)
+            ),
             false,
         );
 
         test_parse_query_to_logical_ast_helper(
             "float:2.5",
-            &format!("{:?}", Term::from_field_f64(Field(10u32), 2.5)),
+            &format!(
+                "{:?}",
+                Term::from_field_f64(Field::from_field_id(10u32), 2.5)
+            ),
             false,
         );
     }

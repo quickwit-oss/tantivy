@@ -15,7 +15,7 @@ use std::sync::{Arc, RwLock};
 // New consumer can be created in two ways
 // - calling `delete_queue.cursor()` returns a cursor, that
 //   will include all future delete operation (and no past operations).
-// - cloning an existing cursor returns a new cursor, that
+// - cloning an existing cursor returns a nFew cursor, that
 //   is at the exact same position, and can now advance independently
 //   from the original cursor.
 #[derive(Default)]
@@ -258,7 +258,7 @@ mod tests {
         let delete_queue = DeleteQueue::new();
 
         let make_op = |i: usize| {
-            let field = Field(1u32);
+            let field = Field::from_field_id(1u32);
             DeleteOperation {
                 opstamp: i as u64,
                 term: Term::from_field_u64(field, i as u64),

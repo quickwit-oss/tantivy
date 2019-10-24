@@ -59,8 +59,7 @@ impl FastFieldReaders {
             fast_bytes: Default::default(),
             fast_fields_composite: fast_fields_composite.clone(),
         };
-        for (field_id, field_entry) in schema.fields().iter().enumerate() {
-            let field = Field(field_id as u32);
+        for (field, field_entry) in schema.fields() {
             let field_type = field_entry.field_type();
             if field_type == &FieldType::Bytes {
                 let idx_reader = fast_fields_composite

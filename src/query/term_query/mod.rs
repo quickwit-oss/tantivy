@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_term_query_debug() {
         let term_query = TermQuery::new(
-            Term::from_field_text(Field(1), "hello"),
+            Term::from_field_text(Field::from_field_id(1), "hello"),
             IndexRecordOption::WithFreqs,
         );
         assert_eq!(

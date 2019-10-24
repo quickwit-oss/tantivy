@@ -167,7 +167,7 @@ impl SchemaBuilder {
 
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
-        let field = Field(self.fields.len() as u32);
+        let field = Field::from_field_id(self.fields.len() as u32);
         let field_name = field_entry.name().to_string();
         self.fields.push(field_entry);
         self.fields_map.insert(field_name, field);
@@ -223,7 +223,7 @@ pub struct Schema(Arc<InnerSchema>);
 impl Schema {
     /// Return the `FieldEntry` associated to a `Field`.
     pub fn get_field_entry(&self, field: Field) -> &FieldEntry {
-        &self.0.fields[field.0 as usize]
+        &self.0.fields[field.field_id() as usize]
     }
 
     /// Return the field name for a given `Field`.
@@ -232,8 +232,12 @@ impl Schema {
     }
 
     /// Return the list of all the `Field`s.
-    pub fn fields(&self) -> &[FieldEntry] {
-        &self.0.fields
+    pub fn fields(&self) -> impl Iterator<Item = (Field, &FieldEntry)> {
+        self.0
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(field_id, field_entry)| (Field::from_field_id(field_id as u32), field_entry))
     }
 
     /// Creates a new builder.
@@ -485,13 +489,32 @@ mod tests {
 
         let schema: Schema = serde_json::from_str(expected).unwrap();
 
-        let mut fields = schema.fields().iter();
-
-        assert_eq!("title", fields.next().unwrap().name());
-        assert_eq!("author", fields.next().unwrap().name());
-        assert_eq!("count", fields.next().unwrap().name());
-        assert_eq!("popularity", fields.next().unwrap().name());
-        assert_eq!("score", fields.next().unwrap().name());
+        let mut fields = schema.fields();
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("title", field_entry.name());
+            assert_eq!(0, field.field_id());
+        }
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("author", field_entry.name());
+            assert_eq!(1, field.field_id());
+        }
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("count", field_entry.name());
+            assert_eq!(2, field.field_id());
+        }
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("popularity", field_entry.name());
+            assert_eq!(3, field.field_id());
+        }
+        {
+            let (field, field_entry) = fields.next().unwrap();
+            assert_eq!("score", field_entry.name());
+            assert_eq!(4, field.field_id());
+        }
         assert!(fields.next().is_none());
     }
 

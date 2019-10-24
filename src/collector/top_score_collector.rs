@@ -551,7 +551,7 @@ mod tests {
             ));
         });
         let searcher = index.reader().unwrap().searcher();
-        let top_collector = TopDocs::with_limit(4).order_by_u64_field(Field(2));
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(Field::from_field_id(2));
         let segment_reader = searcher.segment_reader(0u32);
         top_collector
             .for_segment(0, segment_reader)
