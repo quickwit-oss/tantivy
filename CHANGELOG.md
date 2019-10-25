@@ -9,6 +9,7 @@ Tantivy 0.11.0
 - API change around `Box<BoxableTokenizer>`. See detail in #629
 - Avoid rebuilding Regex automaton whenever a regex query is reused. #639 (@brainlock)
 - Add footer with some metadata to index files. #605 (@fdb-hiroshima)
+- TopDocs collector: ensure stable sorting on equal score. #671 (@brainlock)
  
 ## How to update?
 
