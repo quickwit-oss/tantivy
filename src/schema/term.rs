@@ -105,7 +105,7 @@ impl Term {
         if self.0.len() < 4 {
             self.0.resize(4, 0u8);
         }
-        BigEndian::write_u32(&mut self.0[0..4], field.0);
+        BigEndian::write_u32(&mut self.0[0..4], field.field_id());
     }
 
     /// Sets a u64 value in the term.
@@ -157,7 +157,7 @@ where
 
     /// Returns the field.
     pub fn field(&self) -> Field {
-        Field(BigEndian::read_u32(&self.0.as_ref()[..4]))
+        Field::from_field_id(BigEndian::read_u32(&self.0.as_ref()[..4]))
     }
 
     /// Returns the `u64` value stored in a term.
@@ -227,7 +227,7 @@ impl fmt::Debug for Term {
         write!(
             f,
             "Term(field={},bytes={:?})",
-            self.field().0,
+            self.field().field_id(),
             self.value_bytes()
         )
     }

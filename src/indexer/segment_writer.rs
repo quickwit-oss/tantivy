@@ -6,11 +6,11 @@ use crate::fieldnorm::FieldNormsWriter;
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
-use crate::schema::FieldEntry;
 use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
+use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::FacetTokenizer;
 use crate::tokenizer::{TokenStream, Tokenizer};
@@ -70,12 +70,10 @@ impl SegmentWriter {
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
-        let tokenizers =
-            schema
-                .fields()
-                .iter()
-                .map(FieldEntry::field_type)
-                .map(|field_type| match *field_type {
+        let tokenizers = schema
+            .fields()
+            .map(
+                |(_, field_entry): (Field, &FieldEntry)| match field_entry.field_type() {
                     FieldType::Str(ref text_options) => text_options
                         .get_indexing_options()
                         .and_then(|text_index_option| {
@@ -83,8 +81,9 @@ impl SegmentWriter {
                             segment.index().tokenizers().get(tokenizer_name)
                         }),
                     _ => None,
-                })
-                .collect();
+                },
+            )
+            .collect();
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
@@ -160,7 +159,7 @@ impl SegmentWriter {
                 }
                 FieldType::Str(_) => {
                     let num_tokens = if let Some(ref mut tokenizer) =
-                        self.tokenizers[field.0 as usize]
+                        self.tokenizers[field.field_id() as usize]
                     {
                         let texts: Vec<&str> = field_values
                             .iter()
