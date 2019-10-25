@@ -254,3 +254,69 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use super::TopSegmentCollector;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_top_segment_collector_collect_not_at_capacity(b: &mut Bencher) {
+        let mut top_collector = TopSegmentCollector::new(0, 400);
+
+        b.iter(|| {
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
+        let mut top_collector = TopSegmentCollector::new(0, 100);
+
+        for i in 0..100 {
+            top_collector.collect(i, 0.8);
+        }
+
+        b.iter(|| {
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_and_harvest_many_ties(b: &mut Bencher) {
+        b.iter(|| {
+            let mut top_collector = TopSegmentCollector::new(0, 100);
+
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+
+            // it would be nice to be able to do the setup N times but still
+            // measure only harvest(). We can't since harvest() consumes
+            // the top_collector.
+            top_collector.harvest()
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_and_harvest_no_tie(b: &mut Bencher) {
+        b.iter(|| {
+            let mut top_collector = TopSegmentCollector::new(0, 100);
+            let mut score = 1.0;
+
+            for i in 0..100 {
+                score += 1.0;
+                top_collector.collect(i, score);
+            }
+
+            // it would be nice to be able to do the setup N times but still
+            // measure only harvest(). We can't since harvest() consumes
+            // the top_collector.
+            top_collector.harvest()
+        });
+    }
+}
