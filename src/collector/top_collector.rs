@@ -37,12 +37,12 @@ impl<T: PartialOrd, D: PartialOrd> Ord for ComparableDoc<T, D> {
         let by_feature = other
             .feature
             .partial_cmp(&self.feature)
-            .unwrap_or_else(|| Ordering::Equal);
+            .unwrap_or(Ordering::Equal);
 
         let lazy_by_doc_address = || {
             self.doc
                 .partial_cmp(&other.doc)
-                .unwrap_or_else(|| Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
         };
 
         // In case of a tie on the feature, we sort by ascending
