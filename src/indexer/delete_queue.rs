@@ -15,7 +15,7 @@ use std::sync::{Arc, RwLock};
 // New consumer can be created in two ways
 // - calling `delete_queue.cursor()` returns a cursor, that
 //   will include all future delete operation (and no past operations).
-// - cloning an existing cursor returns a nFew cursor, that
+// - cloning an existing cursor returns a new cursor, that
 //   is at the exact same position, and can now advance independently
 //   from the original cursor.
 #[derive(Default)]
