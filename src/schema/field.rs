@@ -9,7 +9,8 @@ use std::io::Write;
 pub struct Field(u32);
 
 impl Field {
-    pub(crate) fn from_field_id(field_id: u32) -> Field {
+    /// Create a new field object for the given FieldId.
+    pub fn from_field_id(field_id: u32) -> Field {
         Field(field_id)
     }
 
