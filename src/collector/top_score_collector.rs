@@ -15,12 +15,15 @@ use crate::SegmentLocalId;
 use crate::SegmentReader;
 use std::fmt;
 
-/// The Top Score Collector keeps track of the K documents
+/// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
 ///
 /// The implementation is based on a `BinaryHeap`.
 /// The theorical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
+///
+/// This collector guarantees a stable sorting in case of a tie on the
+/// document score. As such, it is suitable to implement pagination.
 ///
 /// ```rust
 /// use tantivy::collector::TopDocs;
@@ -428,12 +431,13 @@ impl SegmentCollector for TopScoreSegmentCollector {
 mod tests {
     use super::TopDocs;
     use crate::collector::Collector;
-    use crate::query::{Query, QueryParser};
+    use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
     use crate::DocAddress;
     use crate::Index;
     use crate::IndexWriter;
     use crate::Score;
+    use itertools::Itertools;
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -492,6 +496,29 @@ mod tests {
                 (0.5376842, DocAddress(0u32, 2)),
             ]
         );
+    }
+
+    #[test]
+    fn test_top_collector_stable_sorting() {
+        let index = make_index();
+
+        // using AllQuery to get a constant score
+        let searcher = index.reader().unwrap().searcher();
+
+        let page_1 = searcher.search(&AllQuery, &TopDocs::with_limit(2)).unwrap();
+
+        let page_2 = searcher.search(&AllQuery, &TopDocs::with_limit(3)).unwrap();
+
+        // precondition for the test to be meaningful: we did get documents
+        // with the same score
+        assert!(page_1.iter().map(|result| result.0).all_equal());
+        assert!(page_2.iter().map(|result| result.0).all_equal());
+
+        // sanity check since we're relying on make_index()
+        assert_eq!(page_1.len(), 2);
+        assert_eq!(page_2.len(), 3);
+
+        assert_eq!(page_1, &page_2[..page_1.len()]);
     }
 
     #[test]

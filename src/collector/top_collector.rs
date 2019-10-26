@@ -12,6 +12,9 @@ use std::collections::BinaryHeap;
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
 ///
+/// Additionally, it guarantees stable sorting: in case of a tie on the feature, the document
+/// address is used.
+///
 /// WARNING: equality is not what you would expect here.
 /// Two elements are equal if their feature is equal, and regardless of whether `doc`
 /// is equal. This should be perfectly fine for this usage, but let's make sure this
@@ -21,29 +24,37 @@ struct ComparableDoc<T, D> {
     doc: D,
 }
 
-impl<T: PartialOrd, D> PartialOrd for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> PartialOrd for ComparableDoc<T, D> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: PartialOrd, D> Ord for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> Ord for ComparableDoc<T, D> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
-        other
+        // Reversed to make BinaryHeap work as a min-heap
+        let by_feature = other
             .feature
             .partial_cmp(&self.feature)
-            .unwrap_or_else(|| Ordering::Equal)
+            .unwrap_or(Ordering::Equal);
+
+        let lazy_by_doc_address = || self.doc.partial_cmp(&other.doc).unwrap_or(Ordering::Equal);
+
+        // In case of a tie on the feature, we sort by ascending
+        // `DocAddress` in order to ensure a stable sorting of the
+        // documents.
+        by_feature.then_with(lazy_by_doc_address)
     }
 }
 
-impl<T: PartialOrd, D> PartialEq for ComparableDoc<T, D> {
+impl<T: PartialOrd, D: PartialOrd> PartialEq for ComparableDoc<T, D> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<T: PartialOrd, D> Eq for ComparableDoc<T, D> {}
+impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
     limit: usize,
@@ -213,5 +224,95 @@ mod tests {
                 (0.2, DocAddress(0, 3))
             ]
         );
+    }
+
+    #[test]
+    fn test_top_segment_collector_stable_ordering_for_equal_feature() {
+        // given that the documents are collected in ascending doc id order,
+        // when harvesting we have to guarantee stable sorting in case of a tie
+        // on the score
+        let doc_ids_collection = [4, 5, 6];
+        let score = 3.14;
+
+        let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2);
+        for id in &doc_ids_collection {
+            top_collector_limit_2.collect(*id, score);
+        }
+
+        let mut top_collector_limit_3 = TopSegmentCollector::new(0, 3);
+        for id in &doc_ids_collection {
+            top_collector_limit_3.collect(*id, score);
+        }
+
+        assert_eq!(
+            top_collector_limit_2.harvest(),
+            top_collector_limit_3.harvest()[..2].to_vec(),
+        );
+    }
+}
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use super::TopSegmentCollector;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_top_segment_collector_collect_not_at_capacity(b: &mut Bencher) {
+        let mut top_collector = TopSegmentCollector::new(0, 400);
+
+        b.iter(|| {
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_at_capacity(b: &mut Bencher) {
+        let mut top_collector = TopSegmentCollector::new(0, 100);
+
+        for i in 0..100 {
+            top_collector.collect(i, 0.8);
+        }
+
+        b.iter(|| {
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_and_harvest_many_ties(b: &mut Bencher) {
+        b.iter(|| {
+            let mut top_collector = TopSegmentCollector::new(0, 100);
+
+            for i in 0..100 {
+                top_collector.collect(i, 0.8);
+            }
+
+            // it would be nice to be able to do the setup N times but still
+            // measure only harvest(). We can't since harvest() consumes
+            // the top_collector.
+            top_collector.harvest()
+        });
+    }
+
+    #[bench]
+    fn bench_top_segment_collector_collect_and_harvest_no_tie(b: &mut Bencher) {
+        b.iter(|| {
+            let mut top_collector = TopSegmentCollector::new(0, 100);
+            let mut score = 1.0;
+
+            for i in 0..100 {
+                score += 1.0;
+                top_collector.collect(i, score);
+            }
+
+            // it would be nice to be able to do the setup N times but still
+            // measure only harvest(). We can't since harvest() consumes
+            // the top_collector.
+            top_collector.harvest()
+        });
     }
 }
