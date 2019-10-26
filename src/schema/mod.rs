@@ -141,7 +141,6 @@ pub use self::text_options::TextFieldIndexing;
 pub use self::text_options::TextOptions;
 pub use self::text_options::STRING;
 pub use self::text_options::TEXT;
-pub use self::text_options::TOKENIZED;
 
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;

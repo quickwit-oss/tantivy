@@ -9,7 +9,7 @@
 // - import tokenized text straight from json,
 // - perform a search on documents with pre-tokenized text
 
-use tantivy::tokenizer::{SimpleTokenizer, Token, TokenStream, TokenizedString, Tokenizer};
+use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, TokenStream, Tokenizer};
 
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::TermQuery;
@@ -17,11 +17,11 @@ use tantivy::schema::*;
 use tantivy::{doc, Index, ReloadPolicy};
 use tempfile::TempDir;
 
-fn tokenize_it(text: &str) -> Vec<Token> {
-    let mut ts = SimpleTokenizer.token_stream(text);
+fn pre_tokenize_text(text: &str) -> Vec<Token> {
+    let mut token_stream = SimpleTokenizer.token_stream(text);
     let mut tokens = vec![];
-    while ts.advance() {
-        tokens.push(ts.token().clone());
+    while token_stream.advance() {
+        tokens.push(token_stream.token().clone());
     }
     tokens
 }
@@ -31,11 +31,8 @@ fn main() -> tantivy::Result<()> {
 
     let mut schema_builder = Schema::builder();
 
-    // now we add `TOKENIZED` `TextOptions` to mark field as pre-tokenized
-    // in addition the title will be also stored, so we can see it in
-    // returned results
-    schema_builder.add_text_field("title", TEXT | STORED | TOKENIZED);
-    schema_builder.add_text_field("body", TEXT | TOKENIZED);
+    schema_builder.add_text_field("title", TEXT | STORED);
+    schema_builder.add_text_field("body", TEXT);
 
     let schema = schema_builder.build();
 
@@ -52,10 +49,10 @@ fn main() -> tantivy::Result<()> {
     let body_text = "He was an old man who fished alone in a skiff in the Gulf Stream";
 
     // Content of our first document
-    // We create `TokenizedString` which contains original text and vector of tokens
-    let title_tok = TokenizedString {
+    // We create `PreTokenizedString` which contains original text and vector of tokens
+    let title_tok = PreTokenizedString {
         text: String::from(title_text),
-        tokens: tokenize_it(title_text),
+        tokens: pre_tokenize_text(title_text),
     };
 
     println!(
@@ -63,21 +60,21 @@ fn main() -> tantivy::Result<()> {
         title_tok.text, title_tok.tokens
     );
 
-    let body_tok = TokenizedString {
+    let body_tok = PreTokenizedString {
         text: String::from(body_text),
-        tokens: tokenize_it(body_text),
+        tokens: pre_tokenize_text(body_text),
     };
 
-    // Now lets create a document and add our `TokenizedString` using
-    // `add_tokenized_text` method of `Document`
+    // Now lets create a document and add our `PreTokenizedString` using
+    // `add_pre_tokenized_text` method of `Document`
     let mut old_man_doc = Document::default();
-    old_man_doc.add_tokenized_text(title, &title_tok);
-    old_man_doc.add_tokenized_text(body, &body_tok);
+    old_man_doc.add_pre_tokenized_text(title, &title_tok);
+    old_man_doc.add_pre_tokenized_text(body, &body_tok);
 
     // ... now let's just add it to the IndexWriter
     index_writer.add_document(old_man_doc);
 
-    // `Document` can be obtained directly from JSON:
+    // Pretokenized text can also be fed as JSON
     let short_man_json = r#"{
         "title":[{
             "text":"The Old Man",
@@ -106,6 +103,8 @@ fn main() -> tantivy::Result<()> {
     let searcher = reader.searcher();
 
     // We want to get documents with token "Man", we will use TermQuery to do it
+    // Using PreTokenizedString means the tokens are stored as is avoiding stemming
+    // and lowercasing, which preserves full words in their original form
     let query = TermQuery::new(
         Term::from_field_text(title, "Man"),
         IndexRecordOption::Basic,
@@ -124,14 +123,14 @@ fn main() -> tantivy::Result<()> {
 
     // In contrary to the previous query, when we search for the "man" term we
     // should get no results, as it's not one of the indexed tokens. SimpleTokenizer
-    // only splits text on whitespace / interpunction.
+    // only splits text on whitespace / punctuation.
 
     let query = TermQuery::new(
-        Term::from_field_text(title, "nan"),
+        Term::from_field_text(title, "man"),
         IndexRecordOption::Basic,
     );
 
-    let (top_docs, count) = searcher
+    let (_top_docs, count) = searcher
         .search(&query, &(TopDocs::with_limit(2), Count))
         .unwrap();
 

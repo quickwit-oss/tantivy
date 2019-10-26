@@ -1,5 +1,5 @@
 use crate::schema::Facet;
-use crate::tokenizer::TokenizedString;
+use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -11,8 +11,8 @@ use std::{cmp::Ordering, fmt};
 pub enum Value {
     /// The str type is used for any text information.
     Str(String),
-    /// Tokenized str type,
-    TokStr(TokenizedString),
+    /// Pre-tokenized str type,
+    PreTokStr(PreTokenizedString),
     /// Unsigned 64-bits Integer `u64`
     U64(u64),
     /// Signed 64-bits Integer `i64`
@@ -32,7 +32,7 @@ impl Ord for Value {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Value::Str(l), Value::Str(r)) => l.cmp(r),
-            (Value::TokStr(l), Value::TokStr(r)) => l.cmp(r),
+            (Value::PreTokStr(l), Value::PreTokStr(r)) => l.cmp(r),
             (Value::U64(l), Value::U64(r)) => l.cmp(r),
             (Value::I64(l), Value::I64(r)) => l.cmp(r),
             (Value::Date(l), Value::Date(r)) => l.cmp(r),
@@ -48,8 +48,8 @@ impl Ord for Value {
             }
             (Value::Str(_), _) => Ordering::Less,
             (_, Value::Str(_)) => Ordering::Greater,
-            (Value::TokStr(_), _) => Ordering::Less,
-            (_, Value::TokStr(_)) => Ordering::Greater,
+            (Value::PreTokStr(_), _) => Ordering::Less,
+            (_, Value::PreTokStr(_)) => Ordering::Greater,
             (Value::U64(_), _) => Ordering::Less,
             (_, Value::U64(_)) => Ordering::Greater,
             (Value::I64(_), _) => Ordering::Less,
@@ -71,7 +71,7 @@ impl Serialize for Value {
     {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
-            Value::TokStr(ref v) => v.serialize(serializer),
+            Value::PreTokStr(ref v) => v.serialize(serializer),
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
@@ -131,11 +131,11 @@ impl Value {
         }
     }
 
-    /// Returns the tokenized text, provided the value is of the `TokStr` type.
-    /// (Returns None if the value is not of the `TokStr` type).
-    pub fn tokenized_text(&self) -> Option<&TokenizedString> {
+    /// Returns the tokenized text, provided the value is of the `PreTokStr` type.
+    /// (Returns None if the value is not of the `PreTokStr` type).
+    pub fn tokenized_text(&self) -> Option<&PreTokenizedString> {
         match *self {
-            Value::TokStr(ref tok_text) => Some(tok_text),
+            Value::PreTokStr(ref tok_text) => Some(tok_text),
             _ => None,
         }
     }
@@ -237,7 +237,7 @@ mod binary_serialize {
     use super::Value;
     use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use crate::schema::Facet;
-    use crate::tokenizer::TokenizedString;
+    use crate::tokenizer::PreTokenizedString;
     use chrono::{TimeZone, Utc};
     use std::io::{self, Read, Write};
 
@@ -261,7 +261,7 @@ mod binary_serialize {
                     TEXT_CODE.serialize(writer)?;
                     text.serialize(writer)
                 }
-                Value::TokStr(ref tok_str) => {
+                Value::PreTokStr(ref tok_str) => {
                     EXT_CODE.serialize(writer)?;
                     TOK_STR_CODE.serialize(writer)?;
                     if let Ok(text) = serde_json::to_string(tok_str) {
@@ -269,7 +269,7 @@ mod binary_serialize {
                     } else {
                         Err(io::Error::new(
                             io::ErrorKind::Other,
-                            "Failed to dump Value::TokStr(_) to json.",
+                            "Failed to dump Value::PreTokStr(_) to json.",
                         ))
                     }
                 }
@@ -329,12 +329,13 @@ mod binary_serialize {
                     match ext_type_code {
                         TOK_STR_CODE => {
                             let str_val = String::deserialize(reader)?;
-                            if let Ok(value) = serde_json::from_str::<TokenizedString>(&str_val) {
-                                Ok(Value::TokStr(value))
+                            if let Ok(value) = serde_json::from_str::<PreTokenizedString>(&str_val)
+                            {
+                                Ok(Value::PreTokStr(value))
                             } else {
                                 Err(io::Error::new(
                                     io::ErrorKind::Other,
-                                    "Failed to parse string data as Value::TokStr(_).",
+                                    "Failed to parse string data as Value::PreTokStr(_).",
                                 ))
                             }
                         }

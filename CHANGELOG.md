@@ -11,7 +11,7 @@ Tantivy 0.11.0
 - Add footer with some metadata to index files. #605 (@fdb-hiroshima)
 - TopDocs collector: ensure stable sorting on equal score. #671 (@brainlock)
 - Added handling of pre-tokenized text fields (#642), which will enable users to
-  load tokens created outside tantivy. See usage in examples/pre_tokenized_text.
+  load tokens created outside tantivy. See usage in examples/pre_tokenized_text. (@kkoziara)
  
 ## How to update?
 

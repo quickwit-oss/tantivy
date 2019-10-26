@@ -1,49 +1,49 @@
 use crate::tokenizer::{Token, TokenStream, TokenStreamChain};
 use std::cmp::Ordering;
 
-/// Struct representing tokenized text
+/// Struct representing pre-tokenized text
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct TokenizedString {
+pub struct PreTokenizedString {
     /// Original text
     pub text: String,
     /// Tokens derived from the text
     pub tokens: Vec<Token>,
 }
 
-impl Ord for TokenizedString {
+impl Ord for PreTokenizedString {
     fn cmp(&self, other: &Self) -> Ordering {
         self.text.cmp(&other.text)
     }
 }
 
-impl PartialOrd for TokenizedString {
+impl PartialOrd for PreTokenizedString {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-/// TokenStream implementation which wraps TokenizedString
-pub struct TokenizedStream {
-    tokenized_string: TokenizedString,
+/// TokenStream implementation which wraps PreTokenizedString
+pub struct PreTokenizedStream {
+    tokenized_string: PreTokenizedString,
     current_token: i64,
 }
 
-impl From<TokenizedString> for TokenizedStream {
-    fn from(s: TokenizedString) -> TokenizedStream {
-        TokenizedStream {
+impl From<PreTokenizedString> for PreTokenizedStream {
+    fn from(s: PreTokenizedString) -> PreTokenizedStream {
+        PreTokenizedStream {
             tokenized_string: s,
             current_token: -1,
         }
     }
 }
 
-impl TokenizedStream {
-    /// Creates a TokenStream from TokenizedString array
+impl PreTokenizedStream {
+    /// Creates a TokenStream from PreTokenizedString array
     pub fn chain_tokenized_strings<'a>(
-        tok_strings: &'a [&'a TokenizedString],
+        tok_strings: &'a [&'a PreTokenizedString],
     ) -> Box<dyn TokenStream + 'a> {
         if tok_strings.len() == 1 {
-            Box::new(TokenizedStream::from((*tok_strings[0]).clone()))
+            Box::new(PreTokenizedStream::from((*tok_strings[0]).clone()))
         } else {
             let mut offsets = vec![];
             let mut total_offset = 0;
@@ -57,14 +57,14 @@ impl TokenizedStream {
             }
             let token_streams: Vec<_> = tok_strings
                 .iter()
-                .map(|tok_string| TokenizedStream::from((*tok_string).clone()))
+                .map(|tok_string| PreTokenizedStream::from((*tok_string).clone()))
                 .collect();
             Box::new(TokenStreamChain::new(offsets, token_streams))
         }
     }
 }
 
-impl TokenStream for TokenizedStream {
+impl TokenStream for PreTokenizedStream {
     fn advance(&mut self) -> bool {
         self.current_token += 1;
         self.current_token < self.tokenized_string.tokens.len() as i64
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_tokenized_stream() {
-        let tok_text = TokenizedString {
+        let tok_text = PreTokenizedString {
             text: String::from("A a"),
             tokens: vec![
                 Token {
@@ -114,7 +114,7 @@ mod tests {
             ],
         };
 
-        let mut tok_stream = TokenizedStream::from(tok_text.clone());
+        let mut tok_stream = PreTokenizedStream::from(tok_text.clone());
 
         let mut i = 0;
         while tok_stream.advance() {
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_chain_tokenized_strings() {
-        let tok_text = TokenizedString {
+        let tok_text = PreTokenizedString {
             text: String::from("A a"),
             tokens: vec![
                 Token {
@@ -147,7 +147,7 @@ mod tests {
 
         let chain_parts = vec![&tok_text, &tok_text];
 
-        let mut tok_stream = TokenizedStream::chain_tokenized_strings(&chain_parts[..]);
+        let mut tok_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
 
         let expected_tokens = vec![
             Token {
