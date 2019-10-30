@@ -1179,4 +1179,33 @@ mod tests {
         assert!(clear_again.is_ok());
         assert!(commit_again.is_ok());
     }
+
+    #[test]
+    fn test_regression_crash_with_commit_with_deleted_documents() {
+        // https://github.com/tantivy-search/tantivy/issues/681
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_from_tempdir(schema_builder.build()).unwrap();
+
+        let mut index_writer = index.writer(3_000_000).unwrap();
+
+        // there must be one deleted document in the segment
+        index_writer.add_document(doc!(text_field=>"b"));
+        index_writer.delete_term(Term::from_field_text(text_field, "b"));
+
+        // we need enough data to trigger the bug (at least 32 documents)
+        for _ in 0..32 {
+            index_writer.add_document(doc!(text_field=>"c"));
+        }
+
+        // a delete here would fix up the internal data structure that is being
+        // accessed out of bounds (would make it big enough)
+
+        // first commit: fine
+        index_writer.commit().unwrap();
+
+        // second commit: crash
+        // in the first commit, there was no "previous deleted bitset" to check
+        index_writer.commit().unwrap();
+    }
 }

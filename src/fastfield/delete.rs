@@ -61,10 +61,16 @@ impl DeleteBitSet {
     /// Returns true iff the document has been marked as deleted.
     #[inline(always)]
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        let byte_offset = doc / 8u32;
-        let b: u8 = (*self.data)[byte_offset as usize];
-        let shift = (doc & 7u32) as u8;
-        b & (1u8 << shift) != 0
+        let byte_offset = (doc / 8u32) as usize;
+
+        self.data
+            .as_slice()
+            .get(byte_offset)
+            .map(|b: &u8| {
+                let shift = (doc & 7u32) as u8;
+                b & (1u8 << shift) != 0
+            })
+            .unwrap_or(false)
     }
 
     /// Summarize total space usage of this bitset.
@@ -121,5 +127,24 @@ mod tests {
             bitset.insert(7);
             test_delete_bitset_helper(&bitset);
         }
+    }
+
+    #[test]
+    fn test_delete_bitset_is_deleted_does_not_crash_out_of_bounds() {
+        let mut directory = RAMDirectory::create();
+        let test_path = PathBuf::from("test");
+
+        let bitset = BitSet::with_capacity(8);
+
+        let mut writer = directory.open_write(&*test_path).unwrap();
+        write_delete_bitset(&bitset, &mut writer).unwrap();
+
+        let source = directory.open_read(&test_path).unwrap();
+        let delete_bitset = DeleteBitSet::open(source);
+
+        assert_eq!(
+            false,
+            delete_bitset.is_deleted((bitset.capacity() + 1) as DocId)
+        )
     }
 }
