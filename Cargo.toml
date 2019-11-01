@@ -50,10 +50,10 @@ owned-read = "0.4"
 failure = "0.1"
 htmlescape = "0.3.1"
 fail = "0.3"
-scoped-pool = "1.0"
 murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "0.6"
+rayon = "1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
@@ -63,6 +63,10 @@ rand = "0.7"
 maplit = "1"
 matches = "0.1.8"
 time = "0.1.42"
+
+[dev-dependencies.fail]
+version = "0.3"
+features = ["failpoints"]
 
 [profile.release]
 opt-level = 3
@@ -86,10 +90,6 @@ members = ["query-grammar"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
-
-[dev-dependencies.fail]
-version = "0.3"
-features = ["failpoints"]
 
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points

@@ -1,6 +1,6 @@
 use crate::Result;
 use crossbeam::channel;
-use scoped_pool::{Pool, ThreadConfig};
+use rayon::{ThreadPool, ThreadPoolBuilder};
 
 /// Search executor whether search request are single thread or multithread.
 ///
@@ -11,7 +11,7 @@ use scoped_pool::{Pool, ThreadConfig};
 /// used by the client. Second, we may stop using rayon in the future.
 pub enum Executor {
     SingleThread,
-    ThreadPool(Pool),
+    ThreadPool(ThreadPool),
 }
 
 impl Executor {
@@ -21,10 +21,12 @@ impl Executor {
     }
 
     // Creates an Executor that dispatches the tasks in a thread pool.
-    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> Executor {
-        let thread_config = ThreadConfig::new().prefix(prefix);
-        let pool = Pool::with_thread_config(num_threads, thread_config);
-        Executor::ThreadPool(pool)
+    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> Result<Executor> {
+        let pool = ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .thread_name(move |num| format!("{}{}", prefix, num))
+            .build()?;
+        Ok(Executor::ThreadPool(pool))
     }
 
     // Perform a map in the thread pool.
@@ -48,9 +50,9 @@ impl Executor {
                 let num_fruits = args_with_indices.len();
                 let fruit_receiver = {
                     let (fruit_sender, fruit_receiver) = channel::unbounded();
-                    pool.scoped(|scope| {
+                    pool.scope(|scope| {
                         for arg_with_idx in args_with_indices {
-                            scope.execute(|| {
+                            scope.spawn(|_| {
                                 let (idx, arg) = arg_with_idx;
                                 let fruit = f(arg);
                                 if let Err(err) = fruit_sender.send((idx, fruit)) {
@@ -103,6 +105,7 @@ mod tests {
     #[should_panic] //< unfortunately the panic message is not propagated
     fn test_panic_propagates_multi_thread() {
         let _result: Vec<usize> = Executor::multi_thread(1, "search-test")
+            .unwrap()
             .map(
                 |_| {
                     panic!("panic should propagate");
@@ -126,6 +129,7 @@ mod tests {
     #[test]
     fn test_map_multithread() {
         let result: Vec<usize> = Executor::multi_thread(3, "search-test")
+            .unwrap()
             .map(|i| Ok(i * 2), 0..10)
             .unwrap();
         assert_eq!(result.len(), 10);

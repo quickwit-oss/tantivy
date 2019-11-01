@@ -170,3 +170,9 @@ impl From<serde_json::Error> for TantivyError {
         TantivyError::IOError(io_err.into())
     }
 }
+
+impl From<rayon::ThreadPoolBuildError> for TantivyError {
+    fn from(error: rayon::ThreadPoolBuildError) -> TantivyError {
+        TantivyError::SystemError(error.to_string())
+    }
+}
