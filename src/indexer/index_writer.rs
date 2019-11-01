@@ -732,7 +732,7 @@ impl IndexWriter {
                 }
                 UserOperation::Add(document) => {
                     let add_operation = AddOperation { opstamp, document };
-                    adds.push(add_operation);
+                    adds.push(add_operpation);
                 }
             }
         }

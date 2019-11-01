@@ -7,6 +7,10 @@ use std::collections::HashSet;
 pub struct MergeOperationInventory(Inventory<InnerMergeOperation>);
 
 impl MergeOperationInventory {
+    pub fn num_merge_operations(&self) -> usize {
+        self.0.list().len()
+    }
+
     pub fn segment_in_merge(&self) -> HashSet<SegmentId> {
         let mut segment_in_merge = HashSet::default();
         for merge_op in self.0.list() {

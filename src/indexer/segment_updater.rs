@@ -39,6 +39,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -200,6 +201,12 @@ impl SegmentUpdater {
     }
 
     pub fn add_segment(&self, segment_entry: SegmentEntry) -> bool {
+        let max_num_threads_opt = self.0.merge_policy.read().unwrap().maximum_num_threads();
+        if let Some(max_num_threads) = max_num_threads_opt {
+            while self.0.merge_operations.num_merge_operations() >= max_num_threads_opt {
+                std::thread::sleep(Duration::from_secs(1u64));
+            }
+        }
         self.run_async(|segment_updater| {
             segment_updater.0.segment_manager.add_segment(segment_entry);
             segment_updater.consider_merge_options();
