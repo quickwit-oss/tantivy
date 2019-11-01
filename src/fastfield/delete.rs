@@ -10,11 +10,14 @@ use std::io::Write;
 /// Write a delete `BitSet`
 ///
 /// where `delete_bitset` is the set of deleted `DocId`.
-pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io::Result<()> {
-    let max_doc = delete_bitset.capacity();
+pub fn write_delete_bitset(
+    delete_bitset: &BitSet,
+    max_doc: u32,
+    writer: &mut WritePtr,
+) -> io::Result<()> {
     let mut byte = 0u8;
     let mut shift = 0u8;
-    for doc in 0..max_doc {
+    for doc in 0..(max_doc as usize) {
         if delete_bitset.contains(doc) {
             byte |= 1 << shift;
         }
@@ -86,18 +89,17 @@ mod tests {
     use bit_set::BitSet;
     use std::path::PathBuf;
 
-    fn test_delete_bitset_helper(bitset: &BitSet) {
+    fn test_delete_bitset_helper(bitset: &BitSet, max_doc: u32) {
         let test_path = PathBuf::from("test");
         let mut directory = RAMDirectory::create();
         {
             let mut writer = directory.open_write(&*test_path).unwrap();
-            write_delete_bitset(bitset, &mut writer).unwrap();
+            write_delete_bitset(bitset, max_doc, &mut writer).unwrap();
         }
         {
             let source = directory.open_read(&test_path).unwrap();
             let delete_bitset = DeleteBitSet::open(source);
-            let n = bitset.capacity();
-            for doc in 0..n {
+            for doc in 0..max_doc as usize {
                 assert_eq!(bitset.contains(doc), delete_bitset.is_deleted(doc as DocId));
             }
             assert_eq!(delete_bitset.len(), bitset.len());
@@ -110,7 +112,7 @@ mod tests {
             let mut bitset = BitSet::with_capacity(10);
             bitset.insert(1);
             bitset.insert(9);
-            test_delete_bitset_helper(&bitset);
+            test_delete_bitset_helper(&bitset, 10);
         }
         {
             let mut bitset = BitSet::with_capacity(8);
@@ -119,7 +121,7 @@ mod tests {
             bitset.insert(3);
             bitset.insert(5);
             bitset.insert(7);
-            test_delete_bitset_helper(&bitset);
+            test_delete_bitset_helper(&bitset, 8);
         }
     }
 }

@@ -1,10 +1,9 @@
-Tantivy 0.11.0
-=====================
+Tantivy 0.10.3
+==========================
 
-- Added f64 field. Internally reuse u64 code the same way i64 does (@fdb-hiroshima)
+- Fix crash when committing multiple times with deleted documents. #681 (@brainlock)
 
-
-Tantivy 0.10.2
+  Tantivy 0.10.2
 =====================
 
 - Closes #656. Solving memory leak.
