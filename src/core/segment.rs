@@ -50,6 +50,17 @@ impl Segment {
         &self.meta
     }
 
+    /// Updates the max_doc value from the `SegmentMeta`.
+    ///
+    /// This method is only used when updating `max_doc` from 0
+    /// as we finalize a fresh new segment.
+    pub(crate) fn with_max_doc(self, max_doc: u32) -> Segment {
+        Segment {
+            index: self.index,
+            meta: self.meta.with_max_doc(max_doc),
+        }
+    }
+
     #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Segment {
         Segment {
