@@ -327,8 +327,7 @@ mod tests_mmap_specific {
                 .unwrap();
             assert!(managed_directory.exists(test_path1));
             assert!(managed_directory.exists(test_path2));
-            let living_files: HashSet<PathBuf> =
-                [test_path1.to_owned()].into_iter().cloned().collect();
+            let living_files: HashSet<PathBuf> = [test_path1.to_owned()].iter().cloned().collect();
             managed_directory.garbage_collect(|| living_files);
             assert!(managed_directory.exists(test_path1));
             assert!(!managed_directory.exists(test_path2));

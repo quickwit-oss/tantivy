@@ -12,7 +12,8 @@ Tantivy 0.11.0
 - TopDocs collector: ensure stable sorting on equal score. #671 (@brainlock)
 - Added handling of pre-tokenized text fields (#642), which will enable users to
   load tokens created outside tantivy. See usage in examples/pre_tokenized_text. (@kkoziara)
- 
+- Fix crash when committing multiple times with deleted documents. #681 (@brainlock)
+
 ## How to update?
 
 - `Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.

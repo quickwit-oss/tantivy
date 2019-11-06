@@ -30,8 +30,8 @@ impl From<Vec<FieldValue>> for Document {
 impl PartialEq for Document {
     fn eq(&self, other: &Document) -> bool {
         // super slow, but only here for tests
-        let mut self_field_values = self.field_values.clone();
-        let mut other_field_values = other.field_values.clone();
+        let mut self_field_values: Vec<&_> = self.field_values.iter().collect();
+        let mut other_field_values: Vec<&_> = other.field_values.iter().collect();
         self_field_values.sort();
         other_field_values.sort();
         self_field_values.eq(&other_field_values)
