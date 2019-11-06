@@ -167,11 +167,9 @@ impl SegmentWriter {
                         match field_value.value() {
                             Value::PreTokStr(tok_str) => {
                                 offsets.push(total_offset);
-                                total_offset += match tok_str.tokens.last() {
-                                    Some(token) => token.offset_to,
-                                    None => 0,
-                                };
-
+                                if let Some(last_token) = tok_str.tokens.last() {
+                                    total_offset += last_token.offset_to;
+                                }
                                 token_streams
                                     .push(Box::new(PreTokenizedStream::from(tok_str.clone())));
                             }
