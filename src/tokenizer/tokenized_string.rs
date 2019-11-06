@@ -49,11 +49,9 @@ impl PreTokenizedStream {
             let mut total_offset = 0;
             for &tok_string in tok_strings {
                 offsets.push(total_offset);
-                let offset = match tok_string.tokens.last() {
-                    Some(token) => token.offset_to,
-                    None => 0,
-                };
-                total_offset += offset;
+                if let Some(last_token) = tok_string.tokens.last() {
+                    total_offset += last_token.offset_to;
+                }
             }
             let token_streams: Vec<_> = tok_strings
                 .iter()
@@ -71,16 +69,18 @@ impl TokenStream for PreTokenizedStream {
     }
 
     fn token(&self) -> &Token {
-        if self.current_token < 0 {
-            panic!("TokenStream not initialized. You should call advance() at least once.")
-        }
+        assert!(
+            self.current_token >= 0,
+            "TokenStream not initialized. You should call advance() at least once."
+        );
         &self.tokenized_string.tokens[self.current_token as usize]
     }
 
     fn token_mut(&mut self) -> &mut Token {
-        if self.current_token < 0 {
-            panic!("TokenStream not initialized. You should call advance() at least once.")
-        }
+        assert!(
+            self.current_token >= 0,
+            "TokenStream not initialized. You should call advance() at least once."
+        );
         &mut self.tokenized_string.tokens[self.current_token as usize]
     }
 }
@@ -114,13 +114,13 @@ mod tests {
             ],
         };
 
-        let mut tok_stream = PreTokenizedStream::from(tok_text.clone());
+        let mut token_stream = PreTokenizedStream::from(tok_text.clone());
 
-        let mut i = 0;
-        while tok_stream.advance() {
-            assert!(*tok_stream.token() == tok_text.tokens[i]);
-            i += 1;
+        for expected_token in tok_text.tokens {
+            assert!(token_stream.advance());
+            assert_eq!(token_stream.token(), &expected_token);
         }
+        assert!(!token_stream.advance());
     }
 
     #[test]
@@ -147,7 +147,7 @@ mod tests {
 
         let chain_parts = vec![&tok_text, &tok_text];
 
-        let mut tok_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
+        let mut token_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
 
         let expected_tokens = vec![
             Token {
@@ -179,10 +179,11 @@ mod tests {
                 position_length: 1,
             },
         ];
-        let mut i = 0;
-        while tok_stream.advance() {
-            assert!(*tok_stream.token() == expected_tokens[i]);
-            i += 1;
+
+        for expected_token in expected_tokens {
+            assert!(token_stream.advance());
+            assert_eq!(token_stream.token(), &expected_token);
         }
+        assert!(!token_stream.advance());
     }
 }
