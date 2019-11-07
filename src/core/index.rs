@@ -73,15 +73,16 @@ impl Index {
 
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
-    pub fn set_multithread_executor(&mut self, num_threads: usize) {
-        self.executor = Arc::new(Executor::multi_thread(num_threads, "thrd-tantivy-search-"));
+    pub fn set_multithread_executor(&mut self, num_threads: usize) -> Result<()> {
+        self.executor = Arc::new(Executor::multi_thread(num_threads, "thrd-tantivy-search-")?);
+        Ok(())
     }
 
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
-    pub fn set_default_multithread_executor(&mut self) {
+    pub fn set_default_multithread_executor(&mut self) -> Result<()> {
         let default_num_threads = num_cpus::get();
-        self.set_multithread_executor(default_num_threads);
+        self.set_multithread_executor(default_num_threads)
     }
 
     /// Creates a new index using the `RAMDirectory`.
