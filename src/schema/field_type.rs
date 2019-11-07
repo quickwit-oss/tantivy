@@ -1,11 +1,11 @@
 use base64::decode;
 
-use crate::schema::{IntOptions, TextOptions};
-
 use crate::schema::Facet;
 use crate::schema::IndexRecordOption;
 use crate::schema::TextFieldIndexing;
 use crate::schema::Value;
+use crate::schema::{IntOptions, TextOptions};
+use crate::tokenizer::PreTokenizedString;
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -169,6 +169,28 @@ impl FieldType {
                     Err(ValueParsingError::TypeError(msg))
                 }
             },
+            JsonValue::Object(_) => match *self {
+                FieldType::Str(_) => {
+                    if let Ok(tok_str_val) =
+                        serde_json::from_value::<PreTokenizedString>(json.clone())
+                    {
+                        Ok(Value::PreTokStr(tok_str_val))
+                    } else {
+                        let msg = format!(
+                            "Json value {:?} cannot be translated to PreTokenizedString.",
+                            json
+                        );
+                        Err(ValueParsingError::TypeError(msg))
+                    }
+                }
+                _ => {
+                    let msg = format!(
+                        "Json value not supported error {:?}. Expected {:?}",
+                        json, self
+                    );
+                    Err(ValueParsingError::TypeError(msg))
+                }
+            },
             _ => {
                 let msg = format!(
                     "Json value not supported error {:?}. Expected {:?}",
@@ -184,7 +206,9 @@ impl FieldType {
 mod tests {
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
+    use crate::schema::TextOptions;
     use crate::schema::Value;
+    use crate::tokenizer::{PreTokenizedString, Token};
 
     #[test]
     fn test_bytes_value_from_json() {
@@ -204,5 +228,72 @@ mod tests {
             Err(ValueParsingError::InvalidBase64(_)) => {}
             _ => panic!("Expected parse failure for invalid base64"),
         }
+    }
+
+    #[test]
+    fn test_pre_tok_str_value_from_json() {
+        let pre_tokenized_string_json = r#"{
+  "text": "The Old Man",
+  "tokens": [
+    {
+      "offset_from": 0,
+      "offset_to": 3,
+      "position": 0,
+      "text": "The",
+      "position_length": 1
+    },
+    {
+      "offset_from": 4,
+      "offset_to": 7,
+      "position": 1,
+      "text": "Old",
+      "position_length": 1
+    },
+    {
+      "offset_from": 8,
+      "offset_to": 11,
+      "position": 2,
+      "text": "Man",
+      "position_length": 1
+    }
+  ]
+}"#;
+
+        let expected_value = Value::PreTokStr(PreTokenizedString {
+            text: String::from("The Old Man"),
+            tokens: vec![
+                Token {
+                    offset_from: 0,
+                    offset_to: 3,
+                    position: 0,
+                    text: String::from("The"),
+                    position_length: 1,
+                },
+                Token {
+                    offset_from: 4,
+                    offset_to: 7,
+                    position: 1,
+                    text: String::from("Old"),
+                    position_length: 1,
+                },
+                Token {
+                    offset_from: 8,
+                    offset_to: 11,
+                    position: 2,
+                    text: String::from("Man"),
+                    position_length: 1,
+                },
+            ],
+        });
+
+        let deserialized_value = FieldType::Str(TextOptions::default())
+            .value_from_json(&serde_json::from_str(pre_tokenized_string_json).unwrap())
+            .unwrap();
+
+        assert_eq!(deserialized_value, expected_value);
+
+        let serialized_value_json = serde_json::to_string_pretty(&expected_value).unwrap();
+
+        assert_eq!(serialized_value_json, pre_tokenized_string_json);
     }
 }

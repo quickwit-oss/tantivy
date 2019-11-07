@@ -1,6 +1,7 @@
 use super::*;
 use crate::common::BinarySerializable;
 use crate::common::VInt;
+use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 use itertools::Itertools;
 use std::io::{self, Read, Write};
@@ -75,6 +76,16 @@ impl Document {
     /// Add a text field.
     pub fn add_text(&mut self, field: Field, text: &str) {
         let value = Value::Str(String::from(text));
+        self.add(FieldValue::new(field, value));
+    }
+
+    /// Add a pre-tokenized text field.
+    pub fn add_pre_tokenized_text(
+        &mut self,
+        field: Field,
+        pre_tokenized_text: &PreTokenizedString,
+    ) {
+        let value = Value::PreTokStr(pre_tokenized_text.clone());
         self.add(FieldValue::new(field, value));
     }
 

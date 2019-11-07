@@ -13,7 +13,8 @@ use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::FacetTokenizer;
-use crate::tokenizer::{TokenStream, Tokenizer};
+use crate::tokenizer::PreTokenizedStream;
+use crate::tokenizer::{TokenStream, TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
 use crate::Result;
@@ -158,26 +159,44 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Str(_) => {
-                    let num_tokens = if let Some(ref mut tokenizer) =
-                        self.tokenizers[field.field_id() as usize]
-                    {
-                        let texts: Vec<&str> = field_values
-                            .iter()
-                            .flat_map(|field_value| match *field_value.value() {
-                                Value::Str(ref text) => Some(text.as_str()),
-                                _ => None,
-                            })
-                            .collect();
-                        if texts.is_empty() {
-                            0
-                        } else {
-                            let mut token_stream = tokenizer.token_stream_texts(&texts[..]);
-                            self.multifield_postings
-                                .index_text(doc_id, field, &mut token_stream)
+                    let mut token_streams: Vec<Box<dyn TokenStream>> = vec![];
+                    let mut offsets = vec![];
+                    let mut total_offset = 0;
+
+                    for field_value in field_values {
+                        match field_value.value() {
+                            Value::PreTokStr(tok_str) => {
+                                offsets.push(total_offset);
+                                if let Some(last_token) = tok_str.tokens.last() {
+                                    total_offset += last_token.offset_to;
+                                }
+
+                                token_streams
+                                    .push(Box::new(PreTokenizedStream::from(tok_str.clone())));
+                            }
+                            Value::Str(ref text) => {
+                                if let Some(ref mut tokenizer) =
+                                    self.tokenizers[field.field_id() as usize]
+                                {
+                                    offsets.push(total_offset);
+                                    total_offset += text.len();
+
+                                    token_streams.push(tokenizer.token_stream(text));
+                                }
+                            }
+                            _ => (),
                         }
-                    } else {
+                    }
+
+                    let num_tokens = if token_streams.is_empty() {
                         0
+                    } else {
+                        let mut token_stream: Box<dyn TokenStream> =
+                            Box::new(TokenStreamChain::new(offsets, token_streams));
+                        self.multifield_postings
+                            .index_text(doc_id, field, &mut token_stream)
                     };
+
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(ref int_option) => {
