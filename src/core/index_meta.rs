@@ -150,6 +150,21 @@ impl SegmentMeta {
         self.num_deleted_docs() > 0
     }
 
+    /// Updates the max_doc value from the `SegmentMeta`.
+    ///
+    /// This method is only used when updating `max_doc` from 0
+    /// as we finalize a fresh new segment.
+    pub(crate) fn with_max_doc(self, max_doc: u32) -> SegmentMeta {
+        assert_eq!(self.tracked.max_doc, 0);
+        assert!(self.tracked.deletes.is_none());
+        let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
+            segment_id: inner_meta.segment_id,
+            max_doc,
+            deletes: None,
+        });
+        SegmentMeta { tracked }
+    }
+
     #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
         let delete_meta = DeleteMeta {

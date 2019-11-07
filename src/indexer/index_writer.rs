@@ -148,7 +148,6 @@ pub(crate) fn advance_deletes(
         };
 
         let delete_cursor = segment_entry.delete_cursor();
-
         compute_deleted_bitset(
             &mut delete_bitset,
             &segment_reader,
@@ -168,7 +167,7 @@ pub(crate) fn advance_deletes(
         if num_deleted_docs > 0 {
             segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
-            write_delete_bitset(&delete_bitset, &mut delete_file)?;
+            write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
             delete_file.terminate()?;
         }
     }
@@ -178,13 +177,13 @@ pub(crate) fn advance_deletes(
 
 fn index_documents(
     memory_budget: usize,
-    segment: &Segment,
+    segment: Segment,
     grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     let schema = segment.schema();
-    let segment_id = segment.id();
+
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
@@ -204,21 +203,30 @@ fn index_documents(
         return Ok(false);
     }
 
-    let num_docs = segment_writer.max_doc();
+    let max_doc = segment_writer.max_doc();
 
     // this is ensured by the call to peek before starting
     // the worker thread.
-    assert!(num_docs > 0);
+    assert!(max_doc > 0);
 
     let doc_opstamps: Vec<Opstamp> = segment_writer.finalize()?;
-    let segment_meta = segment.index().new_segment_meta(segment_id, num_docs);
+
+    let segment_with_max_doc = segment.with_max_doc(max_doc);
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
-    let delete_bitset_opt =
-        apply_deletes(&segment, &mut delete_cursor, &doc_opstamps, last_docstamp)?;
+    let delete_bitset_opt = apply_deletes(
+        &segment_with_max_doc,
+        &mut delete_cursor,
+        &doc_opstamps,
+        last_docstamp,
+    )?;
 
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
+    let segment_entry = SegmentEntry::new(
+        segment_with_max_doc.meta().clone(),
+        delete_cursor,
+        delete_bitset_opt,
+    );
     Ok(segment_updater.add_segment(segment_entry))
 }
 
@@ -235,7 +243,9 @@ fn apply_deletes(
     }
     let segment_reader = SegmentReader::open(segment)?;
     let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-    let mut deleted_bitset = BitSet::with_capacity(segment_reader.max_doc() as usize);
+
+    let max_doc = segment.meta().max_doc();
+    let mut deleted_bitset = BitSet::with_capacity(max_doc as usize);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,
@@ -407,7 +417,7 @@ impl IndexWriter {
                     let segment = index.new_segment();
                     index_documents(
                         mem_budget,
-                        &segment,
+                        segment,
                         &mut document_iterator,
                         &mut segment_updater,
                         delete_cursor.clone(),
