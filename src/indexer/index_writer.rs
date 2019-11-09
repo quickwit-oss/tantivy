@@ -227,7 +227,8 @@ fn index_documents(
         delete_cursor,
         delete_bitset_opt,
     );
-    Ok(segment_updater.add_segment(segment_entry))
+    segment_updater.add_segment(segment_entry);
+    Ok(true)
 }
 
 fn apply_deletes(
