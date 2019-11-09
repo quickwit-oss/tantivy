@@ -110,7 +110,7 @@ pub enum VersionedFooter {
 }
 
 impl VersionedFooter {
-    /// Serialises a valid `VersionedFooter` or panics if the version is unknown
+    /// Serialises a valid `VersionedFooter:V0` or panics if the version is unknown
     /// [   zeroed out    |   crc_hash  ]
     /// [      0..4       |     4..8    ]
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -134,6 +134,7 @@ impl VersionedFooter {
         assert!(footer.len() >= 4);
         let version = LittleEndian::read_u32(footer);
         match version {
+            // the first 4 bytes should be zeroed out thus returning a `0`
             0 => {
                 if footer.len() == 8 {
                     Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
@@ -168,7 +169,7 @@ impl VersionedFooter {
         }
     }
 
-    pub fn crc(&self) -> Option<u32> {
+    pub fn crc(&self) -> Option<CrcHashU32> {
         match self {
             VersionedFooter::V0(crc) => Some(*crc),
             VersionedFooter::UnknownVersion { .. } => None,
@@ -239,5 +240,33 @@ mod tests {
         assert_eq!(footer.meta.as_bytes().len(), expected_meta_length);
         let expected_footer_length = 52;
         assert_eq!(footer.size(), expected_footer_length);
+    }
+
+    #[test]
+    fn versioned_footer_from_bytes() {
+        use byteorder::{ByteOrder, LittleEndian};
+        let v_footer_bytes = vec![0, 0, 0, 0, 12, 35, 89, 18];
+        let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
+        let expected_versioned_footer =
+            VersionedFooter::V0(LittleEndian::read_u32(&[12, 35, 89, 18]));
+        assert_eq!(versioned_footer, expected_versioned_footer);
+
+        assert_eq!(versioned_footer.to_bytes(), v_footer_bytes);
+    }
+
+    #[should_panic(expected = "Unsupported index should never get serialized")]
+    #[test]
+    fn versioned_footer_panic() {
+        use byteorder::{ByteOrder, LittleEndian};
+        let v_footer_bytes = vec![1; 8];
+        let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
+        let expected_version = LittleEndian::read_u32(&[1, 1, 1, 1]);
+        let expected_versioned_footer = VersionedFooter::UnknownVersion {
+            version: expected_version,
+            size: v_footer_bytes.len() as u32,
+        };
+        assert_eq!(versioned_footer, expected_versioned_footer);
+
+        versioned_footer.to_bytes();
     }
 }
