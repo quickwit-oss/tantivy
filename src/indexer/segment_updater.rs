@@ -199,14 +199,12 @@ impl SegmentUpdater {
         self.0.pool.spawn_fn(move || Ok(f(me_clone)))
     }
 
-    pub fn add_segment(&self, segment_entry: SegmentEntry) -> bool {
+    pub fn add_segment(&self, segment_entry: SegmentEntry) {
         self.run_async(|segment_updater| {
             segment_updater.0.segment_manager.add_segment(segment_entry);
             segment_updater.consider_merge_options();
-            true
         })
         .forget();
-        true
     }
 
     /// Orders `SegmentManager` to remove all segments
