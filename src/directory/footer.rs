@@ -7,6 +7,8 @@ use std::io::Write;
 
 const COMMON_FOOTER_SIZE: usize = 4 * 5;
 
+type CrcHashU32 = u32;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Footer {
     pub tantivy_version: (u32, u32, u32),
@@ -34,6 +36,9 @@ impl Footer {
         }
     }
 
+    /// Serialises the footer to a byte-array
+    /// [      versioned_footer     |     meta      |    common_footer ]
+    /// [           0..8            |     8..32     |        32..52    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = self.versioned_footer.to_bytes();
         res.extend_from_slice(self.meta.as_bytes());
@@ -70,14 +75,19 @@ impl Footer {
             ));
         }
         let footer = &data[len - size as usize..];
-        let meta_len = LittleEndian::read_u32(&footer[size - 20..]) as usize;
+        let meta_len = LittleEndian::read_u32(&footer[size - COMMON_FOOTER_SIZE..]) as usize;
         let tantivy_major = LittleEndian::read_u32(&footer[size - 16..]);
         let tantivy_minor = LittleEndian::read_u32(&footer[size - 12..]);
         let tantivy_patch = LittleEndian::read_u32(&footer[size - 8..]);
         Ok(Footer {
             tantivy_version: (tantivy_major, tantivy_minor, tantivy_patch),
-            meta: String::from_utf8_lossy(&footer[size - meta_len - 20..size - 20]).into_owned(),
-            versioned_footer: VersionedFooter::from_bytes(&footer[..size - meta_len - 20])?,
+            meta: String::from_utf8_lossy(
+                &footer[size - meta_len - COMMON_FOOTER_SIZE..size - COMMON_FOOTER_SIZE],
+            )
+            .into_owned(),
+            versioned_footer: VersionedFooter::from_bytes(
+                &footer[..size - meta_len - COMMON_FOOTER_SIZE],
+            )?,
         })
     }
 
@@ -88,21 +98,28 @@ impl Footer {
     }
 
     pub fn size(&self) -> usize {
-        self.versioned_footer.size() as usize + self.meta.len() + 20
+        self.versioned_footer.size() as usize + self.meta.len() + COMMON_FOOTER_SIZE
     }
 }
 
+/// Footer that includes a crc32 hash that enables us to checksum files in the index
 #[derive(Debug, Clone, PartialEq)]
 pub enum VersionedFooter {
     UnknownVersion { version: u32, size: u32 },
-    V0(u32), // crc
+    V0(CrcHashU32), // crc
 }
 
 impl VersionedFooter {
+    /// Serialises a valid `VersionedFooter` or panics if the version is unknown
+    /// [   zeroed out    |   crc_hash  ]
+    /// [      0..4       |     4..8    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             VersionedFooter::V0(crc) => {
-                let mut res = vec![0; 8];
+                // Question: is it neccessary to zero the `res` buffer twice
+                // first create a buffer of 0s
+                let length = 8;
+                let mut res = vec![0; length];
                 LittleEndian::write_u32(&mut res, 0);
                 LittleEndian::write_u32(&mut res[4..], *crc);
                 res
@@ -209,5 +226,18 @@ mod tests {
         let footer_bytes = footer.to_bytes();
 
         assert_eq!(Footer::from_bytes(&footer_bytes).unwrap(), footer);
+    }
+
+    #[test]
+    fn footer_length() {
+        // test to make sure the ascii art in the doc-strings is correct
+        let crc = 1111111 as u32;
+        let versioned_footer = VersionedFooter::V0(crc);
+        assert_eq!(versioned_footer.size(), 8);
+        let footer = Footer::new(versioned_footer);
+        let expected_meta_length = 24;
+        assert_eq!(footer.meta.as_bytes().len(), expected_meta_length);
+        let expected_footer_length = 52;
+        assert_eq!(footer.size(), expected_footer_length);
     }
 }
