@@ -80,6 +80,12 @@ pub enum TantivyError {
     /// System error. (e.g.: We failed spawning a new thread)
     #[fail(display = "System error.'{}'", _0)]
     SystemError(String),
+    /// Index incompatible with current version of tantivy
+    #[fail(
+        display = "Current version of tantivy is incompatible with index version: '{}'",
+        _0
+    )]
+    IncompatibleIndex(String),
 }
 
 impl From<DataCorruption> for TantivyError {

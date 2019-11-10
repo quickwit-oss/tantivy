@@ -171,8 +171,9 @@ pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
 
-/// Expose the current version of tantivy, as well
-/// whether it was compiled with the simd compression.
+/// Expose the current version of tantivy as found in Cargo.toml during compilation.
+/// eg. "0.11.0"
+/// as well whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

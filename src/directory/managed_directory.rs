@@ -6,7 +6,7 @@ use crate::directory::Lock;
 use crate::directory::META_LOCK;
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
-use crate::error::DataCorruption;
+use crate::error::{DataCorruption, TantivyError};
 use crate::Directory;
 use crate::Result;
 use crc32fast::Hasher;
@@ -247,8 +247,12 @@ impl ManagedDirectory {
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         let read_only_source = self.directory.open_read(path)?;
-        let (_footer, reader) = Footer::extract_footer(read_only_source)
+        let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        footer
+            .is_compatible()
+            .map_err(|err| TantivyError::IncompatibleIndex(err.to_string()));
+        // footer.is_compatible()? doesn't work
         Ok(reader)
     }
 
