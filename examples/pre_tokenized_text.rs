@@ -65,8 +65,7 @@ fn main() -> tantivy::Result<()> {
         tokens: pre_tokenize_text(body_text),
     };
 
-    // Now lets create a document and add our `PreTokenizedString` using
-    // `add_pre_tokenized_text` method of `Document`
+    // Now lets create a document and add our `PreTokenizedString`
     let old_man_doc = doc!(title => title_tok, body => body_tok);
 
     // ... now let's just add it to the IndexWriter
@@ -114,6 +113,9 @@ fn main() -> tantivy::Result<()> {
 
     assert_eq!(count, 2);
 
+    // Now let's print out the results.
+    // Note that the tokens are not stored along with the original text
+    // in the document store
     for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("Document: {}", schema.to_json(&retrieved_doc));
