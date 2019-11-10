@@ -7,6 +7,8 @@ use std::io::Write;
 
 const COMMON_FOOTER_SIZE: usize = 4 * 5;
 
+type CrcHashU32 = u32;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Footer {
     pub tantivy_version: (u32, u32, u32),
@@ -24,7 +26,7 @@ impl Footer {
         Footer {
             tantivy_version,
             meta: format!(
-                "tantivy {}.{}.{}, index v{}",
+                "tantivy v{}.{}.{}, index_format v{}",
                 tantivy_version.0,
                 tantivy_version.1,
                 tantivy_version.2,
@@ -34,6 +36,9 @@ impl Footer {
         }
     }
 
+    /// Serialises the footer to a byte-array
+    /// [      versioned_footer     |     meta      |    common_footer ]
+    /// [           0..8            |     8..32     |        32..52    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut res = self.versioned_footer.to_bytes();
         res.extend_from_slice(self.meta.as_bytes());
@@ -64,20 +69,27 @@ impl Footer {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
-                    "File corrupted. The footer len is {}, while the entire file len is {}",
+                    "The footer len is {}, while the entire file len is {}. \
+                     Your index is either corrupted or was built using a tantivy version\
+                     anterior to 0.11.",
                     size, len
                 ),
             ));
         }
         let footer = &data[len - size as usize..];
-        let meta_len = LittleEndian::read_u32(&footer[size - 20..]) as usize;
+        let meta_len = LittleEndian::read_u32(&footer[size - COMMON_FOOTER_SIZE..]) as usize;
         let tantivy_major = LittleEndian::read_u32(&footer[size - 16..]);
         let tantivy_minor = LittleEndian::read_u32(&footer[size - 12..]);
         let tantivy_patch = LittleEndian::read_u32(&footer[size - 8..]);
         Ok(Footer {
             tantivy_version: (tantivy_major, tantivy_minor, tantivy_patch),
-            meta: String::from_utf8_lossy(&footer[size - meta_len - 20..size - 20]).into_owned(),
-            versioned_footer: VersionedFooter::from_bytes(&footer[..size - meta_len - 20])?,
+            meta: String::from_utf8_lossy(
+                &footer[size - meta_len - COMMON_FOOTER_SIZE..size - COMMON_FOOTER_SIZE],
+            )
+            .into_owned(),
+            versioned_footer: VersionedFooter::from_bytes(
+                &footer[..size - meta_len - COMMON_FOOTER_SIZE],
+            )?,
         })
     }
 
@@ -88,24 +100,28 @@ impl Footer {
     }
 
     pub fn size(&self) -> usize {
-        self.versioned_footer.size() as usize + self.meta.len() + 20
+        self.versioned_footer.size() as usize + self.meta.len() + COMMON_FOOTER_SIZE
     }
 }
 
+/// Footer that includes a crc32 hash that enables us to checksum files in the index
 #[derive(Debug, Clone, PartialEq)]
 pub enum VersionedFooter {
     UnknownVersion { version: u32, size: u32 },
-    V0(u32), // crc
+    V0(CrcHashU32), // crc
 }
 
 impl VersionedFooter {
+    /// Serializes a valid `VersionedFooter` or panics if the version is unknown
+    /// [   version    |   crc_hash  ]
+    /// [      0..4    |     4..8    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             VersionedFooter::V0(crc) => {
-                let mut res = vec![0; 8];
-                LittleEndian::write_u32(&mut res, 0);
-                LittleEndian::write_u32(&mut res[4..], *crc);
-                res
+                let mut buf = [0u8; 8];
+                LittleEndian::write_u32(&mut buf[0..4], 0);
+                LittleEndian::write_u32(&mut buf[4..8], *crc);
+                buf.to_vec()
             }
             VersionedFooter::UnknownVersion { .. } => {
                 panic!("Unsupported index should never get serialized");
@@ -115,20 +131,26 @@ impl VersionedFooter {
 
     pub fn from_bytes(footer: &[u8]) -> Result<Self, io::Error> {
         assert!(footer.len() >= 4);
+        if footer.len() < 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Footer should be more than 4 bytes.",
+            ));
+        }
         let version = LittleEndian::read_u32(footer);
         match version {
+            // the first 4 bytes should be zeroed out thus returning a `0`
             0 => {
-                if footer.len() == 8 {
-                    Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
-                } else {
-                    Err(io::Error::new(
+                if footer.len() != 8 {
+                    return Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         format!(
                             "File corrupted. The versioned footer len is {}, while it should be 8",
                             footer.len()
                         ),
-                    ))
+                    ));
                 }
+                Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
             }
             version => Ok(VersionedFooter::UnknownVersion {
                 version,
@@ -151,7 +173,7 @@ impl VersionedFooter {
         }
     }
 
-    pub fn crc(&self) -> Option<u32> {
+    pub fn crc(&self) -> Option<CrcHashU32> {
         match self {
             VersionedFooter::V0(crc) => Some(*crc),
             VersionedFooter::UnknownVersion { .. } => None,
@@ -190,7 +212,6 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
 impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         let crc = self.hasher.take().unwrap().finalize();
-
         let footer = Footer::new(VersionedFooter::V0(crc)).to_bytes();
         let mut writer = self.writer.take().unwrap();
         writer.write_all(&footer)?;
@@ -200,14 +221,57 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 
 #[cfg(test)]
 mod tests {
+
     use crate::directory::footer::{Footer, VersionedFooter};
+    use regex::Regex;
 
     #[test]
     fn test_serialize_deserialize_footer() {
         let crc = 123456;
         let footer = Footer::new(VersionedFooter::V0(crc));
         let footer_bytes = footer.to_bytes();
-
         assert_eq!(Footer::from_bytes(&footer_bytes).unwrap(), footer);
+    }
+
+    #[test]
+    fn footer_length() {
+        // test to make sure the ascii art in the doc-strings is correct
+        let crc = 1111111 as u32;
+        let versioned_footer = VersionedFooter::V0(crc);
+        assert_eq!(versioned_footer.size(), 8);
+        let footer = Footer::new(versioned_footer);
+        let regex_ptn = Regex::new(
+            "tantivy v[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.{0,10}, index_format v[0-9]{1,5}",
+        )
+        .unwrap();
+        assert!(regex_ptn.find(&footer.meta).is_some());
+    }
+
+    #[test]
+    fn versioned_footer_from_bytes() {
+        use byteorder::{ByteOrder, LittleEndian};
+        let v_footer_bytes = vec![0, 0, 0, 0, 12, 35, 89, 18];
+        let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
+        let expected_versioned_footer =
+            VersionedFooter::V0(LittleEndian::read_u32(&[12, 35, 89, 18]));
+        assert_eq!(versioned_footer, expected_versioned_footer);
+
+        assert_eq!(versioned_footer.to_bytes(), v_footer_bytes);
+    }
+
+    #[should_panic(expected = "Unsupported index should never get serialized")]
+    #[test]
+    fn versioned_footer_panic() {
+        use byteorder::{ByteOrder, LittleEndian};
+        let v_footer_bytes = vec![1; 8];
+        let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
+        let expected_version = LittleEndian::read_u32(&[1, 1, 1, 1]);
+        let expected_versioned_footer = VersionedFooter::UnknownVersion {
+            version: expected_version,
+            size: v_footer_bytes.len() as u32,
+        };
+        assert_eq!(versioned_footer, expected_versioned_footer);
+
+        versioned_footer.to_bytes();
     }
 }
