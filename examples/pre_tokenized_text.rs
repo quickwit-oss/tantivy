@@ -67,9 +67,7 @@ fn main() -> tantivy::Result<()> {
 
     // Now lets create a document and add our `PreTokenizedString` using
     // `add_pre_tokenized_text` method of `Document`
-    let mut old_man_doc = Document::default();
-    old_man_doc.add_pre_tokenized_text(title, &title_tok);
-    old_man_doc.add_pre_tokenized_text(body, &body_tok);
+    let old_man_doc = doc!(title => title_tok, body => body_tok);
 
     // ... now let's just add it to the IndexWriter
     index_writer.add_document(old_man_doc);
