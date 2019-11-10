@@ -135,6 +135,9 @@ impl From<OpenReadError> for TantivyError {
         match error {
             OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
             OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
+            OpenReadError::IncompatibleIndex(tantivy_err) => {
+                TantivyError::IncompatibleIndex(format!("{:?}", tantivy_err))
+            }
         }
     }
 }

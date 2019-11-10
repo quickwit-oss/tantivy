@@ -9,6 +9,7 @@ use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::{DataCorruption, TantivyError};
 use crate::Directory;
 use crate::Result;
+
 use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
@@ -87,6 +88,7 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
+            Err(OpenReadError::IncompatibleIndex(e)) => Err(From::from(e)),
         }
     }
 
@@ -249,10 +251,7 @@ impl Directory for ManagedDirectory {
         let read_only_source = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
-        footer
-            .is_compatible()
-            .map_err(|err| TantivyError::IncompatibleIndex(err.to_string()));
-        // footer.is_compatible()? doesn't work
+        footer.is_compatible()?;
         Ok(reader)
     }
 
