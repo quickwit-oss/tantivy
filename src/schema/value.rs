@@ -233,6 +233,12 @@ impl From<Vec<u8>> for Value {
     }
 }
 
+impl From<PreTokenizedString> for Value {
+    fn from(pretokenized_string: PreTokenizedString) -> Value {
+        Value::PreTokStr(pretokenized_string)
+    }
+}
+
 mod binary_serialize {
     use super::Value;
     use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
