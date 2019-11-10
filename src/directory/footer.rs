@@ -26,7 +26,7 @@ impl Footer {
         Footer {
             tantivy_version,
             meta: format!(
-                "tantivy {}.{}.{}, index v{}",
+                "tantivy v{}.{}.{}, index_format v{}",
                 tantivy_version.0,
                 tantivy_version.1,
                 tantivy_version.2,
@@ -69,7 +69,9 @@ impl Footer {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
-                    "File corrupted. The footer len is {}, while the entire file len is {}",
+                    "The footer len is {}, while the entire file len is {}. \
+                     Your index is either corrupted or was built using a tantivy version\
+                     anterior to 0.11.",
                     size, len
                 ),
             ));
@@ -110,19 +112,16 @@ pub enum VersionedFooter {
 }
 
 impl VersionedFooter {
-    /// Serialises a valid `VersionedFooter:V0` or panics if the version is unknown
-    /// [   zeroed out    |   crc_hash  ]
-    /// [      0..4       |     4..8    ]
+    /// Serializes a valid `VersionedFooter` or panics if the version is unknown
+    /// [   version    |   crc_hash  ]
+    /// [      0..4    |     4..8    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             VersionedFooter::V0(crc) => {
-                // Question: is it neccessary to zero the `res` buffer twice
-                // first create a buffer of 0s
-                let length = 8;
-                let mut res = vec![0; length];
-                LittleEndian::write_u32(&mut res, 0);
-                LittleEndian::write_u32(&mut res[4..], *crc);
-                res
+                let mut buf = [0u8; 8];
+                LittleEndian::write_u32(&mut buf[0..4], 0);
+                LittleEndian::write_u32(&mut buf[4..8], *crc);
+                buf.to_vec()
             }
             VersionedFooter::UnknownVersion { .. } => {
                 panic!("Unsupported index should never get serialized");
@@ -132,21 +131,26 @@ impl VersionedFooter {
 
     pub fn from_bytes(footer: &[u8]) -> Result<Self, io::Error> {
         assert!(footer.len() >= 4);
+        if footer.len() < 4 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Footer should be more than 4 bytes.",
+            ));
+        }
         let version = LittleEndian::read_u32(footer);
         match version {
             // the first 4 bytes should be zeroed out thus returning a `0`
             0 => {
-                if footer.len() == 8 {
-                    Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
-                } else {
-                    Err(io::Error::new(
+                if footer.len() != 8 {
+                    return Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         format!(
                             "File corrupted. The versioned footer len is {}, while it should be 8",
                             footer.len()
                         ),
-                    ))
+                    ));
                 }
+                Ok(VersionedFooter::V0(LittleEndian::read_u32(&footer[4..])))
             }
             version => Ok(VersionedFooter::UnknownVersion {
                 version,
@@ -208,7 +212,6 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
 impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         let crc = self.hasher.take().unwrap().finalize();
-
         let footer = Footer::new(VersionedFooter::V0(crc)).to_bytes();
         let mut writer = self.writer.take().unwrap();
         writer.write_all(&footer)?;
@@ -218,14 +221,15 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 
 #[cfg(test)]
 mod tests {
+
     use crate::directory::footer::{Footer, VersionedFooter};
+    use regex::Regex;
 
     #[test]
     fn test_serialize_deserialize_footer() {
         let crc = 123456;
         let footer = Footer::new(VersionedFooter::V0(crc));
         let footer_bytes = footer.to_bytes();
-
         assert_eq!(Footer::from_bytes(&footer_bytes).unwrap(), footer);
     }
 
@@ -236,10 +240,11 @@ mod tests {
         let versioned_footer = VersionedFooter::V0(crc);
         assert_eq!(versioned_footer.size(), 8);
         let footer = Footer::new(versioned_footer);
-        let expected_meta_length = 24;
-        assert_eq!(footer.meta.as_bytes().len(), expected_meta_length);
-        let expected_footer_length = 52;
-        assert_eq!(footer.size(), expected_footer_length);
+        let regex_ptn = Regex::new(
+            "tantivy v[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.{0,10}, index_format v[0-9]{1,5}",
+        )
+        .unwrap();
+        assert!(regex_ptn.find(&footer.meta).is_some());
     }
 
     #[test]
