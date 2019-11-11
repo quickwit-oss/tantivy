@@ -680,9 +680,6 @@ impl IndexWriter {
     /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
-    ///
-    /// Currently it represents the number of documents that
-    /// have been added since the creation of the index.
     pub fn add_document(&self, document: Document) -> Opstamp {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
