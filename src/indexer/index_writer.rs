@@ -361,7 +361,7 @@ impl IndexWriter {
     }
 
     #[doc(hidden)]
-    pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
+    pub fn add_segment(&self, segment_meta: SegmentMeta) {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
         self.segment_updater.add_segment(segment_entry);
@@ -449,7 +449,7 @@ impl IndexWriter {
 
     /// Detects and removes the files that
     /// are not used by the index anymore.
-    pub fn garbage_collect_files(&mut self) -> Result<()> {
+    pub fn garbage_collect_files(&self) -> Result<()> {
         self.segment_updater.garbage_collect_files().wait()
     }
 
@@ -489,7 +489,7 @@ impl IndexWriter {
     ///     Ok(())
     /// }
     /// ```
-    pub fn delete_all_documents(&mut self) -> Result<Opstamp> {
+    pub fn delete_all_documents(&self) -> Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
         // Return new stamp - reverted stamp
@@ -532,11 +532,6 @@ impl IndexWriter {
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<Opstamp> {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
-        self.rollback_impl()
-    }
-
-    /// Private, implementation of rollback
-    fn rollback_impl(&mut self) -> Result<Opstamp> {
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
@@ -592,7 +587,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub fn prepare_commit(&mut self) -> Result<PreparedCommit<'_>> {
+    pub fn prepare_commit(&mut self) -> Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
