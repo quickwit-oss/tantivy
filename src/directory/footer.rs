@@ -154,7 +154,6 @@ impl VersionedFooter {
     }
 
     pub fn from_bytes(footer: &[u8]) -> Result<Self, io::Error> {
-        assert!(footer.len() >= 4);
         if footer.len() < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
