@@ -6,7 +6,7 @@ use crate::directory::Lock;
 use crate::directory::META_LOCK;
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
-use crate::error::{DataCorruption, TantivyError};
+use crate::error::DataCorruption;
 use crate::Directory;
 use crate::Result;
 
@@ -88,7 +88,7 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
-            Err(OpenReadError::IncompatibleIndex(e)) => Err(From::from(e)),
+            Err(OpenReadError::IncompatibleIndex(e)) => Err(e),
         }
     }
 

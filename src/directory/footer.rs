@@ -1,12 +1,10 @@
 use crate::directory::read_only_source::ReadOnlySource;
 use crate::directory::{AntiCallToken, TerminatingWrite};
-use crate::Error::IncompatibleIndex;
-use crate::{version, Error};
+use crate::Error;
 use byteorder::{ByteOrder, LittleEndian};
 use crc32fast::Hasher;
 use std::io;
 use std::io::Write;
-use std::str::FromStr;
 
 const COMMON_FOOTER_SIZE: usize = 4 * 5;
 
@@ -106,25 +104,27 @@ impl Footer {
         self.versioned_footer.size() as usize + self.meta.len() + COMMON_FOOTER_SIZE
     }
 
-    /// Compares the version found in the footer with the version of tantivy running
-    /// Indexes are incompatible when the major and minor versions are different between the
-    /// current library and serialised index are different
+    /// Confirms that the index will be read correctly by this version of tantivy
     /// Has to be called after `extract_footer` to make sure it's not accessing uninitialised memory
     pub fn is_compatible(&self) -> Result<bool, Error> {
-        let mut lib_version: Vec<u32> = vec![];
-        for v in version().split('.') {
-            // assume that library version will never include letters and always be of the form:
-            // u32.u32.u32 eg. 0.10.3
-            lib_version.push(u32::from_str(v).unwrap());
+        // Leaving this here to defensively catch when we add a new version of VersionedFooter
+        // which will make the hardcoded logic below obsolete
+        #[allow(unused_variables)]
+        {
+            match &self.versioned_footer {
+                VersionedFooter::V0(_) => {}
+                VersionedFooter::UnknownVersion { version, size } => {}
+            }
         }
-        if self.tantivy_version.0 != lib_version[0] && self.tantivy_version.1 != lib_version[1] {
-            return Err(IncompatibleIndex(format!(
-                "Currently running version: {:?}; index built with: {:?}",
-                lib_version, self.tantivy_version
-            )));
-        }
+        // TODO: currently hardcoded, because we only support one version - V0, which always returns 0
+        let index_version_supported_by_library = 0;
 
-        Ok(true)
+        let version_in_footer = self.versioned_footer.version();
+        if version_in_footer == index_version_supported_by_library {
+            Ok(true)
+        } else {
+            Err(Error::IncompatibleIndex(format!("The found index version: {} is incompatible with this library that can only support {}", version_in_footer, index_version_supported_by_library)))
+        }
     }
 }
 
@@ -138,7 +138,7 @@ pub enum VersionedFooter {
 impl VersionedFooter {
     /// Serializes a valid `VersionedFooter` or panics if the version is unknown
     /// [   version    |   crc_hash  ]
-    /// [      0..4    |     4..8    ]
+    /// [    0..4      |     4..8    ]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             VersionedFooter::V0(crc) => {
@@ -153,7 +153,7 @@ impl VersionedFooter {
         }
     }
 
-    pub fn from_bytes(footer: &[u8]) -> Result<Self, io::Error> {
+    pub(crate) fn from_bytes(footer: &[u8]) -> Result<Self, io::Error> {
         if footer.len() < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -162,7 +162,6 @@ impl VersionedFooter {
         }
         let version = LittleEndian::read_u32(footer);
         match version {
-            // the first 4 bytes should be zeroed out thus returning a `0`
             0 => {
                 if footer.len() != 8 {
                     return Err(io::Error::new(
@@ -245,7 +244,9 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 #[cfg(test)]
 mod tests {
 
+    use super::CrcHashU32;
     use crate::directory::footer::{Footer, VersionedFooter};
+    use byteorder::{ByteOrder, LittleEndian};
     use regex::Regex;
 
     #[test]
@@ -272,12 +273,14 @@ mod tests {
 
     #[test]
     fn versioned_footer_from_bytes() {
-        use byteorder::{ByteOrder, LittleEndian};
         let v_footer_bytes = vec![0, 0, 0, 0, 12, 35, 89, 18];
         let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
+        let expected_crc = LittleEndian::read_u32(&v_footer_bytes[4..]) as CrcHashU32;
         let expected_versioned_footer =
             VersionedFooter::V0(LittleEndian::read_u32(&[12, 35, 89, 18]));
+
         assert_eq!(versioned_footer, expected_versioned_footer);
+        assert_eq!(versioned_footer.crc(), Some(expected_crc));
 
         assert_eq!(versioned_footer.to_bytes(), v_footer_bytes);
     }
@@ -285,7 +288,6 @@ mod tests {
     #[should_panic(expected = "Unsupported index should never get serialized")]
     #[test]
     fn versioned_footer_panic() {
-        use byteorder::{ByteOrder, LittleEndian};
         let v_footer_bytes = vec![1; 8];
         let versioned_footer = VersionedFooter::from_bytes(&v_footer_bytes).unwrap();
         let expected_version = LittleEndian::read_u32(&[1, 1, 1, 1]);
@@ -295,14 +297,5 @@ mod tests {
         };
         assert_eq!(versioned_footer, expected_versioned_footer);
         versioned_footer.to_bytes();
-    }
-
-    #[test]
-    fn index_compatibility() {
-        // TODO come up with a byte-array that gives a valid but incompatible index version
-        // let ro_source =
-        // let footer = Footer::extract_footer();
-
-        // assert!(!footer.is_compatible());
     }
 }
