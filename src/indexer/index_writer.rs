@@ -7,8 +7,8 @@ use crate::core::SegmentComponent;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::SegmentReader;
-use crate::directory::DirectoryLock;
 use crate::directory::TerminatingWrite;
+use crate::directory::{DirectoryLock, GarbageCollectionResult};
 use crate::docset::DocSet;
 use crate::error::TantivyError;
 use crate::fastfield::write_delete_bitset;
@@ -23,10 +23,9 @@ use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::Opstamp;
-use crate::Result;
 use bit_set::BitSet;
 use crossbeam::channel;
-use futures::{Canceled, Future};
+use futures::future::Future;
 use smallvec::smallvec;
 use smallvec::SmallVec;
 use std::mem;
@@ -72,7 +71,7 @@ pub struct IndexWriter {
 
     heap_size_in_bytes_per_thread: usize,
 
-    workers_join_handle: Vec<JoinHandle<Result<()>>>,
+    workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
     operation_receiver: OperationReceiver,
     operation_sender: OperationSender,
@@ -95,7 +94,7 @@ fn compute_deleted_bitset(
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &DocToOpstampMapping,
     target_opstamp: Opstamp,
-) -> Result<bool> {
+) -> crate::Result<bool> {
     let mut might_have_changed = false;
     while let Some(delete_op) = delete_cursor.get() {
         if delete_op.opstamp > target_opstamp {
@@ -132,7 +131,7 @@ pub(crate) fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
-) -> Result<()> {
+) -> crate::Result<()> {
     {
         if segment_entry.meta().delete_opstamp() == Some(target_opstamp) {
             // We are already up-to-date here.
@@ -181,7 +180,7 @@ fn index_documents(
     grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
-) -> Result<bool> {
+) -> crate::Result<bool> {
     let schema = segment.schema();
 
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
@@ -236,7 +235,7 @@ fn apply_deletes(
     mut delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
     last_docstamp: Opstamp,
-) -> Result<Option<BitSet<u32>>> {
+) -> crate::Result<Option<BitSet<u32>>> {
     if delete_cursor.get().is_none() {
         // if there are no delete operation in the queue, no need
         // to even open the segment.
@@ -281,7 +280,7 @@ impl IndexWriter {
         num_threads: usize,
         heap_size_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
-    ) -> Result<IndexWriter> {
+    ) -> crate::Result<IndexWriter> {
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
             let err_msg = format!(
                 "The heap size per thread needs to be at least {}.",
@@ -332,7 +331,7 @@ impl IndexWriter {
 
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
-    pub fn wait_merging_threads(mut self) -> Result<()> {
+    pub fn wait_merging_threads(mut self) -> crate::Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
         drop(self.operation_sender);
@@ -381,7 +380,7 @@ impl IndexWriter {
 
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
-    fn add_indexing_worker(&mut self) -> Result<()> {
+    fn add_indexing_worker(&mut self) -> crate::Result<()> {
         let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
 
@@ -389,7 +388,7 @@ impl IndexWriter {
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
         let index = self.index.clone();
-        let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
+        let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
                 loop {
@@ -440,17 +439,18 @@ impl IndexWriter {
         self.segment_updater.set_merge_policy(merge_policy);
     }
 
-    fn start_workers(&mut self) -> Result<()> {
+    fn start_workers(&mut self) -> crate::Result<()> {
         for _ in 0..self.num_threads {
             self.add_indexing_worker()?;
         }
         Ok(())
     }
 
-    /// Detects and removes the files that
-    /// are not used by the index anymore.
-    pub fn garbage_collect_files(&self) -> Result<()> {
-        self.segment_updater.garbage_collect_files().wait()
+    /// Detects and removes the files that are not used by the index anymore.
+    pub fn garbage_collect_files(
+        &self,
+    ) -> impl Future<Output = crate::Result<GarbageCollectionResult>> {
+        self.segment_updater.garbage_collect_files()
     }
 
     /// Deletes all documents from the index
@@ -489,7 +489,7 @@ impl IndexWriter {
     ///     Ok(())
     /// }
     /// ```
-    pub fn delete_all_documents(&self) -> Result<Opstamp> {
+    pub fn delete_all_documents(&self) -> crate::Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
         // Return new stamp - reverted stamp
@@ -503,7 +503,7 @@ impl IndexWriter {
     pub fn merge(
         &mut self,
         segment_ids: &[SegmentId],
-    ) -> Result<impl Future<Item = SegmentMeta, Error = Canceled>> {
+    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -530,7 +530,7 @@ impl IndexWriter {
     /// state as it was after the last commit.
     ///
     /// The opstamp at the last commit is returned.
-    pub fn rollback(&mut self) -> Result<Opstamp> {
+    pub fn rollback(&mut self) -> crate::Result<Opstamp> {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
@@ -587,7 +587,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub fn prepare_commit(&mut self) -> Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -634,7 +634,7 @@ impl IndexWriter {
     /// Commit returns the `opstamp` of the last document
     /// that made it in the commit.
     ///
-    pub fn commit(&mut self) -> Result<Opstamp> {
+    pub fn commit(&mut self) -> crate::Result<Opstamp> {
         self.prepare_commit()?.commit()
     }
 

@@ -162,6 +162,11 @@ pub struct IndexReader {
 }
 
 impl IndexReader {
+    #[cfg(test)]
+    pub(crate) fn index(&self) -> Index {
+        self.inner.index.clone()
+    }
+
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///

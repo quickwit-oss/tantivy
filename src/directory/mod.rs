@@ -26,6 +26,21 @@ pub use self::read_only_source::ReadOnlySource;
 pub(crate) use self::watch_event_router::WatchCallbackList;
 pub use self::watch_event_router::{WatchCallback, WatchHandle};
 use std::io::{self, BufWriter, Write};
+use std::path::PathBuf;
+
+/// Outcome of the Garbage collection
+pub struct GarbageCollectionResult {
+    /// List of files that were deleted in this cycle
+    pub deleted_files: Vec<PathBuf>,
+    /// List of files that were schedule to be deleted in this cycle,
+    /// but deletion did not work. This typically happens on windows,
+    /// as deleting a memory mapped file is forbidden.
+    ///
+    /// If a searcher is still held, a file cannot be deleted.
+    /// This is not considered a bug, the file will simply be deleted
+    /// in the next GC.
+    pub failed_to_delete_files: Vec<PathBuf>,
+}
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;

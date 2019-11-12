@@ -28,11 +28,11 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
     // The initial 1*off is there to allow for the removal of the
     // lock file.
     fail::cfg("RAMDirectory::delete", "1*off->1*return").unwrap();
-    managed_directory.garbage_collect(Default::default);
+    assert!(managed_directory.garbage_collect(Default::default).is_ok());
     assert!(managed_directory.exists(test_path));
 
     // running the gc a second time should remove the file.
-    managed_directory.garbage_collect(Default::default);
+    assert!(managed_directory.garbage_collect(Default::default).is_ok());
     assert!(
         !managed_directory.exists(test_path),
         "The file should have been deleted"

@@ -388,12 +388,9 @@ mod tests {
     use crate::directory::RAMDirectory;
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
-    use crate::Index;
     use crate::IndexReader;
-    use crate::IndexWriter;
     use crate::ReloadPolicy;
-    use std::thread;
-    use std::time::Duration;
+    use crate::{Directory, Index};
 
     #[test]
     fn test_indexer_for_field() {
@@ -471,14 +468,14 @@ mod tests {
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
-        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+        test_index_on_commit_reload_policy_aux(field, &index, &reader);
     }
 
     #[cfg(feature = "mmap")]
     mod mmap_specific {
 
         use super::*;
+        use crate::Directory;
         use std::path::PathBuf;
         use tempfile::TempDir;
 
@@ -489,22 +486,20 @@ mod tests {
             let tempdir = TempDir::new().unwrap();
             let tempdir_path = PathBuf::from(tempdir.path());
             let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
-            let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            writer.commit().unwrap();
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::OnCommit)
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+            test_index_on_commit_reload_policy_aux(field, &index, &reader);
         }
 
         #[test]
         fn test_index_manual_policy_mmap() {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
-            let index = Index::create_from_tempdir(schema).unwrap();
+            let mut index = Index::create_from_tempdir(schema).unwrap();
             let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             writer.commit().unwrap();
             let reader = index
@@ -514,8 +509,12 @@ mod tests {
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
             writer.add_document(doc!(field=>1u64));
+            let (sender, receiver) = crossbeam::channel::unbounded();
+            let _handle = index.directory_mut().watch(Box::new(move || {
+                let _ = sender.send(());
+            }));
             writer.commit().unwrap();
-            thread::sleep(Duration::from_millis(500));
+            assert!(receiver.recv().is_ok());
             assert_eq!(reader.searcher().num_docs(), 0);
             reader.reload().unwrap();
             assert_eq!(reader.searcher().num_docs(), 1);
@@ -535,39 +534,26 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            let mut writer = write_index.writer_with_num_threads(1, 3_000_000).unwrap();
-            test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+            test_index_on_commit_reload_policy_aux(field, &write_index, &reader);
         }
     }
 
-    fn test_index_on_commit_reload_policy_aux(
-        field: Field,
-        writer: &mut IndexWriter,
-        reader: &IndexReader,
-    ) {
+    fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
+        let mut reader_index = reader.index();
+        let (sender, receiver) = crossbeam::channel::unbounded();
+        let _watch_handle = reader_index.directory_mut().watch(Box::new(move || {
+            let _ = sender.send(());
+        }));
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
         writer.commit().unwrap();
-        let mut count = 0;
-        for _ in 0..100 {
-            count = reader.searcher().num_docs();
-            if count > 0 {
-                break;
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        assert_eq!(count, 1);
+        assert!(receiver.recv().is_ok());
+        assert_eq!(reader.searcher().num_docs(), 1);
         writer.add_document(doc!(field=>2u64));
         writer.commit().unwrap();
-        let mut count = 0;
-        for _ in 0..10 {
-            count = reader.searcher().num_docs();
-            if count > 1 {
-                break;
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-        assert_eq!(count, 2);
+        assert!(receiver.recv().is_ok());
+        assert_eq!(reader.searcher().num_docs(), 2);
     }
 
     // This test will not pass on windows, because windows
@@ -584,9 +570,13 @@ mod tests {
         for i in 0u64..8_000u64 {
             writer.add_document(doc!(field => i));
         }
+        let (sender, receiver) = crossbeam::channel::unbounded();
+        let _handle = directory.watch(Box::new(move || {
+            let _ = sender.send(());
+        }));
         writer.commit().unwrap();
         let mem_right_after_commit = directory.total_mem_usage();
-        thread::sleep(Duration::from_millis(1_000));
+        assert!(receiver.recv().is_ok());
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
@@ -600,6 +590,11 @@ mod tests {
         reader.reload().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 8_000);
-        assert!(mem_right_after_merge_finished < mem_right_after_commit);
+        assert!(
+            mem_right_after_merge_finished < mem_right_after_commit,
+            "(mem after merge){} is expected < (mem before merge){}",
+            mem_right_after_merge_finished,
+            mem_right_after_commit
+        );
     }
 }
