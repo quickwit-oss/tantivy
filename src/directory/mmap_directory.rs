@@ -174,7 +174,7 @@ impl WatcherWrapper {
                             // We might want to be more accurate than this at one point.
                             if let Some(filename) = changed_path.file_name() {
                                 if filename == *META_FILEPATH {
-                                    watcher_router_clone.broadcast();
+                                    let _ = watcher_router_clone.broadcast();
                                 }
                             }
                         }
@@ -543,11 +543,9 @@ mod tests {
     use crate::ReloadPolicy;
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::thread;
-    use std::time::Duration;
 
     #[test]
-    fn test_open_non_existant_path() {
+    fn test_open_non_existent_path() {
         assert!(MmapDirectory::open(PathBuf::from("./nowhere")).is_err());
     }
 
@@ -640,13 +638,18 @@ mod tests {
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let tmp_dirpath = tmp_dir.path().to_owned();
         let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath).unwrap();
-        let tmp_file = tmp_dirpath.join("coucou");
+        let tmp_file = tmp_dirpath.join(*META_FILEPATH);
         let _handle = watch_wrapper.watch(Box::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         }));
+        let (sender, receiver) = crossbeam::channel::unbounded();
+        let _handle2 = watch_wrapper.watch(Box::new(move || {
+            let _ = sender.send(());
+        }));
         assert_eq!(counter.load(Ordering::SeqCst), 0);
         fs::write(&tmp_file, b"whateverwilldo").unwrap();
-        thread::sleep(Duration::new(0, 1_000u32));
+        assert!(receiver.recv().is_ok());
+        assert!(counter.load(Ordering::SeqCst) >= 1);
     }
 
     #[test]

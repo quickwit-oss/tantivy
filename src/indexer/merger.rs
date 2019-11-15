@@ -709,7 +709,7 @@ mod tests {
     use crate::IndexWriter;
     use crate::Searcher;
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-    use futures::Future;
+    use futures::executor::block_on;
     use std::io::Cursor;
 
     #[test]
@@ -792,11 +792,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
+            block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
         }
         {
@@ -1040,11 +1036,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
+            block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
             reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -1139,11 +1131,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
+            block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
             reader.reload().unwrap();
 
             let searcher = reader.searcher();
@@ -1277,11 +1265,7 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
+            block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
             reader.reload().unwrap();
             test_searcher(
@@ -1336,11 +1320,7 @@ mod tests {
         let segment_ids = index
             .searchable_segment_ids()
             .expect("Searchable segments failed.");
-        index_writer
-            .merge(&segment_ids)
-            .expect("Failed to initiate merge")
-            .wait()
-            .expect("Merging failed");
+        block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
         reader.reload().unwrap();
         // commit has not been called yet. The document should still be
         // there.
@@ -1361,22 +1341,18 @@ mod tests {
             let mut doc = Document::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone());
-            index_writer.commit().expect("commit failed");
+            assert!(index_writer.commit().is_ok());
             index_writer.add_document(doc);
-            index_writer.commit().expect("commit failed");
+            assert!(index_writer.commit().is_ok());
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
 
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
+            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
 
             // assert delete has not been committed
-            reader.reload().expect("failed to load searcher 1");
+            assert!(reader.reload().is_ok());
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
 
@@ -1415,12 +1391,12 @@ mod tests {
             index_doc(&mut index_writer, &[1, 5]);
             index_doc(&mut index_writer, &[3]);
             index_doc(&mut index_writer, &[17]);
-            index_writer.commit().expect("committed");
+            assert!(index_writer.commit().is_ok());
             index_doc(&mut index_writer, &[20]);
-            index_writer.commit().expect("committed");
+            assert!(index_writer.commit().is_ok());
             index_doc(&mut index_writer, &[28, 27]);
             index_doc(&mut index_writer, &[1_000]);
-            index_writer.commit().expect("committed");
+            assert!(index_writer.commit().is_ok());
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
@@ -1452,15 +1428,6 @@ mod tests {
             assert_eq!(&vals, &[17]);
         }
 
-        println!(
-            "{:?}",
-            searcher
-                .segment_readers()
-                .iter()
-                .map(|reader| reader.max_doc())
-                .collect::<Vec<_>>()
-        );
-
         {
             let segment = searcher.segment_reader(1u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
@@ -1484,27 +1451,13 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            index_writer
-                .merge(&segment_ids)
-                .expect("Failed to initiate merge")
-                .wait()
-                .expect("Merging failed");
-            index_writer
-                .wait_merging_threads()
-                .expect("Wait for merging threads");
+            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+            assert!(index_writer.wait_merging_threads().is_ok());
         }
-        reader.reload().expect("Load searcher");
+        assert!(reader.reload().is_ok());
 
         {
             let searcher = reader.searcher();
-            println!(
-                "{:?}",
-                searcher
-                    .segment_readers()
-                    .iter()
-                    .map(|reader| reader.max_doc())
-                    .collect::<Vec<_>>()
-            );
             let segment = searcher.segment_reader(0u32);
             let ff_reader = segment.fast_fields().u64s(int_field).unwrap();
 

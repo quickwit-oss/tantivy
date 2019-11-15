@@ -2,11 +2,9 @@ use super::*;
 use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::Ordering::SeqCst;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::Arc;
-use std::thread;
-use std::time;
 use std::time::Duration;
 
 #[test]
@@ -110,37 +108,38 @@ fn test_directory(directory: &mut dyn Directory) {
 }
 
 fn test_watch(directory: &mut dyn Directory) {
+    let num_progress: Arc<AtomicUsize> = Default::default();
     let counter: Arc<AtomicUsize> = Default::default();
     let counter_clone = counter.clone();
+    let (sender, receiver) = crossbeam::channel::unbounded();
     let watch_callback = Box::new(move || {
-        counter_clone.fetch_add(1, Ordering::SeqCst);
+        counter_clone.fetch_add(1, SeqCst);
     });
-    assert!(directory
-        .atomic_write(Path::new("meta.json"), b"random_test_data")
-        .is_ok());
-    thread::sleep(Duration::new(0, 10_000));
-    assert_eq!(0, counter.load(Ordering::SeqCst));
-
+    // This callback is used to synchronize watching in our unit test.
+    // We bind it to a variable because the callback is removed when that
+    // handle is dropped.
     let watch_handle = directory.watch(watch_callback).unwrap();
+    let _progress_listener = directory
+        .watch(Box::new(move || {
+            let val = num_progress.fetch_add(1, SeqCst);
+            let _ = sender.send(val);
+        }))
+        .unwrap();
+
     for i in 0..10 {
-        assert_eq!(i, counter.load(Ordering::SeqCst));
+        assert_eq!(i, counter.load(SeqCst));
         assert!(directory
             .atomic_write(Path::new("meta.json"), b"random_test_data_2")
             .is_ok());
-        for _ in 0..1_000 {
-            if counter.load(Ordering::SeqCst) > i {
-                break;
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-        assert_eq!(i + 1, counter.load(Ordering::SeqCst));
+        assert_eq!(receiver.recv_timeout(Duration::from_millis(500)), Ok(i));
+        assert_eq!(i + 1, counter.load(SeqCst));
     }
     mem::drop(watch_handle);
     assert!(directory
         .atomic_write(Path::new("meta.json"), b"random_test_data")
         .is_ok());
-    thread::sleep(Duration::from_millis(200));
-    assert_eq!(10, counter.load(Ordering::SeqCst));
+    assert!(receiver.recv_timeout(Duration::from_millis(500)).is_ok());
+    assert_eq!(10, counter.load(SeqCst));
 }
 
 fn test_lock_non_blocking(directory: &mut dyn Directory) {
@@ -174,9 +173,11 @@ fn test_lock_blocking(directory: &mut dyn Directory) {
         is_blocking: true,
     });
     assert!(lock_a_res.is_ok());
+    let in_thread = Arc::new(AtomicBool::default());
+    let in_thread_clone = in_thread.clone();
     std::thread::spawn(move || {
         //< lock_a_res is sent to the thread.
-        std::thread::sleep(time::Duration::from_millis(10));
+        in_thread_clone.store(true, SeqCst);
         // explicitely droping lock_a_res. It would have been sufficient to just force it
         // to be part of the move, but the intent seems clearer that way.
         drop(lock_a_res);
@@ -190,13 +191,11 @@ fn test_lock_blocking(directory: &mut dyn Directory) {
         assert!(lock_a_res.is_err());
     }
     {
-        // the blocking call should wait for at least 10ms.
-        let start = time::Instant::now();
         let lock_a_res = directory.acquire_lock(&Lock {
             filepath: PathBuf::from("a.lock"),
             is_blocking: true,
         });
+        assert!(in_thread.load(SeqCst));
         assert!(lock_a_res.is_ok());
-        assert!(start.elapsed().subsec_millis() >= 10);
     }
 }

@@ -195,7 +195,7 @@ impl Directory for RAMDirectory {
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         if path == Path::new(&*META_FILEPATH) {
-            self.fs.write().unwrap().watch_router.broadcast();
+            let _ = self.fs.write().unwrap().watch_router.broadcast();
         }
         Ok(())
     }

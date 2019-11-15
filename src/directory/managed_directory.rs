@@ -2,6 +2,7 @@ use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::DirectoryLock;
+use crate::directory::GarbageCollectionResult;
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
 use crate::directory::{ReadOnlySource, WritePtr};
@@ -104,7 +105,10 @@ impl ManagedDirectory {
     /// If a file cannot be deleted (for permission reasons for instance)
     /// an error is simply logged, and the file remains in the list of managed
     /// files.
-    pub fn garbage_collect<L: FnOnce() -> HashSet<PathBuf>>(&mut self, get_living_files: L) {
+    pub fn garbage_collect<L: FnOnce() -> HashSet<PathBuf>>(
+        &mut self,
+        get_living_files: L,
+    ) -> crate::Result<GarbageCollectionResult> {
         info!("Garbage collect");
         let mut files_to_delete = vec![];
 
@@ -130,19 +134,25 @@ impl ManagedDirectory {
             // 2) writer change meta.json (for instance after a merge or a commit)
             // 3) gc kicks in.
             // 4) gc removes a file that was useful for process B, before process B opened it.
-            if let Ok(_meta_lock) = self.acquire_lock(&META_LOCK) {
-                let living_files = get_living_files();
-                for managed_path in &meta_informations_rlock.managed_paths {
-                    if !living_files.contains(managed_path) {
-                        files_to_delete.push(managed_path.clone());
+            match self.acquire_lock(&META_LOCK) {
+                Ok(_meta_lock) => {
+                    let living_files = get_living_files();
+                    for managed_path in &meta_informations_rlock.managed_paths {
+                        if !living_files.contains(managed_path) {
+                            files_to_delete.push(managed_path.clone());
+                        }
                     }
                 }
-            } else {
-                error!("Failed to acquire lock for GC");
+                Err(err) => {
+                    error!("Failed to acquire lock for GC");
+                    return Err(crate::Error::from(err));
+                }
             }
         }
 
+        let mut failed_to_delete_files = vec![];
         let mut deleted_files = vec![];
+
         for file_to_delete in files_to_delete {
             match self.delete(&file_to_delete) {
                 Ok(_) => {
@@ -152,9 +162,10 @@ impl ManagedDirectory {
                 Err(file_error) => {
                     match file_error {
                         DeleteError::FileDoesNotExist(_) => {
-                            deleted_files.push(file_to_delete);
+                            deleted_files.push(file_to_delete.clone());
                         }
                         DeleteError::IOError(_) => {
+                            failed_to_delete_files.push(file_to_delete.clone());
                             if !cfg!(target_os = "windows") {
                                 // On windows, delete is expected to fail if the file
                                 // is mmapped.
@@ -177,10 +188,13 @@ impl ManagedDirectory {
             for delete_file in &deleted_files {
                 managed_paths_write.remove(delete_file);
             }
-            if save_managed_paths(self.directory.as_mut(), &meta_informations_wlock).is_err() {
-                error!("Failed to save the list of managed files.");
-            }
+            save_managed_paths(self.directory.as_mut(), &meta_informations_wlock)?;
         }
+
+        Ok(GarbageCollectionResult {
+            deleted_files,
+            failed_to_delete_files,
+        })
     }
 
     /// Registers a file as managed
@@ -328,7 +342,7 @@ mod tests_mmap_specific {
             assert!(managed_directory.exists(test_path1));
             assert!(managed_directory.exists(test_path2));
             let living_files: HashSet<PathBuf> = [test_path1.to_owned()].iter().cloned().collect();
-            managed_directory.garbage_collect(|| living_files);
+            assert!(managed_directory.garbage_collect(|| living_files).is_ok());
             assert!(managed_directory.exists(test_path1));
             assert!(!managed_directory.exists(test_path2));
         }
@@ -338,7 +352,7 @@ mod tests_mmap_specific {
             assert!(managed_directory.exists(test_path1));
             assert!(!managed_directory.exists(test_path2));
             let living_files: HashSet<PathBuf> = HashSet::new();
-            managed_directory.garbage_collect(|| living_files);
+            assert!(managed_directory.garbage_collect(|| living_files).is_ok());
             assert!(!managed_directory.exists(test_path1));
             assert!(!managed_directory.exists(test_path2));
         }
@@ -360,7 +374,9 @@ mod tests_mmap_specific {
         assert!(managed_directory.exists(test_path1));
 
         let _mmap_read = managed_directory.open_read(test_path1).unwrap();
-        managed_directory.garbage_collect(|| living_files.clone());
+        assert!(managed_directory
+            .garbage_collect(|| living_files.clone())
+            .is_ok());
         if cfg!(target_os = "windows") {
             // On Windows, gc should try and fail the file as it is mmapped.
             assert!(managed_directory.exists(test_path1));
@@ -368,7 +384,7 @@ mod tests_mmap_specific {
             drop(_mmap_read);
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
-            managed_directory.garbage_collect(|| living_files);
+            assert!(managed_directory.garbage_collect(|| living_files).is_ok());
             assert!(!managed_directory.exists(test_path1));
         } else {
             assert!(!managed_directory.exists(test_path1));
