@@ -538,6 +538,7 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+    use crate::indexer::LogMergePolicy;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
     use crate::ReloadPolicy;
@@ -658,34 +659,42 @@ mod tests {
         let mut schema_builder: SchemaBuilder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
+
         {
             let index = Index::create(mmap_directory.clone(), schema).unwrap();
+
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            for _num_commits in 0..16 {
+            let mut log_merge_policy = LogMergePolicy::default();
+            log_merge_policy.set_min_merge_size(3);
+            index_writer.set_merge_policy(Box::new(log_merge_policy));
+            for _num_commits in 0..10 {
                 for _ in 0..10 {
                     index_writer.add_document(doc!(text_field=>"abc"));
                 }
                 index_writer.commit().unwrap();
             }
+
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
                 .try_into()
                 .unwrap();
-            for _ in 0..30 {
+
+            for _ in 0..4 {
                 index_writer.add_document(doc!(text_field=>"abc"));
                 index_writer.commit().unwrap();
                 reader.reload().unwrap();
             }
             index_writer.wait_merging_threads().unwrap();
+
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
-            assert_eq!(num_segments, 4);
+            assert!(num_segments <= 4);
             assert_eq!(
                 num_segments * 7,
                 mmap_directory.get_cache_info().mmapped.len()
             );
         }
-        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
+        assert!(mmap_directory.get_cache_info().mmapped.is_empty());
     }
 }

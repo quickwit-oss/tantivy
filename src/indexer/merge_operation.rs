@@ -2,14 +2,23 @@ use crate::Opstamp;
 use crate::SegmentId;
 use census::{Inventory, TrackedObject};
 use std::collections::HashSet;
+use std::ops::Deref;
 
 #[derive(Default)]
-pub struct MergeOperationInventory(Inventory<InnerMergeOperation>);
+pub(crate) struct MergeOperationInventory(Inventory<InnerMergeOperation>);
+
+impl Deref for MergeOperationInventory {
+    type Target = Inventory<InnerMergeOperation>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl MergeOperationInventory {
     pub fn segment_in_merge(&self) -> HashSet<SegmentId> {
         let mut segment_in_merge = HashSet::default();
-        for merge_op in self.0.list() {
+        for merge_op in self.list() {
             for &segment_id in &merge_op.segment_ids {
                 segment_in_merge.insert(segment_id);
             }
@@ -35,13 +44,13 @@ pub struct MergeOperation {
     inner: TrackedObject<InnerMergeOperation>,
 }
 
-struct InnerMergeOperation {
+pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
 }
 
 impl MergeOperation {
-    pub fn new(
+    pub(crate) fn new(
         inventory: &MergeOperationInventory,
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
@@ -51,7 +60,7 @@ impl MergeOperation {
             segment_ids,
         };
         MergeOperation {
-            inner: inventory.0.track(inner_merge_operation),
+            inner: inventory.track(inner_merge_operation),
         }
     }
 
