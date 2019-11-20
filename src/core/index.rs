@@ -104,23 +104,21 @@ impl Index {
         if Index::exists(&mmap_directory) {
             return Err(TantivyError::IndexAlreadyExists);
         }
-
         Index::create(mmap_directory, schema)
     }
 
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
-        if Index::exists(&dir) {
-            let index = Index::open(dir)?;
-            if index.schema() == schema {
-                Ok(index)
-            } else {
-                Err(TantivyError::SchemaError(
-                    "An index exists but the schema does not match.".to_string(),
-                ))
-            }
+        if !Index::exists(&dir) {
+            return Index::create(dir, schema);
+        }
+        let index = Index::open(dir)?;
+        if index.schema() == schema {
+            Ok(index)
         } else {
-            Index::create(dir, schema)
+            Err(TantivyError::SchemaError(
+                "An index exists but the schema does not match.".to_string(),
+            ))
         }
     }
 

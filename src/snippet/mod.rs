@@ -331,9 +331,8 @@ mod tests {
     use std::collections::BTreeMap;
     use std::iter::Iterator;
 
-    const TEST_TEXT: &'static str =
-        r#"Rust is a systems programming language sponsored by Mozilla which
-describes it as a "safe, concurrent, practical language", supporting functional and
+    const TEST_TEXT: &'static str = r#"Rust is a systems programming language sponsored by
+Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
 imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?],
 but its designers intend it to provide better memory safety while still maintaining
 performance.

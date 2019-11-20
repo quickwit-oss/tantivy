@@ -16,6 +16,28 @@ struct SegmentRegisters {
     committed: SegmentRegister,
 }
 
+#[derive(PartialEq, Eq)]
+pub(crate) enum SegmentsStatus {
+    Committed,
+    Uncommitted,
+}
+
+impl SegmentRegisters {
+    /// Check if all the segments are committed or uncommited.
+    ///
+    /// If some segment is missing or segments are in a different state (this should not happen
+    /// if tantivy is used correctly), returns `None`.
+    fn segments_status(&self, segment_ids: &[SegmentId]) -> Option<SegmentsStatus> {
+        if self.uncommitted.contains_all(segment_ids) {
+            Some(SegmentsStatus::Uncommitted)
+        } else if self.committed.contains_all(segment_ids) {
+            Some(SegmentsStatus::Committed)
+        } else {
+            None
+        }
+    }
+}
+
 /// The segment manager stores the list of segments
 /// as well as their state.
 ///
@@ -153,33 +175,35 @@ impl SegmentManager {
         let mut registers_lock = self.write();
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
-
-    pub fn end_merge(
+    // Replace a list of segments for their equivalent merged segment.
+    //
+    // Returns true if these segments are committed, false if the merge segments are uncommited.
+    pub(crate) fn end_merge(
         &self,
         before_merge_segment_ids: &[SegmentId],
         after_merge_segment_entry: SegmentEntry,
-    ) {
+    ) -> crate::Result<SegmentsStatus> {
         let mut registers_lock = self.write();
-        let target_register: &mut SegmentRegister = {
-            if registers_lock
-                .uncommitted
-                .contains_all(before_merge_segment_ids)
-            {
-                &mut registers_lock.uncommitted
-            } else if registers_lock
-                .committed
-                .contains_all(before_merge_segment_ids)
-            {
-                &mut registers_lock.committed
-            } else {
+        let segments_status = registers_lock
+            .segments_status(before_merge_segment_ids)
+            .ok_or_else(|| {
                 warn!("couldn't find segment in SegmentManager");
-                return;
-            }
+                crate::Error::InvalidArgument(
+                    "The segments that were merged could not be found in the SegmentManager. \
+                     This is not necessarily a bug, and can happen after a rollback for instance."
+                        .to_string(),
+                )
+            })?;
+
+        let target_register: &mut SegmentRegister = match segments_status {
+            SegmentsStatus::Uncommitted => &mut registers_lock.uncommitted,
+            SegmentsStatus::Committed => &mut registers_lock.committed,
         };
         for segment_id in before_merge_segment_ids {
             target_register.remove_segment(segment_id);
         }
         target_register.add_segment_entry(after_merge_segment_entry);
+        Ok(segments_status)
     }
 
     pub fn committed_segment_metas(&self) -> Vec<SegmentMeta> {

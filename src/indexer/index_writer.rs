@@ -25,6 +25,7 @@ use crate::schema::Term;
 use crate::Opstamp;
 use bit_set::BitSet;
 use crossbeam::channel;
+use futures::executor::block_on;
 use futures::future::Future;
 use smallvec::smallvec;
 use smallvec::SmallVec;
@@ -226,7 +227,7 @@ fn index_documents(
         delete_cursor,
         delete_bitset_opt,
     );
-    segment_updater.add_segment(segment_entry);
+    block_on(segment_updater.schedule_add_segment(segment_entry))?;
     Ok(true)
 }
 
@@ -360,10 +361,10 @@ impl IndexWriter {
     }
 
     #[doc(hidden)]
-    pub fn add_segment(&self, segment_meta: SegmentMeta) {
+    pub fn add_segment(&self, segment_meta: SegmentMeta) -> crate::Result<()> {
         let delete_cursor = self.delete_queue.cursor();
         let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        self.segment_updater.add_segment(segment_entry);
+        block_on(self.segment_updater.schedule_add_segment(segment_entry))
     }
 
     /// Creates a new segment.
@@ -434,7 +435,7 @@ impl IndexWriter {
         self.segment_updater.get_merge_policy()
     }
 
-    /// Set the merge policy.
+    /// Setter for the merge policy.
     pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
         self.segment_updater.set_merge_policy(merge_policy);
     }
@@ -450,7 +451,7 @@ impl IndexWriter {
     pub fn garbage_collect_files(
         &self,
     ) -> impl Future<Output = crate::Result<GarbageCollectionResult>> {
-        self.segment_updater.garbage_collect_files()
+        self.segment_updater.schedule_garbage_collect()
     }
 
     /// Deletes all documents from the index
@@ -500,11 +501,9 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(
-        &mut self,
-        segment_ids: &[SegmentId],
-    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
-        self.segment_updater.start_merge(segment_ids)
+    pub async fn merge(&mut self, segment_ids: &[SegmentId]) -> crate::Result<SegmentMeta> {
+        let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
+        self.segment_updater.start_merge(merge_operation)?.await
     }
 
     /// Closes the current document channel send.

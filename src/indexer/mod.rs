@@ -18,7 +18,7 @@ mod stamper;
 
 pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
-pub use self::merge_operation::{MergeOperation, MergeOperationInventory};
+pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
