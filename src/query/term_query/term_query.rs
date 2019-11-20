@@ -23,42 +23,39 @@ use std::fmt;
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::TermQuery;
 /// use tantivy::schema::{Schema, TEXT, IndexRecordOption};
-/// use tantivy::{doc, Index, Result, Term};
-///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = Schema::builder();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer(3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
-///         index_writer.commit()?;
-///     }
-///     let reader = index.reader()?;
-///     let searcher = reader.searcher();
-///
-///     let query = TermQuery::new(
-///         Term::from_field_text(title, "diary"),
-///         IndexRecordOption::Basic,
-///     );
-///     let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count)).unwrap();
-///     assert_eq!(count, 2);
-///
-///     Ok(())
+/// use tantivy::{doc, Index, Term};
+/// # fn test() -> tantivy::Result<()> {
+/// let mut schema_builder = Schema::builder();
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let schema = schema_builder.build();
+/// let index = Index::create_in_ram(schema);
+/// {
+///     let mut index_writer = index.writer(3_000_000)?;
+///     index_writer.add_document(doc!(
+///         title => "The Name of the Wind",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "The Diary of Muadib",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "A Dairy Cow",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "The Diary of a Young Girl",
+///     ));
+///     index_writer.commit()?;
 /// }
+/// let reader = index.reader()?;
+/// let searcher = reader.searcher();
+/// let query = TermQuery::new(
+///     Term::from_field_text(title, "diary"),
+///     IndexRecordOption::Basic,
+/// );
+/// let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
+/// assert_eq!(count, 2);
+/// Ok(())
+/// # }
+/// # assert!(test().is_ok());
 /// ```
 #[derive(Clone)]
 pub struct TermQuery {

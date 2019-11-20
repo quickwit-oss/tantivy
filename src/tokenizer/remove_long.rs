@@ -2,8 +2,6 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! # fn main() {
-//!
 //! let tokenizer = SimpleTokenizer
 //!   .filter(RemoveLongFilter::limit(5));
 //!
@@ -12,7 +10,6 @@
 //! // out of the token stream.
 //! assert_eq!(stream.next().unwrap().text, "nice");
 //! assert!(stream.next().is_none());
-//! # }
 //! ```
 //!
 use super::{Token, TokenFilter, TokenStream};

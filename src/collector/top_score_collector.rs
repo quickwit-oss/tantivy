@@ -29,43 +29,29 @@ use std::fmt;
 /// use tantivy::collector::TopDocs;
 /// use tantivy::query::QueryParser;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, DocAddress, Index, Result};
+/// use tantivy::{doc, DocAddress, Index};
 ///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = Schema::builder();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
-///         index_writer.commit().unwrap();
-///     }
+/// let mut schema_builder = Schema::builder();
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let schema = schema_builder.build();
+/// let index = Index::create_in_ram(schema);
 ///
-///     let reader = index.reader()?;
-///     let searcher = reader.searcher();
+/// let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+/// index_writer.add_document(doc!(title => "The Name of the Wind"));
+/// index_writer.add_document(doc!(title => "The Diary of Muadib"));
+/// index_writer.add_document(doc!(title => "A Dairy Cow"));
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
+/// assert!(index_writer.commit().is_ok());
 ///
-///     let query_parser = QueryParser::for_index(&index, vec![title]);
-///     let query = query_parser.parse_query("diary")?;
-///     let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
+/// let reader = index.reader().unwrap();
+/// let searcher = reader.searcher();
 ///
-///     assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
-///     assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
+/// let query_parser = QueryParser::for_index(&index, vec![title]);
+/// let query = query_parser.parse_query("diary").unwrap();
+/// let top_docs = searcher.search(&query, &TopDocs::with_limit(2)).unwrap();
 ///
-///     Ok(())
-/// }
+/// assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
+/// assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
 /// ```
 pub struct TopDocs(TopCollector<Score>);
 
@@ -102,15 +88,12 @@ impl TopDocs {
     /// #  
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-    /// #   index_writer.add_document(doc!(
-    /// #       title => "The Name of the Wind",
-    /// #       rating => 92u64,
-    /// #   ));
+    /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64));
     /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
     /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
     /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
-    /// #   index_writer.commit()?;
-    /// #   let reader = index.reader()?;
+    /// #   assert!(index_writer.commit().is_ok());
+    /// #   let reader = index.reader().unwrap();
     /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
     /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
     /// #   assert_eq!(top_docs,
@@ -202,27 +185,33 @@ impl TopDocs {
     /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::Field;
     ///
-    /// # fn create_schema() -> Schema {
-    /// #    let mut schema_builder = Schema::builder();
-    /// #    schema_builder.add_text_field("product_name", TEXT);
-    /// #    schema_builder.add_u64_field("popularity", FAST);
-    /// #    schema_builder.build()
-    /// # }
-    /// #
-    /// # fn main() -> tantivy::Result<()> {
-    /// #   let schema = create_schema();
-    /// #   let index = Index::create_in_ram(schema);
-    /// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-    /// #   let product_name = index.schema().get_field("product_name").unwrap();
-    /// #   
+    /// fn create_schema() -> Schema {
+    ///    let mut schema_builder = Schema::builder();
+    ///    schema_builder.add_text_field("product_name", TEXT);
+    ///    schema_builder.add_u64_field("popularity", FAST);
+    ///    schema_builder.build()
+    /// }
+    ///
+    /// fn create_index() -> tantivy::Result<Index> {
+    ///   let schema = create_schema();
+    ///   let index = Index::create_in_ram(schema);
+    ///   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    ///   let product_name = index.schema().get_field("product_name").unwrap();
+    ///   let popularity: Field = index.schema().get_field("popularity").unwrap();
+    ///   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64));
+    ///   index_writer.add_document(doc!(product_name => "A Dairy Cow", popularity => 10u64));
+    ///   index_writer.add_document(doc!(product_name => "The Diary of a Young Girl", popularity => 15u64));
+    ///   index_writer.commit()?;
+    ///   Ok(index)
+    /// }
+    ///
+    /// let index = create_index().unwrap();
+    /// let product_name = index.schema().get_field("product_name").unwrap();
     /// let popularity: Field = index.schema().get_field("popularity").unwrap();
-    /// #   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64));
-    /// #   index_writer.add_document(doc!(product_name => "A Dairy Cow", popularity => 10u64));
-    /// #   index_writer.add_document(doc!(product_name => "The Diary of a Young Girl", popularity => 15u64));
-    /// #   index_writer.commit()?;
-    /// // ...
-    /// # let user_query = "diary";
-    /// # let query = QueryParser::for_index(&index, vec![product_name]).parse_query(user_query)?;
+    ///
+    /// let user_query_str = "diary";
+    /// let query_parser = QueryParser::for_index(&index, vec![product_name]);
+    /// let query = query_parser.parse_query(user_query_str).unwrap();
     ///
     /// // This is where we build our collector with our custom score.
     /// let top_docs_by_custom_score = TopDocs
@@ -249,15 +238,12 @@ impl TopDocs {
     ///                 popularity_boost_score * original_score
     ///             }
     ///           });
-    /// # let reader = index.reader()?;
-    /// # let searcher = reader.searcher();
+    /// let reader = index.reader().unwrap();
+    /// let searcher = reader.searcher();
     /// // ... and here are our documents. Note this is a simple vec.
     /// // The `Score` in the pair is our tweaked score.
     /// let resulting_docs: Vec<(Score, DocAddress)> =
-    ///      searcher.search(&*query, &top_docs_by_custom_score)?;
-    ///
-    /// # Ok(())
-    /// # }
+    ///      searcher.search(&query, &top_docs_by_custom_score).unwrap();
     /// ```
     ///
     /// # See also

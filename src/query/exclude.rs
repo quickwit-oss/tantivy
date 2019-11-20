@@ -54,21 +54,21 @@ where
         match self.excluding_state {
             State::ExcludeOne(excluded_doc) => {
                 if doc == excluded_doc {
-                    false
-                } else if excluded_doc > doc {
-                    true
-                } else {
-                    match self.excluding_docset.skip_next(doc) {
-                        SkipResult::OverStep => {
-                            self.excluding_state = State::ExcludeOne(self.excluding_docset.doc());
-                            true
-                        }
-                        SkipResult::End => {
-                            self.excluding_state = State::Finished;
-                            true
-                        }
-                        SkipResult::Reached => false,
+                    return false;
+                }
+                if excluded_doc > doc {
+                    return true;
+                }
+                match self.excluding_docset.skip_next(doc) {
+                    SkipResult::OverStep => {
+                        self.excluding_state = State::ExcludeOne(self.excluding_docset.doc());
+                        true
                     }
+                    SkipResult::End => {
+                        self.excluding_state = State::Finished;
+                        true
+                    }
+                    SkipResult::Reached => false,
                 }
             }
             State::Finished => true,

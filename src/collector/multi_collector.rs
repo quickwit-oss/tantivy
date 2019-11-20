@@ -108,49 +108,35 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// use tantivy::collector::{Count, TopDocs, MultiCollector};
 /// use tantivy::query::QueryParser;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Result};
+/// use tantivy::{doc, Index};
 ///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = Schema::builder();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer(3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
-///         index_writer.commit().unwrap();
-///     }
+/// let mut schema_builder = Schema::builder();
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let schema = schema_builder.build();
+/// let index = Index::create_in_ram(schema);
 ///
-///     let reader = index.reader()?;
-///     let searcher = reader.searcher();
+/// let mut index_writer = index.writer(3_000_000).unwrap();
+/// index_writer.add_document(doc!(title => "The Name of the Wind"));
+/// index_writer.add_document(doc!(title => "The Diary of Muadib"));
+/// index_writer.add_document(doc!(title => "A Dairy Cow"));
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
+/// assert!(index_writer.commit().is_ok());
 ///
-///     let mut collectors = MultiCollector::new();
-///     let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2));
-///     let count_handle = collectors.add_collector(Count);
-///     let query_parser = QueryParser::for_index(&index, vec![title]);
-///     let query = query_parser.parse_query("diary")?;
-///     let mut multi_fruit = searcher.search(&query, &collectors)?;
+/// let reader = index.reader().unwrap();
+/// let searcher = reader.searcher();
 ///
-///     let count = count_handle.extract(&mut multi_fruit);
-///     let top_docs = top_docs_handle.extract(&mut multi_fruit);
+/// let mut collectors = MultiCollector::new();
+/// let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2));
+/// let count_handle = collectors.add_collector(Count);
+/// let query_parser = QueryParser::for_index(&index, vec![title]);
+/// let query = query_parser.parse_query("diary").unwrap();
+/// let mut multi_fruit = searcher.search(&query, &collectors).unwrap();
 ///
-///     # assert_eq!(count, 2);
-///     # assert_eq!(top_docs.len(), 2);
+/// let count = count_handle.extract(&mut multi_fruit);
+/// let top_docs = top_docs_handle.extract(&mut multi_fruit);
 ///
-///     Ok(())
-/// }
+/// assert_eq!(count, 2);
+/// assert_eq!(top_docs.len(), 2);
 /// ```
 #[allow(clippy::type_complexity)]
 #[derive(Default)]

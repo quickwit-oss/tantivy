@@ -7,7 +7,6 @@
 //! ```rust
 //! use tantivy::schema::*;
 //!
-//! # fn main() {
 //! let mut schema_builder = Schema::builder();
 //!
 //! let text_options = TextOptions::default()
@@ -31,7 +30,6 @@
 //! schema_builder.add_text_field("uuid", id_options);
 //!
 //! let schema = schema_builder.build();
-//! # }
 //! ```
 //!
 //! By default, `tantivy` offers the following tokenizers:
@@ -66,12 +64,10 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! # fn main() {
 //! let en_stem = SimpleTokenizer
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser)
 //!     .filter(Stemmer::new(Language::English));
-//! # }
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -81,13 +77,12 @@
 //! # use tantivy::schema::Schema;
 //! # use tantivy::tokenizer::*;
 //! # use tantivy::Index;
-//! # fn main() {
-//! # let custom_en_tokenizer = SimpleTokenizer;
+//! #
+//! let custom_en_tokenizer = SimpleTokenizer;
 //! # let schema = Schema::builder().build();
 //! let index = Index::create_in_ram(schema);
 //! index.tokenizers()
 //!      .register("custom_en", custom_en_tokenizer);
-//! # }
 //! ```
 //!
 //! If you built your schema programmatically, a complete example
@@ -102,7 +97,6 @@
 //! use tantivy::tokenizer::*;
 //! use tantivy::Index;
 //!
-//! # fn main() {
 //! let mut schema_builder = Schema::builder();
 //! let text_field_indexing = TextFieldIndexing::default()
 //!     .set_tokenizer("custom_en")
@@ -121,8 +115,6 @@
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
-//! // ...
-//! # }
 //! ```
 //!
 mod alphanum_only;
