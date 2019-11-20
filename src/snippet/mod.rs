@@ -362,13 +362,13 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
         assert_eq!(
             snippet.fragments,
-            "Rust is a systems programming language sponsored by \
-             Mozilla which\ndescribes it as a \"safe"
+            "Rust is a systems programming language sponsored by\n\
+             Mozilla which describes it as a \"safe"
         );
         assert_eq!(
             snippet.to_html(),
             "<b>Rust</b> is a systems programming <b>language</b> \
-             sponsored by Mozilla which\ndescribes it as a &quot;safe"
+             sponsored by\nMozilla which describes it as a &quot;safe"
         )
     }
 
