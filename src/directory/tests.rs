@@ -1,4 +1,6 @@
 use super::*;
+use futures::channel::oneshot;
+use futures::executor::block_on;
 use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -7,17 +9,109 @@ use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::Arc;
 use std::time::Duration;
 
-#[test]
-fn test_ram_directory() {
-    let mut ram_directory = RAMDirectory::create();
-    test_directory(&mut ram_directory);
+#[cfg(feature = "mmap")]
+mod mmap_directory_tests {
+    use crate::directory::MmapDirectory;
+
+    type DirectoryImpl = MmapDirectory;
+
+    fn make_directory() -> DirectoryImpl {
+        MmapDirectory::create_from_tempdir().unwrap()
+    }
+
+    #[test]
+    fn test_simple() {
+        let mut directory = make_directory();
+        super::test_simple(&mut directory);
+    }
+
+    #[test]
+    fn test_write_create_the_file() {
+        let mut directory = make_directory();
+        super::test_write_create_the_file(&mut directory);
+    }
+
+    #[test]
+    fn test_rewrite_forbidden() {
+        let mut directory = make_directory();
+        super::test_rewrite_forbidden(&mut directory);
+    }
+
+    #[test]
+    fn test_directory_delete() {
+        let mut directory = make_directory();
+        super::test_directory_delete(&mut directory);
+    }
+
+    #[test]
+    fn test_lock_non_blocking() {
+        let mut directory = make_directory();
+        super::test_lock_non_blocking(&mut directory);
+    }
+
+    #[test]
+    fn test_lock_blocking() {
+        let mut directory = make_directory();
+        super::test_lock_blocking(&mut directory);
+    }
+
+    #[test]
+    fn test_watch() {
+        let mut directory = make_directory();
+        super::test_watch(&mut directory);
+    }
 }
 
-#[test]
-#[cfg(feature = "mmap")]
-fn test_mmap_directory() {
-    let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
-    test_directory(&mut mmap_directory);
+mod ram_directory_tests {
+    use crate::directory::RAMDirectory;
+
+    type DirectoryImpl = RAMDirectory;
+
+    fn make_directory() -> DirectoryImpl {
+        RAMDirectory::default()
+    }
+
+    #[test]
+    fn test_simple() {
+        let mut directory = make_directory();
+        super::test_simple(&mut directory);
+    }
+
+    #[test]
+    fn test_write_create_the_file() {
+        let mut directory = make_directory();
+        super::test_write_create_the_file(&mut directory);
+    }
+
+    #[test]
+    fn test_rewrite_forbidden() {
+        let mut directory = make_directory();
+        super::test_rewrite_forbidden(&mut directory);
+    }
+
+    #[test]
+    fn test_directory_delete() {
+        let mut directory = make_directory();
+        super::test_directory_delete(&mut directory);
+    }
+
+    #[test]
+    fn test_lock_non_blocking() {
+        let mut directory = make_directory();
+        super::test_lock_non_blocking(&mut directory);
+    }
+
+    #[test]
+    fn test_lock_blocking() {
+        let mut directory = make_directory();
+        super::test_lock_blocking(&mut directory);
+    }
+
+    #[test]
+    fn test_watch() {
+        let mut directory = make_directory();
+        super::test_watch(&mut directory);
+    }
 }
 
 #[test]
@@ -97,16 +191,6 @@ fn test_directory_delete(directory: &mut dyn Directory) {
     assert!(directory.delete(&test_path).is_err());
 }
 
-fn test_directory(directory: &mut dyn Directory) {
-    test_simple(directory);
-    test_rewrite_forbidden(directory);
-    test_write_create_the_file(directory);
-    test_directory_delete(directory);
-    test_lock_non_blocking(directory);
-    test_lock_blocking(directory);
-    test_watch(directory);
-}
-
 fn test_watch(directory: &mut dyn Directory) {
     let num_progress: Arc<AtomicUsize> = Default::default();
     let counter: Arc<AtomicUsize> = Default::default();
@@ -175,9 +259,11 @@ fn test_lock_blocking(directory: &mut dyn Directory) {
     assert!(lock_a_res.is_ok());
     let in_thread = Arc::new(AtomicBool::default());
     let in_thread_clone = in_thread.clone();
+    let (sender, receiver) = oneshot::channel();
     std::thread::spawn(move || {
         //< lock_a_res is sent to the thread.
         in_thread_clone.store(true, SeqCst);
+        let _just_sync = block_on(receiver);
         // explicitely droping lock_a_res. It would have been sufficient to just force it
         // to be part of the move, but the intent seems clearer that way.
         drop(lock_a_res);
@@ -190,12 +276,18 @@ fn test_lock_blocking(directory: &mut dyn Directory) {
         });
         assert!(lock_a_res.is_err());
     }
-    {
-        let lock_a_res = directory.acquire_lock(&Lock {
+    let directory_clone = directory.box_clone();
+    let (sender2, receiver2) = oneshot::channel();
+    let join_handle = std::thread::spawn(move || {
+        assert!(sender2.send(()).is_ok());
+        let lock_a_res = directory_clone.acquire_lock(&Lock {
             filepath: PathBuf::from("a.lock"),
             is_blocking: true,
         });
         assert!(in_thread.load(SeqCst));
         assert!(lock_a_res.is_ok());
-    }
+    });
+    assert!(block_on(receiver2).is_ok());
+    assert!(sender.send(()).is_ok());
+    assert!(join_handle.join().is_ok());
 }
