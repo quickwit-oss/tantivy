@@ -38,41 +38,33 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// # Example
 ///
 /// ```rust
-/// # use tantivy::collector::Count;
-/// # use tantivy::query::RangeQuery;
-/// # use tantivy::schema::{Schema, INDEXED};
-/// # use tantivy::{doc, Index, Result};
-/// #
-/// # fn run() -> Result<()> {
-/// #     let mut schema_builder = Schema::builder();
-/// #     let year_field = schema_builder.add_u64_field("year", INDEXED);
-/// #     let schema = schema_builder.build();
-/// #
-/// #     let index = Index::create_in_ram(schema);
-/// #     {
-/// #         let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
-/// #         for year in 1950u64..2017u64 {
-/// #             let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
-/// #             for _ in 0..num_docs_within_year {
-/// #                 index_writer.add_document(doc!(year_field => year));
-/// #             }
-/// #         }
-/// #         index_writer.commit().unwrap();
-/// #     }
-/// #   let reader = index.reader()?;
+/// use tantivy::collector::Count;
+/// use tantivy::query::RangeQuery;
+/// use tantivy::schema::{Schema, INDEXED};
+/// use tantivy::{doc, Index};
+/// # fn test() -> tantivy::Result<()> {
+/// let mut schema_builder = Schema::builder();
+/// let year_field = schema_builder.add_u64_field("year", INDEXED);
+/// let schema = schema_builder.build();
+///
+/// let index = Index::create_in_ram(schema);
+/// let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
+/// for year in 1950u64..2017u64 {
+///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
+///     for _ in 0..num_docs_within_year {
+///       index_writer.add_document(doc!(year_field => year));
+///     }
+/// }
+/// index_writer.commit()?;
+///
+/// let reader = index.reader()?;
 /// let searcher = reader.searcher();
-///
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
-///
 /// let num_60s_books = searcher.search(&docs_in_the_sixties, &Count)?;
-///
-/// #     assert_eq!(num_60s_books, 2285);
-/// #     Ok(())
+/// assert_eq!(num_60s_books, 2285);
+/// Ok(())
 /// # }
-/// #
-/// # fn main() {
-/// #   run().unwrap()
-/// # }
+/// # assert!(test().is_ok());
 /// ```
 #[derive(Clone, Debug)]
 pub struct RangeQuery {

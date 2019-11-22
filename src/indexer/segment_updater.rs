@@ -138,7 +138,7 @@ fn merge(
 
     let segment_meta = index.new_segment_meta(merged_segment.id(), num_docs);
 
-    Ok(SegmentEntry::new(segment_meta.clone(), delete_cursor, None))
+    Ok(SegmentEntry::new(segment_meta, delete_cursor, None))
 }
 
 pub(crate) struct InnerSegmentUpdater {

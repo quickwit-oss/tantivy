@@ -15,40 +15,40 @@ use tantivy_fst::Regex;
 /// use tantivy::collector::Count;
 /// use tantivy::query::RegexQuery;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Result, Term};
+/// use tantivy::{doc, Index, Term};
 ///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = Schema::builder();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer(3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
-///         index_writer.commit().unwrap();
-///     }
-///
-///     let reader = index.reader()?;
-///     let searcher = reader.searcher();
-///
-///     let term = Term::from_field_text(title, "Diary");
-///     let query = RegexQuery::from_pattern("d[ai]{2}ry", title)?;
-///     let count = searcher.search(&query, &Count)?;
-///     assert_eq!(count, 3);
-///     Ok(())
+/// # fn test() -> tantivy::Result<()> {
+/// let mut schema_builder = Schema::builder();
+/// let title = schema_builder.add_text_field("title", TEXT);
+/// let schema = schema_builder.build();
+/// let index = Index::create_in_ram(schema);
+/// {
+///     let mut index_writer = index.writer(3_000_000)?;
+///     index_writer.add_document(doc!(
+///         title => "The Name of the Wind",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "The Diary of Muadib",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "A Dairy Cow",
+///     ));
+///     index_writer.add_document(doc!(
+///         title => "The Diary of a Young Girl",
+///     ));
+///     index_writer.commit().unwrap();
 /// }
+///
+/// let reader = index.reader()?;
+/// let searcher = reader.searcher();
+///
+/// let term = Term::from_field_text(title, "Diary");
+/// let query = RegexQuery::from_pattern("d[ai]{2}ry", title)?;
+/// let count = searcher.search(&query, &Count)?;
+/// assert_eq!(count, 3);
+/// Ok(())
+/// # }
+/// # assert!(test().is_ok());
 /// ```
 #[derive(Debug, Clone)]
 pub struct RegexQuery {

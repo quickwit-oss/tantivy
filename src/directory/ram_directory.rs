@@ -191,7 +191,7 @@ impl Directory for RAMDirectory {
         // Reserve the path to prevent calls to .write() to succeed.
         self.fs.write().unwrap().write(path_buf.clone(), &[]);
 
-        let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
+        let mut vec_writer = VecWriter::new(path_buf, self.clone());
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         if path == Path::new(&*META_FILEPATH) {

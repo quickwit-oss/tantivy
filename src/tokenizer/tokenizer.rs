@@ -58,12 +58,10 @@ pub trait Tokenizer<'a>: Sized + Clone {
     /// ```rust
     /// use tantivy::tokenizer::*;
     ///
-    /// # fn main() {
     /// let en_stem = SimpleTokenizer
     ///     .filter(RemoveLongFilter::limit(40))
     ///     .filter(LowerCaser)
     ///     .filter(Stemmer::default());
-    /// # }
     /// ```
     ///
     fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainTokenizer<NewFilter, Self>
@@ -188,7 +186,6 @@ impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
 /// ```
 /// use tantivy::tokenizer::*;
 ///
-/// # fn main() {
 /// let tokenizer = SimpleTokenizer
 ///        .filter(RemoveLongFilter::limit(40))
 ///        .filter(LowerCaser);
@@ -207,7 +204,6 @@ impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
 ///     assert_eq!(token.offset_to, 12);
 ///     assert_eq!(token.position, 1);
 /// }
-/// # }
 /// ```
 ///
 pub trait TokenStream {
@@ -227,17 +223,15 @@ pub trait TokenStream {
     /// and `.token()`.
     ///
     /// ```
-    /// # use tantivy::tokenizer::*;
-    /// #
-    /// # fn main() {
-    /// # let tokenizer = SimpleTokenizer
-    /// #       .filter(RemoveLongFilter::limit(40))
-    /// #       .filter(LowerCaser);
+    /// use tantivy::tokenizer::*;
+    ///
+    /// let tokenizer = SimpleTokenizer
+    ///       .filter(RemoveLongFilter::limit(40))
+    ///       .filter(LowerCaser);
     /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
     /// while let Some(token) = token_stream.next() {
     ///     println!("Token {:?}", token.text);
     /// }
-    /// # }
     /// ```
     fn next(&mut self) -> Option<&Token> {
         if self.advance() {

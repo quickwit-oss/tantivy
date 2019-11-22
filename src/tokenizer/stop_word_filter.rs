@@ -2,7 +2,6 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! # fn main() {
 //! let tokenizer = SimpleTokenizer
 //!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
 //!
@@ -10,7 +9,6 @@
 //! assert_eq!(stream.next().unwrap().text, "fox");
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
-//! # }
 //! ```
 use super::{Token, TokenFilter, TokenStream};
 use fnv::FnvHasher;
@@ -46,7 +44,7 @@ impl StopWordFilter {
             "there", "these", "they", "this", "to", "was", "will", "with",
         ];
 
-        StopWordFilter::remove(words.iter().map(|s| s.to_string()).collect())
+        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
     }
 }
 

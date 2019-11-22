@@ -33,7 +33,6 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 /// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{doc, Index, Result, Term};
 ///
-/// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
 ///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
@@ -59,7 +58,6 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 ///     let searcher = reader.searcher();
 ///
 ///     {
-///
 ///         let term = Term::from_field_text(title, "Diary");
 ///         let query = FuzzyTermQuery::new(term, 1, true);
 ///         let (top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count)).unwrap();
@@ -69,6 +67,7 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 ///
 ///     Ok(())
 /// }
+/// # assert!(example().is_ok());
 /// ```
 #[derive(Debug, Clone)]
 pub struct FuzzyTermQuery {

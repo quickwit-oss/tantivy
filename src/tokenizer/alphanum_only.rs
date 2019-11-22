@@ -2,8 +2,6 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! # fn main() {
-//!
 //! let tokenizer = RawTokenizer
 //!   .filter(AlphaNumOnlyFilter);
 //!
@@ -20,7 +18,6 @@
 //! assert!(stream.next().is_some());
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
-//! # }
 //! ```
 use super::{Token, TokenFilter, TokenStream};
 

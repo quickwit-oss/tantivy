@@ -53,7 +53,7 @@ where
     fn bitor(self, head: SchemaFlagList<Head, ()>) -> Self::Output {
         SchemaFlagList {
             head: head.head,
-            tail: self.clone(),
+            tail: self,
         }
     }
 }
