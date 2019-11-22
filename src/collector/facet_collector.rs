@@ -86,7 +86,6 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// use tantivy::schema::{Facet, Schema, TEXT};
 /// use tantivy::{doc, Index, Result};
 ///
-/// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
 ///     let mut schema_builder = Schema::builder();
 ///
@@ -172,6 +171,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///
 ///     Ok(())
 /// }
+/// # assert!(example().is_ok());
 /// ```
 pub struct FacetCollector {
     field: Field,

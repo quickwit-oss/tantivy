@@ -31,7 +31,7 @@ use super::{Token, TokenStream, Tokenizer};
 ///
 /// ```rust
 /// use tantivy::tokenizer::*;
-/// # fn main() {
+///
 /// let tokenizer = NgramTokenizer::new(2, 3, false);
 /// let mut stream = tokenizer.token_stream("hello");
 /// {
@@ -77,7 +77,6 @@ use super::{Token, TokenStream, Tokenizer};
 ///   assert_eq!(token.offset_to, 5);
 /// }
 /// assert!(stream.next().is_none());
-/// # }
 /// ```
 #[derive(Clone)]
 pub struct NgramTokenizer {
