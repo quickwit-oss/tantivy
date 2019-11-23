@@ -10,7 +10,7 @@ mod segment_reader;
 
 pub use self::executor::Executor;
 pub use self::index::Index;
-pub use self::index_meta::{IndexMeta, SegmentMeta, SegmentMetaInventory};
+pub use self::index_meta::{IndexMeta, SegmentMeta, SegmentMetaInventory, DeleteMeta};
 pub use self::inverted_index_reader::InvertedIndexReader;
 pub use self::searcher::Searcher;
 pub use self::segment::Segment;

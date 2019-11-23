@@ -6,14 +6,17 @@ use std::f64;
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_MERGE_SIZE: usize = 8;
+const DEFAULT_MAX_MERGE_SIZE: usize = 5000;
 
 /// `LogMergePolicy` tries tries to merge segments that have a similar number of
 /// documents.
 #[derive(Debug, Clone)]
 pub struct LogMergePolicy {
     min_merge_size: usize,
+    max_merge_size: usize,
     min_layer_size: u32,
     level_log_size: f64,
+    consider_deletes: bool
 }
 
 impl LogMergePolicy {
@@ -21,9 +24,20 @@ impl LogMergePolicy {
         cmp::max(self.min_layer_size, size)
     }
 
+    fn doc_count(&self, seg: &SegmentMeta) -> u32 {
+        if self.consider_deletes {
+            seg.num_docs() + seg.num_deleted_docs()
+        } else {
+            seg.num_docs()
+        }
+    }
     /// Set the minimum number of segment that may be merge together.
     pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
         self.min_merge_size = min_merge_size;
+    }
+
+    pub fn set_max_merge_size(&mut self, max_merge_size: usize) {
+        self.max_merge_size = max_merge_size;
     }
 
     /// Set the minimum segment size under which all segment belong
@@ -42,6 +56,10 @@ impl LogMergePolicy {
     pub fn set_level_log_size(&mut self, level_log_size: f64) {
         self.level_log_size = level_log_size;
     }
+
+    pub fn consider_deletes(&mut self, consider: bool) {
+        self.consider_deletes = consider;
+    }
 }
 
 impl MergePolicy for LogMergePolicy {
@@ -52,7 +70,8 @@ impl MergePolicy for LogMergePolicy {
 
         let mut size_sorted_tuples = segments
             .iter()
-            .map(SegmentMeta::num_docs)
+            .filter(|s| s.num_docs() <= self.max_merge_size as u32)
+            .map(|s| self.doc_count(s))
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 
@@ -86,8 +105,10 @@ impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
         LogMergePolicy {
             min_merge_size: DEFAULT_MIN_MERGE_SIZE,
+            max_merge_size: DEFAULT_MAX_MERGE_SIZE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
+            consider_deletes: false
         }
     }
 }
@@ -95,7 +116,7 @@ impl Default for LogMergePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{SegmentId, SegmentMeta, SegmentMetaInventory};
+    use crate::core::{SegmentId, SegmentMeta, SegmentMetaInventory, DeleteMeta};
     use crate::indexer::merge_policy::MergePolicy;
     use once_cell::sync::Lazy;
 
@@ -105,6 +126,7 @@ mod tests {
         let mut log_merge_policy = LogMergePolicy::default();
         log_merge_policy.set_min_merge_size(3);
         log_merge_policy.set_min_layer_size(2);
+        log_merge_policy.consider_deletes(false);
         log_merge_policy
     }
 
@@ -117,6 +139,11 @@ mod tests {
 
     fn create_random_segment_meta(num_docs: u32) -> SegmentMeta {
         INVENTORY.new_segment_meta(SegmentId::generate_random(), num_docs)
+    }
+
+    fn create_random_with_deletes(num_docs: u32, deletes: u32) -> SegmentMeta {
+        let deletes = DeleteMeta::new(deletes, 1u64);
+        INVENTORY.new_segment_meta_with_deletes(SegmentId::generate_random(), num_docs, Some(deletes))
     }
 
     #[test]
@@ -168,6 +195,36 @@ mod tests {
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
     }
+
+    #[test]
+    fn test_large_merge_segments() {
+        let test_input = vec![
+            create_random_segment_meta(5001),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10)
+        ];
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        // Does not include segment larger than max merge size
+        assert_eq!(result_list[0].0.len(), 3);
+        assert_eq!(result_list.len(), 1);
+    }
+
+    #[test]
+    fn test_segment_with_deletes() {
+
+        let test_input = vec![
+            create_random_with_deletes(2501, 2500),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10)
+        ];
+        let result_list = test_merge_policy().compute_merge_candidates(&test_input);
+        // Does not include segment larger than max merge size
+        assert_eq!(result_list[0].0.len(), 3);
+        assert_eq!(result_list.len(), 1);
+    }
+
     #[test]
     fn test_log_merge_policy_small_segments() {
         // segments under min_layer_size are merged together

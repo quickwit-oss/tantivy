@@ -10,9 +10,15 @@ use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-struct DeleteMeta {
+pub struct DeleteMeta {
     num_deleted_docs: u32,
     opstamp: Opstamp,
+}
+
+impl DeleteMeta {
+    pub fn new(num_deleted_docs: u32, opstamp: Opstamp) -> Self {
+        Self { num_deleted_docs, opstamp }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -30,13 +36,16 @@ impl SegmentMetaInventory {
             .collect::<Vec<_>>()
     }
 
-    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+    pub fn new_segment_meta_with_deletes(&self, segment_id: SegmentId, max_doc: u32, deletes: Option<DeleteMeta>) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
-            deletes: None,
+            deletes
         };
         SegmentMeta::from(self.inventory.track(inner))
+    }
+    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+        self.new_segment_meta_with_deletes(segment_id, max_doc, None)
     }
 }
 
