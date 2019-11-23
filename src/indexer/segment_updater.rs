@@ -210,9 +210,11 @@ impl SegmentUpdater {
         f: F,
     ) -> impl Future<Output = crate::Result<T>> {
         let (sender, receiver) = oneshot::channel();
-        self.pool.spawn_ok(async move {
-            let _ = sender.send(f.await);
-        });
+        if self.is_alive() {
+            self.pool.spawn_ok(async move {
+                let _ = sender.send(f.await);
+            });
+        }
         receiver.unwrap_or_else(|_| {
             let err_msg =
                 "A segment_updater future did not success. This should never happen.".to_string();

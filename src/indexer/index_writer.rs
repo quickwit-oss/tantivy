@@ -280,7 +280,7 @@ impl IndexWriter {
         index: &Index,
         num_threads: usize,
         heap_size_in_bytes_per_thread: usize,
-        directory_lock: DirectoryLock,
+        directory_lock: DirectoryLock
     ) -> crate::Result<IndexWriter> {
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
             let err_msg = format!(
@@ -330,12 +330,17 @@ impl IndexWriter {
         Ok(index_writer)
     }
 
+    fn drop_sender(&mut self) {
+        let (sender, _receiver) = channel::bounded(1);
+        mem::replace(&mut self.operation_sender, sender);
+    }
+
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
-        drop(self.operation_sender);
+        self.drop_sender();
 
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
@@ -346,7 +351,6 @@ impl IndexWriter {
                     TantivyError::ErrorInThread("Error in indexing worker thread.".into())
                 })?;
         }
-        drop(self.workers_join_handle);
 
         let result = self
             .segment_updater
@@ -546,7 +550,7 @@ impl IndexWriter {
             &self.index,
             self.num_threads,
             self.heap_size_in_bytes_per_thread,
-            directory_lock,
+            directory_lock
         )?;
 
         // the current `self` is dropped right away because of this call.
@@ -744,6 +748,16 @@ impl IndexWriter {
         };
 
         batch_opstamp
+    }
+}
+
+impl Drop for IndexWriter {
+    fn drop(&mut self) {
+        self.segment_updater.kill();
+        self.drop_sender();
+        for work in self.workers_join_handle.drain(..) {
+            let _ = work.join();
+        }
     }
 }
 
