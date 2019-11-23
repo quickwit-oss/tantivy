@@ -139,6 +139,8 @@ impl VersionedFooter {
     /// Serializes a valid `VersionedFooter` or panics if the version is unknown
     /// [   version    |   crc_hash  ]
     /// [    0..4      |     4..8    ]
+    // TODO: add a byte-flag to mark compression used
+    // 1st byte = 1 if compressed with `snap` (default), 0 - if compressed with lz4
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             VersionedFooter::V0(crc) => {

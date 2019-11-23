@@ -44,6 +44,34 @@ impl fmt::Debug for DataCorruption {
     }
 }
 
+pub enum Incompatibility {
+    Compression {
+        index_version: u8,
+        library_version: u8,
+    },
+    Index {
+        index_version: (u32, u32, u32),
+        library_version: (u32, u32, u32),
+    },
+    CompressionAndIndex,
+}
+
+impl fmt::Debug for Incompatibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Compression(idx, lib) => {
+                write!(f, "Index compressed with version: {}, this application is decompressing with {}",idx, lib)?;
+            }
+            Index(idx, lib) => {
+                write!(f, "Index built with tantivy version: {}, application is running tantivy version: {}", idx, lib)?;
+            }
+            CompressionAndIndex => {}
+        }
+
+        Ok(())
+    }
+}
+
 /// The library's failure based error enum
 #[derive(Debug, Fail)]
 pub enum TantivyError {
@@ -82,10 +110,10 @@ pub enum TantivyError {
     SystemError(String),
     /// Index incompatible with current version of tantivy
     #[fail(
-        display = "Current version of tantivy is incompatible with index version: '{}'",
+        display = "{:?}",
         _0
     )]
-    IncompatibleIndex(String),
+    IncompatibleIndex(Incompatibility),
 }
 
 impl From<DataCorruption> for TantivyError {

@@ -1,4 +1,4 @@
-extern crate lz4;
+use lz4;
 
 use std::io::{self, Read, Write};
 
