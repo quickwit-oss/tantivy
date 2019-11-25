@@ -249,6 +249,7 @@ impl SegmentWriter {
             }
         }
         doc.filter_fields(|field| schema.get_field_entry(field).is_stored());
+        doc.prepare_for_store();
         let doc_writer = self.segment_serializer.get_store_writer();
         doc_writer.store(&doc)?;
         self.max_doc += 1;
