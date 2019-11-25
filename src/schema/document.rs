@@ -155,6 +155,21 @@ impl Document {
             .find(|field_value| field_value.field() == field)
             .map(FieldValue::value)
     }
+
+    /// Prepares Document for being stored in the document store
+    ///
+    /// Method transforms PreTokenizedString values into String
+    /// values.
+    pub fn prepare_for_store(&mut self) {
+        for field_value in &mut self.field_values {
+            if let Value::PreTokStr(pre_tokenized_text) = field_value.value() {
+                *field_value = FieldValue::new(
+                    field_value.field(),
+                    Value::Str(pre_tokenized_text.text.clone()), //< TODO somehow remove .clone()
+                );
+            }
+        }
+    }
 }
 
 impl BinarySerializable for Document {
@@ -180,6 +195,7 @@ impl BinarySerializable for Document {
 mod tests {
 
     use crate::schema::*;
+    use crate::tokenizer::{PreTokenizedString, Token};
 
     #[test]
     fn test_doc() {
@@ -188,5 +204,39 @@ mod tests {
         let mut doc = Document::default();
         doc.add_text(text_field, "My title");
         assert_eq!(doc.field_values().len(), 1);
+    }
+
+    #[test]
+    fn test_prepare_for_store() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("title", TEXT);
+        let mut doc = Document::default();
+
+        let pre_tokenized_text = PreTokenizedString {
+            text: String::from("A"),
+            tokens: vec![Token {
+                offset_from: 0,
+                offset_to: 1,
+                position: 0,
+                text: String::from("A"),
+                position_length: 1,
+            }],
+        };
+
+        doc.add_pre_tokenized_text(text_field, &pre_tokenized_text);
+        doc.add_text(text_field, "title");
+        doc.prepare_for_store();
+
+        assert_eq!(doc.field_values().len(), 2);
+
+        match doc.field_values()[0].value() {
+            Value::Str(ref text) => assert_eq!(text, "A"),
+            _ => panic!("Incorrect variant of Value"),
+        }
+
+        match doc.field_values()[1].value() {
+            Value::Str(ref text) => assert_eq!(text, "title"),
+            _ => panic!("Incorrect variant of Value"),
+        }
     }
 }
