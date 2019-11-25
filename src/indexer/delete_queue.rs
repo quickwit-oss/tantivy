@@ -2,7 +2,7 @@ use super::operation::DeleteOperation;
 use crate::Opstamp;
 use std::mem;
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Weak};
 
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.
@@ -14,14 +14,15 @@ use std::sync::{Arc, RwLock};
 //
 // New consumer can be created in two ways
 // - calling `delete_queue.cursor()` returns a cursor, that
-//   will include all future delete operation (and no past operations).
+//   will include all future delete operation (and some or none
+//   of the past operations... The client is in charge of checking the opstamps.).
 // - cloning an existing cursor returns a new cursor, that
 //   is at the exact same position, and can now advance independently
 //   from the original cursor.
 #[derive(Default)]
 struct InnerDeleteQueue {
     writer: Vec<DeleteOperation>,
-    last_block: Option<Arc<Block>>,
+    last_block: Weak<Block>,
 }
 
 #[derive(Clone)]
@@ -32,21 +33,31 @@ pub struct DeleteQueue {
 impl DeleteQueue {
     // Creates a new delete queue.
     pub fn new() -> DeleteQueue {
-        let delete_queue = DeleteQueue {
+        DeleteQueue {
             inner: Arc::default(),
-        };
-
-        let next_block = NextBlock::from(delete_queue.clone());
-
-        {
-            let mut delete_queue_wlock = delete_queue.inner.write().unwrap();
-            delete_queue_wlock.last_block = Some(Arc::new(Block {
-                operations: Arc::default(),
-                next: next_block,
-            }));
         }
+    }
 
-        delete_queue
+    fn get_last_block(&self) -> Arc<Block> {
+        {
+            // try get the last block with simply acquiring the read lock.
+            let rlock = self.inner.read().unwrap();
+            if let Some(block) = rlock.last_block.upgrade() {
+                return block.clone();
+            }
+        }
+        // It failed. Let's double check after acquiring the write, as someone could have called
+        // `get_last_block` right after we released the rlock.
+        let mut wlock = self.inner.write().unwrap();
+        if let Some(block) = wlock.last_block.upgrade() {
+            return block.clone();
+        }
+        let block = Arc::new(Block {
+            operations: Arc::default(),
+            next: NextBlock::from(self.clone()),
+        });
+        wlock.last_block = Arc::downgrade(&block);
+        block
     }
 
     // Creates a new cursor that makes it possible to
@@ -54,17 +65,7 @@ impl DeleteQueue {
     //
     // Past delete operations are not accessible.
     pub fn cursor(&self) -> DeleteCursor {
-        let last_block = self
-            .inner
-            .read()
-            .expect("Read lock poisoned when opening delete queue cursor")
-            .last_block
-            .clone()
-            .expect(
-                "Failed to unwrap last_block. This should never happen
-                as the Option<> is only here to make
-                initialization possible",
-            );
+        let last_block = self.get_last_block();
         let operations_len = last_block.operations.len();
         DeleteCursor {
             block: last_block,
@@ -100,23 +101,19 @@ impl DeleteQueue {
             .write()
             .expect("Failed to acquire write lock on delete queue writer");
 
-        let delete_operations;
-        {
-            let writer: &mut Vec<DeleteOperation> = &mut self_wlock.writer;
-            if writer.is_empty() {
-                return None;
-            }
-            delete_operations = mem::replace(writer, vec![]);
+        if self_wlock.writer.is_empty() {
+            return None;
         }
 
-        let next_block = NextBlock::from(self.clone());
-        {
-            self_wlock.last_block = Some(Arc::new(Block {
-                operations: Arc::new(delete_operations),
-                next: next_block,
-            }));
-        }
-        self_wlock.last_block.clone()
+        let delete_operations = mem::replace(&mut self_wlock.writer, vec![]);
+
+        let new_block = Arc::new(Block {
+            operations: Arc::new(delete_operations.into_boxed_slice()),
+            next: NextBlock::from(self.clone()),
+        });
+
+        self_wlock.last_block = Arc::downgrade(&new_block);
+        Some(new_block)
     }
 }
 
@@ -170,7 +167,7 @@ impl NextBlock {
 }
 
 struct Block {
-    operations: Arc<Vec<DeleteOperation>>,
+    operations: Arc<Box<[DeleteOperation]>>,
     next: NextBlock,
 }
 
