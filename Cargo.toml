@@ -39,7 +39,7 @@ crossbeam = "0.7"
 futures = {version = "0.3",  features=["thread-pool"] }
 owning_ref = "0.4"
 stable_deref_trait = "1.0.0"
-rust-stemmers = "1.2.0"
+rust-stemmers = "1.2"
 downcast-rs = { version="1.0" }
 tantivy-query-grammar = { path="./query-grammar" }
 bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
