@@ -161,11 +161,11 @@ impl Document {
     /// Method transforms PreTokenizedString values into String
     /// values.
     pub fn prepare_for_store(&mut self) {
-        for i in 0..self.field_values.len() {
-            if let Value::PreTokStr(pre_tokenized_text) = self.field_values[i].value() {
-                self.field_values[i] = FieldValue::new(
-                    self.field_values[i].field(),
-                    Value::Str(pre_tokenized_text.text.clone()),
+        for field_value in &mut self.field_values {
+            if let Value::PreTokStr(pre_tokenized_text) = field_value.value() {
+                *field_value = FieldValue::new(
+                    field_value.field(),
+                    Value::Str(pre_tokenized_text.text.clone()), //< TODO somehow remove .clone()
                 );
             }
         }
