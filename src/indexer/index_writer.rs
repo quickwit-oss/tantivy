@@ -280,7 +280,7 @@ impl IndexWriter {
         index: &Index,
         num_threads: usize,
         heap_size_in_bytes_per_thread: usize,
-        directory_lock: DirectoryLock
+        directory_lock: DirectoryLock,
     ) -> crate::Result<IndexWriter> {
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
             let err_msg = format!(
@@ -550,7 +550,7 @@ impl IndexWriter {
             &self.index,
             self.num_threads,
             self.heap_size_in_bytes_per_thread,
-            directory_lock
+            directory_lock,
         )?;
 
         // the current `self` is dropped right away because of this call.
