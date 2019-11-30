@@ -15,12 +15,6 @@ pub struct DeleteMeta {
     opstamp: Opstamp,
 }
 
-impl DeleteMeta {
-    pub fn new(num_deleted_docs: u32, opstamp: Opstamp) -> Self {
-        Self { num_deleted_docs, opstamp }
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct SegmentMetaInventory {
     inventory: Inventory<InnerSegmentMeta>,
@@ -36,16 +30,13 @@ impl SegmentMetaInventory {
             .collect::<Vec<_>>()
     }
 
-    pub fn new_segment_meta_with_deletes(&self, segment_id: SegmentId, max_doc: u32, deletes: Option<DeleteMeta>) -> SegmentMeta {
+    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
-            deletes
+            deletes: None,
         };
         SegmentMeta::from(self.inventory.track(inner))
-    }
-    pub fn new_segment_meta(&self, segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
-        self.new_segment_meta_with_deletes(segment_id, max_doc, None)
     }
 }
 

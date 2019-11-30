@@ -884,7 +884,7 @@ mod tests {
         let index_writer = index.writer(3_000_000).unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
-            "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
+            "LogMergePolicy { min_merge_size: 8, max_merge_size: 10000000, min_layer_size: 10000, \
              level_log_size: 0.75 }"
         );
         let merge_policy = Box::new(NoMergePolicy::default());
