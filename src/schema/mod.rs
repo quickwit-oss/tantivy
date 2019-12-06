@@ -44,7 +44,7 @@ We can split the problem of generating a search result page into two phases :
   the search results page. (`doc_ids[] -> Document[]`)
 
 In the first phase, the ability to search for documents by the given field is determined by the
-[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
+[`IndexRecordOption`](enum.IndexRecordOption.html) of our
 [`TextOptions`](struct.TextOptions.html).
 
 The effect of each possible setting is described more in detail
