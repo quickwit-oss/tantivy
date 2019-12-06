@@ -528,11 +528,7 @@ impl SegmentUpdater {
     /// Obsolete files will eventually be cleaned up
     /// by the directory garbage collector.
     pub fn wait_merging_thread(&self) -> crate::Result<()> {
-        for merge_operation in self.merge_operations.changes_iter() {
-            if merge_operation.is_empty() {
-                break;
-            }
-        }
+        self.merge_operations.wait_until_empty();
         Ok(())
     }
 }
