@@ -35,9 +35,9 @@
 /// let likes = schema_builder.add_u64_field("num_u64", FAST);
 /// let schema = schema_builder.build();
 /// let doc = doc!(
-/// 	title => "Life Aquatic",
-/// 	author => "Wes Anderson",
-/// 	likes => 4u64
+///     title => "Life Aquatic",
+///     author => "Wes Anderson",
+///     likes => 4u64
 /// );
 /// # }
 /// ```

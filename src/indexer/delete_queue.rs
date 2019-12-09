@@ -43,14 +43,14 @@ impl DeleteQueue {
             // try get the last block with simply acquiring the read lock.
             let rlock = self.inner.read().unwrap();
             if let Some(block) = rlock.last_block.upgrade() {
-                return block.clone();
+                return block;
             }
         }
         // It failed. Let's double check after acquiring the write, as someone could have called
         // `get_last_block` right after we released the rlock.
         let mut wlock = self.inner.write().unwrap();
         if let Some(block) = wlock.last_block.upgrade() {
-            return block.clone();
+            return block;
         }
         let block = Arc::new(Block {
             operations: Arc::default(),
