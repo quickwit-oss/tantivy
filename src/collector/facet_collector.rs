@@ -126,7 +126,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     let searcher = reader.searcher();
 ///
 ///     {
-///			let mut facet_collector = FacetCollector::for_field(facet);
+///         let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/lang");
 ///         facet_collector.add_facet("/category");
 ///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
@@ -142,7 +142,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     }
 ///
 ///     {
-///			let mut facet_collector = FacetCollector::for_field(facet);
+///         let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
 ///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 ///
@@ -157,8 +157,8 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///         ]);
 ///     }
 ///
-///    {
-///			let mut facet_collector = FacetCollector::for_field(facet);
+///     {
+///         let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
 ///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 ///
