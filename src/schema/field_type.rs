@@ -6,6 +6,7 @@ use crate::schema::TextFieldIndexing;
 use crate::schema::Value;
 use crate::schema::{IntOptions, TextOptions};
 use crate::tokenizer::PreTokenizedString;
+use chrono::{FixedOffset, Utc};
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -124,13 +125,20 @@ impl FieldType {
     pub fn value_from_json(&self, json: &JsonValue) -> Result<Value, ValueParsingError> {
         match *json {
             JsonValue::String(ref field_text) => match *self {
-                FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {
-                    Err(ValueParsingError::TypeError(format!(
-                        "Expected an integer, got {:?}",
-                        json
-                    )))
+                FieldType::Date(_) => {
+                    let dt_with_fixed_tz: chrono::DateTime<FixedOffset> =
+                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|err|
+                            ValueParsingError::TypeError(format!(
+                                "Failed to parse date from JSON. Expected rfc3339 format, got {}. {:?}",
+                                field_text, err
+                            ))
+                        )?;
+                    Ok(Value::Date(dt_with_fixed_tz.with_timezone(&Utc)))
                 }
+                FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => Err(
+                    ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
+                ),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
                 FieldType::Bytes => decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64(format!(
@@ -208,7 +216,35 @@ mod tests {
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::TextOptions;
     use crate::schema::Value;
+    use crate::schema::{Schema, INDEXED};
     use crate::tokenizer::{PreTokenizedString, Token};
+    use crate::{DateTime, Document};
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
+
+    #[test]
+    fn test_deserialize_json_date() {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", INDEXED);
+        let schema = schema_builder.build();
+        let doc_json = r#"{"date": "2019-10-12T07:20:50.52+02:00"}"#;
+        let doc = schema.parse_document(doc_json).unwrap();
+        let date = doc.get_first(date_field).unwrap();
+        assert_eq!(format!("{:?}", date), "Date(2019-10-12T05:20:50.520Z)");
+    }
+
+    #[test]
+    fn test_serialize_json_date() {
+        let mut doc = Document::new();
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", INDEXED);
+        let schema = schema_builder.build();
+        let naive_date = NaiveDate::from_ymd(1982, 9, 17);
+        let naive_time = NaiveTime::from_hms(13, 20, 00);
+        let date_time = DateTime::from_utc(NaiveDateTime::new(naive_date, naive_time), Utc);
+        doc.add_date(date_field, &date_time);
+        let doc_json = schema.to_json(&doc);
+        assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00+00:00"]}"#);
+    }
 
     #[test]
     fn test_bytes_value_from_json() {

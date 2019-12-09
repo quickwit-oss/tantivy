@@ -75,7 +75,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::F64(u) => serializer.serialize_f64(u),
-            Value::Date(ref date) => serializer.serialize_i64(date.timestamp()),
+            Value::Date(ref date) => serializer.serialize_str(&date.to_rfc3339()),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
         }
@@ -96,12 +96,12 @@ impl<'de> Deserialize<'de> for Value {
                 formatter.write_str("a string or u32")
             }
 
-            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-                Ok(Value::U64(v))
-            }
-
             fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
                 Ok(Value::I64(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+                Ok(Value::U64(v))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
@@ -360,5 +360,19 @@ mod binary_serialize {
                 )),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Value;
+    use crate::DateTime;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_serialize_date() {
+        let value = Value::Date(DateTime::from_str("1996-12-20T00:39:57+00:00").unwrap());
+        let serialized_value_json = serde_json::to_string_pretty(&value).unwrap();
+        assert_eq!(serialized_value_json, r#""1996-12-20T00:39:57+00:00""#);
     }
 }
