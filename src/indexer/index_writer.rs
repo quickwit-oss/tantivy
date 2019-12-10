@@ -771,7 +771,7 @@ mod tests {
     use crate::indexer::NoMergePolicy;
     use crate::query::TermQuery;
     use crate::schema::{self, IndexRecordOption, STRING};
-    use crate::{Index, Document};
+    use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
 
@@ -1200,10 +1200,9 @@ mod tests {
     fn test_index_doc_missing_field() {
         let mut schema_builder = schema::Schema::builder();
         let idfield = schema_builder.add_text_field("id", STRING);
-        let optfield = schema_builder.add_text_field("optfield", STRING);
+        schema_builder.add_text_field("optfield", STRING);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        let doc = Document::default();
         index_writer.add_document(doc!(idfield=>"myid"));
         let commit = index_writer.commit();
         assert!(commit.is_ok());
