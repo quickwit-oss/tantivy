@@ -214,6 +214,10 @@ impl SegmentUpdater {
             self.pool.spawn_ok(async move {
                 let _ = sender.send(f.await);
             });
+        } else {
+            let _ = sender.send(Err(crate::TantivyError::SystemError(
+                "Segment updater killed".to_string(),
+            )));
         }
         receiver.unwrap_or_else(|_| {
             let err_msg =
@@ -326,13 +330,11 @@ impl SegmentUpdater {
     ) -> impl Future<Output = crate::Result<()>> {
         let segment_updater: SegmentUpdater = self.clone();
         self.schedule_future(async move {
-            if segment_updater.is_alive() {
-                let segment_entries = segment_updater.purge_deletes(opstamp)?;
-                segment_updater.segment_manager.commit(segment_entries);
-                segment_updater.save_metas(opstamp, payload)?;
-                let _ = garbage_collect_files(segment_updater.clone()).await;
-                segment_updater.consider_merge_options().await;
-            }
+            let segment_entries = segment_updater.purge_deletes(opstamp)?;
+            segment_updater.segment_manager.commit(segment_entries);
+            segment_updater.save_metas(opstamp, payload)?;
+            let _ = garbage_collect_files(segment_updater.clone()).await;
+            segment_updater.consider_merge_options().await;
             Ok(())
         })
     }

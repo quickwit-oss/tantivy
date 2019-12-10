@@ -1,6 +1,7 @@
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
+use crate::common::BitSet;
 use crate::core::Index;
 use crate::core::Segment;
 use crate::core::SegmentComponent;
@@ -23,7 +24,6 @@ use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::Opstamp;
-use bit_set::BitSet;
 use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
@@ -115,7 +115,7 @@ fn compute_deleted_bitset(
             while docset.advance() {
                 let deleted_doc = docset.doc();
                 if deleted_doc < limit_doc {
-                    delete_bitset.insert(deleted_doc as usize);
+                    delete_bitset.insert(deleted_doc);
                     might_have_changed = true;
                 }
             }
@@ -126,51 +126,61 @@ fn compute_deleted_bitset(
     Ok(might_have_changed)
 }
 
-/// Advance delete for the given segment up
-/// to the target opstamp.
+/// Advance delete for the given segment up to the target opstamp.
+///
+/// Note that there are no guarantee that the resulting `segment_entry` delete_opstamp
+/// is `==` target_opstamp.
+/// For instance, there was no delete operation between the state of the `segment_entry` and
+/// the `target_opstamp`, `segment_entry` is not updated.
 pub(crate) fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
 ) -> crate::Result<()> {
-    {
-        if segment_entry.meta().delete_opstamp() == Some(target_opstamp) {
-            // We are already up-to-date here.
-            return Ok(());
-        }
+    if segment_entry.meta().delete_opstamp() == Some(target_opstamp) {
+        // We are already up-to-date here.
+        return Ok(());
+    }
 
-        let segment_reader = SegmentReader::open(&segment)?;
+    let mut delete_cursor = segment_entry.delete_cursor().clone();
+    if segment_entry.delete_bitset().is_none() && delete_cursor.get().is_none() {
+        // There has been no `DeleteOperation` between the segment status and `target_opstamp`.
+        return Ok(());
+    }
 
-        let max_doc = segment_reader.max_doc();
-        let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
-            Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
-            None => BitSet::with_capacity(max_doc as usize),
-        };
+    let segment_reader = SegmentReader::open(&segment)?;
 
-        let delete_cursor = segment_entry.delete_cursor();
-        compute_deleted_bitset(
-            &mut delete_bitset,
-            &segment_reader,
-            delete_cursor,
-            &DocToOpstampMapping::None,
-            target_opstamp,
-        )?;
+    let max_doc = segment_reader.max_doc();
+    let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
+        Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
+        None => BitSet::with_max_value(max_doc),
+    };
 
-        // TODO optimize
+    compute_deleted_bitset(
+        &mut delete_bitset,
+        &segment_reader,
+        &mut delete_cursor,
+        &DocToOpstampMapping::None,
+        target_opstamp,
+    )?;
+
+    // TODO optimize
+    if let Some(seg_delete_bitset) = segment_reader.delete_bitset() {
         for doc in 0u32..max_doc {
-            if segment_reader.is_deleted(doc) {
-                delete_bitset.insert(doc as usize);
+            if seg_delete_bitset.is_deleted(doc) {
+                delete_bitset.insert(doc);
             }
         }
-
-        let num_deleted_docs = delete_bitset.len();
-        if num_deleted_docs > 0 {
-            segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-            let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
-            write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
-            delete_file.terminate()?;
-        }
     }
+
+    let num_deleted_docs = delete_bitset.len();
+    if num_deleted_docs > 0 {
+        segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
+        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
+        write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
+        delete_file.terminate()?;
+    }
+
     segment_entry.set_meta(segment.meta().clone());
     Ok(())
 }
@@ -236,7 +246,7 @@ fn apply_deletes(
     mut delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
     last_docstamp: Opstamp,
-) -> crate::Result<Option<BitSet<u32>>> {
+) -> crate::Result<Option<BitSet>> {
     if delete_cursor.get().is_none() {
         // if there are no delete operation in the queue, no need
         // to even open the segment.
@@ -246,7 +256,7 @@ fn apply_deletes(
     let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
-    let mut deleted_bitset = BitSet::with_capacity(max_doc as usize);
+    let mut deleted_bitset = BitSet::with_max_value(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,

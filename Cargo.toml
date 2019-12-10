@@ -33,7 +33,6 @@ fs2={version="0.4", optional=true}
 itertools = "0.8"
 levenshtein_automata = {version="0.1", features=["fst_automaton"]}
 notify = {version="4", optional=true}
-bit-set = "0.5"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.7"
 futures = {version = "0.3",  features=["thread-pool"] }
