@@ -70,6 +70,12 @@ impl ReadOnlySource {
         (left, right)
     }
 
+    /// Splits into 2 `ReadOnlySource`, at the offset `end - right_len`.
+    pub fn split_from_end(self, right_len: usize) -> (ReadOnlySource, ReadOnlySource) {
+        let left_len = self.len() - right_len;
+        self.split(left_len)
+    }
+
     /// Creates a ReadOnlySource that is just a
     /// view over a slice of the data.
     ///
