@@ -164,11 +164,19 @@ pub enum OpenReadError {
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     IOError(IOError),
+    /// The version of tantivy trying to read the index doesn't support its format
+    IncompatibleIndex(crate::error::TantivyError),
 }
 
 impl From<IOError> for OpenReadError {
     fn from(err: IOError) -> OpenReadError {
         OpenReadError::IOError(err)
+    }
+}
+
+impl From<crate::error::TantivyError> for OpenReadError {
+    fn from(err: crate::error::TantivyError) -> OpenReadError {
+        OpenReadError::IncompatibleIndex(err)
     }
 }
 
@@ -183,6 +191,7 @@ impl fmt::Display for OpenReadError {
                 "an io error occurred while opening a file for reading: '{}'",
                 err
             ),
+            OpenReadError::IncompatibleIndex(ref err) => write!(f, "{}", err),
         }
     }
 }
@@ -196,6 +205,7 @@ impl StdError for OpenReadError {
         match *self {
             OpenReadError::FileDoesNotExist(_) => None,
             OpenReadError::IOError(ref err) => Some(err),
+            OpenReadError::IncompatibleIndex(_) => None,
         }
     }
 }
