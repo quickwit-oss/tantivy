@@ -42,12 +42,16 @@ pub use self::writer::StoreWriter;
 #[cfg(feature = "lz4")]
 mod compression_lz4;
 #[cfg(feature = "lz4")]
-use self::compression_lz4::*;
+pub use self::compression_lz4::COMPRESSION;
+#[cfg(feature = "lz4")]
+use self::compression_lz4::{compress, decompress};
 
 #[cfg(not(feature = "lz4"))]
 mod compression_snap;
 #[cfg(not(feature = "lz4"))]
-use self::compression_snap::*;
+pub use self::compression_snap::COMPRESSION;
+#[cfg(not(feature = "lz4"))]
+use self::compression_snap::{compress, decompress};
 
 #[cfg(test)]
 pub mod tests {

@@ -1,3 +1,4 @@
+use crate::directory::footer::Footer;
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
@@ -165,18 +166,12 @@ pub enum OpenReadError {
     /// interacting with the underlying IO device.
     IOError(IOError),
     /// The version of tantivy trying to read the index doesn't support its format
-    IncompatibleIndex(crate::error::TantivyError),
+    IncompatibleIndex(Footer),
 }
 
 impl From<IOError> for OpenReadError {
     fn from(err: IOError) -> OpenReadError {
         OpenReadError::IOError(err)
-    }
-}
-
-impl From<crate::error::TantivyError> for OpenReadError {
-    fn from(err: crate::error::TantivyError) -> OpenReadError {
-        OpenReadError::IncompatibleIndex(err)
     }
 }
 
@@ -191,7 +186,9 @@ impl fmt::Display for OpenReadError {
                 "an io error occurred while opening a file for reading: '{}'",
                 err
             ),
-            OpenReadError::IncompatibleIndex(ref err) => write!(f, "{}", err),
+            OpenReadError::IncompatibleIndex(ref footer) => {
+                write!(f, "Incompatible index format: {:?}", footer)
+            }
         }
     }
 }

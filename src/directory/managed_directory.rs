@@ -89,7 +89,9 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
-            Err(OpenReadError::IncompatibleIndex(e)) => Err(e),
+            Err(OpenReadError::IncompatibleIndex(footer)) => {
+                Err(crate::Error::IncompatibleIndex(format!("{:?}", footer)))
+            }
         }
     }
 
@@ -265,7 +267,9 @@ impl Directory for ManagedDirectory {
         let read_only_source = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
-        footer.is_compatible()?;
+        if !footer.is_compatible() {
+            return Err(OpenReadError::IncompatibleIndex(footer));
+        }
         Ok(reader)
     }
 
@@ -412,6 +416,8 @@ mod tests_mmap_specific {
         write.write_all(&[3u8, 4u8, 5u8]).unwrap();
         write.terminate().unwrap();
 
+        let read_source = managed_directory.open_read(test_path2).unwrap();
+        assert_eq!(read_source.as_slice(), &[3u8, 4u8, 5u8]);
         assert!(managed_directory.list_damaged().unwrap().is_empty());
 
         let mut corrupted_path = tempdir_path.clone();

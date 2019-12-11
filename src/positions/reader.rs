@@ -36,11 +36,10 @@ struct Positions {
 
 impl Positions {
     pub fn new(position_source: ReadOnlySource, skip_source: ReadOnlySource) -> Positions {
-        let skip_len = skip_source.len();
-        let (body, footer) = skip_source.split(skip_len - u32::SIZE_IN_BYTES);
+        let (body, footer) = skip_source.split_from_end(u32::SIZE_IN_BYTES);
         let num_long_skips = u32::deserialize(&mut footer.as_slice()).expect("Index corrupted");
-        let body_split = body.len() - u64::SIZE_IN_BYTES * (num_long_skips as usize);
-        let (skip_source, long_skip_source) = body.split(body_split);
+        let (skip_source, long_skip_source) =
+            body.split_from_end(u64::SIZE_IN_BYTES * (num_long_skips as usize));
         Positions {
             bit_packer: BitPacker4x::new(),
             skip_source,
