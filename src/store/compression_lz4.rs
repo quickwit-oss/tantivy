@@ -3,7 +3,8 @@ use std::io::{self, Read, Write};
 /// Name of the compression scheme used in the doc store.
 ///
 /// This name is appended to the version string of tantivy.
-pub const COMPRESSION: &'static str = "lz4";
+/// Space padded for consistency in serialisation/deserialisation
+pub const COMPRESSION: &'static str = "lz4 ";
 
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();

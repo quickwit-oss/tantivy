@@ -2,10 +2,11 @@ use snap;
 
 use std::io::{self, Read, Write};
 
-/// Name of the compression scheme used in the doc store.
+/// Name of the compression scheme used in the doc store - set at compile-time with a feature flag.
 ///
 /// This name is appended to the version string of tantivy.
-pub const COMPRESSION: &'static str = "snappy";
+// Shortened to 4 characters for consistency
+pub const COMPRESSION: &'static str = "snap";
 
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();

@@ -7,6 +7,7 @@ use crate::directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWr
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::query;
 use crate::schema;
+use crate::Version;
 use serde_json;
 use std::fmt;
 use std::path::PathBuf;
@@ -40,6 +41,73 @@ impl fmt::Debug for DataCorruption {
             write!(f, "(in file `{:?}`)", filepath)?;
         }
         write!(f, ": {}.", self.comment)?;
+        Ok(())
+    }
+}
+
+// Type of index incompatibility between the library and the index found on disk
+// Since we will serialize library version and compression method used to the footer of the index.
+// we can use this information to prepare a helpful error message with a hint to the user.
+pub enum Incompatibility {
+    CompressionMismatch { library: Version, index: Version },
+    IndexMismatch { library: Version, index: Version },
+    CompressionAndIndexMismatch { library: Version, index: Version },
+}
+
+impl fmt::Debug for Incompatibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Incompatibility::CompressionMismatch { library, index } => {
+                let err = format!(
+                    "Library was compiled with {:?} compression, index was compressed with {:?}",
+                    library.store_compression, index.store_compression
+                );
+                let advice = format!(
+                    "Change the feature flag to {:?} and rebuild the library",
+                    index.store_compression
+                );
+                write!(f, "{}. {}", err, advice)?;
+            }
+            Incompatibility::IndexMismatch { library, index } => {
+                let err = format!(
+                    "Library version: {:?}, index version: {:?}",
+                    library.index_format_version, index.index_format_version
+                );
+                // TODO make a more useful error message
+                // include the version range that supports this index_format_version
+                let advice = format!(
+                    "Change tantivy to version {}.{} and rebuild the library",
+                    index.major, index.minor
+                );
+                write!(f, "{}. {}", err, advice)?;
+            }
+            Incompatibility::CompressionAndIndexMismatch { library, index } => {
+                let compression_err = format!(
+                    "Library was compiled with {:?} compression, index was compressed with {:?}",
+                    library.store_compression, index.store_compression
+                );
+                let compression_advice = format!(
+                    "Change the feature flag to {:?} and rebuild the library",
+                    index.store_compression
+                );
+                let index_err = format!(
+                    "Library version: {:?}, index version: {:?}",
+                    library.index_format_version, index.index_format_version
+                );
+                // TODO make a more useful error message
+                // include the version range that supports this index_format_version
+                let index_advice = format!(
+                    "Change tantivy to version {}.{} and rebuild the library",
+                    index.major, index.minor
+                );
+                write!(
+                    f,
+                    "{}. {}\n{}. {}",
+                    compression_err, compression_advice, index_err, index_advice
+                )?;
+            }
+        }
+
         Ok(())
     }
 }
@@ -81,11 +149,8 @@ pub enum TantivyError {
     #[fail(display = "System error.'{}'", _0)]
     SystemError(String),
     /// Index incompatible with current version of tantivy
-    #[fail(
-        display = "Current version of tantivy is incompatible with index version: '{}'",
-        _0
-    )]
-    IncompatibleIndex(String),
+    #[fail(display = "{:?}", _0)]
+    IncompatibleIndex(Incompatibility),
 }
 
 impl From<DataCorruption> for TantivyError {
@@ -135,8 +200,8 @@ impl From<OpenReadError> for TantivyError {
         match error {
             OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
             OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
-            OpenReadError::IncompatibleIndex(tantivy_err) => {
-                TantivyError::IncompatibleIndex(format!("{:?}", tantivy_err))
+            OpenReadError::IncompatibleIndex(incompatibility) => {
+                TantivyError::IncompatibleIndex(incompatibility)
             }
         }
     }
