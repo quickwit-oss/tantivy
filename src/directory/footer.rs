@@ -276,28 +276,27 @@ mod tests {
     fn versioned_footer_from_bytes() {
         let v_footer_bytes = vec![
             // versionned footer length
-            12,
-            0,
-            0,
-            0,
+            12 | 128,
             // index format version
             1,
             0,
             0,
             0,
-            // compression format
-            3 | 128,
-            b'l',
-            b'z',
-            b'4',
             // crc 32
             12,
             35,
             89,
             18,
+            // compression format
+            3 | 128,
+            b'l',
+            b'z',
+            b'4',
         ];
-        let versioned_footer = VersionedFooter::deserialize(&mut &v_footer_bytes[..]).unwrap();
-        let expected_crc: u32 = LittleEndian::read_u32(&v_footer_bytes[8..12]) as CrcHashU32;
+        let mut cursor = &v_footer_bytes[..];
+        let versioned_footer = VersionedFooter::deserialize(&mut cursor).unwrap();
+        assert!(cursor.is_empty());
+        let expected_crc: u32 = LittleEndian::read_u32(&v_footer_bytes[5..9]) as CrcHashU32;
         let expected_versioned_footer: VersionedFooter = VersionedFooter::V1 {
             crc32: expected_crc,
             compression: "lz4".to_string(),
@@ -310,11 +309,13 @@ mod tests {
 
     #[test]
     fn versioned_footer_panic() {
-        let v_footer_bytes = vec![4u8, 0u8, 0u8, 0u8, 2u8, 0u8, 0u8, 0u8];
+        let v_footer_bytes = vec![6u8 | 128u8, 3u8, 0u8, 0u8, 1u8, 0u8, 0u8];
         let mut b = &v_footer_bytes[..];
         let versioned_footer = VersionedFooter::deserialize(&mut b).unwrap();
         assert!(b.is_empty());
-        let expected_versioned_footer = VersionedFooter::UnknownVersion { version: 2u32 };
+        let expected_versioned_footer = VersionedFooter::UnknownVersion {
+            version: 16_777_219u32,
+        };
         assert_eq!(versioned_footer, expected_versioned_footer);
         let mut buf = Vec::new();
         assert!(versioned_footer.serialize(&mut buf).is_err());
