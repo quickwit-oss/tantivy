@@ -16,10 +16,11 @@ Tantivy 0.11.0
 
 ## How to update?
 
+- The index format is changed. You are required to reindex your data to use tantivy 0.11. 
 - `Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
 - Regex are now compiled when the `RegexQuery` instance is built. As a result, it can now return
 an error and handling the `Result` is required.
-
+- `tantivy::version()` now returns a `Version` object. This object implements `ToString()`
 
 Tantivy 0.10.2
 =====================
