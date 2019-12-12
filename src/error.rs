@@ -2,8 +2,8 @@
 
 use std::io;
 
-use crate::directory::error::LockError;
 use crate::directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
+use crate::directory::error::{Incompatibility, LockError};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::query;
 use crate::schema;
@@ -81,11 +81,8 @@ pub enum TantivyError {
     #[fail(display = "System error.'{}'", _0)]
     SystemError(String),
     /// Index incompatible with current version of tantivy
-    #[fail(
-        display = "Current version of tantivy is incompatible with index version: '{}'",
-        _0
-    )]
-    IncompatibleIndex(String),
+    #[fail(display = "{:?}", _0)]
+    IncompatibleIndex(Incompatibility),
 }
 
 impl From<DataCorruption> for TantivyError {
@@ -135,8 +132,8 @@ impl From<OpenReadError> for TantivyError {
         match error {
             OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
             OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
-            OpenReadError::IncompatibleIndex(tantivy_err) => {
-                TantivyError::IncompatibleIndex(format!("{:?}", tantivy_err))
+            OpenReadError::IncompatibleIndex(incompatibility) => {
+                TantivyError::IncompatibleIndex(incompatibility)
             }
         }
     }

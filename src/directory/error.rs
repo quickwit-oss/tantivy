@@ -1,4 +1,4 @@
-use crate::directory::footer::Footer;
+use crate::Version;
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
@@ -157,6 +157,65 @@ impl StdError for OpenWriteError {
     }
 }
 
+/// Type of index incompatibility between the library and the index found on disk
+/// Used to catch and provide a hint to solve this incompatibility issue
+pub enum Incompatibility {
+    /// This library cannot decompress the index found on disk
+    CompressionMismatch {
+        /// Compression algorithm used by the current version of tantivy
+        library_compression_format: String,
+        /// Compression algorithm that was used to serialise the index
+        index_compression_format: String,
+    },
+    /// The index format found on disk isn't supported by this version of the library
+    IndexMismatch {
+        /// Version used by the library
+        library_version: Version,
+        /// Version the index was built with
+        index_version: Version,
+    },
+}
+
+impl fmt::Debug for Incompatibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Incompatibility::CompressionMismatch {
+                library_compression_format,
+                index_compression_format,
+            } => {
+                let err = format!(
+                    "Library was compiled with {:?} compression, index was compressed with {:?}",
+                    library_compression_format, index_compression_format
+                );
+                let advice = format!(
+                    "Change the feature flag to {:?} and rebuild the library",
+                    index_compression_format
+                );
+                write!(f, "{}. {}", err, advice)?;
+            }
+            Incompatibility::IndexMismatch {
+                library_version,
+                index_version,
+            } => {
+                let err = format!(
+                    "Library version: {}, index version: {}",
+                    library_version.index_format_version, index_version.index_format_version
+                );
+                // TODO make a more useful error message
+                // include the version range that supports this index_format_version
+                let advice = format!(
+                    "Change tantivy to a version compatible with index format {} (e.g. {}.{}.x) \
+                     and rebuild your project.",
+                    index_version.index_format_version, index_version.major, index_version.minor
+                );
+                write!(f, "{}. {}", err, advice)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /// Error that may occur when accessing a file read
 #[derive(Debug)]
 pub enum OpenReadError {
@@ -165,8 +224,8 @@ pub enum OpenReadError {
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     IOError(IOError),
-    /// The version of tantivy trying to read the index doesn't support its format
-    IncompatibleIndex(Footer),
+    /// This library doesn't support the index version found on disk
+    IncompatibleIndex(Incompatibility),
 }
 
 impl From<IOError> for OpenReadError {
@@ -193,20 +252,6 @@ impl fmt::Display for OpenReadError {
     }
 }
 
-impl StdError for OpenReadError {
-    fn description(&self) -> &str {
-        "error occurred while opening a file for reading"
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        match *self {
-            OpenReadError::FileDoesNotExist(_) => None,
-            OpenReadError::IOError(ref err) => Some(err),
-            OpenReadError::IncompatibleIndex(_) => None,
-        }
-    }
-}
-
 /// Error that may occur when trying to delete a file
 #[derive(Debug)]
 pub enum DeleteError {
@@ -220,6 +265,12 @@ pub enum DeleteError {
 impl From<IOError> for DeleteError {
     fn from(err: IOError) -> DeleteError {
         DeleteError::IOError(err)
+    }
+}
+
+impl From<Incompatibility> for OpenReadError {
+    fn from(incompatibility: Incompatibility) -> Self {
+        OpenReadError::IncompatibleIndex(incompatibility)
     }
 }
 

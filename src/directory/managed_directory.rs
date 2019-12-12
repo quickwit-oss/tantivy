@@ -9,7 +9,6 @@ use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
-use crate::Result;
 
 use crc32fast::Hasher;
 use serde_json;
@@ -66,7 +65,7 @@ fn save_managed_paths(
 
 impl ManagedDirectory {
     /// Wraps a directory as managed directory.
-    pub fn wrap<Dir: Directory>(directory: Dir) -> Result<ManagedDirectory> {
+    pub fn wrap<Dir: Directory>(directory: Dir) -> crate::Result<ManagedDirectory> {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
@@ -89,8 +88,10 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
-            Err(OpenReadError::IncompatibleIndex(footer)) => {
-                Err(crate::Error::IncompatibleIndex(format!("{:?}", footer)))
+            Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
+                // For the moment, this should never happen  `meta.json`
+                // do not have any footer and cannot detect incompatibility.
+                Err(crate::TantivyError::IncompatibleIndex(incompatibility))
             }
         }
     }
@@ -267,9 +268,7 @@ impl Directory for ManagedDirectory {
         let read_only_source = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
-        if !footer.is_compatible() {
-            return Err(OpenReadError::IncompatibleIndex(footer));
-        }
+        footer.is_compatible()?;
         Ok(reader)
     }
 
