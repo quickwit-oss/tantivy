@@ -48,6 +48,9 @@ pub use self::mmap_directory::MmapDirectory;
 pub use self::managed_directory::ManagedDirectory;
 
 /// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite#method.terminate_ref) directly
+///
+/// The point is that while the type is public, it cannot be built by anyone
+/// outside of this module.
 pub struct AntiCallToken(());
 
 /// Trait used to indicate when no more write need to be done on a writer

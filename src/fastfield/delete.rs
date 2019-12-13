@@ -1,9 +1,8 @@
-use crate::common::HasLen;
+use crate::common::{BitSet, HasLen};
 use crate::directory::ReadOnlySource;
 use crate::directory::WritePtr;
 use crate::space_usage::ByteCount;
 use crate::DocId;
-use bit_set::BitSet;
 use std::io;
 use std::io::Write;
 
@@ -17,7 +16,7 @@ pub fn write_delete_bitset(
 ) -> io::Result<()> {
     let mut byte = 0u8;
     let mut shift = 0u8;
-    for doc in 0..(max_doc as usize) {
+    for doc in 0..max_doc {
         if delete_bitset.contains(doc) {
             byte |= 1 << shift;
         }
@@ -32,7 +31,7 @@ pub fn write_delete_bitset(
     if max_doc % 8 > 0 {
         writer.write_all(&[byte])?;
     }
-    writer.flush()
+    Ok(())
 }
 
 /// Set of deleted `DocId`s.
@@ -86,7 +85,6 @@ impl HasLen for DeleteBitSet {
 mod tests {
     use super::*;
     use crate::directory::*;
-    use bit_set::BitSet;
     use std::path::PathBuf;
 
     fn test_delete_bitset_helper(bitset: &BitSet, max_doc: u32) {
@@ -95,27 +93,26 @@ mod tests {
         {
             let mut writer = directory.open_write(&*test_path).unwrap();
             write_delete_bitset(bitset, max_doc, &mut writer).unwrap();
+            writer.terminate().unwrap();
         }
-        {
-            let source = directory.open_read(&test_path).unwrap();
-            let delete_bitset = DeleteBitSet::open(source);
-            for doc in 0..max_doc as usize {
-                assert_eq!(bitset.contains(doc), delete_bitset.is_deleted(doc as DocId));
-            }
-            assert_eq!(delete_bitset.len(), bitset.len());
+        let source = directory.open_read(&test_path).unwrap();
+        let delete_bitset = DeleteBitSet::open(source);
+        for doc in 0..max_doc {
+            assert_eq!(bitset.contains(doc), delete_bitset.is_deleted(doc as DocId));
         }
+        assert_eq!(delete_bitset.len(), bitset.len());
     }
 
     #[test]
     fn test_delete_bitset() {
         {
-            let mut bitset = BitSet::with_capacity(10);
+            let mut bitset = BitSet::with_max_value(10);
             bitset.insert(1);
             bitset.insert(9);
             test_delete_bitset_helper(&bitset, 10);
         }
         {
-            let mut bitset = BitSet::with_capacity(8);
+            let mut bitset = BitSet::with_max_value(8);
             bitset.insert(1);
             bitset.insert(2);
             bitset.insert(3);
