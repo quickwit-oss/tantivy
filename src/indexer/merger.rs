@@ -1496,7 +1496,12 @@ mod tests {
     #[test]
     fn merges_f64_fast_fields_correctly() -> crate::Result<()> {
         let mut builder = schema::SchemaBuilder::new();
+
+        let fast_multi = IntOptions::default().set_fast(Cardinality::MultiValues);
+
         let field = builder.add_f64_field("f64", schema::FAST);
+        let multi_field = builder.add_f64_field("f64s", fast_multi);
+
         let index = Index::create_in_ram(builder.build());
 
         let mut writer = index.writer_with_num_threads(1, 3_000_000)?;
@@ -1508,7 +1513,11 @@ mod tests {
 
         for i in 0..100 {
             let mut doc = Document::new();
-            doc.add_u64(field, 42);
+            doc.add_f64(field, 42.0);
+
+            doc.add_f64(multi_field, 0.24);
+            doc.add_f64(multi_field, 0.27);
+
             writer.add_document(doc);
 
             if i % 5 == 0 {

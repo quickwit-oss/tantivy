@@ -203,6 +203,9 @@ impl FastFieldReaders {
         if let Some(i64s_ff_reader) = self.i64s(field) {
             return Some(i64s_ff_reader.into_u64s_reader());
         }
+        if let Some(f64s_ff_reader) = self.f64s(field) {
+            return Some(f64s_ff_reader.into_u64s_reader());
+        }
         None
     }
 
