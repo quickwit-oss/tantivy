@@ -156,8 +156,6 @@ impl FastFieldReaders {
     /// If the field is a i64-fast field, return the associated u64 reader. Values are
     /// mapped from i64 to u64 using a (well the, it is unique) monotonic mapping.    ///
     ///
-    ///TODO should it also be lenient with f64?
-    ///
     /// This method is useful when merging segment reader.
     pub(crate) fn u64_lenient(&self, field: Field) -> Option<FastFieldReader<u64>> {
         if let Some(u64_ff_reader) = self.u64(field) {
@@ -165,6 +163,9 @@ impl FastFieldReaders {
         }
         if let Some(i64_ff_reader) = self.i64(field) {
             return Some(i64_ff_reader.into_u64_reader());
+        }
+        if let Some(f64_ff_reader) = self.f64(field) {
+            return Some(f64_ff_reader.into_u64_reader());
         }
         None
     }
@@ -201,6 +202,9 @@ impl FastFieldReaders {
         }
         if let Some(i64s_ff_reader) = self.i64s(field) {
             return Some(i64s_ff_reader.into_u64s_reader());
+        }
+        if let Some(f64s_ff_reader) = self.f64s(field) {
+            return Some(f64s_ff_reader.into_u64s_reader());
         }
         None
     }
