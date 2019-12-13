@@ -173,6 +173,7 @@ use std::fmt;
 
 use once_cell::sync::Lazy;
 
+/// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 1;
 
 /// Structure version for the index.
