@@ -2,8 +2,6 @@ use crate::common::{BinarySerializable, CountingWriter, FixedSize, VInt};
 use crate::directory::read_only_source::ReadOnlySource;
 use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::error::Incompatibility;
-use crate::error::TantivyError::IncompatibleIndex;
-use crate::error::TantivyError;
 use crate::Version;
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use crc32fast::Hasher;
@@ -89,41 +87,40 @@ impl Footer {
 
     /// Confirms that the index will be read correctly by this version of tantivy
     /// Has to be called after `extract_footer` to make sure it's not accessing uninitialised memory
-    pub fn is_compatible(&self) -> Result<bool, TantivyError> {
+    pub fn is_compatible(&self) -> Result<(), Incompatibility> {
         let library = &*crate::VERSION;
         match &self.versioned_footer {
             VersionedFooter::V1 {
-                crc32: _,
+                crc32: _crc,
                 compression,
             } => {
                 // V1 means should be equal with 1
                 if library.index_format_version != 1u32 {
                     if &library.store_compression != compression {
-                        return Err(IncompatibleIndex(
-                            Incompatibility::CompressionAndIndexMismatch {
-                                library: library.clone(),
-                                index: self.version.clone(),
-                            },
-                        ));
-                    } else {
-                        return Err(IncompatibleIndex(Incompatibility::IndexMismatch {
+                        return Err(Incompatibility::CompressionAndIndexMismatch {
                             library: library.clone(),
                             index: self.version.clone(),
-                        }));
+                        });
+                    } else {
+                        return Err(Incompatibility::IndexMismatch {
+                            library: library.clone(),
+                            index: self.version.clone(),
+                        });
                     }
                 }
 
                 if &library.store_compression != compression {
-                    return Err(IncompatibleIndex(Incompatibility::CompressionMismatch {
+                    return Err(Incompatibility::CompressionMismatch {
                         library: library.clone(),
                         index: self.version.clone(),
-                    }));
+                    });
                 }
 
-                Ok(true)
+                Ok(())
             }
-            // TODO - discuss if we should add another error type
-            VersionedFooter::UnknownVersion { version: _ } => return Ok(false),
+            VersionedFooter::UnknownVersion { .. } => {
+                Err(Incompatibility::UnsupportedIndex)
+            }
         }
     }
 }
@@ -148,14 +145,14 @@ impl BinarySerializable for VersionedFooter {
             VersionedFooter::V1 { crc32, compression } => {
                 // Serializes a valid `VersionedFooter` or panics if the version is unknown
                 // [   version    |   crc_hash  | compression_mode ]
-                // [    0..4      |     4..8    |       8.. 12     ]
+                // [    0..4      |     4..8    |     variable     ]
                 BinarySerializable::serialize(crc32, &mut buf)?;
                 BinarySerializable::serialize(compression, &mut buf)?;
             }
-            VersionedFooter::UnknownVersion { version: _ } => {
+            VersionedFooter::UnknownVersion { .. } => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    "Cannot serialize an unknown versionned footer ",
+                    "Cannot serialize an unknown versioned footer ",
                 ));
             }
         }
@@ -183,10 +180,7 @@ impl BinarySerializable for VersionedFooter {
 impl VersionedFooter {
     pub fn version(&self) -> u32 {
         match self {
-            VersionedFooter::V1 {
-                crc32: _,
-                compression: _,
-            } => 1u32,
+            VersionedFooter::V1 { .. } => 1u32,
             VersionedFooter::UnknownVersion { version, .. } => *version,
         }
     }
@@ -195,7 +189,7 @@ impl VersionedFooter {
         match self {
             VersionedFooter::V1 {
                 crc32,
-                compression: _,
+                ..
             } => Some(*crc32),
             VersionedFooter::UnknownVersion { .. } => None,
         }
@@ -259,7 +253,7 @@ mod tests {
         let mut vec = Vec::new();
         let footer_proxy = FooterProxy::new(&mut vec);
         assert!(footer_proxy.terminate().is_ok());
-        assert_eq!(vec.len(), 161);
+        assert_eq!(vec.len(), 167);
         let footer = Footer::deserialize(&mut &vec[..]).unwrap();
         assert_eq!(
             footer.versioned_footer.version(),
@@ -274,7 +268,7 @@ mod tests {
         let crc32 = 123456u32;
         let footer: Footer = Footer::new(VersionedFooter::V1 {
             crc32,
-            compression: "lz4 ".to_string(),
+            compression: "lz4".to_string(),
         });
         footer.serialize(&mut buffer).unwrap();
         let footer_deser = Footer::deserialize(&mut &buffer[..]).unwrap();
@@ -287,11 +281,11 @@ mod tests {
         let crc32 = 1111111u32;
         let versioned_footer = VersionedFooter::V1 {
             crc32,
-            compression: "lz4 ".to_string(),
+            compression: "lz4".to_string(),
         };
         let mut buf = Vec::new();
         versioned_footer.serialize(&mut buf).unwrap();
-        assert_eq!(buf.len(), 14);
+        assert_eq!(buf.len(), 13);
         let footer = Footer::new(versioned_footer);
         let regex_ptn = Regex::new(
             "tantivy v[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.{0,10}, index_format v[0-9]{1,5}",

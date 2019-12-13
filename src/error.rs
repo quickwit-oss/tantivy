@@ -52,6 +52,7 @@ pub enum Incompatibility {
     CompressionMismatch { library: Version, index: Version },
     IndexMismatch { library: Version, index: Version },
     CompressionAndIndexMismatch { library: Version, index: Version },
+    UnsupportedIndex,
 }
 
 impl fmt::Debug for Incompatibility {
@@ -105,6 +106,9 @@ impl fmt::Debug for Incompatibility {
                     "{}. {}\n{}. {}",
                     compression_err, compression_advice, index_err, index_advice
                 )?;
+            }
+            Incompatibility::UnsupportedIndex => {
+                write!(f, "UnknownVersion of the index is not supported by this library. Please reindex or downgrade your tantivy version")?;
             }
         }
 
@@ -200,9 +204,6 @@ impl From<OpenReadError> for TantivyError {
         match error {
             OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
             OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
-            OpenReadError::IncompatibleIndex(incompatibility) => {
-                TantivyError::IncompatibleIndex(incompatibility)
-            }
         }
     }
 }

@@ -8,7 +8,6 @@ use crate::directory::META_LOCK;
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
-use crate::error::TantivyError::IncompatibleIndex;
 use crate::Directory;
 use crate::Result;
 
@@ -90,7 +89,6 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
-            Err(OpenReadError::IncompatibleIndex(incompat)) => Err(IncompatibleIndex(incompat)),
         }
     }
 
@@ -266,7 +264,7 @@ impl Directory for ManagedDirectory {
         let read_only_source = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
-        footer.is_compatible()?;
+        footer.is_compatible().unwrap();
         Ok(reader)
     }
 
