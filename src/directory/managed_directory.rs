@@ -9,7 +9,7 @@ use crate::directory::{ReadOnlySource, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
-use crate::Result;
+
 use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
@@ -65,7 +65,7 @@ fn save_managed_paths(
 
 impl ManagedDirectory {
     /// Wraps a directory as managed directory.
-    pub fn wrap<Dir: Directory>(directory: Dir) -> Result<ManagedDirectory> {
+    pub fn wrap<Dir: Directory>(directory: Dir) -> crate::Result<ManagedDirectory> {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
@@ -88,6 +88,11 @@ impl ManagedDirectory {
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
+            Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
+                // For the moment, this should never happen  `meta.json`
+                // do not have any footer and cannot detect incompatibility.
+                Err(crate::TantivyError::IncompatibleIndex(incompatibility))
+            }
         }
     }
 
@@ -261,8 +266,9 @@ impl ManagedDirectory {
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         let read_only_source = self.directory.open_read(path)?;
-        let (_footer, reader) = Footer::extract_footer(read_only_source)
+        let (footer, reader) = Footer::extract_footer(read_only_source)
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        footer.is_compatible()?;
         Ok(reader)
     }
 
@@ -409,6 +415,8 @@ mod tests_mmap_specific {
         write.write_all(&[3u8, 4u8, 5u8]).unwrap();
         write.terminate().unwrap();
 
+        let read_source = managed_directory.open_read(test_path2).unwrap();
+        assert_eq!(read_source.as_slice(), &[3u8, 4u8, 5u8]);
         assert!(managed_directory.list_damaged().unwrap().is_empty());
 
         let mut corrupted_path = tempdir_path.clone();

@@ -160,7 +160,6 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
-
 pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::SegmentComponent;
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
@@ -170,11 +169,58 @@ pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
+use std::fmt;
 
-/// Expose the current version of tantivy, as well
-/// whether it was compiled with the simd compression.
-pub fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
+use once_cell::sync::Lazy;
+
+/// Index format version.
+const INDEX_FORMAT_VERSION: u32 = 1;
+
+/// Structure version for the index.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Version {
+    major: u32,
+    minor: u32,
+    patch: u32,
+    index_format_version: u32,
+    store_compression: String,
+}
+
+impl fmt::Debug for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+static VERSION: Lazy<Version> = Lazy::new(|| Version {
+    major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+    minor: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+    patch: env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+    index_format_version: INDEX_FORMAT_VERSION,
+    store_compression: crate::store::COMPRESSION.to_string(),
+});
+
+impl ToString for Version {
+    fn to_string(&self) -> String {
+        format!(
+            "tantivy v{}.{}.{}, index_format v{}, store_compression: {}",
+            self.major, self.minor, self.patch, self.index_format_version, self.store_compression
+        )
+    }
+}
+
+static VERSION_STRING: Lazy<String> = Lazy::new(|| VERSION.to_string());
+
+/// Expose the current version of tantivy as found in Cargo.toml during compilation.
+/// eg. "0.11.0" as well as the compression scheme used in the docstore.
+pub fn version() -> &'static Version {
+    &VERSION
+}
+
+/// Exposes the complete version of tantivy as found in Cargo.toml during compilation as a string.
+/// eg. "tantivy v0.11.0, index_format v1, store_compression: lz4".
+pub fn version_string() -> &'static str {
+    VERSION_STRING.as_str()
 }
 
 /// Defines tantivy's merging strategy
@@ -285,6 +331,18 @@ mod tests {
 
     pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
         sample_with_seed(n, ratio, 4)
+    }
+
+    #[test]
+    #[cfg(not(feature = "lz4"))]
+    fn test_version_string() {
+        use regex::Regex;
+        let regex_ptn = Regex::new(
+            "tantivy v[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.{0,10}, index_format v[0-9]{1,5}",
+        )
+        .unwrap();
+        let version = super::version().to_string();
+        assert!(regex_ptn.find(&version).is_some());
     }
 
     #[test]

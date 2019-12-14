@@ -81,6 +81,13 @@ impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
     }
 }
 
+#[cfg(test)]
+impl<'a> TerminatingWrite for &'a mut Vec<u8> {
+    fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
+        self.flush()
+    }
+}
+
 /// Write object for Directory.
 ///
 /// `WritePtr` are required to implement both Write

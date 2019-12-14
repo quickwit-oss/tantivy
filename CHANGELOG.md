@@ -9,6 +9,7 @@ Tantivy 0.11.0
 - API change around `Box<BoxableTokenizer>`. See detail in #629
 - Avoid rebuilding Regex automaton whenever a regex query is reused. #639 (@brainlock)
 - Add footer with some metadata to index files. #605 (@fdb-hiroshima)
+- Add a method to check the compatibility of the footer in the index with the running version of tantivy (@petr-tik)
 - TopDocs collector: ensure stable sorting on equal score. #671 (@brainlock)
 - Added handling of pre-tokenized text fields (#642), which will enable users to
   load tokens created outside tantivy. See usage in examples/pre_tokenized_text. (@kkoziara)
@@ -16,10 +17,11 @@ Tantivy 0.11.0
 
 ## How to update?
 
+- The index format is changed. You are required to reindex your data to use tantivy 0.11. 
 - `Box<dyn BoxableTokenizer>` has been replaced by a `BoxedTokenizer` struct.
 - Regex are now compiled when the `RegexQuery` instance is built. As a result, it can now return
 an error and handling the `Result` is required.
-
+- `tantivy::version()` now returns a `Version` object. This object implements `ToString()`
 
 Tantivy 0.10.2
 =====================
