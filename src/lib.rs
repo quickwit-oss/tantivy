@@ -940,4 +940,73 @@ mod tests {
             assert_eq!(fast_field_reader.get(0), 4f64)
         }
     }
+
+    // motivated by #729
+    #[test]
+    fn test_update_via_delete_insert() {
+        use crate::collector::Count;
+        use crate::indexer::NoMergePolicy;
+        use crate::query::AllQuery;
+        use crate::SegmentId;
+        use futures::executor::block_on;
+
+        const DOC_COUNT: u64 = 2u64;
+
+        let mut schema_builder = SchemaBuilder::default();
+        let id = schema_builder.add_u64_field("id", INDEXED);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+        let index_reader = index.reader().unwrap();
+
+        let mut index_writer = index.writer(3_000_000).unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        for doc_id in 0u64..DOC_COUNT {
+            index_writer.add_document(doc!(id => doc_id));
+        }
+        index_writer.commit().unwrap();
+
+        index_reader.reload().unwrap();
+        let searcher = index_reader.searcher();
+
+        assert_eq!(
+            searcher.search(&AllQuery, &Count).unwrap(),
+            DOC_COUNT as usize
+        );
+
+        // update the 10 elements by deleting and re-adding
+        for doc_id in 0u64..DOC_COUNT {
+            index_writer.delete_term(Term::from_field_u64(id, doc_id));
+            index_writer.commit().unwrap();
+            index_reader.reload().unwrap();
+            let doc = doc!(id =>  doc_id);
+            index_writer.add_document(doc);
+            index_writer.commit().unwrap();
+            index_reader.reload().unwrap();
+            let searcher = index_reader.searcher();
+            // The number of document should be stable.
+            assert_eq!(
+                searcher.search(&AllQuery, &Count).unwrap(),
+                DOC_COUNT as usize
+            );
+        }
+
+        index_reader.reload().unwrap();
+        let searcher = index_reader.searcher();
+        let segment_ids: Vec<SegmentId> = searcher
+            .segment_readers()
+            .into_iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        block_on(index_writer.merge(&segment_ids)).unwrap();
+
+        index_reader.reload().unwrap();
+        let searcher = index_reader.searcher();
+
+        assert_eq!(
+            searcher.search(&AllQuery, &Count).unwrap(),
+            DOC_COUNT as usize
+        );
+    }
 }

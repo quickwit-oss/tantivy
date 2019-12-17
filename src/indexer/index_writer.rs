@@ -142,8 +142,7 @@ pub(crate) fn advance_deletes(
         return Ok(());
     }
 
-    let mut delete_cursor = segment_entry.delete_cursor().clone();
-    if segment_entry.delete_bitset().is_none() && delete_cursor.get().is_none() {
+    if segment_entry.delete_bitset().is_none() && segment_entry.delete_cursor().get().is_none() {
         // There has been no `DeleteOperation` between the segment status and `target_opstamp`.
         return Ok(());
     }
@@ -159,7 +158,7 @@ pub(crate) fn advance_deletes(
     compute_deleted_bitset(
         &mut delete_bitset,
         &segment_reader,
-        &mut delete_cursor,
+        segment_entry.delete_cursor(),
         &DocToOpstampMapping::None,
         target_opstamp,
     )?;
