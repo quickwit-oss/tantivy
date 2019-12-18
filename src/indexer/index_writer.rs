@@ -514,9 +514,13 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub async fn merge(&mut self, segment_ids: &[SegmentId]) -> crate::Result<SegmentMeta> {
+    pub fn merge(
+        &mut self,
+        segment_ids: &[SegmentId],
+    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
         let merge_operation = self.segment_updater.make_merge_operation(segment_ids);
-        self.segment_updater.start_merge(merge_operation)?.await
+        let segment_updater = self.segment_updater.clone();
+        async move { segment_updater.start_merge(merge_operation)?.await }
     }
 
     /// Closes the current document channel send.
