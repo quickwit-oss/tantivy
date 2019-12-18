@@ -1,3 +1,7 @@
+Tantivy 0.11.2
+=======================
+- The future returned by `IndexWriter::merge` does not borrow `self` mutably anymore (#732)
+
 Tantivy 0.11.1
 =====================
 - Bug fix #729
