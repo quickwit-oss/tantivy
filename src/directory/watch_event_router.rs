@@ -24,13 +24,20 @@ pub struct WatchCallbackList {
 #[derive(Clone)]
 pub struct WatchHandle(Arc<WatchCallback>);
 
+impl WatchHandle {
+    /// Create a WatchHandle handle.
+    pub fn new(watch_callback: Arc<WatchCallback>) -> WatchHandle {
+        WatchHandle(watch_callback)
+    }
+}
+
 impl WatchCallbackList {
     /// Suscribes a new callback and returns a handle that controls the lifetime of the callback.
     pub fn subscribe(&self, watch_callback: WatchCallback) -> WatchHandle {
         let watch_callback_arc = Arc::new(watch_callback);
         let watch_callback_weak = Arc::downgrade(&watch_callback_arc);
         self.router.write().unwrap().push(watch_callback_weak);
-        WatchHandle(watch_callback_arc)
+        WatchHandle::new(watch_callback_arc)
     }
 
     fn list_callback(&self) -> Vec<Arc<WatchCallback>> {
