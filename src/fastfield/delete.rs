@@ -4,8 +4,8 @@ use crate::directory::WritePtr;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 use std::io;
-use std::sync::Arc;
 use std::io::Write;
+use std::sync::Arc;
 
 /// Write a delete `BitSet`
 ///
@@ -46,10 +46,7 @@ impl DeleteBitSet {
     /// Opens a delete bitset given its data source.
     pub fn open(mut data: ReadOnlySource) -> DeleteBitSet {
         let data = data.read_all().expect("Can't read delete bitset");
-        let num_deleted: usize = data
-            .iter()
-            .map(|b| b.count_ones() as usize)
-            .sum();
+        let num_deleted: usize = data.iter().map(|b| b.count_ones() as usize).sum();
         DeleteBitSet {
             data: Arc::new(data),
             len: num_deleted,

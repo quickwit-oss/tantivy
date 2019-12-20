@@ -2,7 +2,7 @@ use crate::common::HasLen;
 use std::cmp;
 use std::convert::TryInto;
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::ops::{Deref};
+use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
 pub struct InnerBoxedData(Arc<Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>>);
@@ -137,7 +137,6 @@ impl AdvancingReadOnlySource {
             .seek(SeekFrom::Start(0))
             .expect("Can't seek while advancing");
     }
-
 
     /// Splits into 2 `AdvancingReadOnlySource`, at the offset given
     /// as an argument.
@@ -279,12 +278,13 @@ impl ReadOnlySource {
         assert!(stop <= self.len());
 
         let mut data = self.data.snapshot();
-        let pos = data.seek(SeekFrom::Start(
-            (self.start + start)
-                .try_into()
-                .expect("Can't convert seek start position while slicing"),
-        ))
-        .expect("Can't seek while slicing");
+        let pos = data
+            .seek(SeekFrom::Start(
+                (self.start + start)
+                    .try_into()
+                    .expect("Can't convert seek start position while slicing"),
+            ))
+            .expect("Can't seek while slicing");
 
         ReadOnlySource {
             data,
@@ -325,10 +325,12 @@ impl Seek for ReadOnlySource {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
         let seek = match pos {
             SeekFrom::Start(n) => {
-                let n = n.checked_add(self.start as u64).ok_or_else(|| std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "invalid seek to a negative or overflowing position",
-                ))?;
+                let n = n.checked_add(self.start as u64).ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "invalid seek to a negative or overflowing position",
+                    )
+                })?;
                 SeekFrom::Start(n)
             }
             SeekFrom::End(n) => {
@@ -342,13 +344,15 @@ impl Seek for ReadOnlySource {
                 } else {
                     let true_end = self.data.seek(SeekFrom::End(0))?;
                     let offset = true_end - self.stop as u64;
-                    let offset: i64 = n.checked_add(offset as i64).ok_or_else(|| std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "invalid seek to a negative or overflowing position",
-                    ))?;
+                    let offset: i64 = n.checked_add(offset as i64).ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "invalid seek to a negative or overflowing position",
+                        )
+                    })?;
                     SeekFrom::End(offset)
                 }
-            },
+            }
 
             SeekFrom::Current(n) => SeekFrom::Current(n),
         };

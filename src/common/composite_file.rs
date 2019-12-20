@@ -1,7 +1,7 @@
 use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
-use crate::common::VInt;
 use crate::common::HasLen;
+use crate::common::VInt;
 use crate::directory::ReadOnlySource;
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Field;
@@ -9,7 +9,7 @@ use crate::space_usage::FieldUsage;
 use crate::space_usage::PerFieldSpaceUsage;
 use std::collections::HashMap;
 use std::io::Write;
-use std::io::{self, Read, Cursor};
+use std::io::{self, Cursor, Read};
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
@@ -189,9 +189,9 @@ mod test {
     use crate::common::VInt;
     use crate::directory::{Directory, RAMDirectory};
     use crate::schema::Field;
+    use std::io::Read;
     use std::io::Write;
     use std::path::Path;
-    use std::io::Read;
 
     #[test]
     fn test_composite_file() {

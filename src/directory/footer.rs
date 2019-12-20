@@ -1,13 +1,13 @@
+use crate::common::HasLen;
 use crate::common::{BinarySerializable, CountingWriter, FixedSize, VInt};
 use crate::directory::error::Incompatibility;
 use crate::directory::read_only_source::ReadOnlySource;
 use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::Version;
-use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crc32fast::Hasher;
 use std::io;
 use std::io::Write;
-use crate::common::HasLen;
 
 type CrcHashU32 = u32;
 

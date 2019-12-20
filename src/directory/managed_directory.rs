@@ -14,12 +14,12 @@ use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
+use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
-use std::io::Read;
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -237,7 +237,8 @@ impl ManagedDirectory {
             .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
         let mut hasher = Hasher::new();
         let mut read_data = Vec::new();
-        data.read_to_end(&mut read_data).expect("Can't read data for checksum");
+        data.read_to_end(&mut read_data)
+            .expect("Can't read data for checksum");
         hasher.update(&read_data);
         let crc = hasher.finalize();
         Ok(footer

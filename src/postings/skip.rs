@@ -1,8 +1,8 @@
 use crate::common::BinarySerializable;
+use crate::directory::AdvancingReadOnlySource;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
-use crate::directory::AdvancingReadOnlySource;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -119,8 +119,7 @@ impl SkipReader {
                 IndexRecordOption::WithFreqsAndPositions => {
                     self.tf_num_bits = self.data.get(1);
                     self.data.advance(2);
-                    self.tf_sum =
-                        u32::deserialize(&mut self.data).expect("Failed reading tf_sum");
+                    self.tf_sum = u32::deserialize(&mut self.data).expect("Failed reading tf_sum");
                 }
             }
             true
@@ -131,9 +130,9 @@ impl SkipReader {
 #[cfg(test)]
 mod tests {
 
+    use super::AdvancingReadOnlySource;
     use super::IndexRecordOption;
     use super::{SkipReader, SkipSerializer};
-    use super::AdvancingReadOnlySource;
 
     #[test]
     fn test_skip_with_freq() {
@@ -145,7 +144,10 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(AdvancingReadOnlySource::from(buf), IndexRecordOption::WithFreqs);
+        let mut skip_reader = SkipReader::new(
+            AdvancingReadOnlySource::from(buf),
+            IndexRecordOption::WithFreqs,
+        );
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
@@ -165,7 +167,8 @@ mod tests {
             skip_serializer.write_doc(5u32, 5u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(AdvancingReadOnlySource::from(buf), IndexRecordOption::Basic);
+        let mut skip_reader =
+            SkipReader::new(AdvancingReadOnlySource::from(buf), IndexRecordOption::Basic);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);

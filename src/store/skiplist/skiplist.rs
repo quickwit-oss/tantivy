@@ -1,8 +1,8 @@
 use crate::common::{BinarySerializable, VInt};
 use crate::directory::ReadOnlySource;
 use std::cmp::max;
-use std::marker::PhantomData;
 use std::io::{Seek, SeekFrom};
+use std::marker::PhantomData;
 
 struct Layer<T> {
     data: ReadOnlySource,
@@ -110,7 +110,9 @@ impl<T: BinarySerializable> SkipList<T> {
 
 impl<T: BinarySerializable> From<ReadOnlySource> for SkipList<T> {
     fn from(mut data: ReadOnlySource) -> SkipList<T> {
-        let data_pos = data.seek(SeekFrom::Current(0)).expect("Can't seek in skiplist");
+        let data_pos = data
+            .seek(SeekFrom::Current(0))
+            .expect("Can't seek in skiplist");
         let offsets: Vec<u64> = Vec::<VInt>::deserialize(&mut data)
             .unwrap()
             .into_iter()
@@ -118,7 +120,9 @@ impl<T: BinarySerializable> From<ReadOnlySource> for SkipList<T> {
             .collect();
         let num_layers = offsets.len();
 
-        let new_pos = data.seek(SeekFrom::Current(0)).expect("Can't seek in skiplist");
+        let new_pos = data
+            .seek(SeekFrom::Current(0))
+            .expect("Can't seek in skiplist");
         let slice_length = new_pos - data_pos;
         let layers_data = data.slice_from(slice_length as usize);
 

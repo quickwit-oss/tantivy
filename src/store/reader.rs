@@ -3,16 +3,16 @@ use crate::Result;
 use super::decompress;
 use super::skiplist::SkipList;
 use crate::common::BinarySerializable;
+use crate::common::HasLen;
 use crate::common::VInt;
 use crate::directory::ReadOnlySource;
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::DocId;
-use crate::common::HasLen;
 use std::cell::RefCell;
 use std::io;
-use std::mem::size_of;
 use std::io::Read;
+use std::mem::size_of;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
@@ -56,7 +56,9 @@ impl StoreReader {
         let mut buffer_slice = self.data.slice_from(addr);
         let block_len = u32::deserialize(&mut buffer_slice).expect("") as usize;
         let mut block = vec![0u8; block_len];
-        buffer_slice.read_exact(&mut block).expect("Can't read compressed block");
+        buffer_slice
+            .read_exact(&mut block)
+            .expect("Can't read compressed block");
         block
     }
 

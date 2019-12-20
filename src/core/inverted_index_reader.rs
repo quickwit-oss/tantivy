@@ -1,6 +1,6 @@
 use crate::common::BinarySerializable;
 use crate::common::HasLen;
-use crate::directory::{ReadOnlySource, AdvancingReadOnlySource};
+use crate::directory::{AdvancingReadOnlySource, ReadOnlySource};
 use crate::positions::PositionReader;
 use crate::postings::TermInfo;
 use crate::postings::{BlockSegmentPostings, SegmentPostings};
@@ -96,7 +96,10 @@ impl InvertedIndexReader {
         let offset = term_info.postings_offset as usize;
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
-        block_postings.reset(term_info.doc_freq, AdvancingReadOnlySource::from(postings_slice));
+        block_postings.reset(
+            term_info.doc_freq,
+            AdvancingReadOnlySource::from(postings_slice),
+        );
     }
 
     /// Returns a block postings given a `Term`.

@@ -10,10 +10,10 @@ use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
 use owning_ref::OwningRef;
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
+use std::sync::Arc;
 
 /// Trait for accessing a fastfield.
 ///
@@ -40,7 +40,8 @@ impl<Item: FastValue> FastFieldReader<Item> {
         }
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
-        let owning_ref = OwningRef::new(Arc::new(data.read_all().expect("Can't read data"))).map(|data| &data[0..]);
+        let owning_ref = OwningRef::new(Arc::new(data.read_all().expect("Can't read data")))
+            .map(|data| &data[0..]);
         let bit_unpacker = BitUnpacker::new(owning_ref, num_bits);
         FastFieldReader {
             min_value_u64: min_value,

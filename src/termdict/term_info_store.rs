@@ -124,16 +124,22 @@ impl TermInfoStore {
 
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
         let block_id = (term_ord as usize) / BLOCK_LEN;
-        let mut block_data = self.block_meta_source.slice_from(block_id * TermInfoBlockMeta::SIZE_IN_BYTES);
+        let mut block_data = self
+            .block_meta_source
+            .slice_from(block_id * TermInfoBlockMeta::SIZE_IN_BYTES);
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
             .expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
             term_info_block_data.ref_term_info
         } else {
-            let mut term_info_data = self.term_info_source.slice_from(term_info_block_data.offset as usize);
+            let mut term_info_data = self
+                .term_info_source
+                .slice_from(term_info_block_data.offset as usize);
             term_info_block_data.deserialize_term_info(
-                &term_info_data.read_all().expect("Can't read term info data"),
+                &term_info_data
+                    .read_all()
+                    .expect("Can't read term info data"),
                 inner_offset - 1,
             )
         }

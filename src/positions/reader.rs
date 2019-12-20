@@ -1,10 +1,9 @@
 use crate::common::{BinarySerializable, FixedSize};
-use crate::directory::{ReadOnlySource, AdvancingReadOnlySource};
+use crate::directory::{AdvancingReadOnlySource, ReadOnlySource};
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::positions::LONG_SKIP_INTERVAL;
 use crate::positions::LONG_SKIP_IN_BLOCKS;
 use crate::postings::compression::compressed_block_size;
-use std::io::Read;
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
 ///
@@ -26,6 +25,7 @@ use std::io::Read;
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
 use bitpacking::{BitPacker, BitPacker4x};
+use std::io::Read;
 
 struct Positions {
     bit_packer: BitPacker4x,
@@ -55,7 +55,7 @@ impl Positions {
         if long_skip_id == 0 {
             return 0;
         }
-        let mut long_skip_slice = self.long_skip_source.slice_from((long_skip_id -1) * 8);
+        let mut long_skip_slice = self.long_skip_source.slice_from((long_skip_id - 1) * 8);
         u64::deserialize(&mut long_skip_slice).expect("Index corrupted")
     }
 
@@ -126,7 +126,9 @@ fn read_impl(
         let num_bits = num_bits[ahead];
         let block_len = compressed_block_size(num_bits);
         let mut position_buf = vec![0u8; block_len];
-        position.read_exact(&mut position_buf).expect("Can't read position data");
+        position
+            .read_exact(&mut position_buf)
+            .expect("Can't read position data");
         bit_packer.decompress(&position_buf, &mut buffer[..], num_bits);
         ahead += 1;
     }
@@ -147,15 +149,21 @@ impl PositionReader {
         let mut skip_read = self.skip_read.clone();
         let mut num_bits = vec![0; 1];
 
-        skip_read.read_exact(&mut num_bits).expect("Can't read num bits");
+        skip_read
+            .read_exact(&mut num_bits)
+            .expect("Can't read num bits");
         let num_bits = num_bits[0];
         let mut skip_data = Vec::new();
-        skip_read.read_to_end(&mut skip_data).expect("Can't read skip read source");
+        skip_read
+            .read_to_end(&mut skip_data)
+            .expect("Can't read skip read source");
 
         let mut position_data = self.position_read.clone();
         let block_len = compressed_block_size(num_bits);
         let mut position_buf = vec![0u8; block_len];
-        position_data.read_exact(&mut position_buf).expect("Can't read position data");
+        position_data
+            .read_exact(&mut position_buf)
+            .expect("Can't read position data");
 
         if self.ahead != Some(0) {
             // the block currently available is not the block
@@ -195,7 +203,9 @@ impl PositionReader {
         });
 
         let mut skip_len_buf = vec![0u8; num_blocks_to_advance];
-        self.skip_read.read_exact(&mut skip_len_buf).expect("Can't read skip source");
+        self.skip_read
+            .read_exact(&mut skip_len_buf)
+            .expect("Can't read skip source");
 
         let skip_len_in_bits = skip_len_buf
             .iter()

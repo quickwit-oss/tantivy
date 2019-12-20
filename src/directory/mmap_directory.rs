@@ -29,10 +29,10 @@ use std::fs::OpenOptions;
 use std::fs::{self, File};
 use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
@@ -539,11 +539,11 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+    use crate::common::HasLen;
     use crate::indexer::LogMergePolicy;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
     use crate::ReloadPolicy;
-    use crate::common::HasLen;
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

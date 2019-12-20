@@ -27,7 +27,10 @@ impl BytesFastFieldReader {
         idx_reader: FastFieldReader<u64>,
         mut values_source: ReadOnlySource,
     ) -> BytesFastFieldReader {
-        let values = OwningRef::new(Arc::new(values_source.read_all().expect("Can't read source"))).map(|source| &source[..]);
+        let values = OwningRef::new(Arc::new(
+            values_source.read_all().expect("Can't read source"),
+        ))
+        .map(|source| &source[..]);
         BytesFastFieldReader { idx_reader, values }
     }
 

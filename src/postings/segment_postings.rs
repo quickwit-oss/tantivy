@@ -1,6 +1,7 @@
 use crate::common::BitSet;
 use crate::common::HasLen;
 use crate::common::{BinarySerializable, VInt};
+use crate::directory::AdvancingReadOnlySource;
 use crate::docset::{DocSet, SkipResult};
 use crate::positions::PositionReader;
 use crate::postings::compression::{compressed_block_size, AlignedBuffer};
@@ -12,7 +13,6 @@ use crate::postings::Postings;
 use crate::postings::SkipReader;
 use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::IndexRecordOption;
-use crate::directory::AdvancingReadOnlySource;
 use crate::DocId;
 use std::cmp::Ordering;
 use std::io::Read;
@@ -467,13 +467,12 @@ impl BlockSegmentPostings {
                 let block_len = compressed_block_size(num_bits);
 
                 let mut data_buf = vec![0u8; block_len];
-                self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
+                self.remaining_data
+                    .read_exact(&mut data_buf)
+                    .expect("Can't read remaining data");
 
-                self.doc_decoder.uncompress_block_sorted(
-                    &data_buf,
-                    self.doc_offset,
-                    num_bits,
-                );
+                self.doc_decoder
+                    .uncompress_block_sorted(&data_buf, self.doc_offset, num_bits);
 
                 let tf_num_bits = self.skip_reader.tf_num_bits();
                 match self.freq_reading_option {
@@ -485,8 +484,11 @@ impl BlockSegmentPostings {
                     FreqReadingOption::ReadFreq => {
                         let block_len = compressed_block_size(tf_num_bits);
                         let mut data_buf = vec![0u8; block_len];
-                        self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
-                        self.freq_decoder.uncompress_block_unsorted(&data_buf, tf_num_bits);
+                        self.remaining_data
+                            .read_exact(&mut data_buf)
+                            .expect("Can't read remaining data");
+                        self.freq_decoder
+                            .uncompress_block_unsorted(&data_buf, tf_num_bits);
                     }
                 }
                 self.doc_offset = self.skip_reader.doc();
@@ -504,7 +506,9 @@ impl BlockSegmentPostings {
             // TODO is there a better way to know how much data the decoder
             // needs.
             let mut data_buf = vec![0u8; self.num_vint_docs * 2];
-            self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+            self.remaining_data
+                .read_without_advancing(&mut data_buf)
+                .expect("Can't read remaining data");
 
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
                 &data_buf,
@@ -518,7 +522,9 @@ impl BlockSegmentPostings {
                     // TODO is there a better way to know how much data the decoder
                     // needs.
                     let mut data_buf = vec![0u8; self.num_vint_docs * 2];
-                    self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+                    self.remaining_data
+                        .read_without_advancing(&mut data_buf)
+                        .expect("Can't read remaining data");
                     self.freq_decoder
                         .uncompress_vint_unsorted(&data_buf, self.num_vint_docs);
                 }
@@ -548,8 +554,11 @@ impl BlockSegmentPostings {
 
             let block_len = compressed_block_size(num_bits);
             let mut data_buf = vec![0u8; block_len];
-            self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
-            self.doc_decoder.uncompress_block_sorted(&data_buf, self.doc_offset, num_bits);
+            self.remaining_data
+                .read_exact(&mut data_buf)
+                .expect("Can't read remaining data");
+            self.doc_decoder
+                .uncompress_block_sorted(&data_buf, self.doc_offset, num_bits);
 
             let tf_num_bits = self.skip_reader.tf_num_bits();
             match self.freq_reading_option {
@@ -561,8 +570,11 @@ impl BlockSegmentPostings {
                 FreqReadingOption::ReadFreq => {
                     let block_len = compressed_block_size(tf_num_bits);
                     let mut data_buf = vec![0u8; block_len];
-                    self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
-                    self.freq_decoder.uncompress_block_unsorted(&data_buf, tf_num_bits);
+                    self.remaining_data
+                        .read_exact(&mut data_buf)
+                        .expect("Can't read remaining data");
+                    self.freq_decoder
+                        .uncompress_block_unsorted(&data_buf, tf_num_bits);
                 }
             }
             // it will be used as the next offset.
@@ -572,7 +584,9 @@ impl BlockSegmentPostings {
             // TODO is there a better way to know how much data the decoder
             // needs.
             let mut data_buf = vec![0u8; self.num_vint_docs * 2];
-            self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+            self.remaining_data
+                .read_without_advancing(&mut data_buf)
+                .expect("Can't read remaining data");
 
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
                 &data_buf,
@@ -586,7 +600,9 @@ impl BlockSegmentPostings {
                     // TODO is there a better way to know how much data the decoder
                     // needs.
                     let mut data_buf = vec![0u8; self.num_vint_docs * 2];
-                    self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+                    self.remaining_data
+                        .read_without_advancing(&mut data_buf)
+                        .expect("Can't read remaining data");
                     self.freq_decoder
                         .uncompress_vint_unsorted(&data_buf, self.num_vint_docs);
                 }
@@ -611,7 +627,10 @@ impl BlockSegmentPostings {
             doc_freq: 0,
 
             remaining_data: AdvancingReadOnlySource::empty(),
-            skip_reader: SkipReader::new(AdvancingReadOnlySource::empty(), IndexRecordOption::Basic),
+            skip_reader: SkipReader::new(
+                AdvancingReadOnlySource::empty(),
+                IndexRecordOption::Basic,
+            ),
         }
     }
 }

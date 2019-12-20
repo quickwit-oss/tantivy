@@ -2,11 +2,11 @@ use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
 use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
+use crate::common::HasLen;
 use crate::directory::ReadOnlySource;
 use crate::postings::TermInfo;
 use crate::schema::FieldType;
 use crate::termdict::TermOrdinal;
-use crate::common::HasLen;
 use std::io::{self, Write};
 use tantivy_fst;
 use tantivy_fst::raw::Fst;
@@ -89,7 +89,8 @@ where
 }
 
 fn open_fst_index(mut source: ReadOnlySource) -> tantivy_fst::Map<Vec<u8>> {
-    let fst = Fst::new(source.read_all().expect("Can't read source")).expect("FST data is corrupted");
+    let fst =
+        Fst::new(source.read_all().expect("Can't read source")).expect("FST data is corrupted");
     tantivy_fst::Map::from(fst)
 }
 

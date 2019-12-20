@@ -1,10 +1,10 @@
+use crate::common::HasLen;
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
-use crate::common::HasLen;
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -179,7 +179,10 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        Ok(self.open_read(path)?.read_all().expect("Can't read read only source for RAM directory"))
+        Ok(self
+            .open_read(path)?
+            .read_all()
+            .expect("Can't read read only source for RAM directory"))
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

@@ -38,9 +38,9 @@ const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) a
 pub mod tests {
 
     use super::{PositionReader, PositionSerializer};
+    use crate::common::HasLen;
     use crate::directory::ReadOnlySource;
     use crate::positions::COMPRESSION_BLOCK_SIZE;
-    use crate::common::HasLen;
     use std::iter;
 
     fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {
