@@ -209,8 +209,8 @@ impl From<f64> for Value {
     }
 }
 
-impl From<DateTime> for Value {
-    fn from(date_time: DateTime) -> Value {
+impl From<crate::DateTime> for Value {
+    fn from(date_time: crate::DateTime) -> Value {
         Value::Date(date_time)
     }
 }

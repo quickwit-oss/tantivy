@@ -33,6 +33,7 @@ pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
+use crate::chrono::{NaiveDateTime, Utc};
 use crate::common;
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
@@ -49,7 +50,7 @@ mod serializer;
 mod writer;
 
 /// Trait for types that are allowed for fast fields: (u64, i64 and f64).
-pub trait FastValue: Default + Clone + Copy + Send + Sync + PartialOrd {
+pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd {
     /// Converts a value from u64
     ///
     /// Internally all fast field values are encoded as u64.
@@ -69,6 +70,12 @@ pub trait FastValue: Default + Clone + Copy + Send + Sync + PartialOrd {
     /// Cast value to `u64`.
     /// The value is just reinterpreted in memory.
     fn as_u64(&self) -> u64;
+
+    /// Build a default value. This default value is never used, so the value does not
+    /// really matter.
+    fn make_zero() -> Self {
+        Self::from_u64(0i64.to_u64())
+    }
 }
 
 impl FastValue for u64 {
@@ -135,11 +142,34 @@ impl FastValue for f64 {
     }
 }
 
+impl FastValue for crate::DateTime {
+    fn from_u64(timestamp_u64: u64) -> Self {
+        let timestamp_i64 = i64::from_u64(timestamp_u64);
+        crate::DateTime::from_utc(NaiveDateTime::from_timestamp(timestamp_i64, 0), Utc)
+    }
+
+    fn to_u64(&self) -> u64 {
+        self.timestamp().to_u64()
+    }
+
+    fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
+        match *field_type {
+            FieldType::Date(ref integer_options) => integer_options.get_fastfield_cardinality(),
+            _ => None,
+        }
+    }
+
+    fn as_u64(&self) -> u64 {
+        self.timestamp().as_u64()
+    }
+}
+
 fn value_to_u64(value: &Value) -> u64 {
     match *value {
         Value::U64(ref val) => *val,
         Value::I64(ref val) => common::i64_to_u64(*val),
         Value::F64(ref val) => common::f64_to_u64(*val),
+        Value::Date(ref datetime) => common::i64_to_u64(datetime.timestamp()),
         _ => panic!("Expected a u64/i64/f64 field, got {:?} ", value),
     }
 }
@@ -151,10 +181,12 @@ mod tests {
     use crate::common::CompositeFile;
     use crate::directory::{Directory, RAMDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
-    use crate::schema::Document;
+    use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
     use crate::schema::Schema;
     use crate::schema::FAST;
+    use crate::schema::{Document, IntOptions};
+    use crate::{Index, SegmentId, SegmentReader};
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -176,6 +208,12 @@ mod tests {
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
+    }
+
+    #[test]
+    pub fn test_fastfield_i64_u64() {
+        let datetime = crate::DateTime::from_utc(NaiveDateTime::from_timestamp(0i64, 0), Utc);
+        assert_eq!(i64::from_u64(datetime.to_u64()), 0i64);
     }
 
     #[test]
@@ -427,6 +465,93 @@ mod tests {
                 assert_eq!(fast_field_reader.get(a as u32), permutation[a as usize]);
                 a = fast_field_reader.get(a as u32);
             }
+        }
+    }
+
+    #[test]
+    fn test_merge_missing_date_fast_field() {
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()));
+        index_writer.commit().unwrap();
+        index_writer.add_document(doc!());
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let segment_ids: Vec<SegmentId> = reader
+            .searcher()
+            .segment_readers()
+            .iter()
+            .map(SegmentReader::segment_id)
+            .collect();
+        assert_eq!(segment_ids.len(), 2);
+        let merge_future = index_writer.merge(&segment_ids[..]);
+        let merge_res = futures::executor::block_on(merge_future);
+        assert!(merge_res.is_ok());
+        assert!(reader.reload().is_ok());
+        assert_eq!(reader.searcher().segment_readers().len(), 1);
+    }
+
+    #[test]
+    fn test_default_datetime() {
+        assert_eq!(crate::DateTime::make_zero().timestamp(), 0i64);
+    }
+
+    #[test]
+    fn test_datefastfield() {
+        use crate::fastfield::FastValue;
+        let mut schema_builder = Schema::builder();
+        let date_field = schema_builder.add_date_field("date", FAST);
+        let multi_date_field = schema_builder.add_date_field(
+            "multi_date",
+            IntOptions::default().set_fast(Cardinality::MultiValues),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        index_writer.add_document(doc!(
+            date_field => crate::DateTime::from_u64(1i64.to_u64()),
+            multi_date_field => crate::DateTime::from_u64(2i64.to_u64()),
+            multi_date_field => crate::DateTime::from_u64(3i64.to_u64())
+        ));
+        index_writer.add_document(doc!(
+            date_field => crate::DateTime::from_u64(4i64.to_u64())
+        ));
+        index_writer.add_document(doc!(
+            multi_date_field => crate::DateTime::from_u64(5i64.to_u64()),
+            multi_date_field => crate::DateTime::from_u64(6i64.to_u64())
+        ));
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+        let date_fast_field = fast_fields.date(date_field).unwrap();
+        let dates_fast_field = fast_fields.dates(multi_date_field).unwrap();
+        let mut dates = vec![];
+        {
+            assert_eq!(date_fast_field.get(0u32).timestamp(), 1i64);
+            dates_fast_field.get_vals(0u32, &mut dates);
+            assert_eq!(dates.len(), 2);
+            assert_eq!(dates[0].timestamp(), 2i64);
+            assert_eq!(dates[1].timestamp(), 3i64);
+        }
+        {
+            assert_eq!(date_fast_field.get(1u32).timestamp(), 4i64);
+            dates_fast_field.get_vals(1u32, &mut dates);
+            assert!(dates.is_empty());
+        }
+        {
+            assert_eq!(date_fast_field.get(2u32).timestamp(), 0i64);
+            dates_fast_field.get_vals(2u32, &mut dates);
+            assert_eq!(dates.len(), 2);
+            assert_eq!(dates[0].timestamp(), 5i64);
+            assert_eq!(dates[1].timestamp(), 6i64);
         }
     }
 }
