@@ -33,6 +33,7 @@ pub type DefaultMergePolicy = LogMergePolicy;
 mod tests {
     use crate::schema::{self, Schema};
     use crate::{Index, Term};
+
     #[test]
     fn test_advance_delete_bug() {
         let mut schema_builder = Schema::builder();

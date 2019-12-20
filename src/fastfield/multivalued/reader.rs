@@ -45,7 +45,7 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let (start, stop) = self.range(doc);
         let len = (stop - start) as usize;
-        vals.resize(len, Item::default());
+        vals.resize(len, Item::make_zero());
         self.vals_reader.get_range_u64(start, &mut vals[..]);
     }
 
