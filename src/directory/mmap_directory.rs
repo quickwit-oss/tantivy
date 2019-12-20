@@ -32,6 +32,7 @@ use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::ops::Deref;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
@@ -88,7 +89,7 @@ pub struct CacheInfo {
 
 struct MmapCache {
     counters: CacheCounters,
-    cache: HashMap<PathBuf, Weak<BoxedData>>,
+    cache: HashMap<PathBuf, Weak<Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>>>,
 }
 
 impl Default for MmapCache {
@@ -122,18 +123,18 @@ impl MmapCache {
     }
 
     // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
-    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<Arc<BoxedData>>, OpenReadError> {
+    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<BoxedData>, OpenReadError> {
         if let Some(mmap_weak) = self.cache.get(full_path) {
             if let Some(mmap_arc) = mmap_weak.upgrade() {
                 self.counters.hit += 1;
-                return Ok(Some(mmap_arc));
+                return Ok(Some(BoxedData::new(mmap_arc)));
             }
         }
         self.cache.remove(full_path);
         self.counters.miss += 1;
         Ok(if let Some(mmap) = open_mmap(full_path)? {
-            let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
-            let mmap_weak = Arc::downgrade(&mmap_arc);
+            let mmap_arc: BoxedData = BoxedData::new(Arc::new(Box::new(mmap)));
+            let mmap_weak = mmap_arc.downgrade();
             self.cache.insert(full_path.to_owned(), mmap_weak);
             Some(mmap_arc)
         } else {
@@ -542,6 +543,7 @@ mod tests {
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
     use crate::ReloadPolicy;
+    use crate::common::HasLen;
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

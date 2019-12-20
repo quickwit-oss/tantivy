@@ -40,6 +40,7 @@ pub mod tests {
     use super::{PositionReader, PositionSerializer};
     use crate::directory::ReadOnlySource;
     use crate::positions::COMPRESSION_BLOCK_SIZE;
+    use crate::common::HasLen;
     use std::iter;
 
     fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {

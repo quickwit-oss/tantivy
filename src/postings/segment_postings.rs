@@ -12,9 +12,10 @@ use crate::postings::Postings;
 use crate::postings::SkipReader;
 use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::IndexRecordOption;
+use crate::directory::AdvancingReadOnlySource;
 use crate::DocId;
-use owned_read::OwnedRead;
 use std::cmp::Ordering;
+use std::io::Read;
 use tantivy_fst::Streamer;
 
 struct PositionComputer {
@@ -97,7 +98,7 @@ impl SegmentPostings {
         }
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len() as u32,
-            OwnedRead::new(buffer),
+            AdvancingReadOnlySource::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
         );
@@ -316,20 +317,18 @@ pub struct BlockSegmentPostings {
 
     num_vint_docs: usize,
 
-    remaining_data: OwnedRead,
+    remaining_data: AdvancingReadOnlySource,
     skip_reader: SkipReader,
 }
 
 fn split_into_skips_and_postings(
     doc_freq: u32,
-    mut data: OwnedRead,
-) -> (Option<OwnedRead>, OwnedRead) {
+    mut data: AdvancingReadOnlySource,
+) -> (Option<AdvancingReadOnlySource>, AdvancingReadOnlySource) {
     if doc_freq >= USE_SKIP_INFO_LIMIT {
         let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0 as usize;
-        let mut postings_data = data.clone();
-        postings_data.advance(skip_len);
-        data.clip(skip_len);
-        (Some(data), postings_data)
+        let (left, right) = data.split(skip_len);
+        (Some(left), right)
     } else {
         (None, data)
     }
@@ -344,7 +343,7 @@ pub enum BlockSegmentPostingsSkipResult {
 impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: u32,
-        data: OwnedRead,
+        data: AdvancingReadOnlySource,
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
     ) -> BlockSegmentPostings {
@@ -357,7 +356,7 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, record_option),
-            None => SkipReader::new(OwnedRead::new(&[][..]), record_option),
+            None => SkipReader::new(AdvancingReadOnlySource::empty(), record_option),
         };
         let doc_freq = doc_freq as usize;
         let num_vint_docs = doc_freq % COMPRESSION_BLOCK_SIZE;
@@ -383,7 +382,7 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedRead) {
+    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: AdvancingReadOnlySource) {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_vint_docs = num_vint_docs;
@@ -391,7 +390,7 @@ impl BlockSegmentPostings {
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data);
         } else {
-            self.skip_reader.reset(OwnedRead::new(&[][..]))
+            self.skip_reader.reset(AdvancingReadOnlySource::empty())
         }
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
@@ -465,12 +464,17 @@ impl BlockSegmentPostings {
                 //
                 // We found our block!
                 let num_bits = self.skip_reader.doc_num_bits();
-                let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
-                    self.remaining_data.as_ref(),
+                let block_len = compressed_block_size(num_bits);
+
+                let mut data_buf = vec![0u8; block_len];
+                self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
+
+                self.doc_decoder.uncompress_block_sorted(
+                    &data_buf,
                     self.doc_offset,
                     num_bits,
                 );
-                self.remaining_data.advance(num_consumed_bytes);
+
                 let tf_num_bits = self.skip_reader.tf_num_bits();
                 match self.freq_reading_option {
                     FreqReadingOption::NoFreq => {}
@@ -479,10 +483,10 @@ impl BlockSegmentPostings {
                         self.remaining_data.advance(num_bytes_to_skip);
                     }
                     FreqReadingOption::ReadFreq => {
-                        let num_consumed_bytes = self
-                            .freq_decoder
-                            .uncompress_block_unsorted(self.remaining_data.as_ref(), tf_num_bits);
-                        self.remaining_data.advance(num_consumed_bytes);
+                        let block_len = compressed_block_size(tf_num_bits);
+                        let mut data_buf = vec![0u8; block_len];
+                        self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
+                        self.freq_decoder.uncompress_block_unsorted(&data_buf, tf_num_bits);
                     }
                 }
                 self.doc_offset = self.skip_reader.doc();
@@ -497,8 +501,13 @@ impl BlockSegmentPostings {
 
         // we are now on the last, incomplete, variable encoded block.
         if self.num_vint_docs > 0 {
+            // TODO is there a better way to know how much data the decoder
+            // needs.
+            let mut data_buf = vec![0u8; self.num_vint_docs * 2];
+            self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-                self.remaining_data.as_ref(),
+                &data_buf,
                 self.doc_offset,
                 self.num_vint_docs,
             );
@@ -506,8 +515,12 @@ impl BlockSegmentPostings {
             match self.freq_reading_option {
                 FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
                 FreqReadingOption::ReadFreq => {
+                    // TODO is there a better way to know how much data the decoder
+                    // needs.
+                    let mut data_buf = vec![0u8; self.num_vint_docs * 2];
+                    self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
                     self.freq_decoder
-                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+                        .uncompress_vint_unsorted(&data_buf, self.num_vint_docs);
                 }
             }
             self.num_vint_docs = 0;
@@ -532,12 +545,12 @@ impl BlockSegmentPostings {
     pub fn advance(&mut self) -> bool {
         if self.skip_reader.advance() {
             let num_bits = self.skip_reader.doc_num_bits();
-            let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
-                self.remaining_data.as_ref(),
-                self.doc_offset,
-                num_bits,
-            );
-            self.remaining_data.advance(num_consumed_bytes);
+
+            let block_len = compressed_block_size(num_bits);
+            let mut data_buf = vec![0u8; block_len];
+            self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
+            self.doc_decoder.uncompress_block_sorted(&data_buf, self.doc_offset, num_bits);
+
             let tf_num_bits = self.skip_reader.tf_num_bits();
             match self.freq_reading_option {
                 FreqReadingOption::NoFreq => {}
@@ -546,18 +559,23 @@ impl BlockSegmentPostings {
                     self.remaining_data.advance(num_bytes_to_skip);
                 }
                 FreqReadingOption::ReadFreq => {
-                    let num_consumed_bytes = self
-                        .freq_decoder
-                        .uncompress_block_unsorted(self.remaining_data.as_ref(), tf_num_bits);
-                    self.remaining_data.advance(num_consumed_bytes);
+                    let block_len = compressed_block_size(tf_num_bits);
+                    let mut data_buf = vec![0u8; block_len];
+                    self.remaining_data.read_exact(&mut data_buf).expect("Can't read remaining data");
+                    self.freq_decoder.uncompress_block_unsorted(&data_buf, tf_num_bits);
                 }
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
             true
         } else if self.num_vint_docs > 0 {
+            // TODO is there a better way to know how much data the decoder
+            // needs.
+            let mut data_buf = vec![0u8; self.num_vint_docs * 2];
+            self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
+
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-                self.remaining_data.as_ref(),
+                &data_buf,
                 self.doc_offset,
                 self.num_vint_docs,
             );
@@ -565,8 +583,12 @@ impl BlockSegmentPostings {
             match self.freq_reading_option {
                 FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
                 FreqReadingOption::ReadFreq => {
+                    // TODO is there a better way to know how much data the decoder
+                    // needs.
+                    let mut data_buf = vec![0u8; self.num_vint_docs * 2];
+                    self.remaining_data.read_without_advancing(&mut data_buf).expect("Can't read remaining data");
                     self.freq_decoder
-                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+                        .uncompress_vint_unsorted(&data_buf, self.num_vint_docs);
                 }
             }
             self.num_vint_docs = 0;
@@ -588,8 +610,8 @@ impl BlockSegmentPostings {
             doc_offset: 0,
             doc_freq: 0,
 
-            remaining_data: OwnedRead::new(vec![]),
-            skip_reader: SkipReader::new(OwnedRead::new(vec![]), IndexRecordOption::Basic),
+            remaining_data: AdvancingReadOnlySource::empty(),
+            skip_reader: SkipReader::new(AdvancingReadOnlySource::empty(), IndexRecordOption::Basic),
         }
     }
 }

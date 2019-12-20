@@ -4,6 +4,8 @@ use crate::directory::ReadOnlySource;
 use crate::fastfield::FastFieldReader;
 use crate::DocId;
 
+use std::sync::Arc;
+
 /// Reader for byte array fast fields
 ///
 /// The reader is implemented as a `u64` fast field and a separate collection of bytes.
@@ -17,15 +19,15 @@ use crate::DocId;
 #[derive(Clone)]
 pub struct BytesFastFieldReader {
     idx_reader: FastFieldReader<u64>,
-    values: OwningRef<ReadOnlySource, [u8]>,
+    values: OwningRef<Arc<Vec<u8>>, [u8]>,
 }
 
 impl BytesFastFieldReader {
     pub(crate) fn open(
         idx_reader: FastFieldReader<u64>,
-        values_source: ReadOnlySource,
+        mut values_source: ReadOnlySource,
     ) -> BytesFastFieldReader {
-        let values = OwningRef::new(values_source).map(|source| &source[..]);
+        let values = OwningRef::new(Arc::new(values_source.read_all().expect("Can't read source"))).map(|source| &source[..]);
         BytesFastFieldReader { idx_reader, values }
     }
 

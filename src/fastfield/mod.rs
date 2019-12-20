@@ -187,6 +187,7 @@ mod tests {
     use crate::schema::FAST;
     use crate::schema::{Document, IntOptions};
     use crate::{Index, SegmentId, SegmentReader};
+    use crate::common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -232,12 +233,12 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
             assert_eq!(source.len(), 36 as usize);
         }
         {
-            let composite_file = CompositeFile::open(&source).unwrap();
+            let composite_file = CompositeFile::open(&mut source).unwrap();
             let field_source = composite_file.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(field_source);
             assert_eq!(fast_field_reader.get(0), 13u64);
@@ -268,12 +269,12 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
             assert_eq!(source.len(), 61 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
             assert_eq!(fast_field_reader.get(0), 4u64);
@@ -305,12 +306,12 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
             assert_eq!(source.len(), 34 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
             for doc in 0..10_000 {
@@ -338,12 +339,12 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
             assert_eq!(source.len(), 80042 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
             assert_eq!(fast_field_reader.get(0), 0u64);
@@ -378,12 +379,12 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
             assert_eq!(source.len(), 17709 as usize);
         }
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(i64_field).unwrap();
             let fast_field_reader = FastFieldReader::<i64>::open(data);
 
@@ -420,9 +421,9 @@ mod tests {
             serializer.close().unwrap();
         }
 
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(i64_field).unwrap();
             let fast_field_reader = FastFieldReader::<i64>::open(data);
             assert_eq!(fast_field_reader.get(0u32), 0i64);
@@ -454,9 +455,9 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
 
@@ -611,9 +612,9 @@ mod bench {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
 
@@ -645,9 +646,9 @@ mod bench {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let source = directory.open_read(&path).unwrap();
+        let mut source = directory.open_read(&path).unwrap();
         {
-            let fast_fields_composite = CompositeFile::open(&source).unwrap();
+            let fast_fields_composite = CompositeFile::open(&mut source).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
             let fast_field_reader = FastFieldReader::<u64>::open(data);
 

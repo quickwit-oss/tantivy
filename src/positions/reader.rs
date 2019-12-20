@@ -1,9 +1,10 @@
 use crate::common::{BinarySerializable, FixedSize};
-use crate::directory::ReadOnlySource;
+use crate::directory::{ReadOnlySource, AdvancingReadOnlySource};
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::positions::LONG_SKIP_INTERVAL;
 use crate::positions::LONG_SKIP_IN_BLOCKS;
 use crate::postings::compression::compressed_block_size;
+use std::io::Read;
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
 ///
@@ -25,7 +26,6 @@ use crate::postings::compression::compressed_block_size;
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
 use bitpacking::{BitPacker, BitPacker4x};
-use owned_read::OwnedRead;
 
 struct Positions {
     bit_packer: BitPacker4x,
@@ -36,8 +36,8 @@ struct Positions {
 
 impl Positions {
     pub fn new(position_source: ReadOnlySource, skip_source: ReadOnlySource) -> Positions {
-        let (body, footer) = skip_source.split_from_end(u32::SIZE_IN_BYTES);
-        let num_long_skips = u32::deserialize(&mut footer.as_slice()).expect("Index corrupted");
+        let (body, mut footer) = skip_source.split_from_end(u32::SIZE_IN_BYTES);
+        let num_long_skips = u32::deserialize(&mut footer).expect("Index corrupted");
         let (skip_source, long_skip_source) =
             body.split_from_end(u64::SIZE_IN_BYTES * (num_long_skips as usize));
         Positions {
@@ -55,18 +55,17 @@ impl Positions {
         if long_skip_id == 0 {
             return 0;
         }
-        let long_skip_slice = self.long_skip_source.as_slice();
-        let mut long_skip_blocks: &[u8] = &long_skip_slice[(long_skip_id - 1) * 8..][..8];
-        u64::deserialize(&mut long_skip_blocks).expect("Index corrupted")
+        let mut long_skip_slice = self.long_skip_source.slice_from((long_skip_id -1) * 8);
+        u64::deserialize(&mut long_skip_slice).expect("Index corrupted")
     }
 
     fn reader(&self, offset: u64) -> PositionReader {
         let long_skip_id = (offset / LONG_SKIP_INTERVAL) as usize;
         let small_skip = (offset % LONG_SKIP_INTERVAL) as usize;
         let offset_num_bytes: u64 = self.long_skip(long_skip_id);
-        let mut position_read = OwnedRead::new(self.position_source.clone());
+        let mut position_read = AdvancingReadOnlySource::from(self.position_source.clone());
         position_read.advance(offset_num_bytes as usize);
-        let mut skip_read = OwnedRead::new(self.skip_source.clone());
+        let mut skip_read = AdvancingReadOnlySource::from(self.skip_source.clone());
         skip_read.advance(long_skip_id * LONG_SKIP_IN_BLOCKS);
         let mut position_reader = PositionReader {
             bit_packer: self.bit_packer,
@@ -82,8 +81,8 @@ impl Positions {
 }
 
 pub struct PositionReader {
-    skip_read: OwnedRead,
-    position_read: OwnedRead,
+    skip_read: AdvancingReadOnlySource,
+    position_read: AdvancingReadOnlySource,
     bit_packer: BitPacker4x,
     inner_offset: usize,
     buffer: Box<[u32; 128]>,
@@ -102,7 +101,7 @@ pub struct PositionReader {
 // block is not decompressed.
 fn read_impl(
     bit_packer: BitPacker4x,
-    mut position: &[u8],
+    mut position: AdvancingReadOnlySource,
     buffer: &mut [u32; 128],
     mut inner_offset: usize,
     num_bits: &[u8],
@@ -125,9 +124,10 @@ fn read_impl(
         output_start += available_len;
         inner_offset = 0;
         let num_bits = num_bits[ahead];
-        bit_packer.decompress(position, &mut buffer[..], num_bits);
         let block_len = compressed_block_size(num_bits);
-        position = &position[block_len..];
+        let mut position_buf = vec![0u8; block_len];
+        position.read_exact(&mut position_buf).expect("Can't read position data");
+        bit_packer.decompress(&position_buf, &mut buffer[..], num_bits);
         ahead += 1;
     }
 }
@@ -144,23 +144,32 @@ impl PositionReader {
     /// Fills a buffer with the next `output.len()` integers.
     /// This does not consume / advance the stream.
     pub fn read(&mut self, output: &mut [u32]) {
-        let skip_data = self.skip_read.as_ref();
-        let position_data = self.position_read.as_ref();
-        let num_bits = self.skip_read.get(0);
+        let mut skip_read = self.skip_read.clone();
+        let mut num_bits = vec![0; 1];
+
+        skip_read.read_exact(&mut num_bits).expect("Can't read num bits");
+        let num_bits = num_bits[0];
+        let mut skip_data = Vec::new();
+        skip_read.read_to_end(&mut skip_data).expect("Can't read skip read source");
+
+        let mut position_data = self.position_read.clone();
+        let block_len = compressed_block_size(num_bits);
+        let mut position_buf = vec![0u8; block_len];
+        position_data.read_exact(&mut position_buf).expect("Can't read position data");
+
         if self.ahead != Some(0) {
             // the block currently available is not the block
             // for the current position
             self.bit_packer
-                .decompress(position_data, self.buffer.as_mut(), num_bits);
+                .decompress(&position_buf, self.buffer.as_mut(), num_bits);
             self.ahead = Some(0);
         }
-        let block_len = compressed_block_size(num_bits);
         self.ahead = Some(read_impl(
             self.bit_packer,
-            &position_data[block_len..],
+            position_data,
             self.buffer.as_mut(),
             self.inner_offset,
-            &skip_data[1..],
+            &skip_data,
             output,
         ));
     }
@@ -185,13 +194,15 @@ impl PositionReader {
             }
         });
 
-        let skip_len_in_bits = self.skip_read.as_ref()[..num_blocks_to_advance]
+        let mut skip_len_buf = vec![0u8; num_blocks_to_advance];
+        self.skip_read.read_exact(&mut skip_len_buf).expect("Can't read skip source");
+
+        let skip_len_in_bits = skip_len_buf
             .iter()
             .map(|num_bits| *num_bits as usize)
             .sum::<usize>()
             * COMPRESSION_BLOCK_SIZE;
         let skip_len_in_bytes = skip_len_in_bits / 8;
-        self.skip_read.advance(num_blocks_to_advance);
         self.position_read.advance(skip_len_in_bytes);
     }
 }

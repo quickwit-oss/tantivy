@@ -65,7 +65,7 @@ impl StoreWriter {
     /// This method is an optimization compared to iterating over the documents
     /// in the store and adding them one by one, as the store's data will
     /// not be decompressed and then recompressed.
-    pub fn stack(&mut self, store_reader: &StoreReader) -> io::Result<()> {
+    pub fn stack(&mut self, store_reader: &mut StoreReader) -> io::Result<()> {
         if !self.current_block.is_empty() {
             self.write_and_compress_block()?;
             self.offset_index_writer
@@ -75,7 +75,7 @@ impl StoreWriter {
         let start_offset = self.writer.written_bytes() as u64;
 
         // just bulk write all of the block of the given reader.
-        self.writer.write_all(store_reader.block_data())?;
+        self.writer.write_all(&store_reader.block_data())?;
 
         // concatenate the index of the `store_reader`, after translating
         // its start doc id and its start file offset.

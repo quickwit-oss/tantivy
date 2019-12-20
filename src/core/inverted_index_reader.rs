@@ -1,5 +1,6 @@
 use crate::common::BinarySerializable;
-use crate::directory::ReadOnlySource;
+use crate::common::HasLen;
+use crate::directory::{ReadOnlySource, AdvancingReadOnlySource};
 use crate::positions::PositionReader;
 use crate::postings::TermInfo;
 use crate::postings::{BlockSegmentPostings, SegmentPostings};
@@ -7,7 +8,6 @@ use crate::schema::FieldType;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::termdict::TermDictionary;
-use owned_read::OwnedRead;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -40,9 +40,8 @@ impl InvertedIndexReader {
         positions_idx_source: ReadOnlySource,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
-        let total_num_tokens_data = postings_source.slice(0, 8);
-        let mut total_num_tokens_cursor = total_num_tokens_data.as_slice();
-        let total_num_tokens = u64::deserialize(&mut total_num_tokens_cursor).unwrap_or(0u64);
+        let mut total_num_tokens_data = postings_source.slice(0, 8);
+        let total_num_tokens = u64::deserialize(&mut total_num_tokens_data).unwrap_or(0u64);
         InvertedIndexReader {
             termdict,
             postings_source: postings_source.slice_from(8),
@@ -97,8 +96,7 @@ impl InvertedIndexReader {
         let offset = term_info.postings_offset as usize;
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
-        let postings_reader = OwnedRead::new(postings_slice);
-        block_postings.reset(term_info.doc_freq, postings_reader);
+        block_postings.reset(term_info.doc_freq, AdvancingReadOnlySource::from(postings_slice));
     }
 
     /// Returns a block postings given a `Term`.
@@ -127,7 +125,7 @@ impl InvertedIndexReader {
         let postings_data = self.postings_source.slice_from(offset);
         BlockSegmentPostings::from_data(
             term_info.doc_freq,
-            OwnedRead::new(postings_data),
+            AdvancingReadOnlySource::from(postings_data),
             self.record_option,
             requested_option,
         )

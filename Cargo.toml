@@ -44,7 +44,6 @@ tantivy-query-grammar = { version="0.11", path="./query-grammar" }
 bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
 census = "0.4"
 fnv = "1.0.6"
-owned-read = "0.4"
 failure = "0.1"
 htmlescape = "0.3.1"
 fail = "0.3"

@@ -257,7 +257,7 @@ pub mod tests {
         {
             let segment_reader = SegmentReader::open(&segment).unwrap();
             {
-                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field);
+                let mut fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field);
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {

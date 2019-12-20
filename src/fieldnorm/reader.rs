@@ -38,16 +38,16 @@ impl FieldNormReader {
     ///
     /// The fieldnorm is effectively decoded from the
     /// `fieldnorm_id` by doing a simple table lookup.
-    pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
+    pub fn fieldnorm(&mut self, doc_id: DocId) -> u32 {
         let fieldnorm_id = self.fieldnorm_id(doc_id);
         id_to_fieldnorm(fieldnorm_id)
     }
 
     /// Returns the `fieldnorm_id` associated to a document.
     #[inline(always)]
-    pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
-        let fielnorms_data = self.data.as_slice();
-        fielnorms_data[doc_id as usize]
+    pub fn fieldnorm_id(&mut self, doc_id: DocId) -> u8 {
+        let fieldnorms_data = self.data.read_all().expect("Can't read field norm data");
+        fieldnorms_data[doc_id as usize]
     }
 
     /// Converts a `fieldnorm_id` into a fieldnorm.

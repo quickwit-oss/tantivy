@@ -101,7 +101,7 @@ impl Weight for PhraseWeight {
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
-        let fieldnorm_reader = self.fieldnorm_reader(reader);
+        let mut fieldnorm_reader = self.fieldnorm_reader(reader);
         let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
         let phrase_count = scorer.phrase_count();
         let mut explanation = Explanation::new("Phrase Scorer", scorer.score());

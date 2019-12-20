@@ -34,7 +34,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
         if reader.has_deletes() {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
-            let fieldnorms_reader = reader.get_fieldnorms_reader(field);
+            let mut fieldnorms_reader = reader.get_fieldnorms_reader(field);
             for doc in reader.doc_ids_alive() {
                 let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
                 count[fieldnorm_id as usize] += 1;
@@ -174,7 +174,7 @@ impl IndexMerger {
         for field in fields {
             fieldnorms_data.clear();
             for reader in &self.readers {
-                let fieldnorms_reader = reader.get_fieldnorms_reader(field);
+                let mut fieldnorms_reader = reader.get_fieldnorms_reader(field);
                 for doc_id in reader.doc_ids_alive() {
                     let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
                     fieldnorms_data.push(fieldnorm_id);
@@ -662,14 +662,14 @@ impl IndexMerger {
 
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
         for reader in &self.readers {
-            let store_reader = reader.get_store_reader();
+            let mut store_reader = reader.get_store_reader();
             if reader.num_deleted_docs() > 0 {
                 for doc_id in reader.doc_ids_alive() {
                     let doc = store_reader.get(doc_id)?;
                     store_writer.store(&doc)?;
                 }
             } else {
-                store_writer.stack(&store_reader)?;
+                store_writer.stack(&mut store_reader)?;
             }
         }
         Ok(())

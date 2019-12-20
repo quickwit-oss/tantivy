@@ -146,27 +146,27 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: &Segment) -> Result<SegmentReader> {
-        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
-        let termdict_composite = CompositeFile::open(&termdict_source)?;
+        let mut termdict_source = segment.open_read(SegmentComponent::TERMS)?;
+        let termdict_composite = CompositeFile::open(&mut termdict_source)?;
 
         let store_source = segment.open_read(SegmentComponent::STORE)?;
 
         fail_point!("SegmentReader::open#middle");
 
-        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
-        let postings_composite = CompositeFile::open(&postings_source)?;
+        let mut postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_composite = CompositeFile::open(&mut postings_source)?;
 
         let positions_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
-                CompositeFile::open(&source)?
+            if let Ok(mut source) = segment.open_read(SegmentComponent::POSITIONS) {
+                CompositeFile::open(&mut source)?
             } else {
                 CompositeFile::empty()
             }
         };
 
         let positions_idx_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
-                CompositeFile::open(&source)?
+            if let Ok(mut source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
+                CompositeFile::open(&mut source)?
             } else {
                 CompositeFile::empty()
             }
@@ -174,13 +174,13 @@ impl SegmentReader {
 
         let schema = segment.schema();
 
-        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
-        let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
+        let mut fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_composite = CompositeFile::open(&mut fast_fields_data)?;
         let fast_field_readers =
             Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
 
-        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
-        let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
+        let mut fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorms_composite = CompositeFile::open(&mut fieldnorms_data)?;
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;

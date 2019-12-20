@@ -134,8 +134,8 @@ fn test_simple(directory: &mut dyn Directory) {
         write_file.flush().unwrap();
     }
     {
-        let read_file = directory.open_read(test_path).unwrap();
-        let data: &[u8] = &*read_file;
+        let mut read_file = directory.open_read(test_path).unwrap();
+        let data = read_file.read_all().expect("Can't read data");
         assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
     }
     assert!(directory.delete(test_path).is_ok());
@@ -172,12 +172,13 @@ fn test_directory_delete(directory: &mut dyn Directory) {
     write_file.write_all(&[1, 2, 3, 4]).unwrap();
     write_file.flush().unwrap();
     {
-        let read_handle = directory.open_read(&test_path).unwrap();
-        assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+        let mut read_handle = directory.open_read(&test_path).unwrap();
+        let data = read_handle.read_all().expect("Can't read data");
+        assert_eq!(data, &[1u8, 2u8, 3u8, 4u8]);
         // Mapped files can't be deleted on Windows
         if !cfg!(windows) {
             assert!(directory.delete(&test_path).is_ok());
-            assert_eq!(&*read_handle, &[1u8, 2u8, 3u8, 4u8]);
+            assert_eq!(data, &[1u8, 2u8, 3u8, 4u8]);
         }
 
         assert!(directory.delete(Path::new("SomeOtherPath")).is_err());

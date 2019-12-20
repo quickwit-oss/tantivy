@@ -5,7 +5,7 @@ use crate::common::{BinarySerializable, FixedSize};
 use crate::directory::ReadOnlySource;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use std::cmp;
 use std::io::{self, Read, Write};
 
@@ -106,9 +106,13 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 
 impl TermInfoStore {
     pub fn open(data: &ReadOnlySource) -> TermInfoStore {
-        let buffer = data.as_slice();
-        let len = Endianness::read_u64(&buffer[0..8]) as usize;
-        let num_terms = Endianness::read_u64(&buffer[8..16]) as usize;
+        let mut metadata_slice = data.clone();
+        let len = metadata_slice
+            .read_u64::<Endianness>()
+            .expect("Can't read terminfo lenght") as usize;
+        let num_terms = metadata_slice
+            .read_u64::<Endianness>()
+            .expect("Can't read number of terminfo terms") as usize;
         let block_meta_source = data.slice(16, 16 + len);
         let term_info_source = data.slice_from(16 + len);
         TermInfoStore {
@@ -120,17 +124,16 @@ impl TermInfoStore {
 
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
         let block_id = (term_ord as usize) / BLOCK_LEN;
-        let buffer = self.block_meta_source.as_slice();
-        let mut block_data: &[u8] = &buffer[block_id * TermInfoBlockMeta::SIZE_IN_BYTES..];
+        let mut block_data = self.block_meta_source.slice_from(block_id * TermInfoBlockMeta::SIZE_IN_BYTES);
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
             .expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
             term_info_block_data.ref_term_info
         } else {
-            let term_info_data = self.term_info_source.as_slice();
+            let mut term_info_data = self.term_info_source.slice_from(term_info_block_data.offset as usize);
             term_info_block_data.deserialize_term_info(
-                &term_info_data[term_info_block_data.offset as usize..],
+                &term_info_data.read_all().expect("Can't read term info data"),
                 inner_offset - 1,
             )
         }

@@ -8,9 +8,11 @@ use crate::directory::ReadOnlySource;
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::DocId;
+use crate::common::HasLen;
 use std::cell::RefCell;
 use std::io;
 use std::mem::size_of;
+use std::io::Read;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
@@ -35,8 +37,8 @@ impl StoreReader {
         }
     }
 
-    pub(crate) fn block_index(&self) -> SkipList<'_, u64> {
-        SkipList::from(self.offset_index_source.as_slice())
+    pub(crate) fn block_index(&self) -> SkipList<u64> {
+        SkipList::from(self.offset_index_source.clone())
     }
 
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
@@ -46,15 +48,16 @@ impl StoreReader {
             .unwrap_or((0u32, 0u64))
     }
 
-    pub(crate) fn block_data(&self) -> &[u8] {
-        self.data.as_slice()
+    pub(crate) fn block_data(&mut self) -> Vec<u8> {
+        self.data.read_all().expect("Can't read block data")
     }
 
-    fn compressed_block(&self, addr: usize) -> &[u8] {
-        let total_buffer = self.data.as_slice();
-        let mut buffer = &total_buffer[addr..];
-        let block_len = u32::deserialize(&mut buffer).expect("") as usize;
-        &buffer[..block_len]
+    fn compressed_block(&self, addr: usize) -> Vec<u8> {
+        let mut buffer_slice = self.data.slice_from(addr);
+        let block_len = u32::deserialize(&mut buffer_slice).expect("") as usize;
+        let mut block = vec![0u8; block_len];
+        buffer_slice.read_exact(&mut block).expect("Can't read compressed block");
+        block
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {
@@ -62,7 +65,7 @@ impl StoreReader {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
             let compressed_block = self.compressed_block(block_offset);
-            decompress(compressed_block, &mut current_block_mut)?;
+            decompress(&compressed_block, &mut current_block_mut)?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
         Ok(())
@@ -98,11 +101,10 @@ impl StoreReader {
 fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId) {
     let data_len = data.len();
     let footer_offset = data_len - size_of::<u64>() - size_of::<u32>();
-    let serialized_offset: ReadOnlySource = data.slice(footer_offset, data_len);
-    let mut serialized_offset_buf = serialized_offset.as_slice();
-    let offset = u64::deserialize(&mut serialized_offset_buf).unwrap();
+    let mut serialized_offset: ReadOnlySource = data.slice(footer_offset, data_len);
+    let offset = u64::deserialize(&mut serialized_offset).unwrap();
     let offset = offset as usize;
-    let max_doc = u32::deserialize(&mut serialized_offset_buf).unwrap();
+    let max_doc = u32::deserialize(&mut serialized_offset).unwrap();
     (
         data.slice(0, offset),
         data.slice(offset, footer_offset),

@@ -4,6 +4,7 @@ use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
+use crate::common::HasLen;
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -86,7 +87,7 @@ struct InnerDirectory {
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = ReadOnlySource::new(Vec::from(data));
+        let data = ReadOnlySource::from(Vec::from(data));
         self.fs.insert(path, data).is_some()
     }
 
@@ -178,7 +179,7 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        Ok(self.open_read(path)?.as_slice().to_owned())
+        Ok(self.open_read(path)?.read_all().expect("Can't read read only source for RAM directory"))
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

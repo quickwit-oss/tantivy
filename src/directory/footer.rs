@@ -3,10 +3,11 @@ use crate::directory::error::Incompatibility;
 use crate::directory::read_only_source::ReadOnlySource;
 use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::Version;
-use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use crc32fast::Hasher;
 use std::io;
 use std::io::Write;
+use crate::common::HasLen;
 
 type CrcHashU32 = u32;
 
@@ -76,12 +77,11 @@ impl Footer {
                 ),
             ));
         }
-        let (body_footer, footer_len_bytes) = source.split_from_end(u32::SIZE_IN_BYTES);
-        let footer_len = LittleEndian::read_u32(footer_len_bytes.as_slice()) as usize;
+        let (body_footer, mut footer_len_bytes) = source.split_from_end(u32::SIZE_IN_BYTES);
+        let footer_len = footer_len_bytes.read_u32::<LittleEndian>()? as usize;
         let body_len = body_footer.len() - footer_len;
-        let (body, footer_data) = body_footer.split(body_len);
-        let mut cursor = footer_data.as_slice();
-        let footer = Footer::deserialize(&mut cursor)?;
+        let (body, mut footer_data) = body_footer.split(body_len);
+        let footer = Footer::deserialize(&mut footer_data)?;
         Ok((footer, body))
     }
 

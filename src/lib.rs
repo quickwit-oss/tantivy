@@ -430,11 +430,11 @@ mod tests {
             let searcher = index_reader.searcher();
             let reader = searcher.segment_reader(0);
             {
-                let fieldnorm_reader = reader.get_fieldnorms_reader(text_field);
+                let mut fieldnorm_reader = reader.get_fieldnorms_reader(text_field);
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 3);
             }
             {
-                let fieldnorm_reader = reader.get_fieldnorms_reader(title_field);
+                let mut fieldnorm_reader = reader.get_fieldnorms_reader(title_field);
                 assert_eq!(fieldnorm_reader.fieldnorm_id(0), 0);
             }
         }
@@ -465,7 +465,7 @@ mod tests {
             let reader = index.reader().unwrap();
             let searcher = reader.searcher();
             let segment_reader: &SegmentReader = searcher.segment_reader(0);
-            let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field);
+            let mut fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field);
             assert_eq!(fieldnorms_reader.fieldnorm(0), 3);
             assert_eq!(fieldnorms_reader.fieldnorm(1), 0);
             assert_eq!(fieldnorms_reader.fieldnorm(2), 2);

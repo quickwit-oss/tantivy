@@ -1,17 +1,17 @@
 use crate::common::{BinarySerializable, VInt};
+use crate::directory::ReadOnlySource;
 use std::cmp::max;
 use std::marker::PhantomData;
+use std::io::{Seek, SeekFrom};
 
-static EMPTY: [u8; 0] = [];
-
-struct Layer<'a, T> {
-    data: &'a [u8],
-    cursor: &'a [u8],
+struct Layer<T> {
+    data: ReadOnlySource,
+    cursor: ReadOnlySource,
     next_id: Option<u64>,
     _phantom_: PhantomData<T>,
 }
 
-impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
+impl<T: BinarySerializable> Iterator for Layer<T> {
     type Item = (u64, T);
 
     fn next(&mut self) -> Option<(u64, T)> {
@@ -25,9 +25,9 @@ impl<'a, T: BinarySerializable> Iterator for Layer<'a, T> {
     }
 }
 
-impl<'a, T: BinarySerializable> From<&'a [u8]> for Layer<'a, T> {
-    fn from(data: &'a [u8]) -> Layer<'a, T> {
-        let mut cursor = data;
+impl<T: BinarySerializable> From<ReadOnlySource> for Layer<T> {
+    fn from(data: ReadOnlySource) -> Layer<T> {
+        let mut cursor = data.clone();
         let next_id = VInt::deserialize_u64(&mut cursor).ok();
         Layer {
             data,
@@ -38,18 +38,20 @@ impl<'a, T: BinarySerializable> From<&'a [u8]> for Layer<'a, T> {
     }
 }
 
-impl<'a, T: BinarySerializable> Layer<'a, T> {
-    fn empty() -> Layer<'a, T> {
+impl<T: BinarySerializable> Layer<T> {
+    fn empty() -> Layer<T> {
+        let data = ReadOnlySource::empty();
         Layer {
-            data: &EMPTY,
-            cursor: &EMPTY,
+            data: data.clone(),
+            cursor: data,
             next_id: None,
             _phantom_: PhantomData,
         }
     }
 
     fn seek_offset(&mut self, offset: usize) {
-        self.cursor = &self.data[offset..];
+        // self.cursor = &self.data[offset..];
+        self.cursor = self.data.slice_from(offset);
         self.next_id = VInt::deserialize_u64(&mut self.cursor).ok();
     }
 
@@ -77,12 +79,12 @@ impl<'a, T: BinarySerializable> Layer<'a, T> {
     }
 }
 
-pub struct SkipList<'a, T: BinarySerializable> {
-    data_layer: Layer<'a, T>,
-    skip_layers: Vec<Layer<'a, u64>>,
+pub struct SkipList<T: BinarySerializable> {
+    data_layer: Layer<T>,
+    skip_layers: Vec<Layer<u64>>,
 }
 
-impl<'a, T: BinarySerializable> Iterator for SkipList<'a, T> {
+impl<T: BinarySerializable> Iterator for SkipList<T> {
     type Item = (u64, T);
 
     fn next(&mut self) -> Option<(u64, T)> {
@@ -90,7 +92,7 @@ impl<'a, T: BinarySerializable> Iterator for SkipList<'a, T> {
     }
 }
 
-impl<'a, T: BinarySerializable> SkipList<'a, T> {
+impl<T: BinarySerializable> SkipList<T> {
     pub fn seek(&mut self, key: u64) -> Option<(u64, T)> {
         let mut next_layer_skip: Option<(u64, u64)> = None;
         for skip_layer in &mut self.skip_layers {
@@ -106,28 +108,41 @@ impl<'a, T: BinarySerializable> SkipList<'a, T> {
     }
 }
 
-impl<'a, T: BinarySerializable> From<&'a [u8]> for SkipList<'a, T> {
-    fn from(mut data: &'a [u8]) -> SkipList<'a, T> {
+impl<T: BinarySerializable> From<ReadOnlySource> for SkipList<T> {
+    fn from(mut data: ReadOnlySource) -> SkipList<T> {
+        let data_pos = data.seek(SeekFrom::Current(0)).expect("Can't seek in skiplist");
         let offsets: Vec<u64> = Vec::<VInt>::deserialize(&mut data)
             .unwrap()
             .into_iter()
             .map(|el| el.0)
             .collect();
         let num_layers = offsets.len();
-        let layers_data: &[u8] = data;
-        let data_layer: Layer<'a, T> = if num_layers == 0 {
+
+        let new_pos = data.seek(SeekFrom::Current(0)).expect("Can't seek in skiplist");
+        let slice_length = new_pos - data_pos;
+        let layers_data = data.slice_from(slice_length as usize);
+
+        let data_layer: Layer<T> = if num_layers == 0 {
             Layer::empty()
         } else {
-            let first_layer_data: &[u8] = &layers_data[..offsets[0] as usize];
+            let first_layer_data = layers_data.slice_to(offsets[0] as usize);
             Layer::from(first_layer_data)
         };
-        let skip_layers = (0..max(1, num_layers) - 1)
+
+        let skip_layers: Vec<Layer<u64>> = (0..max(1, num_layers) - 1)
             .map(|i| (offsets[i] as usize, offsets[i + 1] as usize))
-            .map(|(start, stop)| Layer::from(&layers_data[start..stop]))
+            .map(|(start, stop)| Layer::from(layers_data.slice(start, stop)))
             .collect();
+
         SkipList {
             skip_layers,
             data_layer,
         }
+    }
+}
+
+impl<T: BinarySerializable> From<Vec<u8>> for SkipList<T> {
+    fn from(data: Vec<u8>) -> SkipList<T> {
+        SkipList::from(ReadOnlySource::from(data))
     }
 }

@@ -6,6 +6,7 @@ use crate::directory::ReadOnlySource;
 use crate::postings::TermInfo;
 use crate::schema::FieldType;
 use crate::termdict::TermOrdinal;
+use crate::common::HasLen;
 use std::io::{self, Write};
 use tantivy_fst;
 use tantivy_fst::raw::Fst;
@@ -87,8 +88,8 @@ where
     }
 }
 
-fn open_fst_index(source: ReadOnlySource) -> tantivy_fst::Map<ReadOnlySource> {
-    let fst = Fst::new(source).expect("FST data is corrupted");
+fn open_fst_index(mut source: ReadOnlySource) -> tantivy_fst::Map<Vec<u8>> {
+    let fst = Fst::new(source.read_all().expect("Can't read source")).expect("FST data is corrupted");
     tantivy_fst::Map::from(fst)
 }
 
@@ -99,7 +100,7 @@ fn open_fst_index(source: ReadOnlySource) -> tantivy_fst::Map<ReadOnlySource> {
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
 pub struct TermDictionary {
-    fst_index: tantivy_fst::Map<ReadOnlySource>,
+    fst_index: tantivy_fst::Map<Vec<u8>>,
     term_info_store: TermInfoStore,
 }
 
@@ -108,7 +109,7 @@ impl TermDictionary {
     pub fn from_source(source: &ReadOnlySource) -> Self {
         let total_len = source.len();
         let length_offset = total_len - 8;
-        let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
+        let mut split_len_buffer = source.slice_from(length_offset);
         let footer_size = u64::deserialize(&mut split_len_buffer)
             .expect("Deserializing 8 bytes should always work") as usize;
         let split_len = length_offset - footer_size;

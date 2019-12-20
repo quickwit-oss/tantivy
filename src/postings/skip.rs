@@ -2,7 +2,7 @@ use crate::common::BinarySerializable;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
-use owned_read::OwnedRead;
+use crate::directory::AdvancingReadOnlySource;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -51,7 +51,7 @@ impl SkipSerializer {
 
 pub(crate) struct SkipReader {
     doc: DocId,
-    owned_read: OwnedRead,
+    data: AdvancingReadOnlySource,
     doc_num_bits: u8,
     tf_num_bits: u8,
     tf_sum: u32,
@@ -59,10 +59,10 @@ pub(crate) struct SkipReader {
 }
 
 impl SkipReader {
-    pub fn new(data: OwnedRead, skip_info: IndexRecordOption) -> SkipReader {
+    pub fn new(data: AdvancingReadOnlySource, skip_info: IndexRecordOption) -> SkipReader {
         SkipReader {
             doc: 0u32,
-            owned_read: data,
+            data,
             skip_info,
             doc_num_bits: 0u8,
             tf_num_bits: 0u8,
@@ -70,9 +70,9 @@ impl SkipReader {
         }
     }
 
-    pub fn reset(&mut self, data: OwnedRead) {
+    pub fn reset(&mut self, data: AdvancingReadOnlySource) {
         self.doc = 0u32;
-        self.owned_read = data;
+        self.data = data;
         self.doc_num_bits = 0u8;
         self.tf_num_bits = 0u8;
         self.tf_sum = 0u32;
@@ -102,25 +102,25 @@ impl SkipReader {
     }
 
     pub fn advance(&mut self) -> bool {
-        if self.owned_read.as_ref().is_empty() {
+        if self.data.is_empty() {
             false
         } else {
-            let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
+            let doc_delta = u32::deserialize(&mut self.data).expect("Skip data corrupted");
             self.doc += doc_delta as DocId;
-            self.doc_num_bits = self.owned_read.get(0);
+            self.doc_num_bits = self.data.get(0);
             match self.skip_info {
                 IndexRecordOption::Basic => {
-                    self.owned_read.advance(1);
+                    self.data.advance(1);
                 }
                 IndexRecordOption::WithFreqs => {
-                    self.tf_num_bits = self.owned_read.get(1);
-                    self.owned_read.advance(2);
+                    self.tf_num_bits = self.data.get(1);
+                    self.data.advance(2);
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    self.tf_num_bits = self.owned_read.get(1);
-                    self.owned_read.advance(2);
+                    self.tf_num_bits = self.data.get(1);
+                    self.data.advance(2);
                     self.tf_sum =
-                        u32::deserialize(&mut self.owned_read).expect("Failed reading tf_sum");
+                        u32::deserialize(&mut self.data).expect("Failed reading tf_sum");
                 }
             }
             true
@@ -133,7 +133,7 @@ mod tests {
 
     use super::IndexRecordOption;
     use super::{SkipReader, SkipSerializer};
-    use owned_read::OwnedRead;
+    use super::AdvancingReadOnlySource;
 
     #[test]
     fn test_skip_with_freq() {
@@ -145,7 +145,7 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::WithFreqs);
+        let mut skip_reader = SkipReader::new(AdvancingReadOnlySource::from(buf), IndexRecordOption::WithFreqs);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
@@ -165,7 +165,7 @@ mod tests {
             skip_serializer.write_doc(5u32, 5u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::Basic);
+        let mut skip_reader = SkipReader::new(AdvancingReadOnlySource::from(buf), IndexRecordOption::Basic);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
