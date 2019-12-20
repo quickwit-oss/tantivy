@@ -452,9 +452,11 @@ impl FacetCounts {
 #[cfg(test)]
 mod tests {
     use super::{FacetCollector, FacetCounts};
+    use crate::collector::Count;
     use crate::core::Index;
-    use crate::query::AllQuery;
-    use crate::schema::{Document, Facet, Field, Schema};
+    use crate::query::{AllQuery, QueryParser, TermQuery};
+    use crate::schema::{Document, Facet, Field, IndexRecordOption, Schema};
+    use crate::Term;
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;
     use rand::{thread_rng, Rng};
@@ -542,6 +544,56 @@ mod tests {
         let counts = searcher.search(&AllQuery, &facet_collector).unwrap();
         let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
         assert_eq!(facets[0].1, 1);
+    }
+
+    #[test]
+    fn test_doc_search_by_facet() {
+        let mut schema_builder = Schema::builder();
+        let facet_field = schema_builder.add_facet_field("facet");
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/A/A"),
+        ));
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/A/B"),
+        ));
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/A/C/A"),
+        ));
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/D/C/A"),
+        ));
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 4);
+
+        let count_facet = |facet_str: &str| {
+            let term = Term::from_facet(facet_field, &Facet::from_text(facet_str));
+            searcher
+                .search(&TermQuery::new(term, IndexRecordOption::Basic), &Count)
+                .unwrap()
+        };
+
+        assert_eq!(count_facet("/"), 4);
+        assert_eq!(count_facet("/A"), 3);
+        assert_eq!(count_facet("/A/B"), 1);
+        assert_eq!(count_facet("/A/C"), 1);
+        assert_eq!(count_facet("/A/C/A"), 1);
+        assert_eq!(count_facet("/C/A"), 0);
+        {
+            let query_parser = QueryParser::for_index(&index, vec![]);
+            {
+                let query = query_parser.parse_query("facet:/A/B").unwrap();
+                assert_eq!(1, searcher.search(&query, &Count).unwrap());
+            }
+            {
+                let query = query_parser.parse_query("facet:/A").unwrap();
+                assert_eq!(3, searcher.search(&query, &Count).unwrap());
+            }
+        }
     }
 
     #[test]
