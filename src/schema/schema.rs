@@ -166,7 +166,7 @@ impl SchemaBuilder {
     }
 
     /// Adds a field entry to the schema in build.
-    fn add_field(&mut self, field_entry: FieldEntry) -> Field {
+    pub fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field::from_field_id(self.fields.len() as u32);
         let field_name = field_entry.name().to_string();
         self.fields.push(field_entry);
@@ -401,6 +401,7 @@ pub enum DocParsingError {
 mod tests {
 
     use crate::schema::field_type::ValueParsingError;
+    use crate::schema::int_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::NotJSON;
     use crate::schema::*;
     use matches::{assert_matches, matches};
@@ -714,5 +715,95 @@ mod tests {
             );
             assert_matches!(json_err, Err(NotJSON(_)));
         }
+    }
+
+    #[test]
+    pub fn test_schema_add_field() {
+        let mut schema_builder = SchemaBuilder::default();
+        let id_options = TextOptions::default().set_stored().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_tokenizer("raw")
+                .set_index_option(IndexRecordOption::Basic),
+        );
+        let timestamp_options = IntOptions::default()
+            .set_stored()
+            .set_indexed()
+            .set_fast(SingleValue);
+        schema_builder.add_text_field("_id", id_options);
+        schema_builder.add_date_field("_timestamp", timestamp_options);
+
+        let schema_content = r#"[
+  {
+    "name": "text",
+    "type": "text",
+    "options": {
+      "indexing": {
+        "record": "position",
+        "tokenizer": "default"
+      },
+      "stored": false
+    }
+  },
+  {
+    "name": "popularity",
+    "type": "i64",
+    "options": {
+      "indexed": false,
+      "fast": "single",
+      "stored": true
+    }
+  }
+]"#;
+        let tmp_schema: Schema =
+            serde_json::from_str(&schema_content).expect("error while reading json");
+        for (_field, field_entry) in tmp_schema.fields() {
+            schema_builder.add_field(field_entry.clone());
+        }
+
+        let schema = schema_builder.build();
+        let schema_json = serde_json::to_string_pretty(&schema).unwrap();
+        let expected = r#"[
+  {
+    "name": "_id",
+    "type": "text",
+    "options": {
+      "indexing": {
+        "record": "basic",
+        "tokenizer": "raw"
+      },
+      "stored": true
+    }
+  },
+  {
+    "name": "_timestamp",
+    "type": "date",
+    "options": {
+      "indexed": true,
+      "fast": "single",
+      "stored": true
+    }
+  },
+  {
+    "name": "text",
+    "type": "text",
+    "options": {
+      "indexing": {
+        "record": "position",
+        "tokenizer": "default"
+      },
+      "stored": false
+    }
+  },
+  {
+    "name": "popularity",
+    "type": "i64",
+    "options": {
+      "indexed": false,
+      "fast": "single",
+      "stored": true
+    }
+  }
+]"#;
+        assert_eq!(schema_json, expected);
     }
 }
