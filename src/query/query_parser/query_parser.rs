@@ -8,7 +8,7 @@ use crate::query::PhraseQuery;
 use crate::query::Query;
 use crate::query::RangeQuery;
 use crate::query::TermQuery;
-use crate::schema::IndexRecordOption;
+use crate::schema::{Facet, IndexRecordOption};
 use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
@@ -319,7 +319,10 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet => Ok(vec![(0, Term::from_field_text(field, phrase))]),
+            FieldType::HierarchicalFacet => {
+                let facet = Facet::from_text(phrase);
+                Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
+            }
             FieldType::Bytes => {
                 let field_name = self.schema.get_field_name(field).to_string();
                 Err(QueryParserError::FieldNotIndexed(field_name))
@@ -554,6 +557,7 @@ mod test {
         schema_builder.add_text_field("with_stop_words", text_options);
         schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_f64_field("float", INDEXED);
+        schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
@@ -588,9 +592,13 @@ mod test {
     }
 
     #[test]
-    pub fn test_parse_query_simple() {
+    pub fn test_parse_query_facet() {
         let query_parser = make_query_parser();
-        assert!(query_parser.parse_query("toto").is_ok());
+        let query = query_parser.parse_query("facet:/root/branch/leaf").unwrap();
+        assert_eq!(
+            format!("{:?}", query),
+            "TermQuery(Term(field=11,bytes=[114, 111, 111, 116, 0, 98, 114, 97, 110, 99, 104, 0, 108, 101, 97, 102]))"
+        );
     }
 
     #[test]
