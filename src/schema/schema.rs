@@ -401,12 +401,12 @@ pub enum DocParsingError {
 mod tests {
 
     use crate::schema::field_type::ValueParsingError;
+    use crate::schema::int_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::NotJSON;
     use crate::schema::*;
     use matches::{assert_matches, matches};
     use serde_json;
     use std::collections::BTreeMap;
-    use crate::schema::int_options::Cardinality::SingleValue;
 
     #[test]
     pub fn is_indexed_test() {
@@ -720,11 +720,11 @@ mod tests {
     #[test]
     pub fn test_schema_add_field() {
         let mut schema_builder = SchemaBuilder::default();
-        let id_options = TextOptions::default()
-            .set_stored()
-            .set_indexing_options(TextFieldIndexing::default()
+        let id_options = TextOptions::default().set_stored().set_indexing_options(
+            TextFieldIndexing::default()
                 .set_tokenizer("raw")
-                .set_index_option(IndexRecordOption::Basic));
+                .set_index_option(IndexRecordOption::Basic),
+        );
         let timestamp_options = IntOptions::default()
             .set_stored()
             .set_indexed()
@@ -754,7 +754,8 @@ mod tests {
     }
   }
 ]"#;
-        let tmp_schema: Schema = serde_json::from_str(&schema_content).expect("error while reading json");
+        let tmp_schema: Schema =
+            serde_json::from_str(&schema_content).expect("error while reading json");
         for (_field, field_entry) in tmp_schema.fields() {
             schema_builder.add_field(field_entry.clone());
         }
