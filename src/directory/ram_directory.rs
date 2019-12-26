@@ -1,3 +1,4 @@
+use crate::common::CountingWriter;
 use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
@@ -115,6 +116,22 @@ impl InnerDirectory {
     fn total_mem_usage(&self) -> usize {
         self.fs.values().map(|f| f.len()).sum()
     }
+
+    fn serialize_bundle(self, wrt: &mut WritePtr) -> io::Result<()> {
+        let mut counting_writer = CountingWriter::wrap(wrt);
+        let mut file_index: HashMap<PathBuf, (u64, u64)> = HashMap::default();
+        for (path, source) in &self.fs {
+            let start = counting_writer.written_bytes();
+            counting_writer.write_all(source.as_slice())?;
+            let stop = counting_writer.written_bytes();
+            file_index.insert(path.to_path_buf(), (start, stop));
+        }
+        serde_json::to_writer(&mut counting_writer, &file_index)?;
+        let index_offset = counting_writer.written_bytes();
+        let index_offset_buffer = index_offset.to_le_bytes();
+        counting_writer.write_all(&index_offset_buffer[..])?;
+        Ok(())
+    }
 }
 
 impl fmt::Debug for RAMDirectory {
@@ -143,6 +160,28 @@ impl RAMDirectory {
     /// in the RAMDirectory.
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
+    }
+
+    /// Serialize the RAMDirectory into a bundle.
+    ///
+    /// This method will fail, write nothing, and return an error if a
+    /// clone of this repository exists.
+    pub fn serialize_bundle(self, wrt: &mut WritePtr) -> io::Result<()> {
+        let inner_directory = self.try_unwrap().map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Serialize bundle requires that \
+            there are no other existing copy of the directory."
+                    .to_string(),
+            )
+        })?;
+        inner_directory.serialize_bundle(wrt)
+    }
+
+    fn try_unwrap(self) -> Result<InnerDirectory, ()> {
+        let inner_directory_lock = Arc::try_unwrap(self.fs).map_err(|_| ())?;
+        let inner_directory = inner_directory_lock.into_inner().map_err(|_| ())?;
+        Ok(inner_directory)
     }
 }
 
