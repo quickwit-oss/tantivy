@@ -25,10 +25,10 @@ impl DataCorruption {
         }
     }
 
-    pub fn comment_only(comment: String) -> DataCorruption {
+    pub fn comment_only<TS: ToString>(comment: TS) -> DataCorruption {
         DataCorruption {
             filepath: None,
-            comment,
+            comment: comment.to_string(),
         }
     }
 }

@@ -36,7 +36,7 @@ pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
 mod tests {
     use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
     use crate::core::Index;
-    use crate::directory::{Directory, RAMDirectory, ReadOnlySource};
+    use crate::directory::{Directory, RAMDirectory, ReadOnlyDirectory, ReadOnlySource};
     use crate::postings::TermInfo;
     use crate::schema::{Document, FieldType, Schema, TEXT};
     use std::path::PathBuf;

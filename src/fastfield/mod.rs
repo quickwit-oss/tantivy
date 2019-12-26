@@ -179,7 +179,7 @@ mod tests {
 
     use super::*;
     use crate::common::CompositeFile;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RAMDirectory, ReadOnlyDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;

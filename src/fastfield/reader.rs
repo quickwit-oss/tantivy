@@ -4,7 +4,7 @@ use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
 use crate::directory::ReadOnlySource;
-use crate::directory::{Directory, RAMDirectory, WritePtr};
+use crate::directory::{Directory, RAMDirectory, ReadOnlyDirectory, WritePtr};
 use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;

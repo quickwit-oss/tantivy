@@ -186,7 +186,7 @@ mod test {
     use super::{CompositeFile, CompositeWrite};
     use crate::common::BinarySerializable;
     use crate::common::VInt;
-    use crate::directory::{Directory, RAMDirectory};
+    use crate::directory::{Directory, RAMDirectory, ReadOnlyDirectory};
     use crate::schema::Field;
     use std::io::Write;
     use std::path::Path;

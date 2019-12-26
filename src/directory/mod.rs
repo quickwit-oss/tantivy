@@ -7,6 +7,7 @@ WORM directory abstraction.
 #[cfg(feature = "mmap")]
 mod mmap_directory;
 
+mod bundle_directory;
 mod directory;
 mod directory_lock;
 mod footer;
@@ -19,7 +20,7 @@ mod watch_event_router;
 pub mod error;
 
 pub use self::directory::DirectoryLock;
-pub use self::directory::{Directory, DirectoryClone};
+pub use self::directory::{Directory, DirectoryClone, ReadOnlyDirectory};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;

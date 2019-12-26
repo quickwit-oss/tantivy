@@ -57,7 +57,7 @@ use self::compression_snap::{compress, decompress};
 pub mod tests {
 
     use super::*;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RAMDirectory, ReadOnlyDirectory, WritePtr};
     use crate::schema::Document;
     use crate::schema::FieldValue;
     use crate::schema::Schema;

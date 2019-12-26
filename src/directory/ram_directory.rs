@@ -1,5 +1,6 @@
 use crate::common::CountingWriter;
 use crate::core::META_FILEPATH;
+use crate::directory::directory::ReadOnlyDirectory;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
@@ -117,7 +118,7 @@ impl InnerDirectory {
         self.fs.values().map(|f| f.len()).sum()
     }
 
-    fn serialize_bundle(self, wrt: &mut WritePtr) -> io::Result<()> {
+    fn serialize_bundle(&self, wrt: &mut WritePtr) -> io::Result<()> {
         let mut counting_writer = CountingWriter::wrap(wrt);
         let mut file_index: HashMap<PathBuf, (u64, u64)> = HashMap::default();
         for (path, source) in &self.fs {
@@ -126,8 +127,8 @@ impl InnerDirectory {
             let stop = counting_writer.written_bytes();
             file_index.insert(path.to_path_buf(), (start, stop));
         }
-        serde_json::to_writer(&mut counting_writer, &file_index)?;
         let index_offset = counting_writer.written_bytes();
+        serde_json::to_writer(&mut counting_writer, &file_index)?;
         let index_offset_buffer = index_offset.to_le_bytes();
         counting_writer.write_all(&index_offset_buffer[..])?;
         Ok(())
@@ -167,29 +168,12 @@ impl RAMDirectory {
     /// This method will fail, write nothing, and return an error if a
     /// clone of this repository exists.
     pub fn serialize_bundle(self, wrt: &mut WritePtr) -> io::Result<()> {
-        let inner_directory = self.try_unwrap().map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                "Serialize bundle requires that \
-            there are no other existing copy of the directory."
-                    .to_string(),
-            )
-        })?;
-        inner_directory.serialize_bundle(wrt)
-    }
-
-    fn try_unwrap(self) -> Result<InnerDirectory, ()> {
-        let inner_directory_lock = Arc::try_unwrap(self.fs).map_err(|_| ())?;
-        let inner_directory = inner_directory_lock.into_inner().map_err(|_| ())?;
-        Ok(inner_directory)
+        let inner_directory_rlock = self.fs.read().unwrap();
+        inner_directory_rlock.serialize_bundle(wrt)
     }
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.fs.read().unwrap().open_read(path)
-    }
-
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         fail_point!("RAMDirectory::delete", |_| {
             use crate::directory::error::IOError;
@@ -197,10 +181,6 @@ impl Directory for RAMDirectory {
             Err(DeleteError::from(io_error))
         });
         self.fs.write().unwrap().delete(path)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        self.fs.read().unwrap().exists(path)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -214,10 +194,6 @@ impl Directory for RAMDirectory {
         } else {
             Ok(BufWriter::new(Box::new(vec_writer)))
         }
-    }
-
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        Ok(self.open_read(path)?.as_slice().to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -241,5 +217,19 @@ impl Directory for RAMDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.fs.write().unwrap().watch(watch_callback))
+    }
+}
+
+impl ReadOnlyDirectory for RAMDirectory {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+        self.fs.read().unwrap().open_read(path)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.fs.read().unwrap().exists(path)
+    }
+
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        Ok(self.open_read(path)?.as_slice().to_owned())
     }
 }

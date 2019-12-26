@@ -6,6 +6,7 @@ use self::notify::RawEvent;
 use self::notify::RecursiveMode;
 use self::notify::Watcher;
 use crate::core::META_FILEPATH;
+use crate::directory::directory::ReadOnlyDirectory;
 use crate::directory::error::LockError;
 use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
@@ -407,24 +408,6 @@ impl TerminatingWrite for SafeFileWriter {
 }
 
 impl Directory for MmapDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        debug!("Open Read {:?}", path);
-        let full_path = self.resolve_path(path);
-
-        let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
-            let msg = format!(
-                "Failed to acquired write lock \
-                 on mmap cache while reading {:?}",
-                path
-            );
-            IOError::with_path(path.to_owned(), make_io_err(msg))
-        })?;
-        Ok(mmap_cache
-            .get_mmap(&full_path)?
-            .map(ReadOnlySource::from)
-            .unwrap_or_else(ReadOnlySource::empty))
-    }
-
     /// Any entry associated to the path in the mmap will be
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
@@ -441,11 +424,6 @@ impl Directory for MmapDirectory {
                 }
             }
         }
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        let full_path = self.resolve_path(path);
-        full_path.exists()
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -478,25 +456,6 @@ impl Directory for MmapDirectory {
         Ok(BufWriter::new(Box::new(writer)))
     }
 
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        let full_path = self.resolve_path(path);
-        let mut buffer = Vec::new();
-        match File::open(&full_path) {
-            Ok(mut file) => {
-                file.read_to_end(&mut buffer)
-                    .map_err(|e| IOError::with_path(path.to_owned(), e))?;
-                Ok(buffer)
-            }
-            Err(e) => {
-                if e.kind() == io::ErrorKind::NotFound {
-                    Err(OpenReadError::FileDoesNotExist(path.to_owned()))
-                } else {
-                    Err(IOError::with_path(path.to_owned(), e).into())
-                }
-            }
-        }
-    }
-
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
@@ -527,6 +486,50 @@ impl Directory for MmapDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.inner.watch(watch_callback)
+    }
+}
+
+impl ReadOnlyDirectory for MmapDirectory {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+        debug!("Open Read {:?}", path);
+        let full_path = self.resolve_path(path);
+
+        let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
+            let msg = format!(
+                "Failed to acquired write lock \
+                 on mmap cache while reading {:?}",
+                path
+            );
+            IOError::with_path(path.to_owned(), make_io_err(msg))
+        })?;
+        Ok(mmap_cache
+            .get_mmap(&full_path)?
+            .map(ReadOnlySource::from)
+            .unwrap_or_else(ReadOnlySource::empty))
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        let full_path = self.resolve_path(path);
+        full_path.exists()
+    }
+
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        let full_path = self.resolve_path(path);
+        let mut buffer = Vec::new();
+        match File::open(&full_path) {
+            Ok(mut file) => {
+                file.read_to_end(&mut buffer)
+                    .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+                Ok(buffer)
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(OpenReadError::FileDoesNotExist(path.to_owned()))
+                } else {
+                    Err(IOError::with_path(path.to_owned(), e).into())
+                }
+            }
+        }
     }
 }
 

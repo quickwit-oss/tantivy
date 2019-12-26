@@ -100,17 +100,7 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
     }
 }
 
-/// Write-once read many (WORM) abstraction for where
-/// tantivy's data should be stored.
-///
-/// There are currently two implementations of `Directory`
-///
-/// - The [`MMapDirectory`](struct.MmapDirectory.html), this
-/// should be your default choice.
-/// - The [`RAMDirectory`](struct.RAMDirectory.html), which
-/// should be used mostly for tests.
-///
-pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
+pub trait ReadOnlyDirectory {
     /// Opens a virtual file for read.
     ///
     /// Once a virtual file is open, its data may not
@@ -122,6 +112,31 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// You should only use this to read files create with [Directory::open_write].
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
 
+    /// Returns true iff the file exists
+    fn exists(&self, path: &Path) -> bool;
+
+    /// Reads the full content file that has been written using
+    /// atomic_write.
+    ///
+    /// This should only be used for small files.
+    ///
+    /// You should only use this to read files create with [Directory::atomic_write].
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
+}
+
+/// Write-once read many (WORM) abstraction for where
+/// tantivy's data should be stored.
+///
+/// There are currently two implementations of `Directory`
+///
+/// - The [`MMapDirectory`](struct.MmapDirectory.html), this
+/// should be your default choice.
+/// - The [`RAMDirectory`](struct.RAMDirectory.html), which
+/// should be used mostly for tests.
+///
+pub trait Directory:
+    DirectoryClone + ReadOnlyDirectory + fmt::Debug + Send + Sync + 'static
+{
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual
@@ -130,9 +145,6 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Removing a nonexistent file, yields a
     /// `DeleteError::DoesNotExist`.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError>;
-
-    /// Returns true iff the file exists
-    fn exists(&self, path: &Path) -> bool;
 
     /// Opens a writer for the *virtual file* associated with
     /// a Path.
@@ -154,14 +166,6 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// The file may not previously exist.
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
-
-    /// Reads the full content file that has been written using
-    /// atomic_write.
-    ///
-    /// This should only be used for small files.
-    ///
-    /// You should only use this to read files create with [Directory::atomic_write].
-    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError>;
 
     /// Atomically replace the content of a file with data.
     ///

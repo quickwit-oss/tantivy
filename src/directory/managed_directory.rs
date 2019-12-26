@@ -10,6 +10,7 @@ use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
 
+use crate::directory::directory::ReadOnlyDirectory;
 use crc32fast::Hasher;
 use serde_json;
 use std::collections::HashSet;
@@ -264,14 +265,6 @@ impl ManagedDirectory {
 }
 
 impl Directory for ManagedDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        let read_only_source = self.directory.open_read(path)?;
-        let (footer, reader) = Footer::extract_footer(read_only_source)
-            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
-        footer.is_compatible()?;
-        Ok(reader)
-    }
-
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|e| IOError::with_path(path.to_owned(), e))?;
@@ -289,16 +282,8 @@ impl Directory for ManagedDirectory {
         self.directory.atomic_write(path, data)
     }
 
-    fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
-        self.directory.atomic_read(path)
-    }
-
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         self.directory.delete(path)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        self.directory.exists(path)
     }
 
     fn acquire_lock(&self, lock: &Lock) -> result::Result<DirectoryLock, LockError> {
@@ -307,6 +292,24 @@ impl Directory for ManagedDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.directory.watch(watch_callback)
+    }
+}
+
+impl ReadOnlyDirectory for ManagedDirectory {
+    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+        let read_only_source = self.directory.open_read(path)?;
+        let (footer, reader) = Footer::extract_footer(read_only_source)
+            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        footer.is_compatible()?;
+        Ok(reader)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.directory.exists(path)
+    }
+
+    fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
+        self.directory.atomic_read(path)
     }
 }
 
@@ -323,7 +326,9 @@ impl Clone for ManagedDirectory {
 #[cfg(test)]
 mod tests_mmap_specific {
 
-    use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
+    use crate::directory::{
+        Directory, ManagedDirectory, MmapDirectory, ReadOnlyDirectory, TerminatingWrite,
+    };
     use std::collections::HashSet;
     use std::fs::OpenOptions;
     use std::io::Write;

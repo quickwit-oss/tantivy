@@ -4,7 +4,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
 use crate::directory::Directory;
-use crate::directory::{ReadOnlySource, WritePtr};
+use crate::directory::{ReadOnlyDirectory, ReadOnlySource, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
