@@ -131,14 +131,13 @@ impl MmapCache {
         }
         self.cache.remove(full_path);
         self.counters.miss += 1;
-        Ok(if let Some(mmap) = open_mmap(full_path)? {
+        let mmap_opt = open_mmap(full_path)?;
+        Ok(mmap_opt.map(|mmap| {
             let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
             let mmap_weak = Arc::downgrade(&mmap_arc);
             self.cache.insert(full_path.to_owned(), mmap_weak);
-            Some(mmap_arc)
-        } else {
-            None
-        })
+            mmap_arc
+        }))
     }
 }
 
