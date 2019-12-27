@@ -12,6 +12,7 @@ use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
 use crate::indexer::segment_manager::SegmentsStatus;
+use crate::indexer::segment_serializer::SegmentSerializerWriters;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentSerializer;
@@ -132,7 +133,9 @@ fn merge(
     let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
 
     // ... we just serialize this index merger in our new segment to merge the two segments.
-    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)?;
+    let segment_serializer_wrts = SegmentSerializerWriters::for_segment(&mut merged_segment)?;
+    let segment_serializer =
+        SegmentSerializer::new(merged_segment.schema(), segment_serializer_wrts)?;
 
     let num_docs = merger.write(segment_serializer)?;
 

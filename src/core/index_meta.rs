@@ -35,6 +35,7 @@ impl SegmentMetaInventory {
             segment_id,
             max_doc,
             deletes: None,
+            bundled: false,
         };
         SegmentMeta::from(self.inventory.track(inner))
     }
@@ -81,6 +82,19 @@ impl SegmentMeta {
         self.tracked.segment_id
     }
 
+    pub fn with_bundled(self) -> SegmentMeta {
+        SegmentMeta::from(self.tracked.map(|inner| InnerSegmentMeta {
+            segment_id: inner.segment_id,
+            max_doc: inner.max_doc,
+            deletes: inner.deletes.clone(),
+            bundled: true,
+        }))
+    }
+
+    pub fn is_bundled(&self) -> bool {
+        self.tracked.bundled
+    }
+
     /// Returns the number of deleted documents.
     pub fn num_deleted_docs(&self) -> u32 {
         self.tracked
@@ -107,8 +121,12 @@ impl SegmentMeta {
     /// It just joins the segment id with the extension
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
-        let mut path = self.id().uuid_string();
-        path.push_str(&*match component {
+        let suffix = self.suffix(component);
+        self.relative_path_from_suffix(&suffix)
+    }
+
+    fn suffix(&self, component: SegmentComponent) -> String {
+        match component {
             SegmentComponent::POSTINGS => ".idx".to_string(),
             SegmentComponent::POSITIONS => ".pos".to_string(),
             SegmentComponent::POSITIONSSKIP => ".posidx".to_string(),
@@ -117,7 +135,17 @@ impl SegmentMeta {
             SegmentComponent::FASTFIELDS => ".fast".to_string(),
             SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
             SegmentComponent::DELETE => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
-        });
+        }
+    }
+
+    /// Returns the relative path of a component of our segment.
+    ///
+    /// It just joins the segment id with the extension
+    /// associated to a segment component.
+    pub fn relative_path_from_suffix(&self, suffix: &str) -> PathBuf {
+        let mut path = self.id().uuid_string();
+        path.push_str(".");
+        path.push_str(&suffix);
         PathBuf::from(path)
     }
 
@@ -161,6 +189,7 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc,
             deletes: None,
+            bundled: inner_meta.bundled,
         });
         SegmentMeta { tracked }
     }
@@ -175,6 +204,7 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc: inner_meta.max_doc,
             deletes: Some(delete_meta),
+            bundled: inner_meta.bundled,
         });
         SegmentMeta { tracked }
     }
@@ -185,6 +215,7 @@ struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
     deletes: Option<DeleteMeta>,
+    bundled: bool,
 }
 
 impl InnerSegmentMeta {

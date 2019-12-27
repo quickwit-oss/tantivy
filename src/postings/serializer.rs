@@ -10,8 +10,8 @@ use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
-use crate::DocId;
 use crate::Result;
+use crate::{Directory, DocId};
 use std::io::{self, Write};
 
 /// `InvertedIndexSerializer` is in charge of serializing
@@ -54,33 +54,36 @@ pub struct InvertedIndexSerializer {
 }
 
 impl InvertedIndexSerializer {
-    /// Open a new `InvertedIndexSerializer` for the given segment
-    fn create(
-        terms_write: CompositeWrite<WritePtr>,
-        postings_write: CompositeWrite<WritePtr>,
-        positions_write: CompositeWrite<WritePtr>,
-        positionsidx_write: CompositeWrite<WritePtr>,
-        schema: Schema,
-    ) -> Result<InvertedIndexSerializer> {
-        Ok(InvertedIndexSerializer {
-            terms_write,
-            postings_write,
-            positions_write,
-            positionsidx_write,
+    pub(crate) fn for_segment(segment: &mut Segment) -> crate::Result<Self> {
+        let schema = segment.schema();
+        use crate::core::SegmentComponent;
+        let terms_wrt = segment.open_write(SegmentComponent::TERMS)?;
+        let postings_wrt = segment.open_write(SegmentComponent::POSTINGS)?;
+        let positions_wrt = segment.open_write(SegmentComponent::POSITIONS)?;
+        let positions_idx_wrt = segment.open_write(SegmentComponent::POSITIONSSKIP)?;
+        Ok(Self::open(
             schema,
-        })
+            terms_wrt,
+            postings_wrt,
+            positions_wrt,
+            positions_idx_wrt,
+        ))
     }
-
     /// Open a new `PostingsSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
-        InvertedIndexSerializer::create(
-            CompositeWrite::wrap(segment.open_write(TERMS)?),
-            CompositeWrite::wrap(segment.open_write(POSTINGS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
-            segment.schema(),
-        )
+    pub(crate) fn open(
+        schema: Schema,
+        terms_wrt: WritePtr,
+        postings_wrt: WritePtr,
+        positions_wrt: WritePtr,
+        positions_idx_wrt: WritePtr,
+    ) -> InvertedIndexSerializer {
+        InvertedIndexSerializer {
+            terms_write: CompositeWrite::wrap(terms_wrt),
+            postings_write: CompositeWrite::wrap(postings_wrt),
+            positions_write: CompositeWrite::wrap(positions_wrt),
+            positionsidx_write: CompositeWrite::wrap(positions_idx_wrt),
+            schema,
+        }
     }
 
     /// Must be called before starting pushing terms of

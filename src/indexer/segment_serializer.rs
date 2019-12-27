@@ -1,10 +1,13 @@
-use crate::Result;
+use crate::Directory;
 
 use crate::core::Segment;
 use crate::core::SegmentComponent;
+use crate::directory::error::OpenWriteError;
+use crate::directory::{DirectoryClone, RAMDirectory, TerminatingWrite, WritePtr};
 use crate::fastfield::FastFieldSerializer;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::postings::InvertedIndexSerializer;
+use crate::schema::Schema;
 use crate::store::StoreWriter;
 
 /// Segment serializer is in charge of laying out on disk
@@ -14,25 +17,50 @@ pub struct SegmentSerializer {
     fast_field_serializer: FastFieldSerializer,
     fieldnorms_serializer: FieldNormsSerializer,
     postings_serializer: InvertedIndexSerializer,
+    bundle_writer: Option<(RAMDirectory, WritePtr)>,
+}
+
+pub(crate) struct SegmentSerializerWriters {
+    postings_wrt: WritePtr,
+    positions_skip_wrt: WritePtr,
+    positions_wrt: WritePtr,
+    terms_wrt: WritePtr,
+    fast_field_wrt: WritePtr,
+    fieldnorms_wrt: WritePtr,
+    store_wrt: WritePtr,
+}
+
+impl SegmentSerializerWriters {
+    pub(crate) fn for_segment(segment: &mut Segment) -> Result<Self, OpenWriteError> {
+        Ok(SegmentSerializerWriters {
+            postings_wrt: segment.open_write(SegmentComponent::POSTINGS)?,
+            positions_skip_wrt: segment.open_write(SegmentComponent::POSITIONS)?,
+            positions_wrt: segment.open_write(SegmentComponent::POSITIONSSKIP)?,
+            terms_wrt: segment.open_write(SegmentComponent::TERMS)?,
+            fast_field_wrt: segment.open_write(SegmentComponent::FASTFIELDS)?,
+            fieldnorms_wrt: segment.open_write(SegmentComponent::FIELDNORMS)?,
+            store_wrt: segment.open_write(SegmentComponent::STORE)?,
+        })
+    }
 }
 
 impl SegmentSerializer {
-    /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer> {
-        let store_write = segment.open_write(SegmentComponent::STORE)?;
-
-        let fast_field_write = segment.open_write(SegmentComponent::FASTFIELDS)?;
-        let fast_field_serializer = FastFieldSerializer::from_write(fast_field_write)?;
-
-        let fieldnorms_write = segment.open_write(SegmentComponent::FIELDNORMS)?;
-        let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
-
-        let postings_serializer = InvertedIndexSerializer::open(segment)?;
+    pub(crate) fn new(schema: Schema, writers: SegmentSerializerWriters) -> crate::Result<Self> {
+        let fast_field_serializer = FastFieldSerializer::from_write(writers.fast_field_wrt)?;
+        let fieldnorms_serializer = FieldNormsSerializer::from_write(writers.fieldnorms_wrt)?;
+        let postings_serializer = InvertedIndexSerializer::open(
+            schema,
+            writers.terms_wrt,
+            writers.postings_wrt,
+            writers.positions_wrt,
+            writers.positions_skip_wrt,
+        );
         Ok(SegmentSerializer {
-            store_writer: StoreWriter::new(store_write),
+            store_writer: StoreWriter::new(writers.store_wrt),
             fast_field_serializer,
             fieldnorms_serializer,
             postings_serializer,
+            bundle_writer: None,
         })
     }
 
@@ -57,11 +85,15 @@ impl SegmentSerializer {
     }
 
     /// Finalize the segment serialization.
-    pub fn close(self) -> Result<()> {
+    pub fn close(mut self) -> crate::Result<()> {
         self.fast_field_serializer.close()?;
         self.postings_serializer.close()?;
         self.store_writer.close()?;
         self.fieldnorms_serializer.close()?;
+        if let Some((ram_directory, mut bundle_wrt)) = self.bundle_writer.take() {
+            ram_directory.serialize_bundle(&mut bundle_wrt)?;
+            bundle_wrt.terminate()?;
+        }
         Ok(())
     }
 }

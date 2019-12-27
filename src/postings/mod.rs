@@ -75,7 +75,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
-        let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
+        let mut posting_serializer = InvertedIndexSerializer::for_segment(&mut segment).unwrap();
         {
             let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4).unwrap();
             field_serializer.new_term("abc".as_bytes()).unwrap();

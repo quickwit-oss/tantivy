@@ -3,7 +3,7 @@ use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::FieldNormsWriter;
-use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::indexer::segment_serializer::{SegmentSerializer, SegmentSerializerWriters};
 use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
 use crate::schema::FieldType;
@@ -69,7 +69,8 @@ impl SegmentWriter {
         schema: &Schema,
     ) -> Result<SegmentWriter> {
         let table_num_bits = initial_table_size(memory_budget)?;
-        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
+        let segment_serializer_wrts = SegmentSerializerWriters::for_segment(&mut segment)?;
+        let segment_serializer = SegmentSerializer::new(segment.schema(), segment_serializer_wrts)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()

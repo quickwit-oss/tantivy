@@ -8,10 +8,8 @@ use crate::directory::{ReadOnlyDirectory, ReadOnlySource, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
-use crate::Result;
 use std::fmt;
 use std::path::PathBuf;
-use std::result;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
@@ -83,23 +81,30 @@ impl Segment {
     }
 
     /// Open one of the component file for a *regular* read.
-    pub fn open_read(
-        &self,
-        component: SegmentComponent,
-    ) -> result::Result<ReadOnlySource, OpenReadError> {
+    pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource, OpenReadError> {
         let path = self.relative_path(component);
         let source = self.index.directory().open_read(&path)?;
         Ok(source)
     }
 
     /// Open one of the component file for *regular* write.
-    pub fn open_write(
+    pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr, OpenWriteError> {
+        let path = self.relative_path(component);
+        self.index.directory_mut().open_write(&path)
+    }
+
+    pub fn open_bundle_writer(&mut self) -> Result<WritePtr, OpenWriteError> {
+        let path = self.meta.relative_path_from_suffix("bundle");
+        self.index.directory_mut().open_write(&path)
+    }
+
+    pub(crate) fn open_write_in_directory(
         &mut self,
         component: SegmentComponent,
-    ) -> result::Result<WritePtr, OpenWriteError> {
+        directory: &mut dyn Directory,
+    ) -> Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
-        let write = self.index.directory_mut().open_write(&path)?;
-        Ok(write)
+        directory.open_write(&path)
     }
 }
 
@@ -109,5 +114,5 @@ pub trait SerializableSegment {
     ///
     /// # Returns
     /// The number of documents in the segment.
-    fn write(&self, serializer: SegmentSerializer) -> Result<u32>;
+    fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32>;
 }
