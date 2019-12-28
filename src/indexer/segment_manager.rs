@@ -1,10 +1,8 @@
 use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::error::TantivyError;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
-use crate::Result as TantivyResult;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::RwLock;
@@ -145,7 +143,7 @@ impl SegmentManager {
     /// Returns an error if some segments are missing, or if
     /// the `segment_ids` are not either all committed or all
     /// uncommitted.
-    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> TantivyResult<Vec<SegmentEntry>> {
+    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> crate::Result<Vec<SegmentEntry>> {
         let registers_lock = self.read();
         let mut segment_entries = vec![];
         if registers_lock.uncommitted.contains_all(segment_ids) {
@@ -166,7 +164,7 @@ impl SegmentManager {
             let error_msg = "Merge operation sent for segments that are not \
                              all uncommited or commited."
                 .to_string();
-            return Err(TantivyError::InvalidArgument(error_msg));
+            return Err(crate::Error::InvalidArgument(error_msg));
         }
         Ok(segment_entries)
     }

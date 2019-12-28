@@ -11,9 +11,9 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
-use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::FacetTokenizer;
 use crate::tokenizer::PreTokenizedStream;
+use crate::tokenizer::{BoxedTokenizer, TokenizerManager};
 use crate::tokenizer::{TokenStream, TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
@@ -66,11 +66,12 @@ impl SegmentWriter {
     pub fn for_segment(
         memory_budget: usize,
         mut segment: Segment,
-        schema: &Schema,
+        tokenizers: &TokenizerManager,
     ) -> Result<SegmentWriter> {
+        let schema = segment.schema();
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
+        let multifield_postings = MultiFieldPostingsWriter::new(&schema, table_num_bits);
         let tokenizers = schema
             .fields()
             .map(
@@ -79,7 +80,7 @@ impl SegmentWriter {
                         .get_indexing_options()
                         .and_then(|text_index_option| {
                             let tokenizer_name = &text_index_option.tokenizer();
-                            segment.index().tokenizers().get(tokenizer_name)
+                            tokenizers.get(tokenizer_name)
                         }),
                     _ => None,
                 },
@@ -88,9 +89,9 @@ impl SegmentWriter {
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
-            fieldnorms_writer: FieldNormsWriter::for_schema(schema),
+            fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             segment_serializer,
-            fast_field_writers: FastFieldsWriter::from_schema(schema),
+            fast_field_writers: FastFieldsWriter::from_schema(&schema),
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
         })
