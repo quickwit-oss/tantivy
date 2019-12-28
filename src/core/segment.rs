@@ -3,7 +3,7 @@ use crate::core::Index;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
-use crate::directory::Directory;
+use crate::directory::{Directory, DirectoryClone};
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
@@ -12,10 +12,20 @@ use std::fmt;
 use std::path::PathBuf;
 
 /// A segment is a piece of the index.
-#[derive(Clone)]
 pub struct Segment {
-    index: Index,
+    schema: Schema,
+    directory: Box<dyn Directory>,
     meta: SegmentMeta,
+}
+
+impl Clone for Segment {
+    fn clone(&self) -> Self {
+        Segment {
+            schema: self.schema.clone(),
+            directory: self.directory.box_clone(),
+            meta: self.meta.clone(),
+        }
+    }
 }
 
 impl fmt::Debug for Segment {
@@ -29,18 +39,18 @@ impl fmt::Debug for Segment {
 /// The function is here to make it private outside `tantivy`.
 /// #[doc(hidden)]
 pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
-    Segment { index, meta }
+    Segment {
+        directory: index.directory().box_clone(),
+        schema: index.schema(),
+        meta,
+    }
 }
 
 impl Segment {
-    /// Returns the index the segment belongs to.
-    pub fn index(&self) -> &Index {
-        &self.index
-    }
-
     /// Returns our index's schema.
+    // TODO return a ref.
     pub fn schema(&self) -> Schema {
-        self.index.schema()
+        self.schema.clone()
     }
 
     /// Returns the segment meta-information
@@ -54,7 +64,8 @@ impl Segment {
     /// as we finalize a fresh new segment.
     pub(crate) fn with_max_doc(self, max_doc: u32) -> Segment {
         Segment {
-            index: self.index,
+            directory: self.directory,
+            schema: self.schema,
             meta: self.meta.with_max_doc(max_doc),
         }
     }
@@ -62,7 +73,8 @@ impl Segment {
     #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Segment {
         Segment {
-            index: self.index,
+            directory: self.directory,
+            schema: self.schema,
             meta: self.meta.with_delete_meta(num_deleted_docs, opstamp),
         }
     }
@@ -83,14 +95,14 @@ impl Segment {
     /// Open one of the component file for a *regular* read.
     pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource, OpenReadError> {
         let path = self.relative_path(component);
-        let source = self.index.directory().open_read(&path)?;
+        let source = self.directory.open_read(&path)?;
         Ok(source)
     }
 
     /// Open one of the component file for *regular* write.
     pub fn open_write(&mut self, component: SegmentComponent) -> Result<WritePtr, OpenWriteError> {
         let path = self.relative_path(component);
-        let write = self.index.directory_mut().open_write(&path)?;
+        let write = self.directory.open_write(&path)?;
         Ok(write)
     }
 }

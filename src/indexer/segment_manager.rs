@@ -1,7 +1,6 @@
 use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::error::TantivyError;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
 use std::collections::hash_set::HashSet;
@@ -165,7 +164,7 @@ impl SegmentManager {
             let error_msg = "Merge operation sent for segments that are not \
                              all uncommited or commited."
                 .to_string();
-            return Err(TantivyError::InvalidArgument(error_msg));
+            return Err(crate::Error::InvalidArgument(error_msg));
         }
         Ok(segment_entries)
     }
