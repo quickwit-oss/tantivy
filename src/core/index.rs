@@ -1,4 +1,3 @@
-use super::segment::create_segment;
 use super::segment::Segment;
 use crate::core::Executor;
 use crate::core::IndexMeta;
@@ -335,9 +334,8 @@ impl Index {
             .collect())
     }
 
-    #[doc(hidden)]
-    pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
-        create_segment(self.clone(), segment_meta)
+    pub(crate) fn segment(&self, segment_meta: SegmentMeta) -> Segment {
+        Segment::for_index(self.clone(), segment_meta)
     }
 
     /// Creates a new segment.
@@ -348,6 +346,13 @@ impl Index {
         self.segment(segment_meta)
     }
 
+    /// Creates a new segment.
+    pub(crate) fn new_segment_unpersisted(&self) -> Segment {
+        let meta = self
+            .inventory
+            .new_segment_meta(SegmentId::generate_random(), 0);
+        Segment::new_volatile(meta, self.schema())
+    }
     /// Return a reference to the index directory.
     pub fn directory(&self) -> &ManagedDirectory {
         &self.directory

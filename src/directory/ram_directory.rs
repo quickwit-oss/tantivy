@@ -144,6 +144,16 @@ impl RAMDirectory {
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
     }
+
+    pub fn persist(&self, dest: &mut dyn Directory) -> crate::Result<()> {
+        let wlock = self.fs.write().unwrap();
+        for (path, source) in wlock.fs.iter() {
+            let mut dest_wrt = dest.open_write(path)?;
+            dest_wrt.write_all(source.as_slice())?;
+            dest_wrt.terminate()?;
+        }
+        Ok(())
+    }
 }
 
 impl Directory for RAMDirectory {

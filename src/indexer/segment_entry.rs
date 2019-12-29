@@ -1,7 +1,9 @@
 use crate::common::BitSet;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
+use crate::directory::ManagedDirectory;
 use crate::indexer::delete_queue::DeleteCursor;
+use crate::Segment;
 use std::fmt;
 
 /// A segment entry describes the state of
@@ -19,23 +21,29 @@ use std::fmt;
 /// in the .del file or in the `delete_bitset`.
 #[derive(Clone)]
 pub struct SegmentEntry {
-    meta: SegmentMeta,
+    segment: Segment,
     delete_bitset: Option<BitSet>,
     delete_cursor: DeleteCursor,
 }
 
 impl SegmentEntry {
     /// Create a new `SegmentEntry`
-    pub fn new(
-        segment_meta: SegmentMeta,
+    pub(crate) fn new(
+        segment: Segment,
         delete_cursor: DeleteCursor,
         delete_bitset: Option<BitSet>,
     ) -> SegmentEntry {
         SegmentEntry {
-            meta: segment_meta,
+            segment,
             delete_bitset,
             delete_cursor,
         }
+    }
+
+    pub fn persist(&mut self, dest_directory: ManagedDirectory) -> crate::Result<()> {
+        // TODO take in account delete bitset?
+        self.segment.persist(dest_directory)?;
+        Ok(())
     }
 
     /// Return a reference to the segment entry deleted bitset.
@@ -46,8 +54,8 @@ impl SegmentEntry {
     }
 
     /// Set the `SegmentMeta` for this segment.
-    pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
-        self.meta = segment_meta;
+    pub fn set_segment(&mut self, segment: Segment) {
+        self.segment = segment;
     }
 
     /// Return a reference to the segment_entry's delete cursor
@@ -57,17 +65,22 @@ impl SegmentEntry {
 
     /// Returns the segment id.
     pub fn segment_id(&self) -> SegmentId {
-        self.meta.id()
+        self.segment.id()
     }
 
     /// Accessor to the `SegmentMeta`
     pub fn meta(&self) -> &SegmentMeta {
-        &self.meta
+        self.segment.meta()
     }
 }
 
 impl fmt::Debug for SegmentEntry {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "SegmentEntry({:?})", self.meta)
+        let num_deletes = self.delete_bitset.as_ref().map(|bitset| bitset.len());
+        write!(
+            formatter,
+            "SegmentEntry(seg={:?}, ndel={:?})",
+            self.segment, num_deletes
+        )
     }
 }

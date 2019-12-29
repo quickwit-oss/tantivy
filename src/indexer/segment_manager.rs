@@ -3,6 +3,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
+use crate::Index;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::RwLock;
@@ -74,13 +75,19 @@ pub fn get_mergeable_segments(
 
 impl SegmentManager {
     pub fn from_segments(
+        index: &Index,
         segment_metas: Vec<SegmentMeta>,
         delete_cursor: &DeleteCursor,
     ) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas, delete_cursor),
+                committed: SegmentRegister::new(
+                    index.directory(),
+                    &index.schema(),
+                    segment_metas,
+                    delete_cursor,
+                ),
             }),
         }
     }

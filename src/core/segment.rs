@@ -3,29 +3,59 @@ use crate::core::Index;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
-use crate::directory::{Directory, DirectoryClone};
+use crate::directory::{Directory, ManagedDirectory, RAMDirectory};
 use crate::directory::{ReadOnlySource, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
 use std::fmt;
+use std::ops::Deref;
 use std::path::PathBuf;
 
-/// A segment is a piece of the index.
-pub struct Segment {
-    schema: Schema,
-    directory: Box<dyn Directory>,
-    meta: SegmentMeta,
+#[derive(Clone)]
+pub(crate) enum SegmentDirectory {
+    Persisted(ManagedDirectory),
+    Volatile(RAMDirectory),
 }
 
-impl Clone for Segment {
-    fn clone(&self) -> Self {
-        Segment {
-            schema: self.schema.clone(),
-            directory: self.directory.box_clone(),
-            meta: self.meta.clone(),
+impl SegmentDirectory {
+    pub fn new_volatile() -> SegmentDirectory {
+        SegmentDirectory::Volatile(RAMDirectory::default())
+    }
+}
+
+impl From<ManagedDirectory> for SegmentDirectory {
+    fn from(directory: ManagedDirectory) -> Self {
+        SegmentDirectory::Persisted(directory)
+    }
+}
+
+impl Deref for SegmentDirectory {
+    type Target = dyn Directory;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SegmentDirectory::Volatile(dir) => dir,
+            SegmentDirectory::Persisted(dir) => dir,
         }
     }
+}
+
+impl DerefMut for SegmentDirectory {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            SegmentDirectory::Volatile(dir) => dir,
+            SegmentDirectory::Persisted(dir) => dir,
+        }
+    }
+}
+
+/// A segment is a piece of the index.
+#[derive(Clone)]
+pub struct Segment {
+    schema: Schema,
+    meta: SegmentMeta,
+    directory: SegmentDirectory,
 }
 
 impl fmt::Debug for Segment {
@@ -34,23 +64,56 @@ impl fmt::Debug for Segment {
     }
 }
 
-/// Creates a new segment given an `Index` and a `SegmentId`
-///
-/// The function is here to make it private outside `tantivy`.
-/// #[doc(hidden)]
-pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
-    Segment {
-        directory: index.directory().box_clone(),
-        schema: index.schema(),
-        meta,
-    }
-}
-
 impl Segment {
     /// Returns our index's schema.
     // TODO return a ref.
     pub fn schema(&self) -> Schema {
         self.schema.clone()
+    }
+
+    pub(crate) fn new_persisted(
+        meta: SegmentMeta,
+        directory: ManagedDirectory,
+        schema: Schema,
+    ) -> Segment {
+        Segment {
+            meta,
+            schema,
+            directory: SegmentDirectory::from(directory),
+        }
+    }
+
+    /// Creates a new segment that embeds its own `RAMDirectory`.
+    ///
+    /// That segment is entirely dissociated from the index directory.
+    /// It will be persisted by a background thread in charge of IO.
+    pub fn new_unpersisted(meta: SegmentMeta, schema: Schema) -> Segment {
+        Segment {
+            schema,
+            meta,
+            directory: SegmentDirectory::new_volatile(),
+        }
+    }
+
+    /// Creates a new segment given an `Index` and a `SegmentId`
+    pub(crate) fn for_index(index: Index, meta: SegmentMeta) -> Segment {
+        Segment {
+            directory: SegmentDirectory::Persisted(index.directory().clone()),
+            schema: index.schema(),
+            meta,
+        }
+    }
+
+    pub fn persist(&mut self, mut dest_directory: ManagedDirectory) -> crate::Result<()> {
+        if let SegmentDirectory::Persisted(_) = self.directory {
+            // this segment is already persisted.
+            return Ok(());
+        }
+        if let SegmentDirectory::Volatile(ram_directory) = &self.directory {
+            ram_directory.persist(&mut dest_directory)?;
+        }
+        self.directory = SegmentDirectory::Persisted(dest_directory);
+        Ok(())
     }
 
     /// Returns the segment meta-information
