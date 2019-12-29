@@ -19,6 +19,8 @@ pub struct AddOperation {
 /// UserOperation is an enum type that encapsulates other operation types.
 #[derive(Eq, PartialEq, Debug)]
 pub enum UserOperation {
+    /// Add operation
     Add(Document),
+    /// Delete operation
     Delete(Term),
 }
