@@ -1,13 +1,13 @@
-use std::ops::Range;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use crate::Opstamp;
+use std::ops::Range;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[cfg(not(target_arch = "arm"))]
 mod atomic_impl {
 
-    use std::sync::atomic::{AtomicU64, Ordering};
     use crate::Opstamp;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     #[derive(Default)]
     pub struct AtomicU64Wrapper(AtomicU64);
@@ -31,10 +31,10 @@ mod atomic_impl {
 #[cfg(target_arch = "arm")]
 mod atomic_impl {
 
+    use crate::Opstamp;
     /// Under other architecture, we rely on a mutex.
     use std::sync::atomic::Ordering;
     use std::sync::RwLock;
-    use crate::Opstamp;
 
     #[derive(Default)]
     pub struct AtomicU64Wrapper(RwLock<u64>);
