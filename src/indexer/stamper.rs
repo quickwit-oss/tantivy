@@ -1,18 +1,76 @@
 use crate::Opstamp;
 use std::ops::Range;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+
+#[cfg(not(target_arch = "arm"))]
+mod atomic_impl {
+
+    use crate::Opstamp;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Default)]
+    pub struct AtomicU64Wrapper(AtomicU64);
+
+    impl AtomicU64Wrapper {
+        pub fn new(first_opstamp: Opstamp) -> AtomicU64Wrapper {
+            AtomicU64Wrapper(AtomicU64::new(first_opstamp as u64))
+        }
+
+        pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
+            self.0.fetch_add(val as u64, order) as u64
+        }
+
+        pub fn revert(&self, val: u64, order: Ordering) -> u64 {
+            self.0.store(val, order);
+            val
+        }
+    }
+}
+
+#[cfg(target_arch = "arm")]
+mod atomic_impl {
+
+    use crate::Opstamp;
+    /// Under other architecture, we rely on a mutex.
+    use std::sync::atomic::Ordering;
+    use std::sync::RwLock;
+
+    #[derive(Default)]
+    pub struct AtomicU64Wrapper(RwLock<u64>);
+
+    impl AtomicU64Wrapper {
+        pub fn new(first_opstamp: Opstamp) -> AtomicU64Wrapper {
+            AtomicU64Wrapper(RwLock::new(first_opstamp))
+        }
+
+        pub fn fetch_add(&self, incr: u64, _order: Ordering) -> u64 {
+            let mut lock = self.0.write().unwrap();
+            let previous_val = *lock;
+            *lock = previous_val + incr;
+            previous_val
+        }
+
+        pub fn revert(&self, val: u64, _order: Ordering) -> u64 {
+            let mut lock = self.0.write().unwrap();
+            *lock = val;
+            val
+        }
+    }
+}
+
+use self::atomic_impl::AtomicU64Wrapper;
 
 /// Stamper provides Opstamps, which is just an auto-increment id to label
 /// an operation.
 ///
 /// Cloning does not "fork" the stamp generation. The stamper actually wraps an `Arc`.
 #[derive(Clone, Default)]
-pub struct Stamper(Arc<AtomicU64>);
+pub struct Stamper(Arc<AtomicU64Wrapper>);
 
 impl Stamper {
     pub fn new(first_opstamp: Opstamp) -> Stamper {
-        Stamper(Arc::new(AtomicU64::new(first_opstamp)))
+        Stamper(Arc::new(AtomicU64Wrapper::new(first_opstamp)))
     }
 
     pub fn stamp(&self) -> Opstamp {
@@ -31,8 +89,7 @@ impl Stamper {
 
     /// Reverts the stamper to a given `Opstamp` value and returns it
     pub fn revert(&self, to_opstamp: Opstamp) -> Opstamp {
-        self.0.store(to_opstamp, Ordering::SeqCst);
-        to_opstamp
+        self.0.revert(to_opstamp, Ordering::SeqCst)
     }
 }
 
