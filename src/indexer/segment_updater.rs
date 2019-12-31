@@ -168,8 +168,8 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
     ) -> crate::Result<SegmentUpdater> {
-        let segments = index.searchable_segment_metas()?;
-        let segment_manager = SegmentManager::from_segments(&index, segments, delete_cursor);
+        let metas = index.searchable_segment_metas()?;
+        let segment_manager = SegmentManager::from_segments(&index, metas, delete_cursor);
         let pool = ThreadPoolBuilder::new()
             .name_prefix("segment_updater")
             .pool_size(1)
