@@ -121,15 +121,24 @@ struct InnerIndexReader {
 }
 
 impl InnerIndexReader {
+    fn load_segment_readers(&self) -> Result<Vec<SegmentReader>> {
+        // We keep the lock until we have effectively finished opening the
+        // the `SegmentReader` because it prevents a diffferent process
+        // to garbage collect these file while we open them.
+        //
+        // Once opened, on linux & mac, the mmap will remain valid after
+        // the file has been deleted
+        // On windows, the file deletion will fail.
+        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+        let searchable_segments = self.searchable_segments()?;
+        searchable_segments
+            .iter()
+            .map(SegmentReader::open)
+            .collect::<Result<_>>()
+    }
+
     fn reload(&self) -> Result<()> {
-        let segment_readers: Vec<SegmentReader> = {
-            let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-            let searchable_segments = self.searchable_segments()?;
-            searchable_segments
-                .iter()
-                .map(SegmentReader::open)
-                .collect::<Result<_>>()?
-        };
+        let segment_readers: Vec<SegmentReader> = self.load_segment_readers()?;
         let schema = self.index.schema();
         let searchers = (0..self.num_searchers)
             .map(|_| Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone()))
