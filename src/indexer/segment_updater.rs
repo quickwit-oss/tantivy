@@ -7,11 +7,10 @@ use crate::core::SegmentMeta;
 use crate::core::SerializableSegment;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
-use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
-use crate::indexer::segment_manager::SegmentsStatus;
+use crate::indexer::segment_manager::{SegmentRegisters, SegmentsStatus};
 use crate::indexer::stamper::Stamper;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentSerializer;
@@ -164,12 +163,11 @@ pub(crate) struct InnerSegmentUpdater {
 
 impl SegmentUpdater {
     pub fn create(
+        segment_registers: Arc<RwLock<SegmentRegisters>>,
         index: Index,
         stamper: Stamper,
-        delete_cursor: &DeleteCursor,
     ) -> crate::Result<SegmentUpdater> {
-        let metas = index.searchable_segment_metas()?;
-        let segment_manager = SegmentManager::from_segments(&index, metas, delete_cursor);
+        let segment_manager = SegmentManager::new(segment_registers);
         let pool = ThreadPoolBuilder::new()
             .name_prefix("segment_updater")
             .pool_size(1)

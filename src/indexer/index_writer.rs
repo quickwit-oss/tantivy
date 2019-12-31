@@ -16,6 +16,8 @@ use crate::fastfield::write_delete_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::operation::DeleteOperation;
+use crate::indexer::segment_manager::SegmentRegisters;
+use crate::indexer::segment_register::SegmentRegister;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::MergePolicy;
 use crate::indexer::SegmentEntry;
@@ -32,7 +34,7 @@ use smallvec::smallvec;
 use smallvec::SmallVec;
 use std::mem;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -68,6 +70,8 @@ pub struct IndexWriter {
     // the lock is just used to bind the
     // lifetime of the lock with that of the IndexWriter.
     _directory_lock: Option<DirectoryLock>,
+
+    segment_registers: Arc<RwLock<SegmentRegisters>>,
 
     index: Index,
 
@@ -305,16 +309,24 @@ impl IndexWriter {
 
         let delete_queue = DeleteQueue::new();
 
-        let current_opstamp = index.load_metas()?.opstamp;
+        let meta = index.load_metas()?;
 
-        let stamper = Stamper::new(current_opstamp);
+        let stamper = Stamper::new(meta.opstamp);
+
+        let commited_segments = SegmentRegister::new(
+            index.directory(),
+            &index.schema(),
+            meta.segments,
+            &delete_queue.cursor(),
+        );
+        let segment_registers = Arc::new(RwLock::new(SegmentRegisters::new(commited_segments)));
 
         let segment_updater =
-            SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+            SegmentUpdater::create(segment_registers.clone(), index.clone(), stamper.clone())?;
 
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
-
+            segment_registers,
             heap_size_in_bytes_per_thread,
             index: index.clone(),
 
@@ -328,7 +340,7 @@ impl IndexWriter {
 
             delete_queue,
 
-            committed_opstamp: current_opstamp,
+            committed_opstamp: meta.opstamp,
             stamper,
 
             worker_id: 0,
