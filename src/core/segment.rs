@@ -87,7 +87,7 @@ impl Segment {
     ///
     /// That segment is entirely dissociated from the index directory.
     /// It will be persisted by a background thread in charge of IO.
-    pub fn new_unpersisted(meta: SegmentMeta, schema: Schema) -> Segment {
+    pub fn new_volatile(meta: SegmentMeta, schema: Schema) -> Segment {
         Segment {
             schema,
             meta,
