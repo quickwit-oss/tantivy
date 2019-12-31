@@ -5,7 +5,6 @@ use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
 use crate::Index;
 use std::collections::hash_set::HashSet;
-use std::fmt::{self, Debug, Formatter};
 use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
@@ -45,17 +44,6 @@ impl SegmentRegisters {
 #[derive(Default)]
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
-}
-
-impl Debug for SegmentManager {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let lock = self.read();
-        write!(
-            f,
-            "{{ uncommitted: {:?}, committed: {:?} }}",
-            lock.uncommitted, lock.committed
-        )
-    }
 }
 
 pub fn get_mergeable_segments(
