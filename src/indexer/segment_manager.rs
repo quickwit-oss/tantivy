@@ -1,17 +1,24 @@
 use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
-use crate::Index;
 use std::collections::hash_set::HashSet;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Default)]
-struct SegmentRegisters {
+pub(crate) struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
+}
+
+impl SegmentRegisters {
+    pub fn new(committed: SegmentRegister) -> SegmentRegisters {
+        SegmentRegisters {
+            uncommitted: Default::default(),
+            committed,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq)]
@@ -43,7 +50,7 @@ impl SegmentRegisters {
 /// changes (merges especially)
 #[derive(Default)]
 pub struct SegmentManager {
-    registers: RwLock<SegmentRegisters>,
+    registers: Arc<RwLock<SegmentRegisters>>,
 }
 
 pub fn get_mergeable_segments(
@@ -62,22 +69,8 @@ pub fn get_mergeable_segments(
 }
 
 impl SegmentManager {
-    pub fn from_segments(
-        index: &Index,
-        segment_metas: Vec<SegmentMeta>,
-        delete_cursor: &DeleteCursor,
-    ) -> SegmentManager {
-        SegmentManager {
-            registers: RwLock::new(SegmentRegisters {
-                uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(
-                    index.directory(),
-                    &index.schema(),
-                    segment_metas,
-                    delete_cursor,
-                ),
-            }),
-        }
+    pub(crate) fn new(registers: Arc<RwLock<SegmentRegisters>>) -> SegmentManager {
+        SegmentManager { registers }
     }
 
     /// Returns all of the segment entries (committed or uncommitted)
