@@ -9,7 +9,21 @@ use crate::directory::META_LOCK;
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+
+
+//
+//enum SegmentSource {
+//    FromMetaFile,
+//    FromWriter(Arc<RwLock<SegmentRegisters>>),
+//}
+//
+//impl SegmentSource {
+//    fn from_meta_file() -> SegmentSource {
+//
+//    }
+//
+//}
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -170,11 +184,6 @@ pub struct IndexReader {
 }
 
 impl IndexReader {
-    #[cfg(test)]
-    pub(crate) fn index(&self) -> Index {
-        self.inner.index.clone()
-    }
-
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///
