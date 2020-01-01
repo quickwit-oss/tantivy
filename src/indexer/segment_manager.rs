@@ -2,6 +2,7 @@ use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::indexer::SegmentEntry;
+use crate::Segment;
 use std::collections::hash_set::HashSet;
 use std::sync::{Arc, RwLock};
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
@@ -12,15 +13,6 @@ pub(crate) struct SegmentRegisters {
     committed: SegmentRegister,
 }
 
-impl SegmentRegisters {
-    pub fn new(committed: SegmentRegister) -> SegmentRegisters {
-        SegmentRegisters {
-            uncommitted: Default::default(),
-            committed,
-        }
-    }
-}
-
 #[derive(PartialEq, Eq)]
 pub(crate) enum SegmentsStatus {
     Committed,
@@ -28,6 +20,17 @@ pub(crate) enum SegmentsStatus {
 }
 
 impl SegmentRegisters {
+    pub fn new(committed: SegmentRegister) -> SegmentRegisters {
+        SegmentRegisters {
+            uncommitted: Default::default(),
+            committed,
+        }
+    }
+
+    pub fn committed_segment(&self) -> Vec<Segment> {
+        self.committed.segments()
+    }
+
     /// Check if all the segments are committed or uncommited.
     ///
     /// If some segment is missing or segments are in a different state (this should not happen

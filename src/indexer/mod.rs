@@ -23,6 +23,7 @@ pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
 pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub use self::segment_manager::SegmentManager;
+pub(crate) use self::segment_manager::SegmentRegisters;
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;
 

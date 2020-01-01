@@ -49,6 +49,13 @@ impl SegmentRegister {
             .collect()
     }
 
+    pub fn segments(&self) -> Vec<Segment> {
+        self.segment_states
+            .values()
+            .map(|segment_entry| segment_entry.segment().clone())
+            .collect()
+    }
+
     pub fn segment_entries(&self) -> Vec<SegmentEntry> {
         self.segment_states.values().cloned().collect()
     }
@@ -104,6 +111,7 @@ mod tests {
     use super::*;
     use crate::core::{SegmentId, SegmentMetaInventory};
     use crate::indexer::delete_queue::*;
+    use crate::schema::Schema;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {
         segment_register
