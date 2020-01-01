@@ -1,33 +1,14 @@
-mod index_writer_reader;
-mod meta_file_reader;
-mod pool;
-
-use self::meta_file_reader::MetaFileIndexReader;
-pub use self::meta_file_reader::{IndexReaderBuilder, ReloadPolicy};
-pub use self::pool::LeasedItem;
-use self::pool::Pool;
+use super::pool::Pool;
 use crate::core::Segment;
 use crate::directory::Directory;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
-use crate::reader::index_writer_reader::NRTReader;
-use crate::Index;
 use crate::Searcher;
-/*
-<<<<<<< HEAD
-
-//
-//enum SegmentSource {
-//    FromMetaFile,
-//    FromWriter(Arc<RwLock<SegmentRegisters>>),
-//}
-//
-//impl SegmentSource {
-//    fn from_meta_file() -> SegmentSource {
-//
-//    }
-//
-//}
+use crate::SegmentReader;
+use crate::{Index, LeasedItem};
+use crate::{IndexReader, Result};
+use std::iter::repeat_with;
+use std::sync::Arc;
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -79,8 +60,8 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
-    pub fn try_into(self) -> crate::Result<IndexReader> {
-        let inner_reader = InnerIndexReader {
+    pub fn try_into(self) -> Result<IndexReader> {
+        let inner_reader = MetaFileIndexReaderInner {
             index: self.index,
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
@@ -110,10 +91,10 @@ impl IndexReaderBuilder {
                 watch_handle_opt = Some(watch_handle);
             }
         }
-        Ok(IndexReader {
+        Ok(IndexReader::from(MetaFileIndexReader {
             inner: inner_reader_arc,
             watch_handle_opt,
-        })
+        }))
     }
 
     /// Sets the reload_policy.
@@ -131,13 +112,13 @@ impl IndexReaderBuilder {
     }
 }
 
-struct InnerIndexReader {
+struct MetaFileIndexReaderInner {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
     index: Index,
 }
 
-impl InnerIndexReader {
+impl MetaFileIndexReaderInner {
     fn load_segment_readers(&self) -> crate::Result<Vec<SegmentReader>> {
         // We keep the lock until we have effectively finished opening the
         // the `SegmentReader` because it prevents a diffferent process
@@ -151,15 +132,17 @@ impl InnerIndexReader {
         searchable_segments
             .iter()
             .map(SegmentReader::open)
-            .collect::<crate::Result<_>>()
+            .collect::<Result<_>>()
     }
 
     fn reload(&self) -> crate::Result<()> {
         let segment_readers: Vec<SegmentReader> = self.load_segment_readers()?;
         let schema = self.index.schema();
-        let searchers = (0..self.num_searchers)
-            .map(|_| Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone()))
-            .collect();
+        let searchers = repeat_with(|| {
+            Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone())
+        })
+        .take(self.num_searchers)
+        .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }
@@ -181,58 +164,17 @@ impl InnerIndexReader {
 ///
 /// `Clone` does not clone the different pool of searcher. `IndexReader`
 /// just wraps and `Arc`.
-=======
->>>>>>> Added NRTReader
-*/
 #[derive(Clone)]
-pub enum IndexReader {
-    FromMetaFile(MetaFileIndexReader),
-    NRT(NRTReader),
+pub struct MetaFileIndexReader {
+    inner: Arc<MetaFileIndexReaderInner>,
+    watch_handle_opt: Option<WatchHandle>,
 }
 
-impl IndexReader {
-    /// Update searchers so that they reflect the state of the last
-    /// `.commit()`.
-    ///
-    /// If you set up the `OnCommit` `ReloadPolicy` (which is the default)
-    /// every commit should be rapidly reflected on your `IndexReader` and you should
-    /// not need to call `reload()` at all.
-    ///
-    /// This automatic reload can take 10s of milliseconds to kick in however, and in unit tests
-    /// it can be nice to deterministically force the reload of searchers.
+impl MetaFileIndexReader {
     pub fn reload(&self) -> crate::Result<()> {
-        match self {
-            IndexReader::FromMetaFile(meta_file_reader) => meta_file_reader.reload(),
-            IndexReader::NRT(nrt_reader) => nrt_reader.reload(),
-        }
+        self.inner.reload()
     }
-
-    /// Returns a searcher
-    ///
-    /// This method should be called every single time a search
-    /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
-    ///
-    /// The same searcher must be used for a given query, as it ensures
-    /// the use of a consistent segment set.
     pub fn searcher(&self) -> LeasedItem<Searcher> {
-        match self {
-            IndexReader::FromMetaFile(meta_file_reader) => meta_file_reader.searcher(),
-            IndexReader::NRT(nrt_reader) => nrt_reader.searcher(),
-        }
-    }
-}
-
-impl From<MetaFileIndexReader> for IndexReader {
-    fn from(meta_file_reader: MetaFileIndexReader) -> Self {
-        IndexReader::FromMetaFile(meta_file_reader)
-    }
-}
-
-impl From<NRTReader> for IndexReader {
-    fn from(nrt_reader: NRTReader) -> Self {
-        IndexReader::NRT(nrt_reader)
+        self.inner.searcher()
     }
 }

@@ -56,6 +56,68 @@ pub struct SegmentReader {
 }
 
 impl SegmentReader {
+    /// Open a new segment for reading.
+    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
+        let termdict_composite = CompositeFile::open(&termdict_source)?;
+
+        let store_source = segment.open_read(SegmentComponent::STORE)?;
+
+        fail_point!("SegmentReader::open#middle");
+
+        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_composite = CompositeFile::open(&postings_source)?;
+
+        let positions_composite = {
+            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
+                CompositeFile::open(&source)?
+            } else {
+                CompositeFile::empty()
+            }
+        };
+
+        let positions_idx_composite = {
+            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
+                CompositeFile::open(&source)?
+            } else {
+                CompositeFile::empty()
+            }
+        };
+
+        let schema = segment.schema();
+
+        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
+        let fast_field_readers =
+            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
+
+        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
+
+        let delete_bitset_opt = if segment.meta().has_deletes() {
+            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+            Some(DeleteBitSet::open(delete_data))
+        } else {
+            None
+        };
+
+        Ok(SegmentReader {
+            inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+            max_doc: segment.meta().max_doc(),
+            num_docs: segment.meta().num_docs(),
+            termdict_composite,
+            postings_composite,
+            fast_fields_readers: fast_field_readers,
+            fieldnorms_composite,
+            segment_id: segment.id(),
+            store_source,
+            delete_bitset_opt,
+            positions_composite,
+            positions_idx_composite,
+            schema,
+        })
+    }
+
     /// Returns the highest document id ever attributed in
     /// this segment + 1.
     /// Today, `tantivy` does not handle deletes, so it happens
@@ -142,68 +204,68 @@ impl SegmentReader {
     pub fn get_store_reader(&self) -> StoreReader {
         StoreReader::from_source(self.store_source.clone())
     }
-
-    /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
-        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
-        let termdict_composite = CompositeFile::open(&termdict_source)?;
-
-        let store_source = segment.open_read(SegmentComponent::STORE)?;
-
-        fail_point!("SegmentReader::open#middle");
-
-        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
-        let postings_composite = CompositeFile::open(&postings_source)?;
-
-        let positions_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
-                CompositeFile::open(&source)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
-        let positions_idx_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
-                CompositeFile::open(&source)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
-        let schema = segment.schema();
-
-        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
-        let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
-        let fast_field_readers =
-            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
-
-        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
-        let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
-
-        let delete_bitset_opt = if segment.meta().has_deletes() {
-            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
-            Some(DeleteBitSet::open(delete_data))
-        } else {
-            None
-        };
-
-        Ok(SegmentReader {
-            inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
-            max_doc: segment.meta().max_doc(),
-            num_docs: segment.meta().num_docs(),
-            termdict_composite,
-            postings_composite,
-            fast_fields_readers: fast_field_readers,
-            fieldnorms_composite,
-            segment_id: segment.id(),
-            store_source,
-            delete_bitset_opt,
-            positions_composite,
-            positions_idx_composite,
-            schema,
-        })
-    }
+    //
+    //    /// Open a new segment for reading.
+    //    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+    //        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
+    //        let termdict_composite = CompositeFile::open(&termdict_source)?;
+    //
+    //        let store_source = segment.open_read(SegmentComponent::STORE)?;
+    //
+    //        fail_point!("SegmentReader::open#middle");
+    //
+    //        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
+    //        let postings_composite = CompositeFile::open(&postings_source)?;
+    //
+    //        let positions_composite = {
+    //            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
+    //                CompositeFile::open(&source)?
+    //            } else {
+    //                CompositeFile::empty()
+    //            }
+    //        };
+    //
+    //        let positions_idx_composite = {
+    //            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
+    //                CompositeFile::open(&source)?
+    //            } else {
+    //                CompositeFile::empty()
+    //            }
+    //        };
+    //
+    //        let schema = segment.schema();
+    //
+    //        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+    //        let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
+    //        let fast_field_readers =
+    //            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
+    //
+    //        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+    //        let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
+    //
+    //        let delete_bitset_opt = if segment.meta().has_deletes() {
+    //            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+    //            Some(DeleteBitSet::open(delete_data))
+    //        } else {
+    //            None
+    //        };
+    //
+    //        Ok(SegmentReader {
+    //            inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+    //            max_doc: segment.meta().max_doc(),
+    //            num_docs: segment.meta().num_docs(),
+    //            termdict_composite,
+    //            postings_composite,
+    //            fast_fields_readers: fast_field_readers,
+    //            fieldnorms_composite,
+    //            segment_id: segment.id(),
+    //            store_source,
+    //            delete_bitset_opt,
+    //            positions_composite,
+    //            positions_idx_composite,
+    //            schema,
+    //        })
+    //    }
 
     /// Returns a field reader associated to the field given in argument.
     /// If the field was not present in the index during indexing time,

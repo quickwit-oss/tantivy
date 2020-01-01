@@ -46,6 +46,10 @@ impl SegmentEntry {
         Ok(())
     }
 
+    pub fn segment(&self) -> &Segment {
+        &self.segment
+    }
+
     /// Return a reference to the segment entry deleted bitset.
     ///
     /// `DocId` in this bitset are flagged as deleted.

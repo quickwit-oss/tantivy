@@ -37,6 +37,7 @@ impl<'a> PreparedCommit<'a> {
                 .segment_updater()
                 .schedule_commit(self.opstamp, self.payload),
         );
+        let _ = block_on(self.index_writer.trigger_commit());
         Ok(self.opstamp)
     }
 }

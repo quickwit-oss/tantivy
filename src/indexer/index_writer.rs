@@ -8,8 +8,8 @@ use crate::core::SegmentComponent;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::SegmentReader;
-use crate::directory::TerminatingWrite;
 use crate::directory::{DirectoryLock, GarbageCollectionResult};
+use crate::directory::{TerminatingWrite, WatchCallbackList};
 use crate::docset::DocSet;
 use crate::error::TantivyError;
 use crate::fastfield::write_delete_bitset;
@@ -22,16 +22,16 @@ use crate::indexer::stamper::Stamper;
 use crate::indexer::MergePolicy;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentWriter;
+use crate::reader::NRTReader;
 use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::tokenizer::TokenizerManager;
-use crate::Opstamp;
+use crate::{IndexReader, Opstamp};
 use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
-use smallvec::smallvec;
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 use std::mem;
 use std::ops::Range;
 use std::sync::{Arc, RwLock};
@@ -92,6 +92,8 @@ pub struct IndexWriter {
 
     stamper: Stamper,
     committed_opstamp: Opstamp,
+
+    on_commit: WatchCallbackList,
 }
 
 fn compute_deleted_bitset(
@@ -344,6 +346,8 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
+
+            on_commit: Default::default(),
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -462,6 +466,21 @@ impl IndexWriter {
             self.add_indexing_worker()?;
         }
         Ok(())
+    }
+
+    // TODO move me
+    pub(crate) fn trigger_commit(&self) -> impl Future<Output = ()> {
+        self.on_commit.broadcast()
+    }
+
+    pub fn reader(&self, num_searchers: usize) -> crate::Result<IndexReader> {
+        let nrt_reader = NRTReader::create(
+            num_searchers,
+            self.index.clone(),
+            self.segment_registers.clone(),
+            &self.on_commit,
+        )?;
+        Ok(IndexReader::NRT(nrt_reader))
     }
 
     /// Detects and removes the files that are not used by the index anymore.
@@ -780,7 +799,6 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
-
     use super::super::operation::UserOperation;
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
@@ -1221,7 +1239,24 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         index_writer.add_document(doc!(idfield=>"myid"));
-        let commit = index_writer.commit();
-        assert!(commit.is_ok());
+        assert!(index_writer.commit().is_ok());
+    }
+
+    #[test]
+    fn test_index_writer_reader() {
+        let mut schema_builder = schema::Schema::builder();
+        let idfield = schema_builder.add_text_field("id", STRING);
+        schema_builder.add_text_field("optfield", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.commit().is_ok());
+        let reader = index_writer.reader(2).unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 1u64);
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.commit().is_ok());
+        assert_eq!(reader.searcher().num_docs(), 2u64);
+        assert_eq!(searcher.num_docs(), 1u64);
     }
 }
