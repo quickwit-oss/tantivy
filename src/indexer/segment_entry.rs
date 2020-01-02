@@ -3,7 +3,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::ManagedDirectory;
 use crate::indexer::delete_queue::DeleteCursor;
-use crate::Segment;
+use crate::{Opstamp, Segment};
 use std::fmt;
 
 /// A segment entry describes the state of
@@ -50,21 +50,32 @@ impl SegmentEntry {
         &self.segment
     }
 
-    /// Return a reference to the segment entry deleted bitset.
+    /// `Takes` (as in Option::take) the delete bitset of
+    /// a segment entry.
     ///
     /// `DocId` in this bitset are flagged as deleted.
-    pub fn delete_bitset(&self) -> Option<&BitSet> {
-        self.delete_bitset.as_ref()
+    pub fn take_delete_bitset(&mut self) -> Option<BitSet> {
+        self.delete_bitset.take()
     }
 
-    /// Set the `SegmentMeta` for this segment.
-    pub fn set_segment(&mut self, segment: Segment) {
-        self.segment = segment;
+    /// Reset the delete informmationo in this segment.
+    ///
+    /// The `SegmentEntry` segment's `SegmentMeta` gets updated, and
+    /// any delete bitset is drop and set to None.
+    pub fn reset_delete_meta(&mut self, num_deleted_docs: u32, target_opstamp: Opstamp) {
+        self.segment = self
+            .segment
+            .clone()
+            .with_delete_meta(num_deleted_docs, target_opstamp);
+        self.delete_bitset = None;
     }
 
+    pub fn set_delete_cursor(&mut self, delete_cursor: DeleteCursor) {
+        self.delete_cursor = delete_cursor;
+    }
     /// Return a reference to the segment_entry's delete cursor
-    pub fn delete_cursor(&mut self) -> &mut DeleteCursor {
-        &mut self.delete_cursor
+    pub fn delete_cursor(&mut self) -> DeleteCursor {
+        self.delete_cursor.clone()
     }
 
     /// Returns the segment id.

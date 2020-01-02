@@ -116,8 +116,7 @@ fn merge(
 
     // First we apply all of the delet to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
-        let segment = index.segment(segment_entry.meta().clone());
-        advance_deletes(segment, segment_entry, target_opstamp)?;
+        advance_deletes(segment_entry, target_opstamp)?;
     }
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
@@ -232,12 +231,11 @@ impl SegmentUpdater {
 
     pub fn schedule_add_segment(
         &self,
-        mut segment_entry: SegmentEntry,
+        segment_entry: SegmentEntry,
     ) -> impl Future<Output = crate::Result<()>> {
         // TODO temporary: serializing the segment at this point.
         let segment_updater = self.clone();
         self.schedule_future(async move {
-            segment_entry.persist(segment_updater.index.directory().clone())?;
             segment_updater.segment_manager.add_segment(segment_entry);
             segment_updater.consider_merge_options().await;
             Ok(())
@@ -264,8 +262,7 @@ impl SegmentUpdater {
     fn purge_deletes(&self, target_opstamp: Opstamp) -> crate::Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.segment_manager.segment_entries();
         for segment_entry in &mut segment_entries {
-            let segment = self.index.segment(segment_entry.meta().clone());
-            advance_deletes(segment, segment_entry, target_opstamp)?;
+            advance_deletes(segment_entry, target_opstamp)?;
         }
         Ok(segment_entries)
     }
@@ -335,8 +332,13 @@ impl SegmentUpdater {
         payload: Option<String>,
     ) -> impl Future<Output = crate::Result<()>> {
         let segment_updater: SegmentUpdater = self.clone();
+        let directory = self.index.directory().clone();
         self.schedule_future(async move {
-            let segment_entries = segment_updater.purge_deletes(opstamp)?;
+            let mut segment_entries = segment_updater.purge_deletes(opstamp)?;
+            for segment_entry in &mut segment_entries {
+                let directory = directory.clone();
+                segment_entry.persist(directory)?;
+            }
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload)?;
             let _ = garbage_collect_files(segment_updater.clone()).await;
@@ -476,17 +478,14 @@ impl SegmentUpdater {
         let end_merge_future = self.schedule_future(async move {
             info!("End merge {:?}", after_merge_segment_entry.meta());
             {
-                let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+                let mut delete_cursor = after_merge_segment_entry.delete_cursor();
                 if let Some(delete_operation) = delete_cursor.get() {
                     let committed_opstamp = segment_updater.load_metas().opstamp;
                     if delete_operation.opstamp < committed_opstamp {
-                        let index = &segment_updater.index;
-                        let segment = index.segment(after_merge_segment_entry.meta().clone());
-                        if let Err(e) = advance_deletes(
-                            segment,
-                            &mut after_merge_segment_entry,
-                            committed_opstamp,
-                        ) {
+                        let _index = &segment_updater.index;
+                        if let Err(e) =
+                            advance_deletes(&mut after_merge_segment_entry, committed_opstamp)
+                        {
                             error!(
                                 "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
                                 merge_operation.segment_ids(),
