@@ -140,7 +140,6 @@ fn compute_deleted_bitset(
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
 pub(crate) fn advance_deletes(
-    mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
 ) -> crate::Result<()> {
@@ -149,28 +148,38 @@ pub(crate) fn advance_deletes(
         return Ok(());
     }
 
-    if segment_entry.delete_bitset().is_none() && segment_entry.delete_cursor().get().is_none() {
+    let delete_bitset_opt = segment_entry.take_delete_bitset();
+
+    // We avoid directly advancing the `SegmentEntry` delete cursor, because
+    // we do not want to end up in an invalid state if the delete bitset
+    // serialization fails.
+    let mut delete_cursor = segment_entry.delete_cursor();
+
+    if delete_bitset_opt.is_none() && delete_cursor.get().is_none() {
         // There has been no `DeleteOperation` between the segment status and `target_opstamp`.
         return Ok(());
     }
 
+    // We open our current serialized segment to compute the new deleted bitset.
+    let segment = segment_entry.segment().clone();
     let segment_reader = SegmentReader::open(&segment)?;
 
     let max_doc = segment_reader.max_doc();
-    let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
-        Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
-        None => BitSet::with_max_value(max_doc),
-    };
+    let mut delete_bitset: BitSet =
+        delete_bitset_opt.unwrap_or_else(|| BitSet::with_max_value(max_doc));
+
+    let num_deleted_docs_before = segment.meta().num_deleted_docs();
 
     compute_deleted_bitset(
         &mut delete_bitset,
         &segment_reader,
-        segment_entry.delete_cursor(),
+        &mut delete_cursor,
         &DocToOpstampMapping::None,
         target_opstamp,
     )?;
 
-    // TODO optimize
+    // TODO optimize... We are simply manipulating bitsets here.
+    // We should be able to compute the union much faster.
     if let Some(seg_delete_bitset) = segment_reader.delete_bitset() {
         for doc in 0u32..max_doc {
             if seg_delete_bitset.is_deleted(doc) {
@@ -179,15 +188,23 @@ pub(crate) fn advance_deletes(
         }
     }
 
-    let num_deleted_docs = delete_bitset.len();
-    if num_deleted_docs > 0 {
-        segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
+    let num_deleted_docs = delete_bitset.len() as u32;
+
+    if num_deleted_docs > num_deleted_docs_before {
+        // We need to write a new delete file.
+        let mut delete_file = segment
+            .with_delete_meta(num_deleted_docs, target_opstamp)
+            .open_write(SegmentComponent::DELETE)?;
         write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
         delete_file.terminate()?;
+        segment_entry.reset_delete_meta(num_deleted_docs as u32, target_opstamp);
     }
 
-    segment_entry.set_segment(segment);
+    // Regardless of whether we did end up having to write a new file or not
+    // we advance the `delete_cursor`. This is an optimisation. We want to ensure we do not
+    // check that a given deleted term does not match any of our docs more than once.
+    segment_entry.set_delete_cursor(delete_cursor);
+
     Ok(())
 }
 
