@@ -1,3 +1,7 @@
+Tantivy 0.12.1
+=====================
+- By default IndexReader are in `Manual` mode.
+
 Tantivy 0.12.0
 ======================
 - Removing static dispatch in tokenizers for simplicity. (#762)
