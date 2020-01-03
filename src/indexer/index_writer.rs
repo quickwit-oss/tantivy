@@ -643,7 +643,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self, soft_commit: bool) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -671,7 +671,7 @@ impl IndexWriter {
         }
 
         let commit_opstamp = self.stamper.stamp();
-        let prepared_commit = PreparedCommit::new(self, commit_opstamp);
+        let prepared_commit = PreparedCommit::new(self, commit_opstamp, soft_commit);
         info!("Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
@@ -691,7 +691,11 @@ impl IndexWriter {
     /// that made it in the commit.
     ///
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
-        self.prepare_commit()?.commit()
+        self.prepare_commit(false)?.commit()
+    }
+
+    pub fn soft_commit(&mut self) -> crate::Result<Opstamp> {
+        self.prepare_commit(true)?.commit()
     }
 
     pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
@@ -1048,7 +1052,8 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
+                let mut prepared_commit =
+                    index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.commit().expect("commit failed");
             }
@@ -1081,7 +1086,8 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
+                let mut prepared_commit =
+                    index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.abort().expect("commit failed");
             }
@@ -1275,5 +1281,24 @@ mod tests {
         assert!(index_writer.commit().is_ok());
         assert_eq!(reader.searcher().num_docs(), 2u64);
         assert_eq!(searcher.num_docs(), 1u64);
+    }
+
+    #[test]
+    fn test_index_writer_reader_soft_commit() {
+        let mut schema_builder = schema::Schema::builder();
+        let idfield = schema_builder.add_text_field("id", STRING);
+        schema_builder.add_text_field("optfield", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.soft_commit().is_ok());
+        let nrt_reader = index_writer.reader(2).unwrap();
+        let normal_reader = index.reader_builder().try_into().unwrap();
+        assert_eq!(nrt_reader.searcher().num_docs(), 1u64);
+        assert_eq!(normal_reader.searcher().num_docs(), 0u64);
+        assert!(index_writer.commit().is_ok());
+        assert!(normal_reader.reload().is_ok());
+        assert_eq!(nrt_reader.searcher().num_docs(), 1u64);
+        assert_eq!(normal_reader.searcher().num_docs(), 1u64);
     }
 }

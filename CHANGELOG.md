@@ -1,3 +1,9 @@
+Tantivy 0.12.0
+==========================
+- By default IndexReader are in `Manual` mode.
+
+
+
 Tantivy 0.11.3
 =======================
 - Fixed DateTime as a fast field (#735)
