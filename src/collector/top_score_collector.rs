@@ -6,6 +6,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
+use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
@@ -58,6 +59,34 @@ pub struct TopDocs(TopCollector<Score>);
 impl fmt::Debug for TopDocs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "TopDocs({})", self.0.limit())
+    }
+}
+
+struct ScorerByFastFieldReader {
+    ff_reader: FastFieldReader<u64>,
+}
+
+impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
+    fn score(&self, doc: DocId) -> u64 {
+        self.ff_reader.get_u64(u64::from(doc))
+    }
+}
+
+struct ScorerByField {
+    field: Field,
+}
+
+impl CustomScorer<u64> for ScorerByField {
+    type Child = ScorerByFastFieldReader;
+
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+        let ff_reader = segment_reader
+            .fast_fields()
+            .u64(self.field)
+            .ok_or_else(|| {
+                crate::Error::SchemaError(format!("Field requested is not a i64/u64 fast field."))
+            })?;
+        Ok(ScorerByFastFieldReader { ff_reader })
     }
 }
 
@@ -143,14 +172,7 @@ impl TopDocs {
         self,
         field: Field,
     ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
-        self.custom_score(move |segment_reader: &SegmentReader| {
-            let ff_reader = segment_reader
-                .fast_fields()
-                .u64(field)
-                .expect("Field requested is not a i64/u64 fast field.");
-            //TODO error message missmatch actual behavior for i64
-            move |doc: DocId| ff_reader.get(doc)
-        })
+        self.custom_score(ScorerByField { field })
     }
 
     /// Ranks the documents using a custom score.
@@ -572,7 +594,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Field requested is not a i64/u64 fast field")]
     fn test_field_not_fast_field() {
         let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
@@ -587,7 +608,12 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
-        assert!(top_collector.for_segment(0, segment).is_ok());
+        let err = top_collector.for_segment(0, segment);
+        if let Err(crate::Error::SchemaError(msg)) = err {
+            assert_eq!(msg, "Field requested is not a i64/u64 fast field.");
+        } else {
+            assert!(false);
+        }
     }
 
     fn index(
