@@ -54,6 +54,7 @@ use tantivy_fst::Regex;
 pub struct RegexQuery {
     regex: Arc<Regex>,
     field: Field,
+    boost: f32,
 }
 
 impl RegexQuery {
@@ -69,11 +70,17 @@ impl RegexQuery {
         RegexQuery {
             regex: regex.into(),
             field,
+            boost: 1.0,
         }
     }
 
+    /// Boost the query score by the given factor.
+    pub fn boost_by(self, boost: f32) -> Self {
+        Self { boost, ..self }
+    }
+
     fn specialized_weight(&self) -> AutomatonWeight<Regex> {
-        AutomatonWeight::new(self.field, self.regex.clone())
+        AutomatonWeight::new(self.field, self.regex.clone()).boost_by(self.boost)
     }
 }
 

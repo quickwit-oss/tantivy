@@ -56,6 +56,11 @@ impl<TDocSet: DocSet> ConstScorer<TDocSet> {
         }
     }
 
+    /// Creates a new `ConstScorer` with a custom score value
+    pub fn with_score(docset: TDocSet, score: f32) -> ConstScorer<TDocSet> {
+        ConstScorer { docset, score }
+    }
+
     /// Sets the constant score to a different value.
     pub fn set_score(&mut self, score: Score) {
         self.score = score;
