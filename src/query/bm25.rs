@@ -34,7 +34,7 @@ pub struct BM25Weight {
 }
 
 impl BM25Weight {
-    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> BM25Weight {
+    pub fn for_terms(searcher: &Searcher, terms: &[Term], boost: f32) -> BM25Weight {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
@@ -75,11 +75,11 @@ impl BM25Weight {
                 .sum::<f32>();
             idf_explain = Explanation::new("idf", idf);
         }
-        BM25Weight::new(idf_explain, average_fieldnorm)
+        BM25Weight::new(idf_explain, average_fieldnorm, boost)
     }
 
-    fn new(idf_explain: Explanation, average_fieldnorm: f32) -> BM25Weight {
-        let weight = idf_explain.value() * (1f32 + K1);
+    fn new(idf_explain: Explanation, average_fieldnorm: f32, boost: f32) -> BM25Weight {
+        let weight = idf_explain.value() * (1f32 + K1) * boost;
         BM25Weight {
             idf_explain,
             weight,

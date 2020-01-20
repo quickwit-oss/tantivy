@@ -27,6 +27,7 @@ use std::collections::BTreeSet;
 pub struct PhraseQuery {
     field: Field,
     phrase_terms: Vec<(usize, Term)>,
+    boost: f32,
 }
 
 impl PhraseQuery {
@@ -57,7 +58,13 @@ impl PhraseQuery {
         PhraseQuery {
             field,
             phrase_terms: terms,
+            boost: 1.0,
         }
+    }
+
+    /// Boost the query score by the given factor.
+    pub fn boost_by(self, boost: f32) -> Self {
+        Self { boost, ..self }
     }
 
     /// The `Field` this `PhraseQuery` is targeting.
@@ -97,7 +104,7 @@ impl PhraseQuery {
             )));
         }
         let terms = self.phrase_terms();
-        let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+        let bm25_weight = BM25Weight::for_terms(searcher, &terms, self.boost);
         Ok(PhraseWeight::new(
             self.phrase_terms.clone(),
             bm25_weight,
