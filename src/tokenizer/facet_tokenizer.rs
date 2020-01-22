@@ -25,15 +25,17 @@ pub struct FacetTokenStream<'a> {
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for FacetTokenizer {
-    type TokenStreamImpl = FacetTokenStream<'a>;
-
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        FacetTokenStream {
+impl Tokenizer for FacetTokenizer {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        Box::new(FacetTokenStream {
             text,
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
             token: Token::default(),
-        }
+        })
+    }
+
+    fn box_clone(&self) -> Box<dyn Tokenizer> {
+        Box::new(self.clone())
     }
 }
 

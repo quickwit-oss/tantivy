@@ -1,8 +1,9 @@
 //! # Example
 //! ```rust
 //! use tantivy::tokenizer::*;
+//! use analyzer::{SimpleTokenizer, RemoveLongFilter};
 //!
-//! let tokenizer = SimpleTokenizer
+//! let tokenizer = Box::new(SimpleTokenizer)
 //!   .filter(RemoveLongFilter::limit(5));
 //!
 //! let mut stream = tokenizer.token_stream("toolong nice");
@@ -31,18 +32,12 @@ impl RemoveLongFilter {
     }
 }
 
-impl<TailTokenStream> RemoveLongFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+impl<'a> RemoveLongFilterStream<'a> {
     fn predicate(&self, token: &Token) -> bool {
         token.text.len() < self.token_length_limit
     }
 
-    fn wrap(
-        token_length_limit: usize,
-        tail: TailTokenStream,
-    ) -> RemoveLongFilterStream<TailTokenStream> {
+    fn wrap(token_length_limit: usize, tail: Box<dyn TokenStream + 'a>) -> RemoveLongFilterStream {
         RemoveLongFilterStream {
             token_length_limit,
             tail,
@@ -50,37 +45,25 @@ where
     }
 }
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for RemoveLongFilter
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = RemoveLongFilterStream<TailTokenStream>;
+impl TokenFilter for RemoveLongFilter {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(RemoveLongFilterStream::wrap(
+            self.length_limit,
+            token_stream,
+        ))
+    }
 
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        RemoveLongFilterStream::wrap(self.length_limit, token_stream)
+    fn box_clone<'a>(&self) -> Box<dyn TokenFilter + 'a> {
+        Box::new(self.clone())
     }
 }
 
-pub struct RemoveLongFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+pub struct RemoveLongFilterStream<'a> {
     token_length_limit: usize,
-    tail: TailTokenStream,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
-impl<TailTokenStream> TokenStream for RemoveLongFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
-    }
-
+impl<'a> TokenStream for RemoveLongFilterStream<'a> {
     fn advance(&mut self) -> bool {
         while self.tail.advance() {
             if self.predicate(self.tail.token()) {
@@ -88,5 +71,13 @@ where
             }
         }
         false
+    }
+
+    fn token(&self) -> &Token {
+        self.tail.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.tail.token_mut()
     }
 }

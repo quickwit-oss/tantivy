@@ -1,10 +1,11 @@
-use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::BoxedTokenizer;
-use crate::tokenizer::LowerCaser;
-use crate::tokenizer::RawTokenizer;
+//use crate::tokenizer::stemmer::Language;
+//use crate::tokenizer::BoxedTokenizer;
+//use crate::tokenizer::LowerCaser;
+//use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
 use crate::tokenizer::SimpleTokenizer;
-use crate::tokenizer::Stemmer;
+//use crate::tokenizer::Stemmer;
+use crate::tokenizer::ApplyFilter;
 use crate::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -23,14 +24,14 @@ use std::sync::{Arc, RwLock};
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, BoxedTokenizer>>>,
+    tokenizers: Arc<RwLock<HashMap<String, Box<dyn Tokenizer>>>>,
 }
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
     where
-        A: Into<BoxedTokenizer>,
+        A: Into<Box<dyn Tokenizer>>,
     {
         let boxed_tokenizer = tokenizer.into();
         self.tokenizers
@@ -40,12 +41,12 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<BoxedTokenizer> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn Tokenizer>> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
             .get(tokenizer_name)
-            .cloned()
+            .map(|tokenizer| tokenizer.box_clone())
     }
 }
 
@@ -59,20 +60,20 @@ impl Default for TokenizerManager {
         let manager = TokenizerManager {
             tokenizers: Arc::new(RwLock::new(HashMap::new())),
         };
-        manager.register("raw", RawTokenizer);
+        //        manager.register("raw", RawTokenizer);
         manager.register(
             "default",
             SimpleTokenizer
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser),
+                .box_clone()
+                .filter(Box::new(RemoveLongFilter::limit(40))), //                .filter(LowerCaser),
         );
-        manager.register(
-            "en_stem",
-            SimpleTokenizer
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
-                .filter(Stemmer::new(Language::English)),
-        );
+        //        manager.register(
+        //            "en_stem",
+        //            SimpleTokenizer
+        //                .filter(RemoveLongFilter::limit(40))
+        //                .filter(LowerCaser)
+        //                .filter(Stemmer::new(Language::English)),
+        //        );
         manager
     }
 }

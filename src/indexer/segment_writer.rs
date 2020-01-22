@@ -11,7 +11,6 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
-use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::FacetTokenizer;
 use crate::tokenizer::PreTokenizedStream;
 use crate::tokenizer::{TokenStream, TokenStreamChain, Tokenizer};
@@ -50,7 +49,7 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<BoxedTokenizer>>,
+    tokenizers: Vec<Option<Box<dyn Tokenizer>>>,
 }
 
 impl SegmentWriter {

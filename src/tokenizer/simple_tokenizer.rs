@@ -11,15 +11,17 @@ pub struct SimpleTokenStream<'a> {
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for SimpleTokenizer {
-    type TokenStreamImpl = SimpleTokenStream<'a>;
-
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        SimpleTokenStream {
+impl Tokenizer for SimpleTokenizer {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        Box::new(SimpleTokenStream {
             text,
             chars: text.char_indices(),
             token: Token::default(),
-        }
+        })
+    }
+
+    fn box_clone(&self) -> Box<dyn Tokenizer> {
+        Box::new(self.clone())
     }
 }
 

@@ -53,9 +53,14 @@ impl PreTokenizedStream {
                     total_offset += last_token.offset_to;
                 }
             }
+            // TODO remove the string cloning.
             let token_streams: Vec<_> = tok_strings
                 .iter()
-                .map(|tok_string| PreTokenizedStream::from((*tok_string).clone()))
+                .map(|&tok_string| {
+                    let boxed_stream: Box<dyn TokenStream + 'static> =
+                        Box::new(PreTokenizedStream::from((*tok_string).clone()));
+                    boxed_stream
+                })
                 .collect();
             Box::new(TokenStreamChain::new(offsets, token_streams))
         }

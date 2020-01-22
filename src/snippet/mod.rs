@@ -1,8 +1,7 @@
 use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
-use crate::tokenizer::BoxedTokenizer;
-use crate::tokenizer::{Token, TokenStream};
+use crate::tokenizer::{Token, TokenStream, Tokenizer};
 use crate::Document;
 use crate::Result;
 use crate::Searcher;
@@ -142,7 +141,7 @@ impl Snippet {
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
 fn search_fragments<'a>(
-    tokenizer: &BoxedTokenizer,
+    tokenizer: &dyn Tokenizer,
     text: &'a str,
     terms: &BTreeMap<String, f32>,
     max_num_chars: usize,
@@ -251,7 +250,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// ```
 pub struct SnippetGenerator {
     terms_text: BTreeMap<String, f32>,
-    tokenizer: BoxedTokenizer,
+    tokenizer: Box<dyn Tokenizer>,
     field: Field,
     max_num_chars: usize,
 }
@@ -313,8 +312,12 @@ impl SnippetGenerator {
 
     /// Generates a snippet for the given text.
     pub fn snippet(&self, text: &str) -> Snippet {
-        let fragment_candidates =
-            search_fragments(&self.tokenizer, &text, &self.terms_text, self.max_num_chars);
+        let fragment_candidates = search_fragments(
+            self.tokenizer.as_ref(),
+            &text,
+            &self.terms_text,
+            self.max_num_chars,
+        );
         select_best_fragment_combination(&fragment_candidates[..], &text)
     }
 }

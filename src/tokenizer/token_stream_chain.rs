@@ -2,22 +2,19 @@ use crate::tokenizer::{Token, TokenStream};
 
 const POSITION_GAP: usize = 2;
 
-pub(crate) struct TokenStreamChain<TTokenStream: TokenStream> {
+pub(crate) struct TokenStreamChain<'a> {
     offsets: Vec<usize>,
-    token_streams: Vec<TTokenStream>,
+    token_streams: Vec<Box<dyn TokenStream + 'a>>,
     position_shift: usize,
     stream_idx: usize,
     token: Token,
 }
 
-impl<'a, TTokenStream> TokenStreamChain<TTokenStream>
-where
-    TTokenStream: TokenStream,
-{
+impl<'a> TokenStreamChain<'a> {
     pub fn new(
         offsets: Vec<usize>,
-        token_streams: Vec<TTokenStream>,
-    ) -> TokenStreamChain<TTokenStream> {
+        token_streams: Vec<Box<dyn TokenStream + 'a>>,
+    ) -> TokenStreamChain<'a> {
         TokenStreamChain {
             offsets,
             stream_idx: 0,
@@ -28,13 +25,10 @@ where
     }
 }
 
-impl<'a, TTokenStream> TokenStream for TokenStreamChain<TTokenStream>
-where
-    TTokenStream: TokenStream,
-{
+impl<'a> TokenStream for TokenStreamChain<'a> {
     fn advance(&mut self) -> bool {
         while self.stream_idx < self.token_streams.len() {
-            let token_stream = &mut self.token_streams[self.stream_idx];
+            let token_stream = self.token_streams[self.stream_idx].as_mut();
             if token_stream.advance() {
                 let token = token_stream.token();
                 let offset_offset = self.offsets[self.stream_idx];

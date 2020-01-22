@@ -41,107 +41,14 @@ impl Default for Token {
 /// # Warning
 ///
 /// This API may change to use associated types.
-pub trait Tokenizer<'a>: Sized + Clone {
-    /// Type associated to the resulting tokenstream tokenstream.
-    type TokenStreamImpl: TokenStream;
-
+pub trait Tokenizer: 'static + Send + Sync {
     /// Creates a token stream for a given `str`.
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl;
-
-    /// Appends a token filter to the current tokenizer.
-    ///
-    /// The method consumes the current `TokenStream` and returns a
-    /// new one.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use tantivy::tokenizer::*;
-    ///
-    /// let en_stem = SimpleTokenizer
-    ///     .filter(RemoveLongFilter::limit(40))
-    ///     .filter(LowerCaser)
-    ///     .filter(Stemmer::default());
-    /// ```
-    ///
-    fn filter<NewFilter>(self, new_filter: NewFilter) -> ChainTokenizer<NewFilter, Self>
-    where
-        NewFilter: TokenFilter<<Self as Tokenizer<'a>>::TokenStreamImpl>,
-    {
-        ChainTokenizer {
-            head: new_filter,
-            tail: self,
-        }
-    }
-}
-
-/// A boxed tokenizer
-trait BoxedTokenizerTrait: Send + Sync {
-    /// Tokenize a `&str`
     fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a>;
 
-    /// Tokenize an array`&str`
-    ///
-    /// The resulting `TokenStream` is equivalent to what would be obtained if the &str were
-    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
-    /// to prevent accidental `PhraseQuery` to match accross two terms.
-    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b>;
-
-    /// Return a boxed clone of the tokenizer
-    fn boxed_clone(&self) -> BoxedTokenizer;
-}
-
-/// A boxed tokenizer
-pub struct BoxedTokenizer(Box<dyn BoxedTokenizerTrait>);
-
-impl<T> From<T> for BoxedTokenizer
-where
-    T: 'static + Send + Sync + for<'a> Tokenizer<'a>,
-{
-    fn from(tokenizer: T) -> BoxedTokenizer {
-        BoxedTokenizer(Box::new(BoxableTokenizer(tokenizer)))
-    }
-}
-
-impl BoxedTokenizer {
-    /// Tokenize a `&str`
-    pub fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
-        self.0.token_stream(text)
-    }
-
-    /// Tokenize an array`&str`
-    ///
-    /// The resulting `TokenStream` is equivalent to what would be obtained if the &str were
-    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
-    /// to prevent accidental `PhraseQuery` to match accross two terms.
-    pub fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b> {
-        self.0.token_stream_texts(texts)
-    }
-}
-
-impl Clone for BoxedTokenizer {
-    fn clone(&self) -> BoxedTokenizer {
-        self.0.boxed_clone()
-    }
-}
-
-#[derive(Clone)]
-struct BoxableTokenizer<A>(A)
-where
-    A: for<'a> Tokenizer<'a> + Send + Sync;
-
-impl<A> BoxedTokenizerTrait for BoxableTokenizer<A>
-where
-    A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
-{
-    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
-        Box::new(self.0.token_stream(text))
-    }
-
-    fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<dyn TokenStream + 'b> {
+    fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> Box<dyn TokenStream + 'a> {
         assert!(!texts.is_empty());
         if texts.len() == 1 {
-            Box::new(self.0.token_stream(texts[0]))
+            self.token_stream(texts[0])
         } else {
             let mut offsets = vec![];
             let mut total_offset = 0;
@@ -149,30 +56,63 @@ where
                 offsets.push(total_offset);
                 total_offset += text.len();
             }
-            let token_streams: Vec<_> =
-                texts.iter().map(|text| self.0.token_stream(text)).collect();
+            let token_streams: Vec<Box<dyn TokenStream + 'a>> = texts
+                .iter()
+                .cloned()
+                .map(|text| self.token_stream(text))
+                .collect();
             Box::new(TokenStreamChain::new(offsets, token_streams))
         }
     }
 
-    fn boxed_clone(&self) -> BoxedTokenizer {
-        self.0.clone().into()
+    fn box_clone(&self) -> Box<dyn Tokenizer>;
+}
+
+pub trait ApplyFilter: Sized {
+    fn filter(self, new_filter: Box<dyn TokenFilter>) -> Box<dyn Tokenizer>;
+}
+
+impl ApplyFilter for Box<dyn Tokenizer> {
+    fn filter(self, token_filter: Box<dyn TokenFilter>) -> Box<dyn Tokenizer> {
+        Box::new(TokenizerWithFilter {
+            tokenizer: self,
+            token_filter,
+        })
     }
 }
 
-impl<'b> TokenStream for Box<dyn TokenStream + 'b> {
+struct TokenizerWithFilter {
+    tokenizer: Box<dyn Tokenizer>,
+    token_filter: Box<dyn TokenFilter>,
+}
+
+impl Tokenizer for TokenizerWithFilter {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        let tokenized_text = self.tokenizer.token_stream(text);
+        self.token_filter.transform(tokenized_text)
+    }
+
+    fn box_clone(&self) -> Box<dyn Tokenizer> {
+        Box::new(TokenizerWithFilter {
+            tokenizer: self.tokenizer.box_clone(),
+            token_filter: self.token_filter.box_clone(),
+        })
+    }
+}
+
+impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
     fn advance(&mut self) -> bool {
         let token_stream: &mut dyn TokenStream = self.borrow_mut();
         token_stream.advance()
     }
 
-    fn token(&self) -> &Token {
-        let token_stream: &dyn TokenStream = self.borrow();
+    fn token<'b>(&'b self) -> &'b Token {
+        let token_stream: &'b (dyn TokenStream + 'a) = self.borrow();
         token_stream.token()
     }
 
-    fn token_mut(&mut self) -> &mut Token {
-        let token_stream: &mut dyn TokenStream = self.borrow_mut();
+    fn token_mut<'b>(&'b mut self) -> &'b mut Token {
+        let token_stream: &'b mut (dyn TokenStream + 'a) = self.borrow_mut();
         token_stream.token_mut()
     }
 }
@@ -253,33 +193,11 @@ pub trait TokenStream {
     }
 }
 
-#[derive(Clone)]
-pub struct ChainTokenizer<HeadTokenFilterFactory, TailTokenizer> {
-    head: HeadTokenFilterFactory,
-    tail: TailTokenizer,
-}
-
-impl<'a, HeadTokenFilterFactory, TailTokenizer> Tokenizer<'a>
-    for ChainTokenizer<HeadTokenFilterFactory, TailTokenizer>
-where
-    HeadTokenFilterFactory: TokenFilter<TailTokenizer::TokenStreamImpl>,
-    TailTokenizer: Tokenizer<'a>,
-{
-    type TokenStreamImpl = HeadTokenFilterFactory::ResultTokenStream;
-
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        let tail_token_stream = self.tail.token_stream(text);
-        self.head.transform(tail_token_stream)
-    }
-}
-
 /// Trait for the pluggable components of `Tokenizer`s.
-pub trait TokenFilter<TailTokenStream: TokenStream>: Clone {
-    /// The resulting `TokenStream` type.
-    type ResultTokenStream: TokenStream;
-
+pub trait TokenFilter: 'static + Send + Sync {
     /// Wraps a token stream and returns the modified one.
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream;
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a>;
+    fn box_clone<'a>(&self) -> Box<dyn TokenFilter + 'a>;
 }
 
 #[cfg(test)]
