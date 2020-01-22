@@ -36,25 +36,14 @@ impl<'a> RemoveLongFilterStream<'a> {
     fn predicate(&self, token: &Token) -> bool {
         token.text.len() < self.token_length_limit
     }
-
-    fn wrap(token_length_limit: usize, tail: Box<dyn TokenStream + 'a>) -> RemoveLongFilterStream {
-        RemoveLongFilterStream {
-            token_length_limit,
-            tail,
-        }
-    }
 }
 
 impl TokenFilter for RemoveLongFilter {
     fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(RemoveLongFilterStream::wrap(
-            self.length_limit,
-            token_stream,
-        ))
-    }
-
-    fn box_clone(&self) -> Box<dyn TokenFilter> {
-        Box::new(self.clone())
+        Box::new(RemoveLongFilterStream {
+            token_length_limit: self.length_limit,
+            tail: token_stream,
+        })
     }
 }
 

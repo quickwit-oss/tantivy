@@ -33,10 +33,6 @@ impl Tokenizer for FacetTokenizer {
             token: Token::default(),
         })
     }
-
-    fn box_clone(&self) -> Box<dyn Tokenizer> {
-        Box::new(self.clone())
-    }
 }
 
 impl<'a> TokenStream for FacetTokenStream<'a> {

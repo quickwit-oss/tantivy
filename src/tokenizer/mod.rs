@@ -65,9 +65,9 @@
 //! use tantivy::tokenizer::*;
 //!
 //! let en_stem = SimpleTokenizer
-//!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser)
-//!     .filter(Stemmer::new(Language::English));
+//!     .filter(Box::new(RemoveLongFilter::limit(40)))
+//!     .filter(Box::new(LowerCaser))
+//!     .filter(Box::new(Stemmer::new(Language::English)));
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -110,40 +110,40 @@
 //!
 //! // We need to register our tokenizer :
 //! let custom_en_tokenizer = SimpleTokenizer
-//!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser);
+//!     .filter(Box::new(RemoveLongFilter::limit(40)))
+//!     .filter(Box::new(LowerCaser));
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
 //! ```
 //!
-//mod alphanum_only;
-//mod ascii_folding_filter;
+mod alphanum_only;
+mod ascii_folding_filter;
 mod facet_tokenizer;
 mod lower_caser;
-//mod ngram_tokenizer;
-//mod raw_tokenizer;
+mod ngram_tokenizer;
+mod raw_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod stemmer;
-//mod stop_word_filter;
+mod stop_word_filter;
 mod token_stream_chain;
 mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 
-pub use self::tokenizer::ApplyFilter;
+pub use self::tokenizer::TokenizerExt;
 
-//pub use self::alphanum_only::AlphaNumOnlyFilter;
-//pub use self::ascii_folding_filter::AsciiFoldingFilter;
+pub use self::alphanum_only::AlphaNumOnlyFilter;
+pub use self::ascii_folding_filter::AsciiFoldingFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
-//pub use self::lower_caser::LowerCaser;
-//pub use self::ngram_tokenizer::NgramTokenizer;
-//pub use self::raw_tokenizer::RawTokenizer;
+pub use self::lower_caser::LowerCaser;
+pub use self::ngram_tokenizer::NgramTokenizer;
+pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
-//pub use self::stemmer::{Language, Stemmer};
-//pub use self::stop_word_filter::StopWordFilter;
+pub use self::stemmer::{Language, Stemmer};
+pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
@@ -164,6 +164,7 @@ pub mod tests {
         Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, Tokenizer,
         TokenizerManager,
     };
+    use crate::tokenizer::TokenizerExt;
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -231,9 +232,9 @@ pub mod tests {
         tokenizer_manager.register(
             "el_stem",
             SimpleTokenizer
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Box::new(RemoveLongFilter::limit(40)))
+                .filter(Box::new(LowerCaser))
+                .filter(Box::new(Stemmer::new(Language::Greek))),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

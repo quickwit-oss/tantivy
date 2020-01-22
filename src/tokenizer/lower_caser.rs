@@ -1,14 +1,12 @@
 use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::Tokenizer;
 use std::mem;
 
 impl TokenFilter for LowerCaser {
     fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(LowerCaserTokenStream::wrap(token_stream))
-    }
-
-    fn box_clone(&self) -> Box<dyn TokenFilter> {
-        Box::new(self.clone())
+        Box::new(LowerCaserTokenStream {
+            tail: token_stream,
+            buffer: String::with_capacity(100),
+        })
     }
 }
 
@@ -55,21 +53,12 @@ impl<'a> TokenStream for LowerCaserTokenStream<'a> {
     }
 }
 
-impl<'a> LowerCaserTokenStream<'a> {
-    fn wrap(tail: Box<dyn TokenStream + 'a>) -> LowerCaserTokenStream<'a> {
-        LowerCaserTokenStream {
-            tail,
-            buffer: String::with_capacity(100),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::LowerCaser;
     use crate::tokenizer::SimpleTokenizer;
     use crate::tokenizer::TokenStream;
     use crate::tokenizer::Tokenizer;
+    use crate::tokenizer::{LowerCaser, TokenizerExt};
 
     #[test]
     fn test_to_lower_case() {
@@ -81,7 +70,9 @@ mod tests {
 
     fn lowercase_helper(text: &str) -> Vec<String> {
         let mut tokens = vec![];
-        let mut token_stream = SimpleTokenizer.filter(LowerCaser).token_stream(text);
+        let mut token_stream = SimpleTokenizer
+            .filter(Box::new(LowerCaser))
+            .token_stream(text);
         while token_stream.advance() {
             let token_text = token_stream.token().text.clone();
             tokens.push(token_text);

@@ -7,26 +7,21 @@ use std::mem;
 #[derive(Clone)]
 pub struct AsciiFoldingFilter;
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for AsciiFoldingFilter
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = AsciiFoldingFilterTokenStream<TailTokenStream>;
-
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        AsciiFoldingFilterTokenStream::wrap(token_stream)
+impl TokenFilter for AsciiFoldingFilter {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(AsciiFoldingFilterTokenStream {
+            tail: token_stream,
+            buffer: String::with_capacity(100),
+        })
     }
 }
 
-pub struct AsciiFoldingFilterTokenStream<TailTokenStream> {
+pub struct AsciiFoldingFilterTokenStream<'a> {
     buffer: String,
-    tail: TailTokenStream,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
-impl<TailTokenStream> TokenStream for AsciiFoldingFilterTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -45,18 +40,6 @@ where
 
     fn token_mut(&mut self) -> &mut Token {
         self.tail.token_mut()
-    }
-}
-
-impl<TailTokenStream> AsciiFoldingFilterTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn wrap(tail: TailTokenStream) -> AsciiFoldingFilterTokenStream<TailTokenStream> {
-        AsciiFoldingFilterTokenStream {
-            tail,
-            buffer: String::with_capacity(100),
-        }
     }
 }
 
@@ -1558,11 +1541,11 @@ fn to_ascii(text: &mut String, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::to_ascii;
-    use crate::tokenizer::AsciiFoldingFilter;
     use crate::tokenizer::RawTokenizer;
     use crate::tokenizer::SimpleTokenizer;
     use crate::tokenizer::TokenStream;
     use crate::tokenizer::Tokenizer;
+    use crate::tokenizer::{AsciiFoldingFilter, TokenizerExt};
     use std::iter;
 
     #[test]
@@ -1580,7 +1563,7 @@ mod tests {
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
         SimpleTokenizer
-            .filter(AsciiFoldingFilter)
+            .filter(Box::new(AsciiFoldingFilter))
             .token_stream(text)
             .process(&mut |token| {
                 tokens.push(token.text.clone());
@@ -1589,7 +1572,9 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = RawTokenizer.filter(AsciiFoldingFilter).token_stream(text);
+        let mut token_stream = RawTokenizer
+            .filter(Box::new(AsciiFoldingFilter))
+            .token_stream(text);
         token_stream.advance();
         token_stream.token().text.clone()
     }

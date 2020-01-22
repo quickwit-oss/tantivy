@@ -129,11 +129,9 @@ pub struct NgramTokenStream<'a> {
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for NgramTokenizer {
-    type TokenStreamImpl = NgramTokenStream<'a>;
-
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        NgramTokenStream {
+impl Tokenizer for NgramTokenizer {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        Box::new(NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
                 self.min_gram,
@@ -142,7 +140,7 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
             prefix_only: self.prefix_only,
             text,
             token: Token::default(),
-        }
+        })
     }
 }
 

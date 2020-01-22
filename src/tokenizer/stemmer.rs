@@ -78,11 +78,10 @@ impl Default for Stemmer {
 impl TokenFilter for Stemmer {
     fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
         let inner_stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
-        Box::new(StemmerTokenStream::wrap(inner_stemmer, token_stream))
-    }
-
-    fn box_clone(&self) -> Box<TokenFilter> {
-        Box::new(self.clone())
+        Box::new(StemmerTokenStream {
+            tail: token_stream,
+            stemmer: inner_stemmer,
+        })
     }
 }
 
@@ -109,14 +108,5 @@ impl<'a> TokenStream for StemmerTokenStream<'a> {
 
     fn token_mut(&mut self) -> &mut Token {
         self.tail.token_mut()
-    }
-}
-
-impl<'a> StemmerTokenStream<'a> {
-    fn wrap(
-        stemmer: rust_stemmers::Stemmer,
-        tail: Box<dyn TokenStream + 'a>,
-    ) -> StemmerTokenStream<'a> {
-        StemmerTokenStream { tail, stemmer }
     }
 }

@@ -533,7 +533,7 @@ mod test {
     use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
     use crate::tokenizer::{
-        LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager,
+        LowerCaser, SimpleTokenizer, StopWordFilter, TokenizerExt, TokenizerManager,
     };
     use crate::Index;
     use matches::assert_matches;
@@ -564,8 +564,8 @@ mod test {
         tokenizer_manager.register(
             "en_with_stop_words",
             SimpleTokenizer
-                .filter(LowerCaser)
-                .filter(StopWordFilter::remove(vec!["the".to_string()])),
+                .filter(Box::new(LowerCaser))
+                .filter(Box::new(StopWordFilter::remove(vec!["the".to_string()]))),
         );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
