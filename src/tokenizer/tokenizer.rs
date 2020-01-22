@@ -197,7 +197,7 @@ pub trait TokenStream {
 pub trait TokenFilter: 'static + Send + Sync {
     /// Wraps a token stream and returns the modified one.
     fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a>;
-    fn box_clone<'a>(&self) -> Box<dyn TokenFilter + 'a>;
+    fn box_clone(&self) -> Box<dyn TokenFilter>;
 }
 
 #[cfg(test)]

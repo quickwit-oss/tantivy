@@ -53,7 +53,7 @@ impl TokenFilter for RemoveLongFilter {
         ))
     }
 
-    fn box_clone<'a>(&self) -> Box<dyn TokenFilter + 'a> {
+    fn box_clone(&self) -> Box<dyn TokenFilter> {
         Box::new(self.clone())
     }
 }

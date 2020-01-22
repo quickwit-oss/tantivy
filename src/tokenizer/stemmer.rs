@@ -75,38 +75,23 @@ impl Default for Stemmer {
     }
 }
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for Stemmer
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = StemmerTokenStream<TailTokenStream>;
-
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
+impl TokenFilter for Stemmer {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
         let inner_stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
-        StemmerTokenStream::wrap(inner_stemmer, token_stream)
+        Box::new(StemmerTokenStream::wrap(inner_stemmer, token_stream))
+    }
+
+    fn box_clone(&self) -> Box<TokenFilter> {
+        Box::new(self.clone())
     }
 }
 
-pub struct StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    tail: TailTokenStream,
+pub struct StemmerTokenStream<'a> {
+    tail: Box<dyn TokenStream + 'a>,
     stemmer: rust_stemmers::Stemmer,
 }
 
-impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
-    }
-
+impl<'a> TokenStream for StemmerTokenStream<'a> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -117,16 +102,21 @@ where
         self.token_mut().text.push_str(&stemmed_str);
         true
     }
+
+    fn token(&self) -> &Token {
+        self.tail.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.tail.token_mut()
+    }
 }
 
-impl<TailTokenStream> StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+impl<'a> StemmerTokenStream<'a> {
     fn wrap(
         stemmer: rust_stemmers::Stemmer,
-        tail: TailTokenStream,
-    ) -> StemmerTokenStream<TailTokenStream> {
+        tail: Box<dyn TokenStream + 'a>,
+    ) -> StemmerTokenStream<'a> {
         StemmerTokenStream { tail, stemmer }
     }
 }

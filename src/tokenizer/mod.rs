@@ -120,12 +120,12 @@
 //mod alphanum_only;
 //mod ascii_folding_filter;
 mod facet_tokenizer;
-//mod lower_caser;
+mod lower_caser;
 //mod ngram_tokenizer;
 //mod raw_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
-//mod stemmer;
+mod stemmer;
 //mod stop_word_filter;
 mod token_stream_chain;
 mod tokenized_string;
