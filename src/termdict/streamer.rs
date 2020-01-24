@@ -51,6 +51,12 @@ where
         self
     }
 
+    /// Iterate over the range backwards.
+    pub fn backwards(mut self) -> Self {
+        self.stream_builder = self.stream_builder.backwards();
+        self
+    }
+
     /// Creates the stream corresponding to the range
     /// of terms defined using the `TermStreamerBuilder`.
     pub fn into_stream(self) -> TermStreamer<'a, A> {
