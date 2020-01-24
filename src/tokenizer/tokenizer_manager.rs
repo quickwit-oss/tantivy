@@ -1,5 +1,6 @@
 use crate::tokenizer::stemmer::Language;
 //use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::tokenizer::BoxedTokenizer;
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
@@ -24,16 +25,16 @@ use std::sync::{Arc, RwLock};
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, Box<dyn Tokenizer>>>>,
+    tokenizers: Arc<RwLock<HashMap<String, BoxedTokenizer>>>,
 }
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
-    pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
+    pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        A: TokenizerExt,
+        BoxedTokenizer: From<T>,
     {
-        let boxed_tokenizer: Box<dyn Tokenizer> = tokenizer.into_box();
+        let boxed_tokenizer: BoxedTokenizer = BoxedTokenizer::from(tokenizer);
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
@@ -41,7 +42,7 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn Tokenizer>> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<BoxedTokenizer> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")

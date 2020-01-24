@@ -132,8 +132,6 @@ mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 
-pub use self::tokenizer::TokenizerExt;
-
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
@@ -147,7 +145,9 @@ pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
-pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
+pub use self::tokenizer::{
+    BoxedTokenizer, Token, TokenFilter, TokenStream, Tokenizer, TokenizerExt,
+};
 
 pub use self::tokenizer_manager::TokenizerManager;
 

@@ -2,6 +2,8 @@ use crate::tokenizer::TokenStreamChain;
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 use std::borrow::{Borrow, BorrowMut};
+use std::ops::Deref;
+
 /// Token
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Token {
@@ -29,6 +31,28 @@ impl Default for Token {
             text: String::with_capacity(200),
             position_length: 1,
         }
+    }
+}
+
+pub struct BoxedTokenizer(Box<dyn Tokenizer>);
+
+impl Clone for BoxedTokenizer {
+    fn clone(&self) -> Self {
+        self.0.box_clone()
+    }
+}
+
+impl Deref for BoxedTokenizer {
+    type Target = dyn Tokenizer;
+
+    fn deref(&self) -> &dyn Tokenizer {
+        &*self.0
+    }
+}
+
+impl<T: Tokenizer> From<T> for BoxedTokenizer {
+    fn from(tokenizer: T) -> BoxedTokenizer {
+        BoxedTokenizer(Box::new(tokenizer))
     }
 }
 
@@ -66,48 +90,39 @@ pub trait Tokenizer: 'static + Send + Sync + TokenizerClone {
 }
 
 pub trait TokenizerClone {
-    fn box_clone(&self) -> Box<dyn Tokenizer>;
+    fn box_clone(&self) -> BoxedTokenizer;
 }
 
 impl<T: Tokenizer + Clone> TokenizerClone for T {
-    fn box_clone(&self) -> Box<dyn Tokenizer> {
-        Box::new(self.clone())
+    fn box_clone(&self) -> BoxedTokenizer {
+        From::from(self.clone())
     }
 }
 
 pub trait TokenizerExt {
-    fn filter(self, new_filter: Box<dyn TokenFilter>) -> Box<dyn Tokenizer>;
-    fn into_box(self) -> Box<dyn Tokenizer>;
+    fn filter(self, new_filter: Box<dyn TokenFilter>) -> BoxedTokenizer;
 }
 
 impl<T: Tokenizer> TokenizerExt for T {
-    fn filter(self, token_filter: Box<dyn TokenFilter>) -> Box<dyn Tokenizer> {
-        Box::new(TokenizerWithFilter {
-            tokenizer: Box::new(self),
+    fn filter(self, token_filter: Box<dyn TokenFilter>) -> BoxedTokenizer {
+        BoxedTokenizer::from(TokenizerWithFilter {
+            tokenizer: From::from(self),
             token_filter,
         })
     }
-
-    fn into_box(self) -> Box<dyn Tokenizer> {
-        Box::new(self)
-    }
 }
 
-impl TokenizerExt for Box<dyn Tokenizer> {
-    fn filter(self, token_filter: Box<dyn TokenFilter>) -> Box<dyn Tokenizer> {
-        Box::new(TokenizerWithFilter {
+impl TokenizerExt for BoxedTokenizer {
+    fn filter(self, token_filter: Box<dyn TokenFilter>) -> BoxedTokenizer {
+        BoxedTokenizer::from(TokenizerWithFilter {
             tokenizer: self,
             token_filter,
         })
     }
-
-    fn into_box(self) -> Box<dyn Tokenizer> {
-        self
-    }
 }
 
 struct TokenizerWithFilter {
-    tokenizer: Box<dyn Tokenizer>,
+    tokenizer: BoxedTokenizer,
     token_filter: Box<dyn TokenFilter>,
 }
 
@@ -154,8 +169,8 @@ impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
 /// use tantivy::tokenizer::*;
 ///
 /// let tokenizer = SimpleTokenizer
-///        .filter(RemoveLongFilter::limit(40))
-///        .filter(LowerCaser);
+///        .filter(Box::new(RemoveLongFilter::limit(40)))
+///        .filter(Box::new((LowerCaser);
 /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
 /// {
 ///     let token = token_stream.next().unwrap();
