@@ -399,11 +399,17 @@ mod tests {
         }
         {
             let range = term_dictionary.range().lt([6u8]).into_stream();
-            assert_eq!(value_list(range, false), vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]);
+            assert_eq!(
+                value_list(range, false),
+                vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
+            );
         }
         {
             let range = term_dictionary.range().lt([6u8]).backwards().into_stream();
-            assert_eq!(value_list(range, true), vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]);
+            assert_eq!(
+                value_list(range, true),
+                vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
+            );
         }
         {
             let range = term_dictionary.range().le([6u8]).into_stream();
@@ -424,7 +430,12 @@ mod tests {
             assert_eq!(value_list(range, false), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
         }
         {
-            let range = term_dictionary.range().ge([0u8]).lt([5u8]).backwards().into_stream();
+            let range = term_dictionary
+                .range()
+                .ge([0u8])
+                .lt([5u8])
+                .backwards()
+                .into_stream();
             assert_eq!(value_list(range, true), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
         }
     }
