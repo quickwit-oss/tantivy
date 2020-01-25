@@ -122,6 +122,11 @@ impl Facet {
     pub fn to_path(&self) -> Vec<&str> {
         self.encoded_str().split(|c| c == FACET_SEP_CHAR).collect()
     }
+
+    /// Extract the path as a string from the `Facet`.
+    pub fn to_path_string(&self) -> String {
+        "//".to_owned() + &self.to_path().join("/")
+    }
 }
 
 impl Borrow<str> for Facet {
@@ -264,5 +269,19 @@ mod tests {
         let v = ["first", "second", "third\\/not_fourth"];
         let facet = Facet::from_path(v.iter());
         assert_eq!(facet.to_path(), v);
+    }
+
+    #[test]
+    fn test_to_path_string() {
+        let v = ["first", "second", "third\\/not_fourth"];
+        let facet = Facet::from_path(v.iter());
+        assert_eq!(facet.to_path_string(), "//first/second/third\\/not_fourth");
+    }
+
+    #[test]
+    fn test_to_path_string_empty() {
+        let v: Vec<&str> = vec![];
+        let facet = Facet::from_path(v.iter());
+        assert_eq!(facet.to_path_string(), "//");
     }
 }
