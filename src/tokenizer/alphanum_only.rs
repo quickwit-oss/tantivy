@@ -2,16 +2,16 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = RawTokenizer
-//!   .filter(Box::new(AlphaNumOnlyFilter));
+//! let tokenizer = BoxTokenizer::from(RawTokenizer)
+//!   .filter(AlphaNumOnlyFilter.into());
 //!
 //! let mut stream = tokenizer.token_stream("hello there");
 //! // is none because the raw filter emits one token that
 //! // contains a space
 //! assert!(stream.next().is_none());
 //!
-//! let tokenizer = SimpleTokenizer
-//!   .filter(Box::new(AlphaNumOnlyFilter));
+//! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//!   .filter(AlphaNumOnlyFilter.into());
 //!
 //! let mut stream = tokenizer.token_stream("hello there 💣");
 //! assert!(stream.next().is_some());
@@ -19,7 +19,7 @@
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream};
+use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes all tokens that contain non
 /// ascii alphanumeric characters.
@@ -27,7 +27,7 @@ use super::{Token, TokenFilter, TokenStream};
 pub struct AlphaNumOnlyFilter;
 
 pub struct AlphaNumOnlyFilterStream<'a> {
-    tail: Box<dyn TokenStream + 'a>,
+    tail: BoxTokenStream<'a>,
 }
 
 impl<'a> AlphaNumOnlyFilterStream<'a> {
@@ -37,8 +37,8 @@ impl<'a> AlphaNumOnlyFilterStream<'a> {
 }
 
 impl TokenFilter for AlphaNumOnlyFilter {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(AlphaNumOnlyFilterStream { tail: token_stream })
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
+        BoxTokenStream::from(AlphaNumOnlyFilterStream { tail: token_stream })
     }
 }
 

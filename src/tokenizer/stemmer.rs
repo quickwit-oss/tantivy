@@ -1,4 +1,5 @@
 use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 use rust_stemmers::{self, Algorithm};
 
 /// Available stemmer languages.
@@ -76,9 +77,9 @@ impl Default for Stemmer {
 }
 
 impl TokenFilter for Stemmer {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
         let inner_stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
-        Box::new(StemmerTokenStream {
+        BoxTokenStream::from(StemmerTokenStream {
             tail: token_stream,
             stemmer: inner_stemmer,
         })
@@ -86,7 +87,7 @@ impl TokenFilter for Stemmer {
 }
 
 pub struct StemmerTokenStream<'a> {
-    tail: Box<dyn TokenStream + 'a>,
+    tail: BoxTokenStream<'a>,
     stemmer: rust_stemmers::Stemmer,
 }
 

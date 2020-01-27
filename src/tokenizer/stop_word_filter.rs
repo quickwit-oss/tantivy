@@ -2,8 +2,8 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = SimpleTokenizer
-//!   .filter(Box::new(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()])));
+//! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]).into());
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");
 //! assert_eq!(stream.next().unwrap().text, "fox");
@@ -11,6 +11,7 @@
 //! assert!(stream.next().is_none());
 //! ```
 use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 use fnv::FnvHasher;
 use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
@@ -50,12 +51,12 @@ impl StopWordFilter {
 
 pub struct StopWordFilterStream<'a> {
     words: StopWordHashSet,
-    tail: Box<dyn TokenStream + 'a>,
+    tail: BoxTokenStream<'a>,
 }
 
 impl TokenFilter for StopWordFilter {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(StopWordFilterStream {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
+        BoxTokenStream::from(StopWordFilterStream {
             words: self.words.clone(),
             tail: token_stream,
         })

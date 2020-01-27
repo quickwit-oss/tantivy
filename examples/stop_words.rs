@@ -50,12 +50,9 @@ fn main() -> tantivy::Result<()> {
 
     // This tokenizer lowers all of the text (to help with stop word matching)
     // then removes all instances of `the` and `and` from the corpus
-    let tokenizer = SimpleTokenizer
-        .filter(Box::new(LowerCaser))
-        .filter(Box::new(StopWordFilter::remove(vec![
-            "the".to_string(),
-            "and".to_string(),
-        ])));
+    let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+        .filter(LowerCaser.into())
+        .filter(StopWordFilter::remove(vec!["the".to_string(), "and".to_string()]).into());
 
     index.tokenizers().register("stoppy", tokenizer);
 

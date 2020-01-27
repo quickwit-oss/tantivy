@@ -64,10 +64,10 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let en_stem = SimpleTokenizer
-//!     .filter(Box::new(RemoveLongFilter::limit(40)))
-//!     .filter(Box::new(LowerCaser))
-//!     .filter(Box::new(Stemmer::new(Language::English)));
+//! let en_stem = BoxTokenizer::from(SimpleTokenizer)
+//!     .filter(RemoveLongFilter::limit(40).into())
+//!     .filter(LowerCaser.into())
+//!     .filter(Stemmer::new(Language::English).into());
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -109,9 +109,9 @@
 //! let index = Index::create_in_ram(schema);
 //!
 //! // We need to register our tokenizer :
-//! let custom_en_tokenizer = SimpleTokenizer
-//!     .filter(Box::new(RemoveLongFilter::limit(40)))
-//!     .filter(Box::new(LowerCaser));
+//! let custom_en_tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//!     .filter(RemoveLongFilter::limit(40).into())
+//!     .filter(LowerCaser.into());
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
@@ -146,7 +146,7 @@ pub(crate) use self::token_stream_chain::TokenStreamChain;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
-    BoxedTokenizer, Token, TokenFilter, TokenStream, Tokenizer, TokenizerExt,
+    BoxTokenFilter, BoxTokenStream, BoxTokenizer, Token, TokenFilter, TokenStream, Tokenizer,
 };
 
 pub use self::tokenizer_manager::TokenizerManager;
@@ -161,10 +161,9 @@ pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 4;
 #[cfg(test)]
 pub mod tests {
     use super::{
-        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, Tokenizer,
-        TokenizerManager,
+        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
     };
-    use crate::tokenizer::TokenizerExt;
+    use crate::tokenizer::BoxTokenizer;
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -231,10 +230,10 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            SimpleTokenizer
-                .filter(Box::new(RemoveLongFilter::limit(40)))
-                .filter(Box::new(LowerCaser))
-                .filter(Box::new(Stemmer::new(Language::Greek))),
+            BoxTokenizer::from(SimpleTokenizer)
+                .filter(RemoveLongFilter::limit(40).into())
+                .filter(LowerCaser.into())
+                .filter(Stemmer::new(Language::Greek).into()),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

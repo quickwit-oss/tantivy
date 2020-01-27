@@ -1,4 +1,4 @@
-use super::{Token, TokenFilter, TokenStream};
+use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 use std::mem;
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
@@ -8,8 +8,8 @@ use std::mem;
 pub struct AsciiFoldingFilter;
 
 impl TokenFilter for AsciiFoldingFilter {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(AsciiFoldingFilterTokenStream {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
+        From::from(AsciiFoldingFilterTokenStream {
             tail: token_stream,
             buffer: String::with_capacity(100),
         })
@@ -18,7 +18,7 @@ impl TokenFilter for AsciiFoldingFilter {
 
 pub struct AsciiFoldingFilterTokenStream<'a> {
     buffer: String,
-    tail: Box<dyn TokenStream + 'a>,
+    tail: BoxTokenStream<'a>,
 }
 
 impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
@@ -1541,11 +1541,10 @@ fn to_ascii(text: &mut String, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::to_ascii;
+    use crate::tokenizer::AsciiFoldingFilter;
+    use crate::tokenizer::BoxTokenizer;
     use crate::tokenizer::RawTokenizer;
     use crate::tokenizer::SimpleTokenizer;
-    use crate::tokenizer::TokenStream;
-    use crate::tokenizer::Tokenizer;
-    use crate::tokenizer::{AsciiFoldingFilter, TokenizerExt};
     use std::iter;
 
     #[test]
@@ -1562,8 +1561,8 @@ mod tests {
 
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        SimpleTokenizer
-            .filter(Box::new(AsciiFoldingFilter))
+        BoxTokenizer::from(SimpleTokenizer)
+            .filter(AsciiFoldingFilter.into())
             .token_stream(text)
             .process(&mut |token| {
                 tokens.push(token.text.clone());
@@ -1572,8 +1571,8 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = RawTokenizer
-            .filter(Box::new(AsciiFoldingFilter))
+        let mut token_stream = BoxTokenizer::from(RawTokenizer)
+            .filter(AsciiFoldingFilter.into())
             .token_stream(text);
         token_stream.advance();
         token_stream.token().text.clone()

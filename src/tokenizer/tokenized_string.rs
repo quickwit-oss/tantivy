@@ -1,4 +1,4 @@
-use crate::tokenizer::{Token, TokenStream, TokenStreamChain};
+use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
 use std::cmp::Ordering;
 
 /// Struct representing pre-tokenized text
@@ -54,13 +54,9 @@ impl PreTokenizedStream {
                 }
             }
             // TODO remove the string cloning.
-            let token_streams: Vec<_> = tok_strings
+            let token_streams: Vec<BoxTokenStream<'static>> = tok_strings
                 .iter()
-                .map(|&tok_string| {
-                    let boxed_stream: Box<dyn TokenStream + 'static> =
-                        Box::new(PreTokenizedStream::from((*tok_string).clone()));
-                    boxed_stream
-                })
+                .map(|&tok_string| From::from(PreTokenizedStream::from((*tok_string).clone())))
                 .collect();
             Box::new(TokenStreamChain::new(offsets, token_streams))
         }

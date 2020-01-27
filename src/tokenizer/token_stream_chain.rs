@@ -1,10 +1,11 @@
-use crate::tokenizer::{Token, TokenStream};
+use crate::tokenizer::{BoxTokenStream, Token, TokenStream};
+use std::ops::DerefMut;
 
 const POSITION_GAP: usize = 2;
 
 pub(crate) struct TokenStreamChain<'a> {
     offsets: Vec<usize>,
-    token_streams: Vec<Box<dyn TokenStream + 'a>>,
+    token_streams: Vec<BoxTokenStream<'a>>,
     position_shift: usize,
     stream_idx: usize,
     token: Token,
@@ -13,7 +14,7 @@ pub(crate) struct TokenStreamChain<'a> {
 impl<'a> TokenStreamChain<'a> {
     pub fn new(
         offsets: Vec<usize>,
-        token_streams: Vec<Box<dyn TokenStream + 'a>>,
+        token_streams: Vec<BoxTokenStream<'a>>,
     ) -> TokenStreamChain<'a> {
         TokenStreamChain {
             offsets,
@@ -28,7 +29,7 @@ impl<'a> TokenStreamChain<'a> {
 impl<'a> TokenStream for TokenStreamChain<'a> {
     fn advance(&mut self) -> bool {
         while self.stream_idx < self.token_streams.len() {
-            let token_stream = self.token_streams[self.stream_idx].as_mut();
+            let token_stream = self.token_streams[self.stream_idx].deref_mut();
             if token_stream.advance() {
                 let token = token_stream.token();
                 let offset_offset = self.offsets[self.stream_idx];

@@ -1,7 +1,7 @@
 use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
-use crate::tokenizer::{BoxedTokenizer, Token, TokenStream, Tokenizer};
+use crate::tokenizer::{BoxTokenizer, Token, Tokenizer};
 use crate::Document;
 use crate::Result;
 use crate::Searcher;
@@ -250,7 +250,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// ```
 pub struct SnippetGenerator {
     terms_text: BTreeMap<String, f32>,
-    tokenizer: BoxedTokenizer,
+    tokenizer: BoxTokenizer,
     field: Field,
     max_num_chars: usize,
 }
