@@ -37,10 +37,26 @@ impl Default for Token {
 pub struct BoxTokenizer(Box<dyn Tokenizer>);
 
 impl BoxTokenizer {
-    pub fn filter(self, token_filter: BoxTokenFilter) -> BoxTokenizer {
+    /// Appends a token filter to the current tokenizer.	    fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> BoxTokenStream<'a> {
+    ///	        assert!(!texts.is_empty());
+    /// The method consumes the current `TokenStream` and returns a	        if texts.len() == 1 {
+    /// new one.	            self.token_stream(texts[0])
+    ///	        } else {
+    /// # Example	            let mut offsets = vec![];
+    ///	            let mut total_offset = 0;
+    /// ```rust	            for &text in texts {
+    /// use tantivy::tokenizer::*;	                offsets.push(total_offset);
+    ///	                total_offset += text.len();
+    /// let en_stem = SimpleTokenizer	            }
+    ///     .filter(RemoveLongFilter::limit(40))	            let token_streams: Vec<BoxTokenStream<'a>> = texts
+    ///     .filter(LowerCaser)	                .iter()
+    ///     .filter(Stemmer::default());	                .cloned()
+    /// ```	                .map(|text| self.token_stream(text))
+    ///
+    pub fn filter<F: Into<BoxTokenFilter>>(self, token_filter: F) -> BoxTokenizer {
         BoxTokenizer::from(TokenizerWithFilter {
             tokenizer: self,
-            token_filter,
+            token_filter: token_filter.into(),
         })
     }
 }
@@ -196,8 +212,8 @@ impl<T: TokenFilter> From<T> for BoxTokenFilter {
 /// use tantivy::tokenizer::*;
 ///
 /// let tokenizer = BoxTokenizer::from(SimpleTokenizer)
-///        .filter(RemoveLongFilter::limit(40).into())
-///        .filter(LowerCaser.into());
+///        .filter(RemoveLongFilter::limit(40))
+///        .filter(LowerCaser);
 /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
 /// {
 ///     let token = token_stream.next().unwrap();
@@ -235,8 +251,8 @@ pub trait TokenStream {
     /// use tantivy::tokenizer::*;
     ///
     /// let tokenizer = BoxTokenizer::from(SimpleTokenizer)
-    ///       .filter(RemoveLongFilter::limit(40).into())
-    ///       .filter(LowerCaser.into());
+    ///       .filter(RemoveLongFilter::limit(40))
+    ///       .filter(LowerCaser);
     /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
     /// while let Some(token) = token_stream.next() {
     ///     println!("Token {:?}", token.text);

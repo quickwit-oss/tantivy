@@ -69,7 +69,7 @@ mod tests {
     fn lowercase_helper(text: &str) -> Vec<String> {
         let mut tokens = vec![];
         let mut token_stream = BoxTokenizer::from(SimpleTokenizer)
-            .filter(LowerCaser.into())
+            .filter(LowerCaser)
             .token_stream(text);
         while token_stream.advance() {
             let token_text = token_stream.token().text.clone();

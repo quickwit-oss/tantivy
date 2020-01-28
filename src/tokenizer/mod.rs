@@ -65,9 +65,9 @@
 //! use tantivy::tokenizer::*;
 //!
 //! let en_stem = BoxTokenizer::from(SimpleTokenizer)
-//!     .filter(RemoveLongFilter::limit(40).into())
-//!     .filter(LowerCaser.into())
-//!     .filter(Stemmer::new(Language::English).into());
+//!     .filter(RemoveLongFilter::limit(40))
+//!     .filter(LowerCaser)
+//!     .filter(Stemmer::new(Language::English));
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -110,8 +110,8 @@
 //!
 //! // We need to register our tokenizer :
 //! let custom_en_tokenizer = BoxTokenizer::from(SimpleTokenizer)
-//!     .filter(RemoveLongFilter::limit(40).into())
-//!     .filter(LowerCaser.into());
+//!     .filter(RemoveLongFilter::limit(40))
+//!     .filter(LowerCaser);
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
@@ -231,9 +231,9 @@ pub mod tests {
         tokenizer_manager.register(
             "el_stem",
             BoxTokenizer::from(SimpleTokenizer)
-                .filter(RemoveLongFilter::limit(40).into())
-                .filter(LowerCaser.into())
-                .filter(Stemmer::new(Language::Greek).into()),
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::Greek)),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];

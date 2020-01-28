@@ -3,7 +3,7 @@
 //! use tantivy::tokenizer::*;
 //!
 //! let tokenizer = BoxTokenizer::from(RawTokenizer)
-//!   .filter(AlphaNumOnlyFilter.into());
+//!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there");
 //! // is none because the raw filter emits one token that
@@ -11,7 +11,7 @@
 //! assert!(stream.next().is_none());
 //!
 //! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
-//!   .filter(AlphaNumOnlyFilter.into());
+//!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there 💣");
 //! assert!(stream.next().is_some());

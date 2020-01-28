@@ -1,7 +1,5 @@
 use crate::tokenizer::stemmer::Language;
-//use crate::tokenizer::BoxedTokenizer;
 use crate::tokenizer::tokenizer::BoxTokenizer;
-use crate::tokenizer::BoxTokenFilter;
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
@@ -64,15 +62,15 @@ impl Default for TokenizerManager {
         manager.register(
             "default",
             BoxTokenizer::from(SimpleTokenizer)
-                .filter(BoxTokenFilter::from(RemoveLongFilter::limit(40)))
-                .filter(BoxTokenFilter::from(LowerCaser)),
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser),
         );
         manager.register(
             "en_stem",
             BoxTokenizer::from(SimpleTokenizer)
-                .filter(BoxTokenFilter::from(RemoveLongFilter::limit(40)))
-                .filter(BoxTokenFilter::from(LowerCaser))
-                .filter(BoxTokenFilter::from(Stemmer::new(Language::English))),
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::English)),
         );
         manager
     }

@@ -3,7 +3,7 @@
 //! use tantivy::tokenizer::*;
 //!
 //! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
-//!   .filter(RemoveLongFilter::limit(5).into());
+//!   .filter(RemoveLongFilter::limit(5));
 //!
 //! let mut stream = tokenizer.token_stream("toolong nice");
 //! // because `toolong` is more than 5 characters, it is filtered

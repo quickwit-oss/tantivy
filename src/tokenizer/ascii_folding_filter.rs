@@ -1562,7 +1562,7 @@ mod tests {
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
         BoxTokenizer::from(SimpleTokenizer)
-            .filter(AsciiFoldingFilter.into())
+            .filter(AsciiFoldingFilter)
             .token_stream(text)
             .process(&mut |token| {
                 tokens.push(token.text.clone());
@@ -1572,7 +1572,7 @@ mod tests {
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
         let mut token_stream = BoxTokenizer::from(RawTokenizer)
-            .filter(AsciiFoldingFilter.into())
+            .filter(AsciiFoldingFilter)
             .token_stream(text);
         token_stream.advance();
         token_stream.token().text.clone()

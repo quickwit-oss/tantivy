@@ -1,3 +1,13 @@
+Tantivy 0.12.0
+======================
+- Removing static dispatch in tokenizers for simplicity. (#762)
+
+## How to update?
+
+Crates relying on custom tokenizer, or registering tokenizer in the manager will require some 
+minor changes. Check https://github.com/tantivy-search/tantivy/blob/master/examples/custom_tokenizer.rs
+to check for some code sample.
+
 Tantivy 0.11.3
 =======================
 - Fixed DateTime as a fast field (#735)
