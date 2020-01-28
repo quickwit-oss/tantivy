@@ -64,7 +64,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let en_stem = BoxTokenizer::from(SimpleTokenizer)
+//! let en_stem = TextAnalyzer::from(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser)
 //!     .filter(Stemmer::new(Language::English));
@@ -109,7 +109,7 @@
 //! let index = Index::create_in_ram(schema);
 //!
 //! // We need to register our tokenizer :
-//! let custom_en_tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//! let custom_en_tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser);
 //! index
@@ -146,7 +146,7 @@ pub(crate) use self::token_stream_chain::TokenStreamChain;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
-    BoxTokenFilter, BoxTokenStream, BoxTokenizer, Token, TokenFilter, TokenStream, Tokenizer,
+    BoxTokenFilter, BoxTokenStream, TextAnalyzer, Token, TokenFilter, TokenStream, Tokenizer,
 };
 
 pub use self::tokenizer_manager::TokenizerManager;
@@ -163,7 +163,7 @@ pub mod tests {
     use super::{
         Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
     };
-    use crate::tokenizer::BoxTokenizer;
+    use crate::tokenizer::TextAnalyzer;
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -230,7 +230,7 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            BoxTokenizer::from(SimpleTokenizer)
+            TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new(Language::Greek)),

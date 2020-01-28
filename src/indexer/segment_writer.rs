@@ -12,7 +12,7 @@ use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
-use crate::tokenizer::{BoxTokenizer, FacetTokenizer};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
@@ -49,7 +49,7 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<BoxTokenizer>>,
+    tokenizers: Vec<Option<TextAnalyzer>>,
 }
 
 impl SegmentWriter {
@@ -171,7 +171,7 @@ impl SegmentWriter {
                                 }
 
                                 token_streams
-                                    .push(From::from(PreTokenizedStream::from(tok_str.clone())));
+                                    .push(PreTokenizedStream::from(tok_str.clone()).into());
                             }
                             Value::Str(ref text) => {
                                 if let Some(ref mut tokenizer) =

@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = BoxTokenizer::from(RawTokenizer)
+//! let tokenizer = TextAnalyzer::from(RawTokenizer)
 //!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there");
@@ -10,7 +10,7 @@
 //! // contains a space
 //! assert!(stream.next().is_none());
 //!
-//! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there 💣");

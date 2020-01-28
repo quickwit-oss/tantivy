@@ -1542,9 +1542,9 @@ fn to_ascii(text: &mut String, output: &mut String) {
 mod tests {
     use super::to_ascii;
     use crate::tokenizer::AsciiFoldingFilter;
-    use crate::tokenizer::BoxTokenizer;
     use crate::tokenizer::RawTokenizer;
     use crate::tokenizer::SimpleTokenizer;
+    use crate::tokenizer::TextAnalyzer;
     use std::iter;
 
     #[test]
@@ -1561,7 +1561,7 @@ mod tests {
 
     fn folding_helper(text: &str) -> Vec<String> {
         let mut tokens = Vec::new();
-        BoxTokenizer::from(SimpleTokenizer)
+        TextAnalyzer::from(SimpleTokenizer)
             .filter(AsciiFoldingFilter)
             .token_stream(text)
             .process(&mut |token| {
@@ -1571,7 +1571,7 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = BoxTokenizer::from(RawTokenizer)
+        let mut token_stream = TextAnalyzer::from(RawTokenizer)
             .filter(AsciiFoldingFilter)
             .token_stream(text);
         token_stream.advance();

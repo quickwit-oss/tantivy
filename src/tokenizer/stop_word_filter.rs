@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");

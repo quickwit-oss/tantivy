@@ -19,10 +19,11 @@ impl Tokenizer for RawTokenizer {
             text: text.to_string(),
             position_length: 1,
         };
-        From::from(RawTokenStream {
+        RawTokenStream {
             token,
             has_token: true,
-        })
+        }
+        .into()
     }
 }
 

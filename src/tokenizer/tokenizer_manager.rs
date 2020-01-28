@@ -1,5 +1,5 @@
 use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::tokenizer::BoxTokenizer;
+use crate::tokenizer::tokenizer::TextAnalyzer;
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
@@ -22,16 +22,16 @@ use std::sync::{Arc, RwLock};
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, BoxTokenizer>>>,
+    tokenizers: Arc<RwLock<HashMap<String, TextAnalyzer>>>,
 }
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        BoxTokenizer: From<T>,
+        TextAnalyzer: From<T>,
     {
-        let boxed_tokenizer: BoxTokenizer = BoxTokenizer::from(tokenizer);
+        let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
@@ -39,12 +39,12 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<BoxTokenizer> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<TextAnalyzer> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
             .get(tokenizer_name)
-            .map(|tokenizer| tokenizer.box_clone())
+            .cloned()
     }
 }
 
@@ -61,13 +61,13 @@ impl Default for TokenizerManager {
         manager.register("raw", RawTokenizer);
         manager.register(
             "default",
-            BoxTokenizer::from(SimpleTokenizer)
+            TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser),
         );
         manager.register(
             "en_stem",
-            BoxTokenizer::from(SimpleTokenizer)
+            TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new(Language::English)),

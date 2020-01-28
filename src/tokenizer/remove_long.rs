@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = BoxTokenizer::from(SimpleTokenizer)
+//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!   .filter(RemoveLongFilter::limit(5));
 //!
 //! let mut stream = tokenizer.token_stream("toolong nice");

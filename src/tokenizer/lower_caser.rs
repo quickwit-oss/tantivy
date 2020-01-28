@@ -56,7 +56,7 @@ impl<'a> TokenStream for LowerCaserTokenStream<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::{BoxTokenizer, LowerCaser, SimpleTokenizer};
+    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer};
 
     #[test]
     fn test_to_lower_case() {
@@ -68,7 +68,7 @@ mod tests {
 
     fn lowercase_helper(text: &str) -> Vec<String> {
         let mut tokens = vec![];
-        let mut token_stream = BoxTokenizer::from(SimpleTokenizer)
+        let mut token_stream = TextAnalyzer::from(SimpleTokenizer)
             .filter(LowerCaser)
             .token_stream(text);
         while token_stream.advance() {
