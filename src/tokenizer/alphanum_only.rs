@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = RawTokenizer
+//! let tokenizer = TextAnalyzer::from(RawTokenizer)
 //!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there");
@@ -10,7 +10,7 @@
 //! // contains a space
 //! assert!(stream.next().is_none());
 //!
-//! let tokenizer = SimpleTokenizer
+//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!   .filter(AlphaNumOnlyFilter);
 //!
 //! let mut stream = tokenizer.token_stream("hello there 💣");
@@ -19,56 +19,30 @@
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream};
+use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes all tokens that contain non
 /// ascii alphanumeric characters.
 #[derive(Clone)]
 pub struct AlphaNumOnlyFilter;
 
-pub struct AlphaNumOnlyFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    tail: TailTokenStream,
+pub struct AlphaNumOnlyFilterStream<'a> {
+    tail: BoxTokenStream<'a>,
 }
 
-impl<TailTokenStream> AlphaNumOnlyFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+impl<'a> AlphaNumOnlyFilterStream<'a> {
     fn predicate(&self, token: &Token) -> bool {
         token.text.chars().all(|c| c.is_ascii_alphanumeric())
     }
+}
 
-    fn wrap(tail: TailTokenStream) -> AlphaNumOnlyFilterStream<TailTokenStream> {
-        AlphaNumOnlyFilterStream { tail }
+impl TokenFilter for AlphaNumOnlyFilter {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
+        BoxTokenStream::from(AlphaNumOnlyFilterStream { tail: token_stream })
     }
 }
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for AlphaNumOnlyFilter
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = AlphaNumOnlyFilterStream<TailTokenStream>;
-
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        AlphaNumOnlyFilterStream::wrap(token_stream)
-    }
-}
-
-impl<TailTokenStream> TokenStream for AlphaNumOnlyFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
-    }
-
+impl<'a> TokenStream for AlphaNumOnlyFilterStream<'a> {
     fn advance(&mut self) -> bool {
         while self.tail.advance() {
             if self.predicate(self.tail.token()) {
@@ -77,5 +51,13 @@ where
         }
 
         false
+    }
+
+    fn token(&self) -> &Token {
+        self.tail.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.tail.token_mut()
     }
 }

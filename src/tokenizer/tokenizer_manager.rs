@@ -1,11 +1,10 @@
 use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::BoxedTokenizer;
+use crate::tokenizer::tokenizer::TextAnalyzer;
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
 use crate::tokenizer::SimpleTokenizer;
 use crate::tokenizer::Stemmer;
-use crate::tokenizer::Tokenizer;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -23,16 +22,16 @@ use std::sync::{Arc, RwLock};
 ///  search engine.
 #[derive(Clone)]
 pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, BoxedTokenizer>>>,
+    tokenizers: Arc<RwLock<HashMap<String, TextAnalyzer>>>,
 }
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
-    pub fn register<A>(&self, tokenizer_name: &str, tokenizer: A)
+    pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        A: Into<BoxedTokenizer>,
+        TextAnalyzer: From<T>,
     {
-        let boxed_tokenizer = tokenizer.into();
+        let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
@@ -40,7 +39,7 @@ impl TokenizerManager {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<BoxedTokenizer> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<TextAnalyzer> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
@@ -62,13 +61,13 @@ impl Default for TokenizerManager {
         manager.register("raw", RawTokenizer);
         manager.register(
             "default",
-            SimpleTokenizer
+            TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser),
         );
         manager.register(
             "en_stem",
-            SimpleTokenizer
+            TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new(Language::English)),

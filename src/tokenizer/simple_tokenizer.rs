@@ -1,3 +1,4 @@
+use super::BoxTokenStream;
 use super::{Token, TokenStream, Tokenizer};
 use std::str::CharIndices;
 
@@ -11,15 +12,13 @@ pub struct SimpleTokenStream<'a> {
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for SimpleTokenizer {
-    type TokenStreamImpl = SimpleTokenStream<'a>;
-
-    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        SimpleTokenStream {
+impl Tokenizer for SimpleTokenizer {
+    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+        BoxTokenStream::from(SimpleTokenStream {
             text,
             chars: text.char_indices(),
             token: Token::default(),
-        }
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::tokenizer::{Token, TokenStream, TokenStreamChain};
+use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
 use std::cmp::Ordering;
 
 /// Struct representing pre-tokenized text
@@ -41,9 +41,9 @@ impl PreTokenizedStream {
     /// Creates a TokenStream from PreTokenizedString array
     pub fn chain_tokenized_strings<'a>(
         tok_strings: &'a [&'a PreTokenizedString],
-    ) -> Box<dyn TokenStream + 'a> {
+    ) -> BoxTokenStream {
         if tok_strings.len() == 1 {
-            Box::new(PreTokenizedStream::from((*tok_strings[0]).clone()))
+            PreTokenizedStream::from((*tok_strings[0]).clone()).into()
         } else {
             let mut offsets = vec![];
             let mut total_offset = 0;
@@ -53,11 +53,12 @@ impl PreTokenizedStream {
                     total_offset += last_token.offset_to;
                 }
             }
-            let token_streams: Vec<_> = tok_strings
+            // TODO remove the string cloning.
+            let token_streams: Vec<BoxTokenStream<'static>> = tok_strings
                 .iter()
-                .map(|tok_string| PreTokenizedStream::from((*tok_string).clone()))
+                .map(|&tok_string| PreTokenizedStream::from((*tok_string).clone()).into())
                 .collect();
-            Box::new(TokenStreamChain::new(offsets, token_streams))
+            TokenStreamChain::new(offsets, token_streams).into()
         }
     }
 }
