@@ -363,7 +363,7 @@ mod tests {
             res
         };
         {
-            let range = term_dictionary.range().backwards().into_stream();
+            let range = term_dictionary.range().backward().into_stream();
             assert_eq!(
                 value_list(range, true),
                 vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
@@ -377,7 +377,7 @@ mod tests {
             );
         }
         {
-            let range = term_dictionary.range().ge([2u8]).backwards().into_stream();
+            let range = term_dictionary.range().ge([2u8]).backward().into_stream();
             assert_eq!(
                 value_list(range, true),
                 vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
@@ -391,7 +391,7 @@ mod tests {
             );
         }
         {
-            let range = term_dictionary.range().gt([2u8]).backwards().into_stream();
+            let range = term_dictionary.range().gt([2u8]).backward().into_stream();
             assert_eq!(
                 value_list(range, true),
                 vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
@@ -405,7 +405,7 @@ mod tests {
             );
         }
         {
-            let range = term_dictionary.range().lt([6u8]).backwards().into_stream();
+            let range = term_dictionary.range().lt([6u8]).backward().into_stream();
             assert_eq!(
                 value_list(range, true),
                 vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
@@ -419,7 +419,7 @@ mod tests {
             );
         }
         {
-            let range = term_dictionary.range().le([6u8]).backwards().into_stream();
+            let range = term_dictionary.range().le([6u8]).backward().into_stream();
             assert_eq!(
                 value_list(range, true),
                 vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]
@@ -434,7 +434,7 @@ mod tests {
                 .range()
                 .ge([0u8])
                 .lt([5u8])
-                .backwards()
+                .backward()
                 .into_stream();
             assert_eq!(value_list(range, true), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
         }

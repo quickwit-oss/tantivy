@@ -52,8 +52,8 @@ where
     }
 
     /// Iterate over the range backwards.
-    pub fn backwards(mut self) -> Self {
-        self.stream_builder = self.stream_builder.backwards();
+    pub fn backward(mut self) -> Self {
+        self.stream_builder = self.stream_builder.backward();
         self
     }
 
