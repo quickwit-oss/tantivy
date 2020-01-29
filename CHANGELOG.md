@@ -1,3 +1,7 @@
+Tantivy 0.11.4
+=======================
+- Added backwards iteration of `TermStreamer` range (@halvorboe)
+
 Tantivy 0.11.3
 =======================
 - Fixed DateTime as a fast field (#735)
