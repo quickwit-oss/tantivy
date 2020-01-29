@@ -1,10 +1,7 @@
-Tantivy 0.12.1
-=======================
-- Added backward iteration for `TermDictionary` stream. (@halvorboe)
-
 Tantivy 0.12.0
 ======================
 - Removing static dispatch in tokenizers for simplicity. (#762)
+- Added backward iteration for `TermDictionary` stream. (@halvorboe)
 
 ## How to update?
 
