@@ -123,7 +123,7 @@ impl Facet {
         self.encoded_str().split(|c| c == FACET_SEP_CHAR).collect()
     }
 
-    /// Extract the path as a string from the `Facet`.
+    /// This function is the inverse of Facet::from(&str).
     pub fn to_path_string(&self) -> String {
         format!("{}", self.to_string())
     }
