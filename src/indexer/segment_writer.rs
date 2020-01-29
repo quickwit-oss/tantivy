@@ -11,10 +11,9 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
-use crate::tokenizer::BoxedTokenizer;
-use crate::tokenizer::FacetTokenizer;
-use crate::tokenizer::PreTokenizedStream;
-use crate::tokenizer::{TokenStream, TokenStreamChain, Tokenizer};
+use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
+use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
 use crate::Result;
@@ -50,7 +49,7 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<BoxedTokenizer>>,
+    tokenizers: Vec<Option<TextAnalyzer>>,
 }
 
 impl SegmentWriter {
@@ -159,7 +158,7 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Str(_) => {
-                    let mut token_streams: Vec<Box<dyn TokenStream>> = vec![];
+                    let mut token_streams: Vec<BoxTokenStream> = vec![];
                     let mut offsets = vec![];
                     let mut total_offset = 0;
 
@@ -172,7 +171,7 @@ impl SegmentWriter {
                                 }
 
                                 token_streams
-                                    .push(Box::new(PreTokenizedStream::from(tok_str.clone())));
+                                    .push(PreTokenizedStream::from(tok_str.clone()).into());
                             }
                             Value::Str(ref text) => {
                                 if let Some(ref mut tokenizer) =
@@ -191,8 +190,7 @@ impl SegmentWriter {
                     let num_tokens = if token_streams.is_empty() {
                         0
                     } else {
-                        let mut token_stream: Box<dyn TokenStream> =
-                            Box::new(TokenStreamChain::new(offsets, token_streams));
+                        let mut token_stream = TokenStreamChain::new(offsets, token_streams);
                         self.multifield_postings
                             .index_text(doc_id, field, &mut token_stream)
                     };

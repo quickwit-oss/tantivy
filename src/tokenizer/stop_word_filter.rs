@@ -2,7 +2,7 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = SimpleTokenizer
+//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
 //!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");
@@ -11,6 +11,7 @@
 //! assert!(stream.next().is_none());
 //! ```
 use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 use fnv::FnvHasher;
 use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
@@ -48,53 +49,27 @@ impl StopWordFilter {
     }
 }
 
-pub struct StopWordFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+pub struct StopWordFilterStream<'a> {
     words: StopWordHashSet,
-    tail: TailTokenStream,
+    tail: BoxTokenStream<'a>,
 }
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for StopWordFilter
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = StopWordFilterStream<TailTokenStream>;
-
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        StopWordFilterStream::wrap(self.words.clone(), token_stream)
+impl TokenFilter for StopWordFilter {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
+        BoxTokenStream::from(StopWordFilterStream {
+            words: self.words.clone(),
+            tail: token_stream,
+        })
     }
 }
 
-impl<TailTokenStream> StopWordFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
+impl<'a> StopWordFilterStream<'a> {
     fn predicate(&self, token: &Token) -> bool {
         !self.words.contains(&token.text)
     }
-
-    fn wrap(
-        words: StopWordHashSet,
-        tail: TailTokenStream,
-    ) -> StopWordFilterStream<TailTokenStream> {
-        StopWordFilterStream { words, tail }
-    }
 }
 
-impl<TailTokenStream> TokenStream for StopWordFilterStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
-    }
-
+impl<'a> TokenStream for StopWordFilterStream<'a> {
     fn advance(&mut self) -> bool {
         while self.tail.advance() {
             if self.predicate(self.tail.token()) {
@@ -102,6 +77,14 @@ where
             }
         }
         false
+    }
+
+    fn token(&self) -> &Token {
+        self.tail.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.tail.token_mut()
     }
 }
 

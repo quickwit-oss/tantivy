@@ -1,4 +1,5 @@
 use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 use rust_stemmers::{self, Algorithm};
 
 /// Available stemmer languages.
@@ -75,38 +76,22 @@ impl Default for Stemmer {
     }
 }
 
-impl<TailTokenStream> TokenFilter<TailTokenStream> for Stemmer
-where
-    TailTokenStream: TokenStream,
-{
-    type ResultTokenStream = StemmerTokenStream<TailTokenStream>;
-
-    fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
+impl TokenFilter for Stemmer {
+    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
         let inner_stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
-        StemmerTokenStream::wrap(inner_stemmer, token_stream)
+        BoxTokenStream::from(StemmerTokenStream {
+            tail: token_stream,
+            stemmer: inner_stemmer,
+        })
     }
 }
 
-pub struct StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    tail: TailTokenStream,
+pub struct StemmerTokenStream<'a> {
+    tail: BoxTokenStream<'a>,
     stemmer: rust_stemmers::Stemmer,
 }
 
-impl<TailTokenStream> TokenStream for StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
-    }
-
+impl<'a> TokenStream for StemmerTokenStream<'a> {
     fn advance(&mut self) -> bool {
         if !self.tail.advance() {
             return false;
@@ -117,16 +102,12 @@ where
         self.token_mut().text.push_str(&stemmed_str);
         true
     }
-}
 
-impl<TailTokenStream> StemmerTokenStream<TailTokenStream>
-where
-    TailTokenStream: TokenStream,
-{
-    fn wrap(
-        stemmer: rust_stemmers::Stemmer,
-        tail: TailTokenStream,
-    ) -> StemmerTokenStream<TailTokenStream> {
-        StemmerTokenStream { tail, stemmer }
+    fn token(&self) -> &Token {
+        self.tail.token()
+    }
+
+    fn token_mut(&mut self) -> &mut Token {
+        self.tail.token_mut()
     }
 }
