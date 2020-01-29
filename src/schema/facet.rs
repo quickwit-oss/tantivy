@@ -125,7 +125,7 @@ impl Facet {
 
     /// Extract the path as a string from the `Facet`.
     pub fn to_path_string(&self) -> String {
-        format!("/{}", self.to_string())
+        format!("{}", self.to_string())
     }
 }
 
@@ -277,7 +277,7 @@ mod tests {
         let facet = Facet::from_path(v.iter());
         assert_eq!(
             facet.to_path_string(),
-            String::from("//first/second/third\\/not_fourth")
+            String::from("/first/second/third\\/not_fourth")
         );
     }
 
@@ -285,6 +285,6 @@ mod tests {
     fn test_to_path_string_empty() {
         let v: Vec<&str> = vec![];
         let facet = Facet::from_path(v.iter());
-        assert_eq!(facet.to_path_string(), "//");
+        assert_eq!(facet.to_path_string(), "/");
     }
 }
