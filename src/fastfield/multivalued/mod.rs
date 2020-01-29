@@ -7,9 +7,6 @@ pub use self::writer::MultiValueIntFastFieldWriter;
 #[cfg(test)]
 mod tests {
 
-    use time;
-
-    use self::time::Duration;
     use crate::collector::TopDocs;
     use crate::query::QueryParser;
     use crate::schema::Cardinality;
@@ -17,6 +14,7 @@ mod tests {
     use crate::schema::IntOptions;
     use crate::schema::Schema;
     use crate::Index;
+    use chrono::Duration;
 
     #[test]
     fn test_multivalued_u64() {

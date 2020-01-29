@@ -60,7 +60,6 @@ winapi = "0.3"
 rand = "0.7"
 maplit = "1"
 matches = "0.1.8"
-time = "0.1.42"
 
 [dev-dependencies.fail]
 version = "0.3"
