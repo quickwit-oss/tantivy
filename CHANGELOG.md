@@ -1,6 +1,6 @@
 Tantivy 0.12.1
 =======================
-- Added backward iteration for ` TermDictionary` stream. (@halvorboe)
+- Added backward iteration for `TermDictionary` stream. (@halvorboe)
 
 Tantivy 0.12.0
 ======================
