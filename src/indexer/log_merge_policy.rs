@@ -29,7 +29,7 @@ impl LogMergePolicy {
     }
 
     /// Set the maximum number docs in a segment for it to be considered for
-    /// merging. 
+    /// merging.
     pub fn set_max_merge_size(&mut self, max_merge_size: usize) {
         self.max_merge_size = max_merge_size;
     }
@@ -208,5 +208,4 @@ mod tests {
         assert_eq!(result_list.len(), 1);
         assert_eq!(result_list[0].0.len(), 3)
     }
-
 }
