@@ -38,7 +38,7 @@ mod tests {
     use crate::core::Index;
     use crate::directory::{Directory, RAMDirectory, ReadOnlySource};
     use crate::postings::TermInfo;
-    use crate::schema::{Document, FieldType, Schema, TEXT};
+    use crate::schema::{Document, Schema, TEXT};
     use std::path::PathBuf;
     use std::str;
 
@@ -67,9 +67,7 @@ mod tests {
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
-            let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(write, &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(write).unwrap();
             for term in COUNTRIES.iter() {
                 term_dictionary_builder
                     .insert(term.as_bytes(), &make_term_info(0u64))
@@ -93,9 +91,7 @@ mod tests {
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
-            let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(write, &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(write).unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u64))
                 .unwrap();
@@ -179,10 +175,8 @@ mod tests {
         let ids: Vec<_> = (0u32..10_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
-        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(vec![], &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -209,10 +203,8 @@ mod tests {
 
     #[test]
     fn test_stream_high_range_prefix_suffix() {
-        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(vec![], &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
             // term requires more than 16bits
             term_dictionary_builder
                 .insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))
@@ -244,10 +236,8 @@ mod tests {
         let ids: Vec<_> = (0u32..10_000u32)
             .map(|i| (format!("doc{:0>6}", i), i))
             .collect();
-        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(vec![], &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -313,10 +303,8 @@ mod tests {
 
     #[test]
     fn test_empty_string() {
-        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(vec![], &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
             term_dictionary_builder
                 .insert(&[], &make_term_info(1 as u64))
                 .unwrap();
@@ -337,10 +325,8 @@ mod tests {
 
     #[test]
     fn test_stream_range_boundaries() {
-        let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(vec![], &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder
@@ -408,9 +394,7 @@ mod tests {
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path).unwrap();
-            let field_type = FieldType::Str(TEXT);
-            let mut term_dictionary_builder =
-                TermDictionaryBuilder::create(write, &field_type).unwrap();
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(write).unwrap();
             for term in COUNTRIES.iter() {
                 term_dictionary_builder
                     .insert(term.as_bytes(), &make_term_info(0u64))

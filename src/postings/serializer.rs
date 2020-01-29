@@ -148,8 +148,7 @@ impl<'a> FieldSerializer<'a> {
             }
             _ => (false, false),
         };
-        let term_dictionary_builder =
-            TermDictionaryBuilder::create(term_dictionary_write, &field_type)?;
+        let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let postings_serializer =
             PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled);
         let positions_serializer_opt = if position_enabled {

@@ -4,8 +4,8 @@ use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
 use crate::directory::ReadOnlySource;
 use crate::postings::TermInfo;
-use crate::schema::FieldType;
 use crate::termdict::TermOrdinal;
+use once_cell::sync::Lazy;
 use std::io::{self, Write};
 use tantivy_fst;
 use tantivy_fst::raw::Fst;
@@ -29,7 +29,7 @@ where
     W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
-    pub fn create(w: W, _field_type: &FieldType) -> io::Result<Self> {
+    pub fn create(w: W) -> io::Result<Self> {
         let fst_builder = tantivy_fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
             fst_builder,
@@ -92,6 +92,14 @@ fn open_fst_index(source: ReadOnlySource) -> tantivy_fst::Map<ReadOnlySource> {
     tantivy_fst::Map::from(fst)
 }
 
+static EMPTY_DATA_SOURCE: Lazy<ReadOnlySource> = Lazy::new(|| {
+    let term_dictionary_data: Vec<u8> = TermDictionaryBuilder::create(Vec::<u8>::new())
+        .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
+        .finish()
+        .expect("Writing in a Vec<u8> should never fail");
+    ReadOnlySource::from(term_dictionary_data)
+});
+
 /// The term dictionary contains all of the terms in
 /// `tantivy index` in a sorted manner.
 ///
@@ -122,14 +130,8 @@ impl TermDictionary {
     }
 
     /// Creates an empty term dictionary which contains no terms.
-    pub fn empty(field_type: &FieldType) -> Self {
-        let term_dictionary_data: Vec<u8> =
-            TermDictionaryBuilder::create(Vec::<u8>::new(), &field_type)
-                .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
-                .finish()
-                .expect("Writing in a Vec<u8> should never fail");
-        let source = ReadOnlySource::from(term_dictionary_data);
-        Self::from_source(&source)
+    pub fn empty() -> Self {
+        TermDictionary::from_source(&*EMPTY_DATA_SOURCE)
     }
 
     /// Returns the number of terms in the dictionary.
