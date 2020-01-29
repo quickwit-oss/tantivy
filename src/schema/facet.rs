@@ -275,8 +275,14 @@ mod tests {
     fn test_to_path_string() {
         let v = ["first", "second", "third/not_fourth"];
         let facet = Facet::from_path(v.iter());
-        assert_eq!(facet.to_path_string(), String::from("//first/second/third\\/not_fourth"));
-        assert_eq!(facet.to_path_string(), String::from("//first/second/third/not_fourth"));
+        assert_eq!(
+            facet.to_path_string(),
+            String::from("//first/second/third\\/not_fourth")
+        );
+        assert_eq!(
+            facet.to_path_string(),
+            String::from("//first/second/third/not_fourth")
+        );
     }
 
     #[test]
