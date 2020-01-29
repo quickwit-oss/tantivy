@@ -163,7 +163,7 @@ pub use self::docset::{DocSet, SkipResult};
 pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::SegmentComponent;
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
-pub use crate::core::{InvertedIndexReader, SegmentReader};
+pub use crate::core::{Executor, InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::IndexWriter;

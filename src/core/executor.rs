@@ -10,7 +10,9 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 /// API of a dependency, knowing it might conflict with a different version
 /// used by the client. Second, we may stop using rayon in the future.
 pub enum Executor {
+    /// Single thread variant of an Executor
     SingleThread,
+    /// Thread pool variant of an Executor
     ThreadPool(ThreadPool),
 }
 
@@ -20,7 +22,7 @@ impl Executor {
         Executor::SingleThread
     }
 
-    // Creates an Executor that dispatches the tasks in a thread pool.
+    /// Creates an Executor that dispatches the tasks in a thread pool.
     pub fn multi_thread(num_threads: usize, prefix: &'static str) -> Result<Executor> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(num_threads)
@@ -29,10 +31,10 @@ impl Executor {
         Ok(Executor::ThreadPool(pool))
     }
 
-    // Perform a map in the thread pool.
-    //
-    // Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task
-    // will propagate to the caller.
+    /// Perform a map in the thread pool.
+    ///
+    /// Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task
+    /// will propagate to the caller.
     pub fn map<
         A: Send,
         R: Send,
