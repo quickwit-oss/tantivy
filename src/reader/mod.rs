@@ -11,6 +11,7 @@ use crate::Result;
 use crate::Searcher;
 use crate::SegmentReader;
 use std::sync::Arc;
+use std::thread;
 
 /// Defines when a new version of the index should be reloaded.
 ///

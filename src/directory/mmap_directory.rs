@@ -141,10 +141,18 @@ impl MmapCache {
     }
 }
 
+pub enum WatcherMode {
+    Event,
+    Poll
+}
+
 struct WatcherWrapper {
     _watcher: Mutex<notify::RecommendedWatcher>,
     watcher_router: Arc<WatchCallbackList>,
+    watcher_mode: WatcherMode,
 }
+
+
 
 impl WatcherWrapper {
     pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
@@ -163,33 +171,57 @@ impl WatcherWrapper {
             })?;
         let watcher_router: Arc<WatchCallbackList> = Default::default();
         let watcher_router_clone = watcher_router.clone();
+        let path_clone = path.clone();
+        let meta_path = path_clone.join(*META_FILEPATH);
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
             .spawn(move || {
+                let mut old_content = String::new();
+                let mode = WatcherMode::Event;
                 loop {
-                    match watcher_recv.recv().map(|evt| evt.path) {
-                        Ok(Some(changed_path)) => {
-                            // ... Actually subject to false positive.
-                            // We might want to be more accurate than this at one point.
-                            if let Some(filename) = changed_path.file_name() {
-                                if filename == *META_FILEPATH {
-                                    let _ = watcher_router_clone.broadcast();
+                    match mode {
+                        WatcherMode::Event => {
+                            match watcher_recv.recv().map(|evt| evt.path) {
+                                Ok(Some(changed_path)) => {
+                                    // ... Actually subject to false positive.
+                                    // We might want to be more accurate than this at one point.
+                                    if let Some(filename) = changed_path.file_name() {
+                                        if filename == *META_FILEPATH {
+                                            let _ = watcher_router_clone.broadcast();
+                                        }
+                                    }
+                                }
+                                Ok(None) => {
+                                    // not an event we are interested in.
+                                }
+                                Err(_e) => {
+                                    // the watch send channel was dropped
+                                    break;
                                 }
                             }
                         }
-                        Ok(None) => {
-                            // not an event we are interested in.
+                        WatcherMode::Poll => {
+                            let mut file = match File::open(&meta_path) {
+                                Err(why) => panic!("open: nope"),
+                                Ok(file) => file,
+                            };
+                            let mut new_content = String::new();
+                            match file.read_to_string(&mut new_content) {
+                                Err(why) => panic!("read: nope"),
+                                Ok(_) => {},
+                            }
+                            if old_content != new_content {
+                                let _ = watcher_router_clone.broadcast();
+                                old_content = new_content;
+                            }
                         }
-                        Err(_e) => {
-                            // the watch send channel was dropped
-                            break;
-                        }
-                    }
+                    };
                 }
             })?;
         Ok(WatcherWrapper {
             _watcher: Mutex::new(watcher),
             watcher_router,
+            watcher_mode: WatcherMode::Event,
         })
     }
 
