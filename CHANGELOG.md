@@ -2,6 +2,7 @@ Tantivy 0.12.0
 ======================
 - Removing static dispatch in tokenizers for simplicity. (#762)
 - Added backward iteration for `TermDictionary` stream. (@halvorboe)
+- Fixed a performance issue when searching for the posting lists of a missing term (@audunhalland)
 
 ## How to update?
 
