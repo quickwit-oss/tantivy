@@ -53,6 +53,12 @@ mod tests {
     }
 
     #[test]
+    fn test_empty_term_dictionary() {
+        let empty = TermDictionary::empty();
+        assert!(empty.stream().next().is_none());
+    }
+
+    #[test]
     fn test_term_ordinals() {
         const COUNTRIES: [&'static str; 7] = [
             "San Marino",
