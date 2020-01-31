@@ -15,6 +15,7 @@ use tantivy_fst::Automaton;
 pub struct AutomatonWeight<A> {
     field: Field,
     automaton: Arc<A>,
+    boost: f32,
 }
 
 impl<A> AutomatonWeight<A>
@@ -26,7 +27,13 @@ where
         AutomatonWeight {
             field,
             automaton: automaton.into(),
+            boost: 1.0,
         }
+    }
+
+    /// Boost the scorer by the given factor.
+    pub fn boost_by(self, boost: f32) -> Self {
+        Self { boost, ..self }
     }
 
     fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
@@ -58,7 +65,7 @@ where
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(doc_bitset)))
+        Ok(Box::new(ConstScorer::with_score(doc_bitset, self.boost)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {

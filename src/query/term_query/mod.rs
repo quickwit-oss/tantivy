@@ -46,6 +46,35 @@ mod tests {
     }
 
     #[test]
+    pub fn test_term_query_boost_by() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            {
+                let doc = doc!(text_field => "a");
+                index_writer.add_document(doc);
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        let searcher = index.reader().unwrap().searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            IndexRecordOption::Basic,
+        )
+        .boost_by(42.0);
+        let term_weight = term_query.weight(&searcher, true).unwrap();
+        let segment_reader = searcher.segment_reader(0);
+        let mut term_scorer = term_weight.scorer(segment_reader).unwrap();
+        assert!(term_scorer.advance());
+        assert_eq!(term_scorer.doc(), 0);
+        assert_nearly_equals(0.28768212 * 42.0, term_scorer.score());
+    }
+
+    #[test]
     pub fn test_term_weight() {
         let mut schema_builder = Schema::builder();
         let left_field = schema_builder.add_text_field("left", TEXT);

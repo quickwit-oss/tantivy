@@ -79,6 +79,7 @@ pub struct FuzzyTermQuery {
     transposition_cost_one: bool,
     ///
     prefix: bool,
+    boost: f32,
 }
 
 impl FuzzyTermQuery {
@@ -89,6 +90,7 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: false,
+            boost: 1.0,
         }
     }
 
@@ -99,7 +101,13 @@ impl FuzzyTermQuery {
             distance,
             transposition_cost_one,
             prefix: true,
+            boost: 1.0,
         }
+    }
+
+    /// Boost the query score by the given factor.
+    pub fn boost_by(self, boost: f32) -> Self {
+        Self { boost, ..self }
     }
 
     fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
@@ -108,7 +116,7 @@ impl FuzzyTermQuery {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
                 let automaton = automaton_builder.build_dfa(self.term.text());
-                Ok(AutomatonWeight::new(self.term.field(), automaton))
+                Ok(AutomatonWeight::new(self.term.field(), automaton).boost_by(self.boost))
             }
             None => Err(InvalidArgument(format!(
                 "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",

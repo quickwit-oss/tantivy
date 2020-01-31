@@ -61,6 +61,7 @@ use std::fmt;
 pub struct TermQuery {
     term: Term,
     index_record_option: IndexRecordOption,
+    boost: f32,
 }
 
 impl fmt::Debug for TermQuery {
@@ -75,7 +76,13 @@ impl TermQuery {
         TermQuery {
             term,
             index_record_option: segment_postings_options,
+            boost: 1.0,
         }
+    }
+
+    /// Boost the query score by the given factor.
+    pub fn boost_by(self, boost: f32) -> Self {
+        Self { boost, ..self }
     }
 
     /// The `Term` this query is built out of.
@@ -90,7 +97,7 @@ impl TermQuery {
     /// This is useful for optimization purpose.
     pub fn specialized_weight(&self, searcher: &Searcher, scoring_enabled: bool) -> TermWeight {
         let term = self.term.clone();
-        let bm25_weight = BM25Weight::for_terms(searcher, &[term]);
+        let bm25_weight = BM25Weight::for_terms(searcher, &[term], self.boost);
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {
