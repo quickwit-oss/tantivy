@@ -4,7 +4,6 @@ use crate::docset::DocSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
 use crate::DocId;
-use crate::Result;
 use crate::Score;
 
 /// Query that matches all of the documents.
@@ -14,7 +13,7 @@ use crate::Score;
 pub struct AllQuery;
 
 impl Query for AllQuery {
-    fn weight(&self, _: &Searcher, _: bool) -> Result<Box<dyn Weight>> {
+    fn weight(&self, _: &Searcher, _: bool) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(AllWeight))
     }
 }
@@ -23,7 +22,7 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> crate::Result<Box<dyn Scorer>> {
         Ok(Box::new(AllScorer {
             state: State::NotStarted,
             doc: 0u32,
@@ -31,7 +30,7 @@ impl Weight for AllWeight {
         }))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         if doc >= reader.max_doc() {
             return Err(does_not_match(doc));
         }

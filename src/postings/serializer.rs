@@ -11,7 +11,6 @@ use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::DocId;
-use crate::Result;
 use std::io::{self, Write};
 
 /// `InvertedIndexSerializer` is in charge of serializing
@@ -61,7 +60,7 @@ impl InvertedIndexSerializer {
         positions_write: CompositeWrite<WritePtr>,
         positionsidx_write: CompositeWrite<WritePtr>,
         schema: Schema,
-    ) -> Result<InvertedIndexSerializer> {
+    ) -> crate::Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
             terms_write,
             postings_write,
@@ -72,7 +71,7 @@ impl InvertedIndexSerializer {
     }
 
     /// Open a new `PostingsSerializer` for the given segment
-    pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
+    pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
         use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
         InvertedIndexSerializer::create(
             CompositeWrite::wrap(segment.open_write(TERMS)?),

@@ -173,14 +173,18 @@ impl SegmentUpdater {
             .pool_size(1)
             .create()
             .map_err(|_| {
-                crate::Error::SystemError("Failed to spawn segment updater thread".to_string())
+                crate::TantivyError::SystemError(
+                    "Failed to spawn segment updater thread".to_string(),
+                )
             })?;
         let merge_thread_pool = ThreadPoolBuilder::new()
             .name_prefix("merge_thread")
             .pool_size(NUM_MERGE_THREADS)
             .create()
             .map_err(|_| {
-                crate::Error::SystemError("Failed to spawn segment merging thread".to_string())
+                crate::TantivyError::SystemError(
+                    "Failed to spawn segment merging thread".to_string(),
+                )
             })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
@@ -222,7 +226,7 @@ impl SegmentUpdater {
         receiver.unwrap_or_else(|_| {
             let err_msg =
                 "A segment_updater future did not success. This should never happen.".to_string();
-            Err(crate::Error::SystemError(err_msg))
+            Err(crate::TantivyError::SystemError(err_msg))
         })
     }
 
@@ -419,7 +423,7 @@ impl SegmentUpdater {
         });
 
         Ok(merging_future_recv
-            .unwrap_or_else(|_| Err(crate::Error::SystemError("Merge failed".to_string()))))
+            .unwrap_or_else(|_| Err(crate::TantivyError::SystemError("Merge failed".to_string()))))
     }
 
     async fn consider_merge_options(&self) {

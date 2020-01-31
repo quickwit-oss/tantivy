@@ -1,6 +1,5 @@
 use super::IndexWriter;
 use crate::Opstamp;
-use crate::Result;
 use futures::executor::block_on;
 
 /// A prepared commit
@@ -27,11 +26,11 @@ impl<'a> PreparedCommit<'a> {
         self.payload = Some(payload.to_string())
     }
 
-    pub fn abort(self) -> Result<Opstamp> {
+    pub fn abort(self) -> crate::Result<Opstamp> {
         self.index_writer.rollback()
     }
 
-    pub fn commit(self) -> Result<Opstamp> {
+    pub fn commit(self) -> crate::Result<Opstamp> {
         info!("committing {}", self.opstamp);
         let _ = block_on(
             self.index_writer

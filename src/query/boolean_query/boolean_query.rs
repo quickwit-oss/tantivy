@@ -5,7 +5,6 @@ use crate::query::TermQuery;
 use crate::query::Weight;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
-use crate::Result;
 use crate::Searcher;
 use std::collections::BTreeSet;
 
@@ -30,9 +29,9 @@ use std::collections::BTreeSet;
 ///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
 ///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
 ///use tantivy::Term;
-///use tantivy::{Index, Result};
+///use tantivy::Index;
 ///
-///fn main() -> Result<()> {
+///fn main() -> tantivy::Result<()> {
 ///    let mut schema_builder = Schema::builder();
 ///    let title = schema_builder.add_text_field("title", TEXT);
 ///    let body = schema_builder.add_text_field("body", TEXT);
@@ -149,14 +148,14 @@ impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
         let sub_weights = self
             .subqueries
             .iter()
             .map(|&(ref occur, ref subquery)| {
                 Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
             })
-            .collect::<Result<_>>()?;
+            .collect::<crate::Result<_>>()?;
         Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
     }
 

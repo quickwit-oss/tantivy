@@ -1,5 +1,3 @@
-use crate::Result;
-
 use super::decompress;
 use super::skiplist::SkipList;
 use crate::common::BinarySerializable;
@@ -75,7 +73,7 @@ impl StoreReader {
     ///
     /// It should not be called to score documents
     /// for instance.
-    pub fn get(&self, doc_id: DocId) -> Result<Document> {
+    pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
         let (first_doc_id, block_offset) = self.block_offset(doc_id);
         self.read_block(block_offset as usize)?;
         let current_block_mut = self.current_block.borrow_mut();

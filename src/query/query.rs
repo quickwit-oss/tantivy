@@ -2,7 +2,6 @@ use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
 use crate::DocAddress;
-use crate::Result;
 use crate::Term;
 use downcast_rs::impl_downcast;
 use std::collections::BTreeSet;
@@ -48,17 +47,17 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     /// can increase performances.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>>;
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>>;
 
     /// Returns an `Explanation` for the score of the document.
-    fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
+    fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> crate::Result<Explanation> {
         let reader = searcher.segment_reader(doc_address.segment_ord());
         let weight = self.weight(searcher, true)?;
         weight.explain(reader, doc_address.doc())
     }
 
     /// Returns the number of documents matching the query.
-    fn count(&self, searcher: &Searcher) -> Result<usize> {
+    fn count(&self, searcher: &Searcher) -> crate::Result<usize> {
         let weight = self.weight(searcher, false)?;
         let mut result = 0;
         for reader in searcher.segment_readers() {
@@ -86,11 +85,11 @@ where
 }
 
 impl Query for Box<dyn Query> {
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
         self.as_ref().weight(searcher, scoring_enabled)
     }
 
-    fn count(&self, searcher: &Searcher) -> Result<usize> {
+    fn count(&self, searcher: &Searcher) -> crate::Result<usize> {
         self.as_ref().count(searcher)
     }
 

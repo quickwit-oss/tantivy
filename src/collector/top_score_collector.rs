@@ -10,7 +10,6 @@ use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
-use crate::Result;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -84,7 +83,9 @@ impl CustomScorer<u64> for ScorerByField {
             .fast_fields()
             .u64(self.field)
             .ok_or_else(|| {
-                crate::Error::SchemaError(format!("Field requested is not a i64/u64 fast field."))
+                crate::TantivyError::SchemaError(format!(
+                    "Field requested is not a i64/u64 fast field."
+                ))
             })?;
         Ok(ScorerByFastFieldReader { ff_reader })
     }
@@ -103,7 +104,7 @@ impl TopDocs {
     ///
     /// ```rust
     /// # use tantivy::schema::{Schema, FAST, TEXT};
-    /// # use tantivy::{doc, Index, Result, DocAddress};
+    /// # use tantivy::{doc, Index, DocAddress};
     /// # use tantivy::query::{Query, QueryParser};
     /// use tantivy::Searcher;
     /// use tantivy::collector::TopDocs;
@@ -140,7 +141,7 @@ impl TopDocs {
     /// fn docs_sorted_by_rating(searcher: &Searcher,
     ///                          query: &dyn Query,
     ///                          sort_by_field: Field)
-    ///     -> Result<Vec<(u64, DocAddress)>> {
+    ///     -> tantivy::Result<Vec<(u64, DocAddress)>> {
     ///
     ///     // This is where we build our topdocs collector
     ///     //
@@ -406,7 +407,7 @@ impl Collector for TopDocs {
         &self,
         segment_local_id: SegmentLocalId,
         reader: &SegmentReader,
-    ) -> Result<Self::Child> {
+    ) -> crate::Result<Self::Child> {
         let collector = self.0.for_segment(segment_local_id, reader)?;
         Ok(TopScoreSegmentCollector(collector))
     }
@@ -415,7 +416,10 @@ impl Collector for TopDocs {
         true
     }
 
-    fn merge_fruits(&self, child_fruits: Vec<Vec<(Score, DocAddress)>>) -> Result<Self::Fruit> {
+    fn merge_fruits(
+        &self,
+        child_fruits: Vec<Vec<(Score, DocAddress)>>,
+    ) -> crate::Result<Self::Fruit> {
         self.0.merge_fruits(child_fruits)
     }
 }
@@ -609,7 +613,7 @@ mod tests {
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let err = top_collector.for_segment(0, segment);
-        if let Err(crate::Error::SchemaError(msg)) = err {
+        if let Err(crate::TantivyError::SchemaError(msg)) = err {
             assert_eq!(msg, "Field requested is not a i64/u64 fast field.");
         } else {
             assert!(false);

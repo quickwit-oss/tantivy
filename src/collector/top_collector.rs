@@ -1,6 +1,5 @@
 use crate::DocAddress;
 use crate::DocId;
-use crate::Result;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
 use serde::export::PhantomData;
@@ -86,7 +85,7 @@ where
     pub fn merge_fruits(
         &self,
         children: Vec<Vec<(T, DocAddress)>>,
-    ) -> Result<Vec<(T, DocAddress)>> {
+    ) -> crate::Result<Vec<(T, DocAddress)>> {
         if self.limit == 0 {
             return Ok(Vec::new());
         }
@@ -113,7 +112,7 @@ where
         &self,
         segment_id: SegmentLocalId,
         _: &SegmentReader,
-    ) -> Result<TopSegmentCollector<F>> {
+    ) -> crate::Result<TopSegmentCollector<F>> {
         Ok(TopSegmentCollector::new(segment_id, self.limit))
     }
 }

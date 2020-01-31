@@ -1,12 +1,10 @@
 use super::PhraseWeight;
 use crate::core::searcher::Searcher;
-use crate::error::TantivyError;
 use crate::query::bm25::BM25Weight;
 use crate::query::Query;
 use crate::query::Weight;
 use crate::schema::IndexRecordOption;
 use crate::schema::{Field, Term};
-use crate::Result;
 use std::collections::BTreeSet;
 
 /// `PhraseQuery` matches a specific sequence of words.
@@ -81,7 +79,7 @@ impl PhraseQuery {
         &self,
         searcher: &Searcher,
         scoring_enabled: bool,
-    ) -> Result<PhraseWeight> {
+    ) -> crate::Result<PhraseWeight> {
         let schema = searcher.schema();
         let field_entry = schema.get_field_entry(self.field);
         let has_positions = field_entry
@@ -91,7 +89,7 @@ impl PhraseQuery {
             .unwrap_or(false);
         if !has_positions {
             let field_name = field_entry.name();
-            return Err(TantivyError::SchemaError(format!(
+            return Err(crate::TantivyError::SchemaError(format!(
                 "Applied phrase query on field {:?}, which does not have positions indexed",
                 field_name
             )));
@@ -110,7 +108,7 @@ impl Query for PhraseQuery {
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
         let phrase_weight = self.phrase_weight(searcher, scoring_enabled)?;
         Ok(Box::new(phrase_weight))
     }

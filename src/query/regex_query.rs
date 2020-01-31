@@ -1,7 +1,6 @@
 use crate::error::TantivyError;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Field;
-use crate::Result;
 use crate::Searcher;
 use std::clone::Clone;
 use std::sync::Arc;
@@ -58,7 +57,7 @@ pub struct RegexQuery {
 
 impl RegexQuery {
     /// Creates a new RegexQuery from a given pattern
-    pub fn from_pattern(regex_pattern: &str, field: Field) -> Result<Self> {
+    pub fn from_pattern(regex_pattern: &str, field: Field) -> crate::Result<Self> {
         let regex = Regex::new(&regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_string()))?;
         Ok(RegexQuery::from_regex(regex, field))
@@ -78,7 +77,11 @@ impl RegexQuery {
 }
 
 impl Query for RegexQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(
+        &self,
+        _searcher: &Searcher,
+        _scoring_enabled: bool,
+    ) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()))
     }
 }

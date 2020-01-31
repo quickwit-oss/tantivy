@@ -22,7 +22,6 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
-use crate::Result;
 use num_cpus;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
@@ -31,7 +30,10 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-fn load_metas(directory: &dyn Directory, inventory: &SegmentMetaInventory) -> Result<IndexMeta> {
+fn load_metas(
+    directory: &dyn Directory,
+    inventory: &SegmentMetaInventory,
+) -> crate::Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
     IndexMeta::deserialize(&meta_string, &inventory)
@@ -72,14 +74,14 @@ impl Index {
 
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
-    pub fn set_multithread_executor(&mut self, num_threads: usize) -> Result<()> {
+    pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
         self.executor = Arc::new(Executor::multi_thread(num_threads, "thrd-tantivy-search-")?);
         Ok(())
     }
 
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
-    pub fn set_default_multithread_executor(&mut self) -> Result<()> {
+    pub fn set_default_multithread_executor(&mut self) -> crate::Result<()> {
         let default_num_threads = num_cpus::get();
         self.set_multithread_executor(default_num_threads)
     }
@@ -98,7 +100,10 @@ impl Index {
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
     #[cfg(feature = "mmap")]
-    pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
+    pub fn create_in_dir<P: AsRef<Path>>(
+        directory_path: P,
+        schema: Schema,
+    ) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         if Index::exists(&mmap_directory) {
             return Err(TantivyError::IndexAlreadyExists);
@@ -107,7 +112,7 @@ impl Index {
     }
 
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
         if !Index::exists(&dir) {
             return Index::create(dir, schema);
         }
@@ -130,13 +135,13 @@ impl Index {
     /// The temp directory is only used for testing the `MmapDirectory`.
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     #[cfg(feature = "mmap")]
-    pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
+    pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         Index::create(mmap_directory, schema)
     }
 
     /// Creates a new index given an implementation of the trait `Directory`
-    pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+    pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(dir)?;
         Index::from_directory(directory, schema)
     }
@@ -144,7 +149,7 @@ impl Index {
     /// Create a new index from a directory.
     ///
     /// This will overwrite existing meta.json
-    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
+    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
         save_new_metas(schema.clone(), directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
         Index::create_from_metas(directory, &metas, SegmentMetaInventory::default())
@@ -155,7 +160,7 @@ impl Index {
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> Result<Index> {
+    ) -> crate::Result<Index> {
         let schema = metas.schema.clone();
         Ok(Index {
             directory,
@@ -172,7 +177,7 @@ impl Index {
     }
 
     /// Helper to access the tokenizer associated to a specific field.
-    pub fn tokenizer_for_field(&self, field: Field) -> Result<TextAnalyzer> {
+    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<TextAnalyzer> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let tokenizer_manager: &TokenizerManager = self.tokenizers();
@@ -195,7 +200,7 @@ impl Index {
     /// Create a default `IndexReader` for the given index.
     ///
     /// See [`Index.reader_builder()`](#method.reader_builder).
-    pub fn reader(&self) -> Result<IndexReader> {
+    pub fn reader(&self) -> crate::Result<IndexReader> {
         self.reader_builder().try_into()
     }
 
@@ -210,7 +215,7 @@ impl Index {
 
     /// Opens a new directory from an index path.
     #[cfg(feature = "mmap")]
-    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         Index::open(mmap_directory)
     }
@@ -234,7 +239,7 @@ impl Index {
     }
 
     /// Open the index using the provided directory
-    pub fn open<D: Directory>(directory: D) -> Result<Index> {
+    pub fn open<D: Directory>(directory: D) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
@@ -242,7 +247,7 @@ impl Index {
     }
 
     /// Reads the index meta file from the directory.
-    pub fn load_metas(&self) -> Result<IndexMeta> {
+    pub fn load_metas(&self) -> crate::Result<IndexMeta> {
         load_metas(self.directory(), &self.inventory)
     }
 
@@ -270,7 +275,7 @@ impl Index {
         &self,
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
-    ) -> Result<IndexWriter> {
+    ) -> crate::Result<IndexWriter> {
         let directory_lock = self
             .directory
             .acquire_lock(&INDEX_WRITER_LOCK)
@@ -305,7 +310,7 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// # Panics
     /// If the heap size per thread is too small, panics.
-    pub fn writer(&self, overall_heap_size_in_bytes: usize) -> Result<IndexWriter> {
+    pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = num_cpus::get();
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
@@ -322,7 +327,7 @@ impl Index {
     }
 
     /// Returns the list of segments that are searchable
-    pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
+    pub fn searchable_segments(&self) -> crate::Result<Vec<Segment>> {
         Ok(self
             .searchable_segment_metas()?
             .into_iter()
@@ -355,12 +360,12 @@ impl Index {
 
     /// Reads the meta.json and returns the list of
     /// `SegmentMeta` from the last commit.
-    pub fn searchable_segment_metas(&self) -> Result<Vec<SegmentMeta>> {
+    pub fn searchable_segment_metas(&self) -> crate::Result<Vec<SegmentMeta>> {
         Ok(self.load_metas()?.segments)
     }
 
     /// Returns the list of segment ids that are searchable.
-    pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
+    pub fn searchable_segment_ids(&self) -> crate::Result<Vec<SegmentId>> {
         Ok(self
             .searchable_segment_metas()?
             .iter()
@@ -369,7 +374,7 @@ impl Index {
     }
 
     /// Returns the set of corrupted files
-    pub fn validate_checksum(&self) -> Result<HashSet<PathBuf>> {
+    pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
         self.directory.list_damaged().map_err(Into::into)
     }
 }

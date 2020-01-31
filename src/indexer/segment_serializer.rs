@@ -1,5 +1,3 @@
-use crate::Result;
-
 use crate::core::Segment;
 use crate::core::SegmentComponent;
 use crate::fastfield::FastFieldSerializer;
@@ -18,7 +16,7 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(segment: &mut Segment) -> Result<SegmentSerializer> {
+    pub fn for_segment(segment: &mut Segment) -> crate::Result<SegmentSerializer> {
         let store_write = segment.open_write(SegmentComponent::STORE)?;
 
         let fast_field_write = segment.open_write(SegmentComponent::FASTFIELDS)?;
@@ -57,7 +55,7 @@ impl SegmentSerializer {
     }
 
     /// Finalize the segment serialization.
-    pub fn close(self) -> Result<()> {
+    pub fn close(self) -> crate::Result<()> {
         self.fast_field_serializer.close()?;
         self.postings_serializer.close()?;
         self.store_writer.close()?;

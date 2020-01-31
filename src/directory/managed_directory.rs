@@ -150,7 +150,7 @@ impl ManagedDirectory {
                 }
                 Err(err) => {
                     error!("Failed to acquire lock for GC");
-                    return Err(crate::Error::from(err));
+                    return Err(crate::TantivyError::from(err));
                 }
             }
         }

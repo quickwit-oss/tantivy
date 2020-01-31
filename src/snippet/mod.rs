@@ -3,7 +3,6 @@ use crate::schema::Field;
 use crate::schema::Value;
 use crate::tokenizer::{TextAnalyzer, Token};
 use crate::Document;
-use crate::Result;
 use crate::Searcher;
 use htmlescape::encode_minimal;
 use std::cmp::Ordering;
@@ -261,7 +260,7 @@ impl SnippetGenerator {
         searcher: &Searcher,
         query: &dyn Query,
         field: Field,
-    ) -> Result<SnippetGenerator> {
+    ) -> crate::Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
         let terms_text: BTreeMap<String, f32> = terms
