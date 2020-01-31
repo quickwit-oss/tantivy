@@ -1,7 +1,6 @@
 use super::Collector;
 use crate::collector::SegmentCollector;
 use crate::DocId;
-use crate::Result;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -44,7 +43,11 @@ impl Collector for Count {
 
     type Child = SegmentCountCollector;
 
-    fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<SegmentCountCollector> {
+    fn for_segment(
+        &self,
+        _: SegmentLocalId,
+        _: &SegmentReader,
+    ) -> crate::Result<SegmentCountCollector> {
         Ok(SegmentCountCollector::default())
     }
 
@@ -52,7 +55,7 @@ impl Collector for Count {
         false
     }
 
-    fn merge_fruits(&self, segment_counts: Vec<usize>) -> Result<usize> {
+    fn merge_fruits(&self, segment_counts: Vec<usize>) -> crate::Result<usize> {
         Ok(segment_counts.into_iter().sum())
     }
 }

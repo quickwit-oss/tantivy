@@ -1,8 +1,7 @@
-use crate::error::TantivyError::InvalidArgument;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
-use crate::Result;
 use crate::Searcher;
+use crate::TantivyError::InvalidArgument;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -31,9 +30,9 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::FuzzyTermQuery;
 /// use tantivy::schema::{Schema, TEXT};
-/// use tantivy::{doc, Index, Result, Term};
+/// use tantivy::{doc, Index, Term};
 ///
-/// fn example() -> Result<()> {
+/// fn example() -> tantivy::Result<()> {
 ///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
@@ -102,7 +101,7 @@ impl FuzzyTermQuery {
         }
     }
 
-    fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
+    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DFA>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
@@ -119,7 +118,11 @@ impl FuzzyTermQuery {
 }
 
 impl Query for FuzzyTermQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(
+        &self,
+        _searcher: &Searcher,
+        _scoring_enabled: bool,
+    ) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(self.specialized_weight()?))
     }
 }

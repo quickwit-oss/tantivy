@@ -16,15 +16,13 @@ use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
-use crate::Result;
-use crate::TantivyError;
 use std::io;
 use std::str;
 
 /// Computes the initial size of the hash table.
 ///
 /// Returns a number of bit `b`, such that the recommended initial table size is 2^b.
-fn initial_table_size(per_thread_memory_budget: usize) -> Result<usize> {
+fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     let table_memory_upper_bound = per_thread_memory_budget / 3;
     if let Some(limit) = (10..)
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_memory_upper_bound)
@@ -32,7 +30,7 @@ fn initial_table_size(per_thread_memory_budget: usize) -> Result<usize> {
     {
         Ok(limit.min(19)) // we cap it at 2^19 = 512K.
     } else {
-        Err(TantivyError::InvalidArgument(
+        Err(crate::TantivyError::InvalidArgument(
             format!("per thread memory budget (={}) is too small. Raise the memory budget or lower the number of threads.", per_thread_memory_budget)))
     }
 }
@@ -66,7 +64,7 @@ impl SegmentWriter {
         memory_budget: usize,
         mut segment: Segment,
         schema: &Schema,
-    ) -> Result<SegmentWriter> {
+    ) -> crate::Result<SegmentWriter> {
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
@@ -99,7 +97,7 @@ impl SegmentWriter {
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
-    pub fn finalize(mut self) -> Result<Vec<u64>> {
+    pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         write(
             &self.multifield_postings,
@@ -281,7 +279,7 @@ fn write(
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
-) -> Result<()> {
+) -> crate::Result<()> {
     let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer())?;
     fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
     fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer())?;
@@ -290,7 +288,7 @@ fn write(
 }
 
 impl SerializableSegment for SegmentWriter {
-    fn write(&self, serializer: SegmentSerializer) -> Result<u32> {
+    fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32> {
         let max_doc = self.max_doc;
         write(
             &self.multifield_postings,

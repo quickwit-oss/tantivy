@@ -5,7 +5,6 @@ use crate::fastfield::FacetReader;
 use crate::schema::Facet;
 use crate::schema::Field;
 use crate::DocId;
-use crate::Result;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -84,9 +83,9 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
 /// use tantivy::schema::{Facet, Schema, TEXT};
-/// use tantivy::{doc, Index, Result};
+/// use tantivy::{doc, Index};
 ///
-/// fn example() -> Result<()> {
+/// fn example() -> tantivy::Result<()> {
 ///     let mut schema_builder = Schema::builder();
 ///
 ///     // Facet have their own specific type.
@@ -262,7 +261,7 @@ impl Collector for FacetCollector {
         &self,
         _: SegmentLocalId,
         reader: &SegmentReader,
-    ) -> Result<FacetSegmentCollector> {
+    ) -> crate::Result<FacetSegmentCollector> {
         let field_name = reader.schema().get_field_name(self.field);
         let facet_reader = reader.facet_reader(self.field).ok_or_else(|| {
             TantivyError::SchemaError(format!("Field {:?} is not a facet field.", field_name))
@@ -328,7 +327,7 @@ impl Collector for FacetCollector {
         false
     }
 
-    fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> Result<FacetCounts> {
+    fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> crate::Result<FacetCounts> {
         let mut facet_counts: BTreeMap<Facet, u64> = BTreeMap::new();
         for segment_facet_counts in segments_facet_counts {
             for (facet, count) in segment_facet_counts.facet_counts {

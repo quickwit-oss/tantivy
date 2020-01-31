@@ -4,7 +4,6 @@ use crate::query::Weight;
 use crate::query::{Explanation, Query};
 use crate::DocId;
 use crate::DocSet;
-use crate::Result;
 use crate::Score;
 use crate::Searcher;
 use crate::SegmentReader;
@@ -16,11 +15,15 @@ use crate::SegmentReader;
 pub struct EmptyQuery;
 
 impl Query for EmptyQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(
+        &self,
+        _searcher: &Searcher,
+        _scoring_enabled: bool,
+    ) -> crate::Result<Box<dyn Weight>> {
         Ok(Box::new(EmptyWeight))
     }
 
-    fn count(&self, _searcher: &Searcher) -> Result<usize> {
+    fn count(&self, _searcher: &Searcher) -> crate::Result<usize> {
         Ok(0)
     }
 }
@@ -30,11 +33,11 @@ impl Query for EmptyQuery {
 /// It is useful for tests and handling edge cases.
 pub struct EmptyWeight;
 impl Weight for EmptyWeight {
-    fn scorer(&self, _reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, _reader: &SegmentReader) -> crate::Result<Box<dyn Scorer>> {
         Ok(Box::new(EmptyScorer))
     }
 
-    fn explain(&self, _reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, _reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         Err(does_not_match(doc))
     }
 }

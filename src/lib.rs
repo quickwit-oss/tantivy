@@ -121,13 +121,13 @@ mod functional_test;
 mod macros;
 
 pub use crate::error::TantivyError;
-
-#[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
-pub use crate::error::TantivyError as Error;
 pub use chrono;
 
 /// Tantivy result.
-pub type Result<T> = std::result::Result<T, error::TantivyError>;
+///
+/// Within tantivy, please avoid importing `Result` using `use crate::Result`
+/// and instead, refer to this as `crate::Result<T>`.
+pub type Result<T> = std::result::Result<T, TantivyError>;
 
 /// Tantivy DateTime
 pub type DateTime = chrono::DateTime<chrono::Utc>;

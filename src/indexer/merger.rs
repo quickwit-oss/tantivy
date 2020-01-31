@@ -21,8 +21,6 @@ use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
 use crate::DocId;
-use crate::Result;
-use crate::TantivyError;
 use itertools::Itertools;
 use std::cmp;
 use std::collections::HashMap;
@@ -143,7 +141,7 @@ impl DeltaComputer {
 }
 
 impl IndexMerger {
-    pub fn open(schema: Schema, segments: &[Segment]) -> Result<IndexMerger> {
+    pub fn open(schema: Schema, segments: &[Segment]) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         let mut max_doc: u32 = 0u32;
         for segment in segments {
@@ -159,7 +157,7 @@ impl IndexMerger {
                  which exceeds the limit {}.",
                 max_doc, MAX_DOC_LIMIT
             );
-            return Err(TantivyError::InvalidArgument(err_msg));
+            return Err(crate::TantivyError::InvalidArgument(err_msg));
         }
         Ok(IndexMerger {
             schema,
@@ -168,7 +166,10 @@ impl IndexMerger {
         })
     }
 
-    fn write_fieldnorms(&self, fieldnorms_serializer: &mut FieldNormsSerializer) -> Result<()> {
+    fn write_fieldnorms(
+        &self,
+        fieldnorms_serializer: &mut FieldNormsSerializer,
+    ) -> crate::Result<()> {
         let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
         for field in fields {
@@ -189,7 +190,7 @@ impl IndexMerger {
         &self,
         fast_field_serializer: &mut FastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match *field_type {
@@ -234,7 +235,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         let mut u64_readers = vec![];
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();
@@ -284,7 +285,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
         let mut u64s_readers: Vec<MultiValueIntFastFieldReader<u64>> = Vec::new();
 
@@ -331,7 +332,7 @@ impl IndexMerger {
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
         // The second contains the actual values.
@@ -371,7 +372,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
         // The second contains the actual values.
@@ -436,7 +437,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
         let mut bytes_readers: Vec<BytesFastFieldReader> = Vec::new();
 
@@ -492,7 +493,7 @@ impl IndexMerger {
         indexed_field: Field,
         field_type: &FieldType,
         serializer: &mut InvertedIndexSerializer,
-    ) -> Result<Option<TermOrdinalMapping>> {
+    ) -> crate::Result<Option<TermOrdinalMapping>> {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
         let field_readers = self
@@ -646,7 +647,7 @@ impl IndexMerger {
     fn write_postings(
         &self,
         serializer: &mut InvertedIndexSerializer,
-    ) -> Result<HashMap<Field, TermOrdinalMapping>> {
+    ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
         for (field, field_entry) in self.schema.fields() {
             if field_entry.is_indexed() {
@@ -660,7 +661,7 @@ impl IndexMerger {
         Ok(term_ordinal_mappings)
     }
 
-    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
+    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> crate::Result<()> {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
             if reader.num_deleted_docs() > 0 {
@@ -677,7 +678,7 @@ impl IndexMerger {
 }
 
 impl SerializableSegment for IndexMerger {
-    fn write(&self, mut serializer: SegmentSerializer) -> Result<u32> {
+    fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
         let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
         self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
         self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;

@@ -7,7 +7,6 @@ use crate::directory::Directory;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
 use crate::Index;
-use crate::Result;
 use crate::Searcher;
 use crate::SegmentReader;
 use std::sync::Arc;
@@ -62,7 +61,7 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
-    pub fn try_into(self) -> Result<IndexReader> {
+    pub fn try_into(self) -> crate::Result<IndexReader> {
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
@@ -121,14 +120,14 @@ struct InnerIndexReader {
 }
 
 impl InnerIndexReader {
-    fn reload(&self) -> Result<()> {
+    fn reload(&self) -> crate::Result<()> {
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
             let searchable_segments = self.searchable_segments()?;
             searchable_segments
                 .iter()
                 .map(SegmentReader::open)
-                .collect::<Result<_>>()?
+                .collect::<crate::Result<_>>()?
         };
         let schema = self.index.schema();
         let searchers = (0..self.num_searchers)
@@ -139,7 +138,7 @@ impl InnerIndexReader {
     }
 
     /// Returns the list of segments that are searchable
-    fn searchable_segments(&self) -> Result<Vec<Segment>> {
+    fn searchable_segments(&self) -> crate::Result<Vec<Segment>> {
         self.index.searchable_segments()
     }
 
@@ -176,7 +175,7 @@ impl IndexReader {
     ///
     /// This automatic reload can take 10s of milliseconds to kick in however, and in unit tests
     /// it can be nice to deterministically force the reload of searchers.
-    pub fn reload(&self) -> Result<()> {
+    pub fn reload(&self) -> crate::Result<()> {
         self.inner.reload()
     }
 

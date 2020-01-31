@@ -4,7 +4,6 @@ use crate::core::SegmentMeta;
 use crate::error::TantivyError;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
-use crate::Result as TantivyResult;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::RwLock;
@@ -49,7 +48,7 @@ pub struct SegmentManager {
 }
 
 impl Debug for SegmentManager {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let lock = self.read();
         write!(
             f,
@@ -145,7 +144,7 @@ impl SegmentManager {
     /// Returns an error if some segments are missing, or if
     /// the `segment_ids` are not either all committed or all
     /// uncommitted.
-    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> TantivyResult<Vec<SegmentEntry>> {
+    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> crate::Result<Vec<SegmentEntry>> {
         let registers_lock = self.read();
         let mut segment_entries = vec![];
         if registers_lock.uncommitted.contains_all(segment_ids) {
@@ -188,7 +187,7 @@ impl SegmentManager {
             .segments_status(before_merge_segment_ids)
             .ok_or_else(|| {
                 warn!("couldn't find segment in SegmentManager");
-                crate::Error::InvalidArgument(
+                crate::TantivyError::InvalidArgument(
                     "The segments that were merged could not be found in the SegmentManager. \
                      This is not necessarily a bug, and can happen after a rollback for instance."
                         .to_string(),

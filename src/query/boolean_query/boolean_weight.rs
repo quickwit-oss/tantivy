@@ -10,7 +10,6 @@ use crate::query::Scorer;
 use crate::query::Union;
 use crate::query::Weight;
 use crate::query::{intersect_scorers, Explanation};
-use crate::Result;
 use crate::{DocId, SkipResult};
 use std::collections::HashMap;
 
@@ -56,7 +55,7 @@ impl BooleanWeight {
     fn per_occur_scorers(
         &self,
         reader: &SegmentReader,
-    ) -> Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
+    ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
         for &(ref occur, ref subweight) in &self.weights {
             let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader)?;
@@ -71,7 +70,7 @@ impl BooleanWeight {
     fn complex_scorer<TScoreCombiner: ScoreCombiner>(
         &self,
         reader: &SegmentReader,
-    ) -> Result<Box<dyn Scorer>> {
+    ) -> crate::Result<Box<dyn Scorer>> {
         let mut per_occur_scorers = self.per_occur_scorers(reader)?;
 
         let should_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
@@ -113,7 +112,7 @@ impl BooleanWeight {
 }
 
 impl Weight for BooleanWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
@@ -130,7 +129,7 @@ impl Weight for BooleanWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));

@@ -16,7 +16,6 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
-use crate::Result;
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -145,7 +144,7 @@ impl SegmentReader {
     }
 
     /// Open a new segment for reading.
-    pub fn open(segment: &Segment) -> Result<SegmentReader> {
+    pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
         let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
         let termdict_composite = CompositeFile::open(&termdict_source)?;
 

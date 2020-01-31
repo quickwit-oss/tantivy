@@ -14,7 +14,6 @@ use crate::store::StoreReader;
 use crate::termdict::TermMerger;
 use crate::DocAddress;
 use crate::Index;
-use crate::Result;
 use std::fmt;
 use std::sync::Arc;
 
@@ -23,7 +22,7 @@ fn collect_segment<C: Collector>(
     weight: &dyn Weight,
     segment_ord: u32,
     segment_reader: &SegmentReader,
-) -> Result<C::Fruit> {
+) -> crate::Result<C::Fruit> {
     let mut scorer = weight.scorer(segment_reader)?;
     let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
     if let Some(delete_bitset) = segment_reader.delete_bitset() {
@@ -78,7 +77,7 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// the request to the right `Segment`.
-    pub fn doc(&self, doc_address: DocAddress) -> Result<Document> {
+    pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let DocAddress(segment_local_id, doc_id) = doc_address;
         let store_reader = &self.store_readers[segment_local_id as usize];
         store_reader.get(doc_id)
@@ -132,7 +131,11 @@ impl Searcher {
     ///
     ///  Finally, the Collector merges each of the child collectors into itself for result usability
     ///  by the caller.
-    pub fn search<C: Collector>(&self, query: &dyn Query, collector: &C) -> Result<C::Fruit> {
+    pub fn search<C: Collector>(
+        &self,
+        query: &dyn Query,
+        collector: &C,
+    ) -> crate::Result<C::Fruit> {
         let executor = self.index.search_executor();
         self.search_with_executor(query, collector, executor)
     }
@@ -154,7 +157,7 @@ impl Searcher {
         query: &dyn Query,
         collector: &C,
         executor: &Executor,
-    ) -> Result<C::Fruit> {
+    ) -> crate::Result<C::Fruit> {
         let scoring_enabled = collector.requires_scoring();
         let weight = query.weight(self, scoring_enabled)?;
         let segment_readers = self.segment_readers();

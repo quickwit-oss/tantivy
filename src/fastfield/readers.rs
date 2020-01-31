@@ -4,7 +4,6 @@ use crate::fastfield::MultiValueIntFastFieldReader;
 use crate::fastfield::{FastFieldNotAvailableError, FastFieldReader};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
-use crate::Result;
 use std::collections::HashMap;
 
 /// Provides access to all of the FastFieldReader.
@@ -54,7 +53,7 @@ impl FastFieldReaders {
     pub(crate) fn load_all(
         schema: &Schema,
         fast_fields_composite: &CompositeFile,
-    ) -> Result<FastFieldReaders> {
+    ) -> crate::Result<FastFieldReaders> {
         let mut fast_field_readers = FastFieldReaders {
             fast_field_i64: Default::default(),
             fast_field_u64: Default::default(),

@@ -1,4 +1,3 @@
-use crate::Result;
 use crossbeam::channel;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
@@ -23,7 +22,7 @@ impl Executor {
     }
 
     /// Creates an Executor that dispatches the tasks in a thread pool.
-    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> Result<Executor> {
+    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Executor> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .thread_name(move |num| format!("{}{}", prefix, num))
@@ -39,14 +38,14 @@ impl Executor {
         A: Send,
         R: Send,
         AIterator: Iterator<Item = A>,
-        F: Sized + Sync + Fn(A) -> Result<R>,
+        F: Sized + Sync + Fn(A) -> crate::Result<R>,
     >(
         &self,
         f: F,
         args: AIterator,
-    ) -> Result<Vec<R>> {
+    ) -> crate::Result<Vec<R>> {
         match self {
-            Executor::SingleThread => args.map(f).collect::<Result<_>>(),
+            Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
             Executor::ThreadPool(pool) => {
                 let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
                 let num_fruits = args_with_indices.len();

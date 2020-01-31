@@ -1,6 +1,5 @@
 use crate::collector::top_collector::{TopCollector, TopSegmentCollector};
 use crate::collector::{Collector, SegmentCollector};
-use crate::Result;
 use crate::{DocAddress, DocId, Score, SegmentReader};
 
 pub(crate) struct CustomScoreTopCollector<TCustomScorer, TScore = Score> {
@@ -42,7 +41,7 @@ pub trait CustomScorer<TScore>: Sync {
     type Child: CustomSegmentScorer<TScore>;
     /// Builds a child scorer for a specific segment. The child scorer is associated to
     /// a specific segment.
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child>;
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child>;
 }
 
 impl<TCustomScorer, TScore> Collector for CustomScoreTopCollector<TCustomScorer, TScore>
@@ -58,7 +57,7 @@ where
         &self,
         segment_local_id: u32,
         segment_reader: &SegmentReader,
-    ) -> Result<Self::Child> {
+    ) -> crate::Result<Self::Child> {
         let segment_scorer = self.custom_scorer.segment_scorer(segment_reader)?;
         let segment_collector = self
             .collector
@@ -73,7 +72,7 @@ where
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit> {
+    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
         self.collector.merge_fruits(segment_fruits)
     }
 }
@@ -111,7 +110,7 @@ where
 {
     type Child = T;
 
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
         Ok((self)(segment_reader))
     }
 }

@@ -11,7 +11,6 @@ use crate::termdict::TermOrdinal;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
 use crate::DocId;
-use crate::Result;
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -129,7 +128,7 @@ impl MultiFieldPostingsWriter {
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
-    ) -> Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
+    ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
