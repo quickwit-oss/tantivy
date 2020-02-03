@@ -55,10 +55,11 @@ impl BooleanWeight {
     fn per_occur_scorers(
         &self,
         reader: &SegmentReader,
+        boost: f32,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
         for &(ref occur, ref subweight) in &self.weights {
-            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader)?;
+            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
             per_occur_scorers
                 .entry(*occur)
                 .or_insert_with(Vec::new)
@@ -70,8 +71,9 @@ impl BooleanWeight {
     fn complex_scorer<TScoreCombiner: ScoreCombiner>(
         &self,
         reader: &SegmentReader,
+        boost: f32,
     ) -> crate::Result<Box<dyn Scorer>> {
-        let mut per_occur_scorers = self.per_occur_scorers(reader)?;
+        let mut per_occur_scorers = self.per_occur_scorers(reader, boost)?;
 
         let should_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::Should)
@@ -112,7 +114,7 @@ impl BooleanWeight {
 }
 
 impl Weight for BooleanWeight {
-    fn scorer(&self, reader: &SegmentReader) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
@@ -120,17 +122,17 @@ impl Weight for BooleanWeight {
             if occur == Occur::MustNot {
                 Ok(Box::new(EmptyScorer))
             } else {
-                weight.scorer(reader)
+                weight.scorer(reader, boost)
             }
         } else if self.scoring_enabled {
-            self.complex_scorer::<SumWithCoordsCombiner>(reader)
+            self.complex_scorer::<SumWithCoordsCombiner>(reader, boost)
         } else {
-            self.complex_scorer::<DoNothingCombiner>(reader)
+            self.complex_scorer::<DoNothingCombiner>(reader, boost)
         }
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader)?;
+        let mut scorer = self.scorer(reader, 1.0f32)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }

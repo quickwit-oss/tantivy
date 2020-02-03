@@ -23,7 +23,7 @@ fn collect_segment<C: Collector>(
     segment_ord: u32,
     segment_reader: &SegmentReader,
 ) -> crate::Result<C::Fruit> {
-    let mut scorer = weight.scorer(segment_reader)?;
+    let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
     let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
     if let Some(delete_bitset) = segment_reader.delete_bitset() {
         scorer.for_each(&mut |doc, score| {

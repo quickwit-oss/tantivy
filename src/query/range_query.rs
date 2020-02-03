@@ -289,7 +289,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -307,11 +307,11 @@ impl Weight for RangeWeight {
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(doc_bitset)))
+        Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer(reader)?;
+        let mut scorer = self.scorer(reader, 1.0f32)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }

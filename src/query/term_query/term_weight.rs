@@ -18,13 +18,13 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
-        let term_scorer = self.scorer_specialized(reader)?;
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+        let term_scorer = self.scorer_specialized(reader, boost)?;
         Ok(Box::new(term_scorer))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer_specialized(reader)?;
+        let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
@@ -33,7 +33,7 @@ impl Weight for TermWeight {
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
         if let Some(delete_bitset) = reader.delete_bitset() {
-            Ok(self.scorer(reader)?.count(delete_bitset))
+            Ok(self.scorer(reader, 1.0f32)?.count(delete_bitset))
         } else {
             let field = self.term.field();
             Ok(reader
@@ -58,11 +58,11 @@ impl TermWeight {
         }
     }
 
-    fn scorer_specialized(&self, reader: &SegmentReader) -> Result<TermScorer> {
+    fn scorer_specialized(&self, reader: &SegmentReader, boost: f32) -> Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);
-        let similarity_weight = self.similarity_weight.clone();
+        let similarity_weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
             inverted_index.read_postings(&self.term, self.index_record_option);
         if let Some(segment_postings) = postings_opt {

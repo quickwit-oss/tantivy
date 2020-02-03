@@ -2,6 +2,7 @@ use crate::core::Searcher;
 use crate::core::SegmentReader;
 use crate::docset::DocSet;
 use crate::query::explanation::does_not_match;
+use crate::query::scorer::BoostScorer;
 use crate::query::{Explanation, Query, Scorer, Weight};
 use crate::DocId;
 use crate::Score;
@@ -22,12 +23,13 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader) -> crate::Result<Box<dyn Scorer>> {
-        Ok(Box::new(AllScorer {
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
+        let all_scorer = AllScorer {
             state: State::NotStarted,
             doc: 0u32,
             max_doc: reader.max_doc(),
-        }))
+        };
+        Ok(Box::new(BoostScorer::new(all_scorer, boost)))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {

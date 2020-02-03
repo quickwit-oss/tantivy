@@ -1,5 +1,6 @@
 use super::Weight;
 use crate::core::searcher::Searcher;
+use crate::query::weight::BoostWeight;
 use crate::query::Explanation;
 use crate::DocAddress;
 use crate::Term;
@@ -101,6 +102,37 @@ impl Query for Box<dyn Query> {
 impl QueryClone for Box<dyn Query> {
     fn box_clone(&self) -> Box<dyn Query> {
         self.as_ref().box_clone()
+    }
+}
+
+pub struct BoostQuery {
+    query: Box<dyn Query>,
+    boost: f32,
+}
+
+impl Clone for BoostQuery {
+    fn clone(&self) -> Self {
+        BoostQuery {
+            query: self.query.box_clone(),
+            boost: self.boost,
+        }
+    }
+}
+
+impl fmt::Debug for BoostQuery {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Boost(query={:?}, weight={})", self.query, self.boost)
+    }
+}
+
+impl Query for BoostQuery {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
+        let weight_without_boost = self.query.weight(searcher, scoring_enabled)?;
+        Ok(Box::new(BoostWeight::new(weight_without_boost, self.boost)))
+    }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term<Vec<u8>>>) {
+        self.query.query_terms(term_set)
     }
 }
 

@@ -37,11 +37,12 @@ impl PhraseWeight {
         reader.get_fieldnorms_reader(field)
     }
 
-    pub fn phrase_scorer(
+    fn phrase_scorer(
         &self,
         reader: &SegmentReader,
+        boost: f32,
     ) -> Result<Option<PhraseScorer<SegmentPostings>>> {
-        let similarity_weight = self.similarity_weight.clone();
+        let similarity_weight = self.similarity_weight.boost_by(boost);
         let fieldnorm_reader = self.fieldnorm_reader(reader);
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
@@ -84,8 +85,8 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader)? {
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
             Ok(Box::new(EmptyScorer))
@@ -93,7 +94,7 @@ impl Weight for PhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader)?;
+        let scorer_opt = self.phrase_scorer(reader, 1.0f32)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
