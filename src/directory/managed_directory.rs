@@ -306,7 +306,6 @@ impl Directory for ManagedDirectory {
     }
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
-        // `WatchCallback` is only a function.
         self.directory.watch(watch_callback)
     }
 }
