@@ -21,8 +21,8 @@ parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Token = char>] {
         (
-            satisfy(|c: char| !c.is_whitespace() && !['-', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
-            many(satisfy(|c: char| !c.is_whitespace() && ![':', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
+            satisfy(|c: char| !c.is_whitespace() && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
+            many(satisfy(|c: char| !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
         )
         .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
         .and_then(|s: String|
@@ -170,6 +170,37 @@ parser! {
     }
 }
 
+use combine::parser::char::digit;
+
+parser! {
+    fn number[I]()(I) -> f32
+    where [I: Stream<Item = char>] {
+        many1(digit()).map(|s: String| s.parse::<f32>().unwrap())
+    }
+}
+
+parser! {
+    fn boost[I]()(I) -> f32
+     where [I: Stream<Item = char>] {
+         (char('^'), number())
+        .map(|(_, boost)| boost)
+    }
+}
+
+parser! {
+    fn boosted_leaf[I]()(I) -> UserInputAST
+     where [I: Stream<Item = char>] {
+         (leaf(), optional(boost()))
+        .map(|(leaf, boost_opt)|
+            match boost_opt {
+                Some(boost) if boost != 1.0 =>
+                    UserInputAST::Boost(Box::new(leaf), boost),
+                _ => leaf
+            }
+        )
+    }
+}
+
 #[derive(Clone, Copy)]
 enum BinaryOperand {
     Or,
@@ -214,10 +245,10 @@ parser! {
     pub fn ast[I]()(I) -> UserInputAST
     where [I: Stream<Token = char>]
     {
-        let operand_leaf = (binary_operand().skip(spaces()), leaf().skip(spaces()));
-        let boolean_expr = (leaf().skip(spaces().silent()), many1(operand_leaf)).map(
+        let operand_leaf = (binary_operand().skip(spaces()), boosted_leaf().skip(spaces()));
+        let boolean_expr = (boosted_leaf().skip(spaces().silent()), many1(operand_leaf)).map(
             |(left, right)| aggregate_binary_expressions(left,right));
-        let whitespace_separated_leaves = many1(leaf().skip(spaces().silent()))
+        let whitespace_separated_leaves = many1(boosted_leaf().skip(spaces().silent()))
         .map(|subqueries: Vec<UserInputAST>|
             if subqueries.len() == 1 {
                 subqueries.into_iter().next().unwrap()
@@ -273,6 +304,15 @@ mod test {
         );
         test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
         test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
+    }
+
+    #[test]
+    fn test_boosting() {
+        assert!(parse_to_ast().parse("a^2^3").is_err());
+        assert!(parse_to_ast().parse("a^2^").is_err());
+        test_parse_query_to_ast_helper("a^3", "(\"a\")^3");
+        test_parse_query_to_ast_helper("a^3 b^2", "((\"a\")^3 (\"b\")^2)");
+        test_parse_query_to_ast_helper("a^1", "\"a\"");
     }
 
     #[test]
