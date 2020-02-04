@@ -43,6 +43,7 @@ pub use self::explanation::Explanation;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;
+pub use self::query::BoostQuery;
 pub use self::query::Query;
 pub use self::query_parser::QueryParser;
 pub use self::query_parser::QueryParserError;
