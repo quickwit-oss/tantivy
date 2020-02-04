@@ -25,7 +25,6 @@ fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
     cache
 }
 
-#[derive(Clone)]
 pub struct BM25Weight {
     idf_explain: Explanation,
     weight: f32,

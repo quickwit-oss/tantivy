@@ -39,7 +39,7 @@ mod tests {
         );
         let term_weight = term_query.weight(&searcher, true).unwrap();
         let segment_reader = searcher.segment_reader(0);
-        let mut term_scorer = term_weight.scorer(segment_reader).unwrap();
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32).unwrap();
         assert!(term_scorer.advance());
         assert_eq!(term_scorer.doc(), 0);
         assert_eq!(term_scorer.score(), 0.28768212);

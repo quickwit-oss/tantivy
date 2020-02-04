@@ -110,3 +110,34 @@ impl Weight for PhraseWeight {
         Ok(explanation)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::create_index;
+    use crate::query::PhraseQuery;
+    use crate::{DocSet, Term};
+
+    #[test]
+    pub fn test_phrase_count() {
+        let index = create_index(&["a c", "a a b d a b c", " a b"]);
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0f32)
+            .unwrap()
+            .unwrap();
+        assert!(phrase_scorer.advance());
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 2);
+        assert!(phrase_scorer.advance());
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert!(!phrase_scorer.advance());
+    }
+}

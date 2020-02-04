@@ -92,14 +92,12 @@ impl Scorer for AllScorer {
 
 #[cfg(test)]
 mod tests {
-
     use super::AllQuery;
     use crate::query::Query;
     use crate::schema::{Schema, TEXT};
     use crate::Index;
 
-    #[test]
-    fn test_all_query() {
+    fn create_test_index() -> Index {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -110,13 +108,18 @@ mod tests {
         index_writer.commit().unwrap();
         index_writer.add_document(doc!(field=>"ccc"));
         index_writer.commit().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_all_query() {
+        let index = create_test_index();
         let reader = index.reader().unwrap();
-        reader.reload().unwrap();
         let searcher = reader.searcher();
         let weight = AllQuery.weight(&searcher, false).unwrap();
         {
             let reader = searcher.segment_reader(0);
-            let mut scorer = weight.scorer(reader).unwrap();
+            let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
             assert!(scorer.advance());
             assert_eq!(scorer.doc(), 0u32);
             assert!(scorer.advance());
@@ -125,10 +128,31 @@ mod tests {
         }
         {
             let reader = searcher.segment_reader(1);
-            let mut scorer = weight.scorer(reader).unwrap();
+            let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
             assert!(scorer.advance());
             assert_eq!(scorer.doc(), 0u32);
             assert!(!scorer.advance());
+        }
+    }
+
+    #[test]
+    fn test_all_query_with_boost() {
+        let index = create_test_index();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let weight = AllQuery.weight(&searcher, false).unwrap();
+        let reader = searcher.segment_reader(0);
+        {
+            let mut scorer = weight.scorer(reader, 2.0f32).unwrap();
+            assert!(scorer.advance());
+            assert_eq!(scorer.doc(), 0u32);
+            assert_eq!(scorer.score(), 2.0f32);
+        }
+        {
+            let mut scorer = weight.scorer(reader, 1.5f32).unwrap();
+            assert!(scorer.advance());
+            assert_eq!(scorer.doc(), 0u32);
+            assert_eq!(scorer.score(), 1.5f32);
         }
     }
 }

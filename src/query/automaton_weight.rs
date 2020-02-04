@@ -73,3 +73,95 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::AutomatonWeight;
+    use crate::query::Weight;
+    use crate::schema::{Schema, STRING};
+    use crate::Index;
+    use tantivy_fst::Automaton;
+
+    fn create_index() -> Index {
+        let mut schema = Schema::builder();
+        let title = schema.add_text_field("title", STRING);
+        let index = Index::create_in_ram(schema.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(title=>"abc"));
+        index_writer.add_document(doc!(title=>"bcd"));
+        index_writer.add_document(doc!(title=>"abcd"));
+        assert!(index_writer.commit().is_ok());
+        index
+    }
+
+    enum State {
+        Start,
+        NotMatching,
+        AfterA,
+    }
+
+    struct PrefixedByA;
+
+    impl Automaton for PrefixedByA {
+        type State = State;
+
+        fn start(&self) -> Self::State {
+            State::Start
+        }
+
+        fn is_match(&self, state: &Self::State) -> bool {
+            match *state {
+                State::AfterA => true,
+                _ => false,
+            }
+        }
+
+        fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+            match *state {
+                State::Start => {
+                    if byte == b'a' {
+                        State::AfterA
+                    } else {
+                        State::NotMatching
+                    }
+                }
+                State::AfterA => State::AfterA,
+                State::NotMatching => State::NotMatching,
+            }
+        }
+    }
+
+    #[test]
+    fn test_automaton_weight() {
+        let index = create_index();
+        let field = index.schema().get_field("title").unwrap();
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let mut scorer = automaton_weight
+            .scorer(searcher.segment_reader(0u32), 1.0f32)
+            .unwrap();
+        assert!(scorer.advance());
+        assert_eq!(scorer.doc(), 0u32);
+        assert_eq!(scorer.score(), 1.0f32);
+        assert!(scorer.advance());
+        assert_eq!(scorer.doc(), 2u32);
+        assert_eq!(scorer.score(), 1.0f32);
+        assert!(!scorer.advance());
+    }
+
+    #[test]
+    fn test_automaton_weight_boost() {
+        let index = create_index();
+        let field = index.schema().get_field("title").unwrap();
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let mut scorer = automaton_weight
+            .scorer(searcher.segment_reader(0u32), 1.32f32)
+            .unwrap();
+        assert!(scorer.advance());
+        assert_eq!(scorer.doc(), 0u32);
+        assert_eq!(scorer.score(), 1.32f32);
+    }
+}
