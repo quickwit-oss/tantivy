@@ -142,7 +142,7 @@ impl MmapCache {
 }
 
 struct WatcherWrapper {
-    _watcher: Mutex<notify::RecommendedWatcher>,
+    _watcher: Mutex<notify::PollWatcher>,
     watcher_router: Arc<WatchCallbackList>,
 }
 
@@ -150,7 +150,7 @@ impl WatcherWrapper {
     pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
         let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
         // We need to initialize the
-        let watcher = notify::raw_watcher(tx)
+        let watcher = notify::poll::PollWatcher::with_delay_ms(tx, 1)
             .and_then(|mut watcher| {
                 watcher.watch(path, RecursiveMode::Recursive)?;
                 Ok(watcher)
