@@ -125,7 +125,7 @@ impl Facet {
 
     /// This function is the inverse of Facet::from(&str).
     pub fn to_path_string(&self) -> String {
-        format!("{}", self.to_string())
+        format!("{}", self)
     }
 }
 

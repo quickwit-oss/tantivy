@@ -1,6 +1,5 @@
 use crate::common::BitSet;
 use crate::docset::{DocSet, SkipResult};
-use crate::fastfield::DeleteBitSet;
 use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
@@ -21,57 +20,6 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
         while self.advance() {
             callback(self.doc(), self.score());
         }
-    }
-}
-
-pub(crate) struct BoostScorer<S: Scorer> {
-    underlying: S,
-    boost: f32,
-}
-
-impl<S: Scorer> BoostScorer<S> {
-    pub fn new(underlying: S, boost: f32) -> BoostScorer<S> {
-        BoostScorer { underlying, boost }
-    }
-}
-
-impl<S: Scorer> DocSet for BoostScorer<S> {
-    fn advance(&mut self) -> bool {
-        self.underlying.advance()
-    }
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.underlying.skip_next(target)
-    }
-
-    fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
-        self.underlying.fill_buffer(buffer)
-    }
-
-    fn doc(&self) -> u32 {
-        self.underlying.doc()
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.underlying.size_hint()
-    }
-
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        self.underlying.append_to_bitset(bitset)
-    }
-
-    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
-        self.underlying.count(delete_bitset)
-    }
-
-    fn count_including_deleted(&mut self) -> u32 {
-        self.underlying.count_including_deleted()
-    }
-}
-
-impl<S: Scorer> Scorer for BoostScorer<S> {
-    fn score(&mut self) -> f32 {
-        self.underlying.score() * self.boost
     }
 }
 

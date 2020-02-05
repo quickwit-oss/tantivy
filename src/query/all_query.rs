@@ -1,8 +1,8 @@
 use crate::core::Searcher;
 use crate::core::SegmentReader;
 use crate::docset::DocSet;
+use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
-use crate::query::scorer::BoostScorer;
 use crate::query::{Explanation, Query, Scorer, Weight};
 use crate::DocId;
 use crate::Score;

@@ -35,9 +35,9 @@ pub struct BM25Weight {
 impl BM25Weight {
     pub fn boost_by(&self, boost: f32) -> BM25Weight {
         BM25Weight {
-            idf_explain: self.idf_explain.clone(), // TODO fix explanation
+            idf_explain: self.idf_explain.clone(),
             weight: self.weight * boost,
-            cache: self.cache.clone(),
+            cache: self.cache,
             average_fieldnorm: self.average_fieldnorm,
         }
     }

@@ -5,6 +5,7 @@ Tantivy 0.12.0
 - Fixed a performance issue when searching for the posting lists of a missing term (@audunhalland)
 - Added a configurable maximum number of docs (10M by default) for a segment to be considered for merge (@hntd187, landed by @halvorboe #713) 
 - Important Bugfix #777, causing tantivy to retain memory mapping. (diagnosed by @poljar)
+- Added support for field boosting. (#547, @fulmicoton)
 
 ## How to update?
 

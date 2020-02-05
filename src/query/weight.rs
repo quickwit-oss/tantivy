@@ -28,28 +28,3 @@ pub trait Weight: Send + Sync + 'static {
         }
     }
 }
-
-pub(crate) struct BoostWeight {
-    weight: Box<dyn Weight>,
-    boost: f32,
-}
-
-impl BoostWeight {
-    pub fn new(weight: Box<dyn Weight>, boost: f32) -> Self {
-        BoostWeight { weight, boost }
-    }
-}
-
-impl Weight for BoostWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
-        self.weight.scorer(reader, boost * self.boost)
-    }
-
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
-        self.weight.explain(reader, doc) // TODO Add boost
-    }
-
-    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        self.weight.count(reader)
-    }
-}

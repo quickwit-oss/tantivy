@@ -68,7 +68,7 @@ impl<T> Pool<T> {
     /// After publish, all new `Searcher` acquired will be
     /// of the new generation.
     pub fn publish_new_generation(&self, items: Vec<T>) {
-        assert!(items.len() >= 1);
+        assert!(!items.is_empty());
         let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         let num_items = items.len();
         for item in items {
@@ -93,7 +93,7 @@ impl<T> Pool<T> {
         //
         // Half of them are obsoletes. By requesting `(n+1)` fresh searchers, we ensure that all
         // searcher will be inspected.
-        for _ in 0..(num_items + 1) {
+        for _ in 0..=num_items {
             let _ = self.acquire();
         }
     }
