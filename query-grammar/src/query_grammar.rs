@@ -1,13 +1,15 @@
 use super::user_input_ast::*;
 use crate::Occur;
-use combine::char::*;
 use combine::error::StreamError;
+use combine::parser::char::{char, digit, letter, space, spaces, string};
 use combine::stream::StreamErrorFor;
-use combine::*;
+use combine::{
+    attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value, Stream,
+};
 
 parser! {
     fn field[I]()(I) -> String
-    where [I: Stream<Item = char>] {
+    where [I: Stream<Token = char>] {
         (
             letter(),
             many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
@@ -17,7 +19,7 @@ parser! {
 
 parser! {
     fn word[I]()(I) -> String
-    where [I: Stream<Item = char>] {
+    where [I: Stream<Token = char>] {
         (
             satisfy(|c: char| !c.is_whitespace() && !['-', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
             many(satisfy(|c: char| !c.is_whitespace() && ![':', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
@@ -35,7 +37,7 @@ parser! {
 
 parser! {
     fn literal[I]()(I) -> UserInputLeaf
-    where [I: Stream<Item = char>]
+    where [I: Stream<Token = char>]
     {
         let term_val = || {
             let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
@@ -60,10 +62,10 @@ parser! {
 
 parser! {
     fn negative_number[I]()(I) -> String
-    where [I: Stream<Item = char>]
+    where [I: Stream<Token = char>]
     {
-        (char('-'), many1(satisfy(char::is_numeric)),
-         optional((char('.'), many1(satisfy(char::is_numeric)))))
+        (char('-'), many1(digit()),
+         optional((char('.'), many1(digit()))))
             .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
                 if let Some(('.', s3)) = s3 {
                     format!("{}{}.{}", s1, s2, s3)
@@ -76,7 +78,7 @@ parser! {
 
 parser! {
     fn spaces1[I]()(I) -> ()
-    where [I: Stream<Item = char>] {
+    where [I: Stream<Token = char>] {
         skip_many1(space())
     }
 }
@@ -87,7 +89,7 @@ parser! {
     /// [5 TO 10], {5 TO 10}, [* TO 10], [10 TO *], {10 TO *], >5, <=10
     /// [a TO *], [a TO c], [abc TO bcd}
     fn range[I]()(I) -> UserInputLeaf
-    where [I: Stream<Item = char>] {
+    where [I: Stream<Token = char>] {
         let range_term_val = || {
             word().or(negative_number()).or(char('*').with(value("*".to_string())))
         };
@@ -157,7 +159,7 @@ fn must(expr: UserInputAST) -> UserInputAST {
 
 parser! {
     fn leaf[I]()(I) -> UserInputAST
-    where [I: Stream<Item = char>] {
+    where [I: Stream<Token = char>] {
             char('-').with(leaf()).map(negate)
         .or(char('+').with(leaf()).map(must))
         .or(char('(').with(ast()).skip(char(')')))
@@ -176,7 +178,7 @@ enum BinaryOperand {
 
 parser! {
     fn binary_operand[I]()(I) -> BinaryOperand
-    where [I: Stream<Item = char>]
+    where [I: Stream<Token = char>]
     {
        string("AND").with(value(BinaryOperand::And))
        .or(string("OR").with(value(BinaryOperand::Or)))
@@ -210,7 +212,7 @@ fn aggregate_binary_expressions(
 
 parser! {
     pub fn ast[I]()(I) -> UserInputAST
-    where [I: Stream<Item = char>]
+    where [I: Stream<Token = char>]
     {
         let operand_leaf = (binary_operand().skip(spaces()), leaf().skip(spaces()));
         let boolean_expr = (leaf().skip(spaces().silent()), many1(operand_leaf)).map(
@@ -229,7 +231,7 @@ parser! {
 
 parser! {
     pub fn parse_to_ast[I]()(I) -> UserInputAST
-    where [I: Stream<Item = char>]
+    where [I: Stream<Token = char>]
     {
         spaces().with(optional(ast()).skip(eof())).map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
     }
@@ -239,6 +241,7 @@ parser! {
 mod test {
 
     use super::*;
+    use combine::parser::Parser;
 
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
         let query = parse_to_ast().parse(query).unwrap().0;
