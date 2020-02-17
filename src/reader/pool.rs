@@ -68,7 +68,9 @@ impl<T> Pool<T> {
     /// After publish, all new `Searcher` acquired will be
     /// of the new generation.
     pub fn publish_new_generation(&self, items: Vec<T>) {
+        assert!(items.len() >= 1);
         let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let num_items = items.len();
         for item in items {
             let gen_item = GenerationItem {
                 item,
@@ -77,6 +79,23 @@ impl<T> Pool<T> {
             self.queue.push(gen_item);
         }
         self.advertise_generation(next_generation);
+        // Purge possible previous searchers.
+        //
+        // Assuming at this point no searcher is held more than duration T by the user,
+        // this guarantees that an obsolete searcher will not be uselessly held (and its associated
+        // mmap) for more than duration T.
+        //
+        // Proof: At this point, obsolete searcher that are held by the user will be held for less
+        // than T. When released, they will be dropped as their generation is detected obsolete.
+        //
+        // We still need to ensure that the searcher that are obsolete and in the pool get removed.
+        // The queue currently contains up to 2n searchers, in any random order.
+        //
+        // Half of them are obsoletes. By requesting `(n+1)` fresh searchers, we ensure that all
+        // searcher will be inspected.
+        for _ in 0..(num_items + 1) {
+            let _ = self.acquire();
+        }
     }
 
     /// At the exit of this method,
