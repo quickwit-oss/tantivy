@@ -21,8 +21,8 @@ parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Token = char>] {
         (
-            satisfy(|c: char| !c.is_whitespace() && !['-', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
-            many(satisfy(|c: char| !c.is_whitespace() && ![':', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
+            satisfy(|c: char| !c.is_whitespace() && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
+            many(satisfy(|c: char| !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
         )
         .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
         .and_then(|s: String|
@@ -170,6 +170,48 @@ parser! {
     }
 }
 
+parser! {
+    fn positive_float_number[I]()(I) -> f32
+    where [I: Stream<Token = char>] {
+        (
+            many1(digit()),
+            optional(
+                (char('.'), many1(digit()))
+            )
+        )
+        .map(|(int_part, decimal_part_opt): (String, Option<(char, String)>)| {
+            let mut float_str = int_part;
+            if let Some((chr, decimal_str)) = decimal_part_opt {
+                float_str.push(chr);
+                float_str.push_str(&decimal_str);
+            }
+            float_str.parse::<f32>().unwrap()
+        })
+    }
+}
+
+parser! {
+    fn boost[I]()(I) -> f32
+     where [I: Stream<Token = char>] {
+         (char('^'), positive_float_number())
+        .map(|(_, boost)| boost)
+    }
+}
+
+parser! {
+    fn boosted_leaf[I]()(I) -> UserInputAST
+     where [I: Stream<Token = char>] {
+         (leaf(), optional(boost()))
+        .map(|(leaf, boost_opt)|
+            match boost_opt {
+                Some(boost) if (boost - 1.0).abs() > std::f32::EPSILON =>
+                    UserInputAST::Boost(Box::new(leaf), boost),
+                _ => leaf
+            }
+        )
+    }
+}
+
 #[derive(Clone, Copy)]
 enum BinaryOperand {
     Or,
@@ -214,10 +256,10 @@ parser! {
     pub fn ast[I]()(I) -> UserInputAST
     where [I: Stream<Token = char>]
     {
-        let operand_leaf = (binary_operand().skip(spaces()), leaf().skip(spaces()));
-        let boolean_expr = (leaf().skip(spaces().silent()), many1(operand_leaf)).map(
+        let operand_leaf = (binary_operand().skip(spaces()), boosted_leaf().skip(spaces()));
+        let boolean_expr = (boosted_leaf().skip(spaces().silent()), many1(operand_leaf)).map(
             |(left, right)| aggregate_binary_expressions(left,right));
-        let whitespace_separated_leaves = many1(leaf().skip(spaces().silent()))
+        let whitespace_separated_leaves = many1(boosted_leaf().skip(spaces().silent()))
         .map(|subqueries: Vec<UserInputAST>|
             if subqueries.len() == 1 {
                 subqueries.into_iter().next().unwrap()
@@ -242,6 +284,37 @@ mod test {
 
     use super::*;
     use combine::parser::Parser;
+
+    pub fn nearly_equals(a: f32, b: f32) -> bool {
+        (a - b).abs() < 0.0005 * (a + b).abs()
+    }
+
+    fn assert_nearly_equals(expected: f32, val: f32) {
+        assert!(
+            nearly_equals(val, expected),
+            "Got {}, expected {}.",
+            val,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_positive_float_number() {
+        fn valid_parse(float_str: &str, expected_val: f32, expected_remaining: &str) {
+            let (val, remaining) = positive_float_number().parse(float_str).unwrap();
+            assert_eq!(remaining, expected_remaining);
+            assert_nearly_equals(val, expected_val);
+        }
+        fn error_parse(float_str: &str) {
+            assert!(positive_float_number().parse(float_str).is_err());
+        }
+        valid_parse("1.0", 1.0f32, "");
+        valid_parse("1", 1.0f32, "");
+        valid_parse("0.234234 aaa", 0.234234f32, " aaa");
+        error_parse(".3332");
+        error_parse("1.");
+        error_parse("-1.");
+    }
 
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
         let query = parse_to_ast().parse(query).unwrap().0;
@@ -273,6 +346,15 @@ mod test {
         );
         test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
         test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
+    }
+
+    #[test]
+    fn test_boosting() {
+        assert!(parse_to_ast().parse("a^2^3").is_err());
+        assert!(parse_to_ast().parse("a^2^").is_err());
+        test_parse_query_to_ast_helper("a^3", "(\"a\")^3");
+        test_parse_query_to_ast_helper("a^3 b^2", "((\"a\")^3 (\"b\")^2)");
+        test_parse_query_to_ast_helper("a^1", "\"a\"");
     }
 
     #[test]

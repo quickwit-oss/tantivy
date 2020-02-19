@@ -37,11 +37,12 @@ impl PhraseWeight {
         reader.get_fieldnorms_reader(field)
     }
 
-    pub fn phrase_scorer(
+    fn phrase_scorer(
         &self,
         reader: &SegmentReader,
+        boost: f32,
     ) -> Result<Option<PhraseScorer<SegmentPostings>>> {
-        let similarity_weight = self.similarity_weight.clone();
+        let similarity_weight = self.similarity_weight.boost_by(boost);
         let fieldnorm_reader = self.fieldnorm_reader(reader);
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
@@ -84,8 +85,8 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<dyn Scorer>> {
-        if let Some(scorer) = self.phrase_scorer(reader)? {
+    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+        if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
             Ok(Box::new(EmptyScorer))
@@ -93,7 +94,7 @@ impl Weight for PhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader)?;
+        let scorer_opt = self.phrase_scorer(reader, 1.0f32)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
@@ -107,5 +108,36 @@ impl Weight for PhraseWeight {
         let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
         explanation.add_detail(self.similarity_weight.explain(fieldnorm_id, phrase_count));
         Ok(explanation)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::create_index;
+    use crate::query::PhraseQuery;
+    use crate::{DocSet, Term};
+
+    #[test]
+    pub fn test_phrase_count() {
+        let index = create_index(&["a c", "a a b d a b c", " a b"]);
+        let schema = index.schema();
+        let text_field = schema.get_field("text").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b"),
+        ]);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
+        let mut phrase_scorer = phrase_weight
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0f32)
+            .unwrap()
+            .unwrap();
+        assert!(phrase_scorer.advance());
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.phrase_count(), 2);
+        assert!(phrase_scorer.advance());
+        assert_eq!(phrase_scorer.doc(), 2);
+        assert_eq!(phrase_scorer.phrase_count(), 1);
+        assert!(!phrase_scorer.advance());
     }
 }

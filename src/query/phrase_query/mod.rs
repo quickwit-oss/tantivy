@@ -7,7 +7,7 @@ pub use self::phrase_scorer::PhraseScorer;
 pub use self::phrase_weight::PhraseWeight;
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
@@ -15,10 +15,10 @@ mod tests {
     use crate::error::TantivyError;
     use crate::schema::{Schema, Term, TEXT};
     use crate::tests::assert_nearly_equals;
+    use crate::DocAddress;
     use crate::DocId;
-    use crate::{DocAddress, DocSet};
 
-    fn create_index(texts: &[&'static str]) -> Index {
+    pub fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -100,30 +100,6 @@ mod tests {
         assert_eq!(test_query(vec!["b", "b"]), vec![0, 1]);
         assert!(test_query(vec!["g", "ewrwer"]).is_empty());
         assert!(test_query(vec!["g", "a"]).is_empty());
-    }
-
-    #[test]
-    pub fn test_phrase_count() {
-        let index = create_index(&["a c", "a a b d a b c", " a b"]);
-        let schema = index.schema();
-        let text_field = schema.get_field("text").unwrap();
-        let searcher = index.reader().unwrap().searcher();
-        let phrase_query = PhraseQuery::new(vec![
-            Term::from_field_text(text_field, "a"),
-            Term::from_field_text(text_field, "b"),
-        ]);
-        let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
-        let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32))
-            .unwrap()
-            .unwrap();
-        assert!(phrase_scorer.advance());
-        assert_eq!(phrase_scorer.doc(), 1);
-        assert_eq!(phrase_scorer.phrase_count(), 2);
-        assert!(phrase_scorer.advance());
-        assert_eq!(phrase_scorer.doc(), 2);
-        assert_eq!(phrase_scorer.phrase_count(), 1);
-        assert!(!phrase_scorer.advance());
     }
 
     #[test]

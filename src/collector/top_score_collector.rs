@@ -84,7 +84,8 @@ impl CustomScorer<u64> for ScorerByField {
             .u64(self.field)
             .ok_or_else(|| {
                 crate::TantivyError::SchemaError(format!(
-                    "Field requested is not a i64/u64 fast field."
+                    "Field requested ({:?}) is not a i64/u64 fast field.",
+                    self.field
                 ))
             })?;
         Ok(ScorerByFastFieldReader { ff_reader })
@@ -614,7 +615,10 @@ mod tests {
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let err = top_collector.for_segment(0, segment);
         if let Err(crate::TantivyError::SchemaError(msg)) = err {
-            assert_eq!(msg, "Field requested is not a i64/u64 fast field.");
+            assert_eq!(
+                msg,
+                "Field requested (Field(1)) is not a i64/u64 fast field."
+            );
         } else {
             assert!(false);
         }

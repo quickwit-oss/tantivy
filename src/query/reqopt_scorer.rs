@@ -115,8 +115,8 @@ mod tests {
         let req = vec![1, 3, 7];
         let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> =
             RequiredOptionalScorer::new(
-                ConstScorer::new(VecDocSet::from(req.clone())),
-                ConstScorer::new(VecDocSet::from(vec![])),
+                ConstScorer::from(VecDocSet::from(req.clone())),
+                ConstScorer::from(VecDocSet::from(vec![])),
             );
         let mut docs = vec![];
         while reqoptscorer.advance() {
@@ -129,8 +129,8 @@ mod tests {
     fn test_reqopt_scorer() {
         let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> =
             RequiredOptionalScorer::new(
-                ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15])),
-                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15])),
+                ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15]), 1.0f32),
+                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15]), 1.0f32),
             );
         {
             assert!(reqoptscorer.advance());
@@ -183,8 +183,8 @@ mod tests {
         test_skip_against_unoptimized(
             || {
                 Box::new(RequiredOptionalScorer::<_, _, DoNothingCombiner>::new(
-                    ConstScorer::new(VecDocSet::from(req_docs.clone())),
-                    ConstScorer::new(VecDocSet::from(opt_docs.clone())),
+                    ConstScorer::from(VecDocSet::from(req_docs.clone())),
+                    ConstScorer::from(VecDocSet::from(opt_docs.clone())),
                 ))
             },
             skip_docs,

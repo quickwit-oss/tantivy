@@ -88,6 +88,7 @@ pub enum UserInputAST {
     Clause(Vec<UserInputAST>),
     Unary(Occur, Box<UserInputAST>),
     Leaf(Box<UserInputLeaf>),
+    Boost(Box<UserInputAST>, f32),
 }
 
 impl UserInputAST {
@@ -154,6 +155,7 @@ impl fmt::Debug for UserInputAST {
                 write!(formatter, "{}({:?})", occur, subquery)
             }
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
+            UserInputAST::Boost(ref leaf, boost) => write!(formatter, "({:?})^{}", leaf, boost),
         }
     }
 }

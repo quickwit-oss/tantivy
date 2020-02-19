@@ -145,26 +145,6 @@ where
         }
     }
 
-    fn count_including_deleted(&mut self) -> u32 {
-        let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
-            .iter()
-            .map(|bitset| bitset.len())
-            .sum::<u32>();
-        for bitset in self.bitsets.iter_mut() {
-            bitset.clear();
-        }
-        while self.refill() {
-            count += self.bitsets.iter().map(|bitset| bitset.len()).sum::<u32>();
-            for bitset in self.bitsets.iter_mut() {
-                bitset.clear();
-            }
-        }
-        self.cursor = HORIZON_NUM_TINYBITSETS;
-        count
-    }
-
-    // TODO implement `count` efficiently.
-
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -243,12 +223,32 @@ where
         }
     }
 
+    // TODO implement `count` efficiently.
+
     fn doc(&self) -> DocId {
         self.doc
     }
 
     fn size_hint(&self) -> u32 {
         0u32
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
+            .iter()
+            .map(|bitset| bitset.len())
+            .sum::<u32>();
+        for bitset in self.bitsets.iter_mut() {
+            bitset.clear();
+        }
+        while self.refill() {
+            count += self.bitsets.iter().map(|bitset| bitset.len()).sum::<u32>();
+            for bitset in self.bitsets.iter_mut() {
+                bitset.clear();
+            }
+        }
+        self.cursor = HORIZON_NUM_TINYBITSETS;
+        count
     }
 }
 
@@ -290,7 +290,7 @@ mod tests {
                 vals.iter()
                     .cloned()
                     .map(VecDocSet::from)
-                    .map(ConstScorer::new)
+                    .map(|docset| ConstScorer::new(docset, 1.0f32))
                     .collect::<Vec<ConstScorer<VecDocSet>>>(),
             )
         };
@@ -339,7 +339,7 @@ mod tests {
                     .iter()
                     .map(|docs| docs.clone())
                     .map(VecDocSet::from)
-                    .map(ConstScorer::new)
+                    .map(|docset| ConstScorer::new(docset, 1.0f32))
                     .collect::<Vec<_>>(),
             ));
             res
@@ -369,8 +369,8 @@ mod tests {
     #[test]
     fn test_union_skip_corner_case3() {
         let mut docset = Union::<_, DoNothingCombiner>::from(vec![
-            ConstScorer::new(VecDocSet::from(vec![0u32, 5u32])),
-            ConstScorer::new(VecDocSet::from(vec![1u32, 4u32])),
+            ConstScorer::from(VecDocSet::from(vec![0u32, 5u32])),
+            ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
         ]);
         assert!(docset.advance());
         assert_eq!(docset.doc(), 0u32);

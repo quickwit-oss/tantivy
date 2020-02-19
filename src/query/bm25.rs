@@ -25,7 +25,6 @@ fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
     cache
 }
 
-#[derive(Clone)]
 pub struct BM25Weight {
     idf_explain: Explanation,
     weight: f32,
@@ -34,6 +33,15 @@ pub struct BM25Weight {
 }
 
 impl BM25Weight {
+    pub fn boost_by(&self, boost: f32) -> BM25Weight {
+        BM25Weight {
+            idf_explain: self.idf_explain.clone(),
+            weight: self.weight * boost,
+            cache: self.cache,
+            average_fieldnorm: self.average_fieldnorm,
+        }
+    }
+
     pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> BM25Weight {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();

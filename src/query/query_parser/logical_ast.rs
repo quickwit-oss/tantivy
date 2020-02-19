@@ -21,6 +21,17 @@ pub enum LogicalLiteral {
 pub enum LogicalAST {
     Clause(Vec<(Occur, LogicalAST)>),
     Leaf(Box<LogicalLiteral>),
+    Boost(Box<LogicalAST>, f32),
+}
+
+impl LogicalAST {
+    pub fn boost(self, boost: f32) -> LogicalAST {
+        if (boost - 1.0f32).abs() < std::f32::EPSILON {
+            self
+        } else {
+            LogicalAST::Boost(Box::new(self), boost)
+        }
+    }
 }
 
 fn occur_letter(occur: Occur) -> &'static str {
@@ -47,6 +58,7 @@ impl fmt::Debug for LogicalAST {
                 }
                 Ok(())
             }
+            LogicalAST::Boost(ref ast, boost) => write!(formatter, "{:?}^{}", ast, boost),
             LogicalAST::Leaf(ref literal) => write!(formatter, "{:?}", literal),
         }
     }
