@@ -121,6 +121,7 @@ mod functional_test;
 mod macros;
 
 pub use crate::error::TantivyError;
+pub use crate::error::TantivyError as Error;
 pub use chrono;
 
 /// Tantivy result.

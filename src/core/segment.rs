@@ -9,7 +9,7 @@ use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 
 #[derive(Clone)]

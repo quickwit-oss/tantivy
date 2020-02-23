@@ -216,9 +216,9 @@ fn index_documents(
     tokenizers: &TokenizerManager,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<bool> {
-    let mut segment_writer =
-        SegmentWriter::for_segment(memory_budget, segment.clone(), tokenizers)?;
     let schema = segment.schema();
+    let mut segment_writer =
+        SegmentWriter::for_segment(memory_budget, segment.clone(), &schema, tokenizers)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;

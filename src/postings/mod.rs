@@ -220,7 +220,8 @@ pub mod tests {
 
         {
             let mut segment_writer =
-                SegmentWriter::for_segment(3_000_000, segment.clone(), index.tokenizers()).unwrap();
+                SegmentWriter::for_segment(3_000_000, segment.clone(), &schema, index.tokenizers())
+                    .unwrap();
             {
                 let mut doc = Document::default();
                 // checking that position works if the field has two values

@@ -5,17 +5,16 @@ mod pool;
 use self::meta_file_reader::MetaFileIndexReader;
 pub use self::meta_file_reader::{IndexReaderBuilder, ReloadPolicy};
 pub use self::pool::LeasedItem;
-use self::pool::Pool;
-use crate::core::Segment;
-use crate::directory::Directory;
-use crate::directory::WatchHandle;
-use crate::directory::META_LOCK;
-use crate::reader::index_writer_reader::NRTReader;
-use crate::Index;
-use crate::Searcher;
-/*
-<<<<<<< HEAD
 
+
+
+
+
+pub(crate) use crate::reader::index_writer_reader::NRTReader;
+
+use crate::Searcher;
+
+/*
 //
 //enum SegmentSource {
 //    FromMetaFile,

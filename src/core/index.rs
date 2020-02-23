@@ -282,7 +282,7 @@ impl Index {
                 TantivyError::LockFailure(
                     err,
                     Some(
-                        "Failed to acquire index lock. If you are using\
+                        "Failed to acquire index lock. If you are using \
                          a regular directory, this means there is already an \
                          `IndexWriter` working on this `Directory`, in this process \
                          or in a different process."
@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn create_should_wipeoff_existing() {
+    fn create_should_wipe_off_existing() {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory));
@@ -545,7 +545,12 @@ mod tests {
         }
     }
 
-    fn test_index_on_commit_reload_policy_aux(field: Field, mut reader_index: Index, index: &Index, reader: &IndexReader) {
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        mut reader_index: Index,
+        index: &Index,
+        reader: &IndexReader,
+    ) {
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _watch_handle = reader_index.directory_mut().watch(Box::new(move || {
             let _ = sender.send(());

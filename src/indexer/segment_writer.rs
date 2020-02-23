@@ -11,10 +11,10 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
-use crate::tokenizer::FacetTokenizer;
-use crate::tokenizer::PreTokenizedStream;
-use crate::tokenizer::{BoxedTokenizer, TokenizerManager};
-use crate::tokenizer::{TokenStream, TokenStreamChain, Tokenizer};
+use crate::tokenizer::TokenizerManager;
+use crate::tokenizer::{BoxTokenStream, FacetTokenizer};
+use crate::tokenizer::{PreTokenizedStream, TextAnalyzer};
+use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::DocId;
 use crate::Opstamp;
 use std::io;
@@ -65,10 +65,12 @@ impl SegmentWriter {
         memory_budget: usize,
         mut segment: Segment,
         schema: &Schema,
+        tokenizer_manager: &TokenizerManager,
     ) -> crate::Result<SegmentWriter> {
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(&schema, table_num_bits);
+
         let tokenizers = schema
             .fields()
             .map(
@@ -77,7 +79,7 @@ impl SegmentWriter {
                         .get_indexing_options()
                         .and_then(|text_index_option| {
                             let tokenizer_name = &text_index_option.tokenizer();
-                            tokenizers.get(tokenizer_name)
+                            tokenizer_manager.get(tokenizer_name)
                         }),
                     _ => None,
                 },
