@@ -59,17 +59,16 @@ performance for different type of queries / collection.
 - Configurable indexing (optional term frequency and position indexing)
 - Cheesy logo with a horse
 
-# Non-features
+## Non-features
 
 - Distributed search is out of the scope of Tantivy. That being said, Tantivy is a
 library upon which one could build a distributed search. Serializable/mergeable collector state for instance, 
 are within the scope of Tantivy.
 
-# Supported OS and compiler
-
-Tantivy works on stable Rust (>= 1.27) and supports Linux, MacOS, and Windows.
 
 # Getting started
+
+Tantivy works on stable Rust (>= 1.27) and supports Linux, MacOS, and Windows.
 
 - [Tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
 - [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli) - `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
