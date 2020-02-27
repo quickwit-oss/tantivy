@@ -8,6 +8,8 @@ use crc32fast::Hasher;
 use std::io;
 use std::io::Write;
 
+const FOOTER_MAX_LEN: usize = 10_000;
+
 type CrcHashU32 = u32;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,12 +145,23 @@ impl BinarySerializable for VersionedFooter {
             }
         }
         BinarySerializable::serialize(&VInt(buf.len() as u64), writer)?;
+        assert!(buf.len() <= FOOTER_MAX_LEN);
         writer.write_all(&buf[..])?;
         Ok(())
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let len = VInt::deserialize(reader)?.0 as usize;
+        if len > FOOTER_MAX_LEN {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Footer seems invalid as it suggests a footer len of {}. File is corrupted, \
+            or the index was created with a different & old version of tantivy.",
+                    len
+                ),
+            ));
+        }
         let mut buf = vec![0u8; len];
         reader.read_exact(&mut buf[..])?;
         let mut cursor = &buf[..];
@@ -221,11 +234,13 @@ mod tests {
 
     use super::CrcHashU32;
     use super::FooterProxy;
-    use crate::common::BinarySerializable;
+    use crate::common::{BinarySerializable, VInt};
     use crate::directory::footer::{Footer, VersionedFooter};
     use crate::directory::TerminatingWrite;
     use byteorder::{ByteOrder, LittleEndian};
     use regex::Regex;
+    use std::error::Error;
+    use std::io;
 
     #[test]
     fn test_versioned_footer() {
@@ -335,5 +350,21 @@ mod tests {
         let footer = Footer::new(versioned_footer);
         let res = footer.is_compatible();
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_deserialize_too_large_footer() {
+        let mut buf = vec![];
+        assert!(FooterProxy::new(&mut buf).terminate().is_ok());
+        let mut long_len_buf = [0u8; 10];
+        let num_bytes = VInt(super::FOOTER_MAX_LEN as u64 + 1u64).serialize_into(&mut long_len_buf);
+        buf[0..num_bytes].copy_from_slice(&long_len_buf[..num_bytes]);
+        let err = Footer::deserialize(&mut &buf[..]).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert_eq!(
+            err.description(),
+            "Footer seems invalid as it suggests a footer len of 10001. File is corrupted, \
+            or the index was created with a different & old version of tantivy."
+        );
     }
 }
