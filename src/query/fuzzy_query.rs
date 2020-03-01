@@ -9,7 +9,7 @@ use std::ops::Range;
 
 /// A range of Levenshtein distances that we will build DFAs for our terms
 /// The computation is exponential, so best keep it to low single digits
-const VALID_LEVENSHTEIN_DISTANCE_RANGE: Range<u8> = (0..3);
+const VALID_LEVENSHTEIN_DISTANCE_RANGE: Range<u8> = 0..3;
 
 static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Lazy::new(|| {
     let mut lev_builder_cache = HashMap::new();
