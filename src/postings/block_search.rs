@@ -106,7 +106,7 @@ impl BlockSearcher {
     /// the target.
     ///
     /// The results should be equivalent to
-    /// ```ignore
+    /// ```compile_fail
     /// block[..]
     //       .iter()
     //       .take_while(|&&val| val < target)
