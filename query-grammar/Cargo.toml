@@ -13,4 +13,4 @@ keywords = ["search", "information", "retrieval"]
 edition = "2018"
 
 [dependencies]
-combine = "4"
+combine = {version="4", default-features=false, features=[] }

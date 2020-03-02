@@ -1,5 +1,3 @@
-#![recursion_limit = "100"]
-
 mod occur;
 mod query_grammar;
 mod user_input_ast;

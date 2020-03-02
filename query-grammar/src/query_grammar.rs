@@ -1,152 +1,153 @@
-use super::user_input_ast::*;
+use super::user_input_ast::{UserInputAST, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
-use combine::error::StreamError;
+use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, letter, space, spaces, string};
-use combine::stream::StreamErrorFor;
+use combine::parser::Parser;
 use combine::{
-    attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value, Stream,
+    attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
 
-parser! {
-    fn field[I]()(I) -> String
-    where [I: Stream<Token = char>] {
-        (
-            letter(),
-            many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
-        ).skip(char(':')).map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
-    }
-}
-
-parser! {
-    fn word[I]()(I) -> String
-    where [I: Stream<Token = char>] {
-        (
-            satisfy(|c: char| !c.is_whitespace() && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(',')'].contains(&c) ),
-            many(satisfy(|c: char| !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(',')'].contains(&c)))
-        )
+fn field<'a>() -> impl Parser<&'a str, Output = String> {
+    (
+        letter(),
+        many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
+    )
+        .skip(char(':'))
         .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
-        .and_then(|s: String|
-           match s.as_str() {
-             "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
-             "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
-             "NOT" => Err(StreamErrorFor::<I>::unexpected_static_message("NOT")),
-             _ => Ok(s)
-           })
-    }
 }
 
-parser! {
-    fn literal[I]()(I) -> UserInputLeaf
-    where [I: Stream<Token = char>]
-    {
-        let term_val = || {
-            let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
-            phrase.or(word())
-        };
-        let term_val_with_field = negative_number().or(term_val());
-        let term_query =
-            (field(), term_val_with_field)
-            .map(|(field_name, phrase)| UserInputLiteral {
-                field_name: Some(field_name),
-                phrase,
-            });
-        let term_default_field = term_val().map(|phrase| UserInputLiteral {
-            field_name: None,
-            phrase,
-        });
-        attempt(term_query)
-            .or(term_default_field)
-            .map(UserInputLeaf::from)
-    }
-}
-
-parser! {
-    fn negative_number[I]()(I) -> String
-    where [I: Stream<Token = char>]
-    {
-        (char('-'), many1(digit()),
-         optional((char('.'), many1(digit()))))
-            .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
-                if let Some(('.', s3)) = s3 {
-                    format!("{}{}.{}", s1, s2, s3)
-                } else {
-                    format!("{}{}", s1, s2)
-                }
-            })
-    }
-}
-
-parser! {
-    fn spaces1[I]()(I) -> ()
-    where [I: Stream<Token = char>] {
-        skip_many1(space())
-    }
-}
-
-parser! {
-    /// Function that parses a range out of a Stream
-    /// Supports ranges like:
-    /// [5 TO 10], {5 TO 10}, [* TO 10], [10 TO *], {10 TO *], >5, <=10
-    /// [a TO *], [a TO c], [abc TO bcd}
-    fn range[I]()(I) -> UserInputLeaf
-    where [I: Stream<Token = char>] {
-        let range_term_val = || {
-            word().or(negative_number()).or(char('*').with(value("*".to_string())))
-        };
-
-        // check for unbounded range in the form of <5, <=10, >5, >=5
-        let elastic_unbounded_range = (choice([attempt(string(">=")),
-                                               attempt(string("<=")),
-                                               attempt(string("<")),
-                                               attempt(string(">"))])
-                                       .skip(spaces()),
-                                       range_term_val()).
-            map(|(comparison_sign, bound): (&str, String)|
-                match comparison_sign {
-                    ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
-                    "<=" => (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
-                    "<" => (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
-                    ">" => (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
-                    // default case
-                    _ => (UserInputBound::Unbounded, UserInputBound::Unbounded)
-                });
-        let lower_bound = (one_of("{[".chars()), range_term_val())
-            .map(|(boundary_char, lower_bound): (char, String)|
-                 if lower_bound == "*" {
-                     UserInputBound::Unbounded
-                 } else if boundary_char == '{' {
-                         UserInputBound::Exclusive(lower_bound)
-                 } else {
-                     UserInputBound::Inclusive(lower_bound)
-                 });
-        let upper_bound = (range_term_val(), one_of("}]".chars()))
-            .map(|(higher_bound, boundary_char): (String, char)|
-                 if higher_bound == "*" {
-                     UserInputBound::Unbounded
-                 } else if boundary_char == '}' {
-                     UserInputBound::Exclusive(higher_bound)
-                 } else {
-                     UserInputBound::Inclusive(higher_bound)
-                 });
-         // return only lower and upper
-        let lower_to_upper = (lower_bound.
-                                    skip((spaces(),
-                                          string("TO"),
-                                          spaces())),
-                                    upper_bound);
-
-        (optional(field()).skip(spaces()),
-         // try elastic first, if it matches, the range is unbounded
-         attempt(elastic_unbounded_range).or(lower_to_upper))
-            .map(|(field, (lower, upper))|
-                 // Construct the leaf from extracted field (optional)
-                 // and bounds
-                 UserInputLeaf::Range {
-                     field,
-                     lower,
-                     upper
+fn word<'a>() -> impl Parser<&'a str, Output = String> {
+    (
+        satisfy(|c: char| {
+            !c.is_whitespace()
+                && !['-', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        }),
+        many(satisfy(|c: char| {
+            !c.is_whitespace() && ![':', '^', '{', '}', '"', '[', ']', '(', ')'].contains(&c)
+        })),
+    )
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+        .and_then(|s: String| match s.as_str() {
+            "OR" | "AND " | "NOT" => Err(StringStreamError::UnexpectedParse),
+            _ => Ok(s),
         })
-    }
+}
+
+fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
+    let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
+    phrase.or(word())
+}
+
+fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
+    let term_val_with_field = negative_number().or(term_val());
+    (field(), term_val_with_field).map(|(field_name, phrase)| UserInputLiteral {
+        field_name: Some(field_name),
+        phrase,
+    })
+}
+
+fn literal<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
+    let term_default_field = term_val().map(|phrase| UserInputLiteral {
+        field_name: None,
+        phrase,
+    });
+    attempt(term_query())
+        .or(term_default_field)
+        .map(UserInputLeaf::from)
+}
+
+fn negative_number<'a>() -> impl Parser<&'a str, Output = String> {
+    (
+        char('-'),
+        many1(digit()),
+        optional((char('.'), many1(digit()))),
+    )
+        .map(|(s1, s2, s3): (char, String, Option<(char, String)>)| {
+            if let Some(('.', s3)) = s3 {
+                format!("{}{}.{}", s1, s2, s3)
+            } else {
+                format!("{}{}", s1, s2)
+            }
+        })
+}
+
+fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
+    skip_many1(space())
+}
+
+/// Function that parses a range out of a Stream
+/// Supports ranges like:
+/// [5 TO 10], {5 TO 10}, [* TO 10], [10 TO *], {10 TO *], >5, <=10
+/// [a TO *], [a TO c], [abc TO bcd}
+fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
+    let range_term_val = || {
+        word()
+            .or(negative_number())
+            .or(char('*').with(value("*".to_string())))
+    };
+
+    // check for unbounded range in the form of <5, <=10, >5, >=5
+    let elastic_unbounded_range = (
+        choice([
+            attempt(string(">=")),
+            attempt(string("<=")),
+            attempt(string("<")),
+            attempt(string(">")),
+        ])
+        .skip(spaces()),
+        range_term_val(),
+    )
+        .map(
+            |(comparison_sign, bound): (&str, String)| match comparison_sign {
+                ">=" => (UserInputBound::Inclusive(bound), UserInputBound::Unbounded),
+                "<=" => (UserInputBound::Unbounded, UserInputBound::Inclusive(bound)),
+                "<" => (UserInputBound::Unbounded, UserInputBound::Exclusive(bound)),
+                ">" => (UserInputBound::Exclusive(bound), UserInputBound::Unbounded),
+                // default case
+                _ => (UserInputBound::Unbounded, UserInputBound::Unbounded),
+            },
+        );
+    let lower_bound = (one_of("{[".chars()), range_term_val()).map(
+        |(boundary_char, lower_bound): (char, String)| {
+            if lower_bound == "*" {
+                UserInputBound::Unbounded
+            } else if boundary_char == '{' {
+                UserInputBound::Exclusive(lower_bound)
+            } else {
+                UserInputBound::Inclusive(lower_bound)
+            }
+        },
+    );
+    let upper_bound = (range_term_val(), one_of("}]".chars())).map(
+        |(higher_bound, boundary_char): (String, char)| {
+            if higher_bound == "*" {
+                UserInputBound::Unbounded
+            } else if boundary_char == '}' {
+                UserInputBound::Exclusive(higher_bound)
+            } else {
+                UserInputBound::Inclusive(higher_bound)
+            }
+        },
+    );
+    // return only lower and upper
+    let lower_to_upper = (
+        lower_bound.skip((spaces(), string("TO"), spaces())),
+        upper_bound,
+    );
+
+    (
+        optional(field()).skip(spaces()),
+        // try elastic first, if it matches, the range is unbounded
+        attempt(elastic_unbounded_range).or(lower_to_upper),
+    )
+        .map(|(field, (lower, upper))|
+             // Construct the leaf from extracted field (optional)
+             // and bounds
+             UserInputLeaf::Range {
+                 field,
+                 lower,
+                 upper
+    })
 }
 
 fn negate(expr: UserInputAST) -> UserInputAST {
@@ -157,59 +158,48 @@ fn must(expr: UserInputAST) -> UserInputAST {
     expr.unary(Occur::Must)
 }
 
-parser! {
-    fn leaf[I]()(I) -> UserInputAST
-    where [I: Stream<Token = char>] {
-            char('-').with(leaf()).map(negate)
-        .or(char('+').with(leaf()).map(must))
-        .or(char('(').with(ast()).skip(char(')')))
-        .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All)))
-        .or(attempt(string("NOT").skip(spaces1()).with(leaf()).map(negate)))
-        .or(attempt(range().map(UserInputAST::from)))
-        .or(literal().map(UserInputAST::from))
-    }
+fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+    parser(|input| {
+        char('-')
+            .with(leaf())
+            .map(negate)
+            .or(char('+').with(leaf()).map(must))
+            .or(char('(').with(ast()).skip(char(')')))
+            .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All)))
+            .or(attempt(
+                string("NOT").skip(spaces1()).with(leaf()).map(negate),
+            ))
+            .or(attempt(range().map(UserInputAST::from)))
+            .or(literal().map(UserInputAST::from))
+            .parse_stream(input)
+            .into_result()
+    })
 }
 
-parser! {
-    fn positive_float_number[I]()(I) -> f32
-    where [I: Stream<Token = char>] {
-        (
-            many1(digit()),
-            optional(
-                (char('.'), many1(digit()))
-            )
-        )
-        .map(|(int_part, decimal_part_opt): (String, Option<(char, String)>)| {
+fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f32> {
+    (many1(digit()), optional((char('.'), many1(digit())))).map(
+        |(int_part, decimal_part_opt): (String, Option<(char, String)>)| {
             let mut float_str = int_part;
             if let Some((chr, decimal_str)) = decimal_part_opt {
                 float_str.push(chr);
                 float_str.push_str(&decimal_str);
             }
             float_str.parse::<f32>().unwrap()
-        })
-    }
+        },
+    )
 }
 
-parser! {
-    fn boost[I]()(I) -> f32
-     where [I: Stream<Token = char>] {
-         (char('^'), positive_float_number())
-        .map(|(_, boost)| boost)
-    }
+fn boost<'a>() -> impl Parser<&'a str, Output = f32> {
+    (char('^'), positive_float_number()).map(|(_, boost)| boost)
 }
 
-parser! {
-    fn boosted_leaf[I]()(I) -> UserInputAST
-     where [I: Stream<Token = char>] {
-         (leaf(), optional(boost()))
-        .map(|(leaf, boost_opt)|
-            match boost_opt {
-                Some(boost) if (boost - 1.0).abs() > std::f32::EPSILON =>
-                    UserInputAST::Boost(Box::new(leaf), boost),
-                _ => leaf
-            }
-        )
-    }
+fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+    (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
+        Some(boost) if (boost - 1.0).abs() > std::f32::EPSILON => {
+            UserInputAST::Boost(Box::new(leaf), boost)
+        }
+        _ => leaf,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -218,13 +208,10 @@ enum BinaryOperand {
     And,
 }
 
-parser! {
-    fn binary_operand[I]()(I) -> BinaryOperand
-    where [I: Stream<Token = char>]
-    {
-       string("AND").with(value(BinaryOperand::And))
-       .or(string("OR").with(value(BinaryOperand::Or)))
-    }
+fn binary_operand<'a>() -> impl Parser<&'a str, Output = BinaryOperand> {
+    string("AND")
+        .with(value(BinaryOperand::And))
+        .or(string("OR").with(value(BinaryOperand::Or)))
 }
 
 fn aggregate_binary_expressions(
@@ -252,31 +239,29 @@ fn aggregate_binary_expressions(
     }
 }
 
-parser! {
-    pub fn ast[I]()(I) -> UserInputAST
-    where [I: Stream<Token = char>]
-    {
-        let operand_leaf = (binary_operand().skip(spaces()), boosted_leaf().skip(spaces()));
-        let boolean_expr = (boosted_leaf().skip(spaces().silent()), many1(operand_leaf)).map(
-            |(left, right)| aggregate_binary_expressions(left,right));
-        let whitespace_separated_leaves = many1(boosted_leaf().skip(spaces().silent()))
-        .map(|subqueries: Vec<UserInputAST>|
+pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+    let operand_leaf = (
+        binary_operand().skip(spaces()),
+        boosted_leaf().skip(spaces()),
+    );
+    let boolean_expr = (boosted_leaf().skip(spaces().silent()), many1(operand_leaf))
+        .map(|(left, right)| aggregate_binary_expressions(left, right));
+    let whitespace_separated_leaves =
+        many1(boosted_leaf().skip(spaces().silent())).map(|subqueries: Vec<UserInputAST>| {
             if subqueries.len() == 1 {
                 subqueries.into_iter().next().unwrap()
             } else {
                 UserInputAST::Clause(subqueries.into_iter().collect())
-            });
-        let expr = attempt(boolean_expr).or(whitespace_separated_leaves);
-        spaces().with(expr).skip(spaces())
-    }
+            }
+        });
+    let expr = attempt(boolean_expr).or(whitespace_separated_leaves);
+    spaces().with(expr).skip(spaces())
 }
 
-parser! {
-    pub fn parse_to_ast[I]()(I) -> UserInputAST
-    where [I: Stream<Token = char>]
-    {
-        spaces().with(optional(ast()).skip(eof())).map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
-    }
+pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+    spaces()
+        .with(optional(ast()).skip(eof()))
+        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
 }
 
 #[cfg(test)]
