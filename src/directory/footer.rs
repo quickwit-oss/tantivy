@@ -239,7 +239,6 @@ mod tests {
     use crate::directory::TerminatingWrite;
     use byteorder::{ByteOrder, LittleEndian};
     use regex::Regex;
-    use std::error::Error;
     use std::io;
 
     #[test]
@@ -362,7 +361,7 @@ mod tests {
         let err = Footer::deserialize(&mut &buf[..]).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert_eq!(
-            err.description(),
+            err.to_string(),
             "Footer seems invalid as it suggests a footer len of 10001. File is corrupted, \
             or the index was created with a different & old version of tantivy."
         );
