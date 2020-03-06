@@ -9,11 +9,10 @@
 // - import tokenized text straight from json,
 // - perform a search on documents with pre-tokenized text
 
-use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, Tokenizer};
-
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
+use tantivy::tokenizer::{PreTokenizedString, SimpleTokenizer, Token, Tokenizer};
 use tantivy::{doc, Index, ReloadPolicy};
 use tempfile::TempDir;
 

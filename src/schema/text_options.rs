@@ -1,6 +1,7 @@
 use crate::schema::flags::SchemaFlagList;
 use crate::schema::flags::StoredFlag;
 use crate::schema::IndexRecordOption;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::ops::BitOr;
 

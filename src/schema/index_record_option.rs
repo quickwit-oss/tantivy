@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 /// `IndexRecordOption` describes an amount information associated
 /// to a given indexed field.
 ///

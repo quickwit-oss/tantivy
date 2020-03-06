@@ -1,4 +1,5 @@
 use crate::schema::Value;
+use serde::Serialize;
 use std::collections::BTreeMap;
 
 /// Internal representation of a document used for JSON

@@ -4,6 +4,7 @@ use crate::schema::Schema;
 use crate::Opstamp;
 use census::{Inventory, TrackedObject};
 use serde;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashSet;
 use std::fmt;

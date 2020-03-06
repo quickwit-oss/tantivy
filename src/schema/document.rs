@@ -4,6 +4,7 @@ use crate::common::VInt;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 use itertools::Itertools;
+use serde;
 use std::io::{self, Read, Write};
 
 /// Tantivy's Document is the object that can
@@ -16,7 +17,7 @@ use std::io::{self, Read, Write};
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct Document {
     field_values: Vec<FieldValue>,
 }

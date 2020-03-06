@@ -26,7 +26,6 @@ atomicwrites = {version="0.2.2", optional=true}
 tempfile = "3.0"
 log = "0.4"
 serde = "1.0"
-serde_derive = "1.0"
 serde_json = "1.0"
 num_cpus = "1.2"
 fs2={version="0.4", optional=true}
