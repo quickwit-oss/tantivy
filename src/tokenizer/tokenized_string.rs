@@ -1,4 +1,5 @@
 use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
 /// Struct representing pre-tokenized text

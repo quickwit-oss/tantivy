@@ -1,4 +1,5 @@
 use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
+use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
 /// Express whether a field is single-value or multi-valued.

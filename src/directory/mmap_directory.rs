@@ -22,6 +22,7 @@ use crate::directory::WatchHandle;
 use crate::directory::{TerminatingWrite, WritePtr};
 use atomicwrites;
 use memmap::Mmap;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;

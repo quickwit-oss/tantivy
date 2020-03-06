@@ -1,11 +1,14 @@
 use crate::common::BinarySerializable;
+use serde;
 use std::io;
 use std::io::Read;
 use std::io::Write;
 
 /// `Field` is represented by an unsigned 32-bit integer type
 /// The schema holds the mapping between field names and `Field` objects.
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct Field(u32);
 
 impl Field {

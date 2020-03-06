@@ -11,6 +11,7 @@ under-count actual resultant space usage by up to 4095 bytes per file.
 
 use crate::schema::Field;
 use crate::SegmentComponent;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Indicates space usage in bytes

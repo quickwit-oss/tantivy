@@ -98,9 +98,6 @@
 //! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
 //! [source code](https://github.com/tantivy-search/tantivy/blob/master/examples/basic_search.rs))
 
-#[macro_use]
-extern crate serde_derive;
-
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
 
@@ -173,6 +170,7 @@ pub use crate::schema::{Document, Term};
 use std::fmt;
 
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 1;
