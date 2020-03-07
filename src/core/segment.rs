@@ -24,15 +24,12 @@ impl fmt::Debug for Segment {
     }
 }
 
-/// Creates a new segment given an `Index` and a `SegmentId`
-///
-/// The function is here to make it private outside `tantivy`.
-/// #[doc(hidden)]
-pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
-    Segment { index, meta }
-}
-
 impl Segment {
+    /// Creates a new segment given an `Index` and a `SegmentId`
+    pub(crate) fn for_index(index: Index, meta: SegmentMeta) -> Segment {
+        Segment { index, meta }
+    }
+
     /// Returns the index the segment belongs to.
     pub fn index(&self) -> &Index {
         &self.index

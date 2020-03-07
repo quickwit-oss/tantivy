@@ -1,4 +1,3 @@
-use super::segment::create_segment;
 use super::segment::Segment;
 use crate::core::Executor;
 use crate::core::IndexMeta;
@@ -337,7 +336,7 @@ impl Index {
 
     #[doc(hidden)]
     pub fn segment(&self, segment_meta: SegmentMeta) -> Segment {
-        create_segment(self.clone(), segment_meta)
+        Segment::for_index(self.clone(), segment_meta)
     }
 
     /// Creates a new segment.
