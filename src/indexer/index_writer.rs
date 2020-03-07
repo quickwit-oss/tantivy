@@ -23,6 +23,7 @@ use crate::indexer::SegmentWriter;
 use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
+use crate::tokenizer::TokenizerManager;
 use crate::Opstamp;
 use crossbeam::channel;
 use futures::executor::block_on;
@@ -194,11 +195,13 @@ fn index_documents(
     segment: Segment,
     grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
     segment_updater: &mut SegmentUpdater,
+    tokenizers: &TokenizerManager,
     mut delete_cursor: DeleteCursor,
 ) -> crate::Result<bool> {
     let schema = segment.schema();
 
-    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
+    let mut segment_writer =
+        SegmentWriter::for_segment(memory_budget, segment.clone(), &schema, tokenizers)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
@@ -439,6 +442,7 @@ impl IndexWriter {
                         segment,
                         &mut document_iterator,
                         &mut segment_updater,
+                        index.tokenizers(),
                         delete_cursor.clone(),
                     )?;
                 }

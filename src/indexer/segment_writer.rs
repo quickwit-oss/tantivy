@@ -13,7 +13,7 @@ use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::store::StoreWriter;
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
-use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
+use crate::tokenizer::{TokenizerManager, FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
@@ -67,6 +67,7 @@ impl SegmentWriter {
         memory_budget: usize,
         segment: Segment,
         schema: &Schema,
+        tokenizer_manager: &TokenizerManager,
     ) -> crate::Result<SegmentWriter> {
         let table_num_bits = initial_table_size(memory_budget)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
@@ -78,7 +79,7 @@ impl SegmentWriter {
                         .get_indexing_options()
                         .and_then(|text_index_option| {
                             let tokenizer_name = &text_index_option.tokenizer();
-                            segment.index().tokenizers().get(tokenizer_name)
+                            tokenizer_manager.get(tokenizer_name)
                         }),
                     _ => None,
                 },
