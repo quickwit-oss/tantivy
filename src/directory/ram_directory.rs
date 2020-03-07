@@ -144,6 +144,22 @@ impl RAMDirectory {
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
     }
+
+    /// Write a copy of all of the files saved in the RAMDirectory in the target `Directory`.
+    ///
+    /// Files are all written using the `Directory::write` meaning, even if they were
+    /// written using the `atomic_write` api.
+    ///
+    /// If an error is encounterred, files may be persisted partially.
+    pub fn persist(&self, dest: &mut dyn Directory) -> crate::Result<()> {
+        let wlock = self.fs.write().unwrap();
+        for (path, source) in wlock.fs.iter() {
+            let mut dest_wrt = dest.open_write(path)?;
+            dest_wrt.write_all(source.as_slice())?;
+            dest_wrt.terminate()?;
+        }
+        Ok(())
+    }
 }
 
 impl Directory for RAMDirectory {
@@ -202,5 +218,31 @@ impl Directory for RAMDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.fs.write().unwrap().watch(watch_callback))
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::RAMDirectory;
+    use crate::Directory;
+    use std::path::Path;
+    use std::io::Write;
+
+    #[test]
+    fn test_persist() {
+        let msg_atomic: &'static [u8] = b"atomic is the way";
+        let msg_seq: &'static [u8] = b"sequential is the way";
+        let path_atomic: &'static Path = Path::new("atomic");
+        let path_seq: &'static Path = Path::new("seq");
+        let mut directory = RAMDirectory::create();
+        assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
+        let mut wrt = directory.open_write(path_seq).unwrap();
+        assert!(wrt.write_all(msg_seq).is_ok());
+        assert!(wrt.flush().is_ok());
+        let mut directory_copy = RAMDirectory::create();
+        assert!(directory.persist(&mut directory_copy).is_ok());
+        assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
+        assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
     }
 }
