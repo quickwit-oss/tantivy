@@ -221,13 +221,12 @@ impl Directory for RAMDirectory {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::RAMDirectory;
     use crate::Directory;
-    use std::path::Path;
     use std::io::Write;
+    use std::path::Path;
 
     #[test]
     fn test_persist() {
