@@ -155,6 +155,8 @@ pub(crate) fn advance_deletes(
         None => BitSet::with_max_value(max_doc),
     };
 
+    let num_deleted_docs_before = segment.meta().num_deleted_docs();
+
     compute_deleted_bitset(
         &mut delete_bitset,
         &segment_reader,
@@ -164,6 +166,8 @@ pub(crate) fn advance_deletes(
     )?;
 
     // TODO optimize
+    // It should be possible to do something smarter by manipulation bitsets directly
+    // to compute this union.
     if let Some(seg_delete_bitset) = segment_reader.delete_bitset() {
         for doc in 0u32..max_doc {
             if seg_delete_bitset.is_deleted(doc) {
@@ -172,8 +176,9 @@ pub(crate) fn advance_deletes(
         }
     }
 
-    let num_deleted_docs = delete_bitset.len();
-    if num_deleted_docs > 0 {
+    let num_deleted_docs: u32 = delete_bitset.len() as u32;
+    if num_deleted_docs > num_deleted_docs_before {
+        // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
         let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
         write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
@@ -801,6 +806,46 @@ mod tests {
         ];
         let batch_opstamp1 = index_writer.run(operations);
         assert_eq!(batch_opstamp1, 2u64);
+    }
+
+    #[test]
+    fn test_no_need_to_rewrite_delete_file_if_no_new_deletes() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(text_field => "hello1"));
+        index_writer.add_document(doc!(text_field => "hello2"));
+        assert!(index_writer.commit().is_ok());
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 0);
+
+        index_writer.delete_term(Term::from_field_text(text_field, "hello1"));
+        assert!(index_writer.commit().is_ok());
+
+        assert!(reader.reload().is_ok());
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 1);
+
+        let previous_delete_opstamp = index.load_metas().unwrap().segments[0].delete_opstamp();
+
+        // All docs containing hello1 have been already removed.
+        // We should not update the delete meta.
+        index_writer.delete_term(Term::from_field_text(text_field, "hello1"));
+        assert!(index_writer.commit().is_ok());
+
+        assert!(reader.reload().is_ok());
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 1);
+
+        let after_delete_opstamp = index.load_metas().unwrap().segments[0].delete_opstamp();
+        assert_eq!(after_delete_opstamp, previous_delete_opstamp);
     }
 
     #[test]
