@@ -7,11 +7,10 @@ use crate::core::SegmentMeta;
 use crate::core::SerializableSegment;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
-use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
-use crate::indexer::segment_manager::SegmentsStatus;
+use crate::indexer::segment_manager::{SegmentsStatus, SegmentRegisters};
 use crate::indexer::stamper::Stamper;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentSerializer;
@@ -117,8 +116,7 @@ fn merge(
 
     // First we apply all of the delet to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
-        let segment = index.segment(segment_entry.meta().clone());
-        advance_deletes(segment, segment_entry, target_opstamp)?;
+            advance_deletes( segment_entry, target_opstamp)?;
     }
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
@@ -137,10 +135,9 @@ fn merge(
     let store_wrt = merged_segment.open_write(SegmentComponent::STORE)?;
     merger.write_storable_fields(store_wrt)?;
 
-    let num_docs = merger.write(segment_serializer)?;
-    let segment_meta = index.new_segment_meta(merged_segment.id(), num_docs);
+    let max_doc = merger.write(segment_serializer)?;
 
-    Ok(SegmentEntry::new(segment_meta, delete_cursor, None))
+    Ok(SegmentEntry::new(merged_segment.with_max_doc(max_doc), delete_cursor, None))
 }
 
 pub(crate) struct InnerSegmentUpdater {
@@ -164,12 +161,11 @@ pub(crate) struct InnerSegmentUpdater {
 
 impl SegmentUpdater {
     pub fn create(
+        segment_registers: Arc<RwLock<SegmentRegisters>>,
         index: Index,
-        stamper: Stamper,
-        delete_cursor: &DeleteCursor,
+        stamper: Stamper
     ) -> crate::Result<SegmentUpdater> {
-        let segments = index.searchable_segment_metas()?;
-        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
+        let segment_manager = SegmentManager::new(segment_registers);
         let pool = ThreadPoolBuilder::new()
             .name_prefix("segment_updater")
             .pool_size(1)
@@ -264,8 +260,7 @@ impl SegmentUpdater {
     fn purge_deletes(&self, target_opstamp: Opstamp) -> crate::Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.segment_manager.segment_entries();
         for segment_entry in &mut segment_entries {
-            let segment = self.index.segment(segment_entry.meta().clone());
-            advance_deletes(segment, segment_entry, target_opstamp)?;
+            advance_deletes(segment_entry, target_opstamp)?;
         }
         Ok(segment_entries)
     }
@@ -480,10 +475,7 @@ impl SegmentUpdater {
                 if let Some(delete_operation) = delete_cursor.get() {
                     let committed_opstamp = segment_updater.load_metas().opstamp;
                     if delete_operation.opstamp < committed_opstamp {
-                        let index = &segment_updater.index;
-                        let segment = index.segment(after_merge_segment_entry.meta().clone());
                         if let Err(e) = advance_deletes(
-                            segment,
                             &mut after_merge_segment_entry,
                             committed_opstamp,
                         ) {

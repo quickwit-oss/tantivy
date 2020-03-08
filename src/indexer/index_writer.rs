@@ -1,4 +1,5 @@
 use super::operation::{AddOperation, UserOperation};
+use crate::indexer::segment_manager::SegmentRegisters;
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use crate::common::BitSet;
@@ -32,9 +33,10 @@ use smallvec::smallvec;
 use smallvec::SmallVec;
 use std::mem;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
+use crate::indexer::segment_register::SegmentRegister;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -70,6 +72,8 @@ pub struct IndexWriter {
     _directory_lock: Option<DirectoryLock>,
 
     index: Index,
+
+    segment_registers: Arc<RwLock<SegmentRegisters>>,
 
     heap_size_in_bytes_per_thread: usize,
 
@@ -134,7 +138,6 @@ fn compute_deleted_bitset(
 /// For instance, there was no delete operation between the state of the `segment_entry` and
 /// the `target_opstamp`, `segment_entry` is not updated.
 pub(crate) fn advance_deletes(
-    mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: Opstamp,
 ) -> crate::Result<()> {
@@ -143,25 +146,33 @@ pub(crate) fn advance_deletes(
         return Ok(());
     }
 
-    if segment_entry.delete_bitset().is_none() && segment_entry.delete_cursor().get().is_none() {
+    let delete_bitset_opt = segment_entry.take_delete_bitset();
+
+    // We avoid directly advancing the `SegmentEntry` delete cursor, because
+    // we do not want to end up in an invalid state if the delete bitset
+    // serialization fails.
+    let mut delete_cursor = segment_entry.delete_cursor();
+
+    if delete_bitset_opt.is_none() && segment_entry.delete_cursor().get().is_none() {
         // There has been no `DeleteOperation` between the segment status and `target_opstamp`.
         return Ok(());
     }
 
+    // We open our current serialized segment to compute the new deleted bitset.
+    let segment = segment_entry.segment().clone();
     let segment_reader = SegmentReader::open(&segment)?;
 
     let max_doc = segment_reader.max_doc();
-    let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
-        Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
-        None => BitSet::with_max_value(max_doc),
-    };
+
+    let mut delete_bitset: BitSet =
+        delete_bitset_opt.unwrap_or_else(|| BitSet::with_max_value(max_doc));
 
     let num_deleted_docs_before = segment.meta().num_deleted_docs();
 
     compute_deleted_bitset(
         &mut delete_bitset,
         &segment_reader,
-        segment_entry.delete_cursor(),
+        &mut delete_cursor,
         &DocToOpstampMapping::None,
         target_opstamp,
     )?;
@@ -180,13 +191,18 @@ pub(crate) fn advance_deletes(
     let num_deleted_docs: u32 = delete_bitset.len() as u32;
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
-        segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-        let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
+        let mut delete_file = segment
+            .with_delete_meta(num_deleted_docs as u32, target_opstamp)
+            .open_write(SegmentComponent::DELETE)?;
         write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
         delete_file.terminate()?;
+        segment_entry.reset_delete_meta(num_deleted_docs as u32, target_opstamp);
     }
 
-    segment_entry.set_meta(segment.meta().clone());
+    // Regardless of whether we did end up having to write a new file or not
+    // we advance the `delete_cursor`. This is an optimisation. We want to ensure we do not
+    // check that a given deleted term does not match any of our docs more than once.
+    segment_entry.set_delete_cursor(delete_cursor);
     Ok(())
 }
 
@@ -240,7 +256,7 @@ fn index_documents(
     )?;
 
     let segment_entry = SegmentEntry::new(
-        segment_with_max_doc.meta().clone(),
+        segment_with_max_doc,
         delete_cursor,
         delete_bitset_opt,
     );
@@ -317,10 +333,20 @@ impl IndexWriter {
 
         let current_opstamp = index.load_metas()?.opstamp;
 
+        let meta = index.load_metas()?;
+
         let stamper = Stamper::new(current_opstamp);
 
+        let commited_segments = SegmentRegister::new(
+            index.directory(),
+            &index.schema(),
+            meta.segments,
+            &delete_queue.cursor(),
+        );
+        let segment_registers = Arc::new(RwLock::new(SegmentRegisters::new(commited_segments)));
+
         let segment_updater =
-            SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+            SegmentUpdater::create(segment_registers.clone(), index.clone(), stamper.clone())?;
 
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
@@ -342,6 +368,7 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
+            segment_registers
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -379,13 +406,6 @@ impl IndexWriter {
         }
 
         result
-    }
-
-    #[doc(hidden)]
-    pub fn add_segment(&self, segment_meta: SegmentMeta) -> crate::Result<()> {
-        let delete_cursor = self.delete_queue.cursor();
-        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-        block_on(self.segment_updater.schedule_add_segment(segment_entry))
     }
 
     /// Creates a new segment.

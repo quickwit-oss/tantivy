@@ -2,15 +2,15 @@ use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::error::TantivyError;
-use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::sync::RwLock;
+use std::sync::{RwLock, Arc};
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
+use crate::Segment;
 
 #[derive(Default)]
-struct SegmentRegisters {
+pub(crate) struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
 }
@@ -22,6 +22,18 @@ pub(crate) enum SegmentsStatus {
 }
 
 impl SegmentRegisters {
+
+
+    pub fn new(committed: SegmentRegister) -> SegmentRegisters {
+        SegmentRegisters {
+            uncommitted: Default::default(),
+            committed,
+        }
+    }
+
+    pub fn committed_segment(&self) -> Vec<Segment> {
+        self.committed.segments()
+    }
     /// Check if all the segments are committed or uncommited.
     ///
     /// If some segment is missing or segments are in a different state (this should not happen
@@ -44,7 +56,7 @@ impl SegmentRegisters {
 /// changes (merges especially)
 #[derive(Default)]
 pub struct SegmentManager {
-    registers: RwLock<SegmentRegisters>,
+    registers: Arc<RwLock<SegmentRegisters>>,
 }
 
 impl Debug for SegmentManager {
@@ -74,15 +86,11 @@ pub fn get_mergeable_segments(
 }
 
 impl SegmentManager {
-    pub fn from_segments(
-        segment_metas: Vec<SegmentMeta>,
-        delete_cursor: &DeleteCursor,
-    ) -> SegmentManager {
+
+
+    pub(crate) fn new(registers: Arc<RwLock<SegmentRegisters>>) -> SegmentManager {
         SegmentManager {
-            registers: RwLock::new(SegmentRegisters {
-                uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas, delete_cursor),
-            }),
+            registers
         }
     }
 

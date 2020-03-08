@@ -63,15 +63,19 @@ impl SpillingWriter {
     }
 
     pub fn flush_and_finalize(self) -> io::Result<()> {
-        if let SpillingState::Buffer {
-            buffer,
-            write_factory,
-            ..
-        } = self.state.expect("State cannot be none") {
-            let mut wrt = write_factory()?;
-            wrt.write_all(&buffer[..])?;
-            wrt.flush()?;
-            wrt.terminate()?;
+        match self.state.expect("State cannot be none") {
+            SpillingState::Buffer {
+                buffer,
+                write_factory,
+                ..
+            } => {
+                let mut wrt = write_factory()?;
+                wrt.write_all(&buffer[..])?;
+                wrt.terminate()?;
+            }
+            SpillingState::Spilled(wrt) => {
+                wrt.terminate()?;
+            }
         }
         Ok(())
     }

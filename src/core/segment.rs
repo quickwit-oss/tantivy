@@ -107,6 +107,7 @@ impl Segment {
         Ok(())
     }
 
+
     /// Returns our index's schema.
     pub fn schema(&self) -> Schema {
         self.schema.clone()

@@ -1,4 +1,5 @@
 use crate::common::MAX_DOC_LIMIT;
+use crate::directory::TerminatingWrite;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
@@ -674,7 +675,8 @@ impl IndexMerger {
                 store_writer.stack(&store_reader)?;
             }
         }
-        store_writer.close()?;
+        let store_wrt = store_writer.close()?;
+        store_wrt.terminate()?;
         Ok(())
     }
 }

@@ -100,6 +100,8 @@ impl<W: io::Write> StoreWriter<W> {
     ///
     /// Compress the last unfinished block if any,
     /// and serializes the skip list index on disc.
+    ///
+    /// The returned writer is not flushed.
     pub fn close(mut self) -> io::Result<W> {
         if !self.current_block.is_empty() {
             self.write_and_compress_block()?;
@@ -108,7 +110,6 @@ impl<W: io::Write> StoreWriter<W> {
         self.offset_index_writer.write(&mut self.writer)?;
         header_offset.serialize(&mut self.writer)?;
         self.doc.serialize(&mut self.writer)?;
-        self.writer.flush()?;
         let (wrt, _) = self.writer.finish()?;
         Ok(wrt)
 

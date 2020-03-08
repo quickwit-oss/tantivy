@@ -3,6 +3,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::indexer::delete_queue::DeleteCursor;
 use std::fmt;
+use crate::{Segment, Opstamp};
 
 /// A segment entry describes the state of
 /// a given segment, at a given instant.
@@ -19,7 +20,7 @@ use std::fmt;
 /// in the .del file or in the `delete_bitset`.
 #[derive(Clone)]
 pub struct SegmentEntry {
-    meta: SegmentMeta,
+    segment: Segment,
     delete_bitset: Option<BitSet>,
     delete_cursor: DeleteCursor,
 }
@@ -27,12 +28,12 @@ pub struct SegmentEntry {
 impl SegmentEntry {
     /// Create a new `SegmentEntry`
     pub fn new(
-        segment_meta: SegmentMeta,
+        segment: Segment,
         delete_cursor: DeleteCursor,
         delete_bitset: Option<BitSet>,
     ) -> SegmentEntry {
         SegmentEntry {
-            meta: segment_meta,
+            segment,
             delete_bitset,
             delete_cursor,
         }
@@ -45,29 +46,52 @@ impl SegmentEntry {
         self.delete_bitset.as_ref()
     }
 
-    /// Set the `SegmentMeta` for this segment.
-    pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
-        self.meta = segment_meta;
+
+    pub fn set_delete_cursor(&mut self, delete_cursor: DeleteCursor) {
+        self.delete_cursor = delete_cursor;
+    }
+
+    /// `Takes` (as in Option::take) the delete bitset of a segment entry.
+    /// `DocId` in this bitset are flagged as deleted.
+    pub fn take_delete_bitset(&mut self) -> Option<BitSet> {
+        self.delete_bitset.take()
+    }
+
+    /// Reset the delete information in this segment.
+    ///
+    /// The `SegmentEntry` segment's `SegmentMeta` gets updated, and
+    /// any delete bitset is drop and set to None.
+    pub fn reset_delete_meta(&mut self, num_deleted_docs: u32, target_opstamp: Opstamp) {
+        self.segment = self
+            .segment
+            .clone()
+            .with_delete_meta(num_deleted_docs, target_opstamp);
+        self.delete_bitset = None;
     }
 
     /// Return a reference to the segment_entry's delete cursor
-    pub fn delete_cursor(&mut self) -> &mut DeleteCursor {
-        &mut self.delete_cursor
+    pub fn delete_cursor(&mut self) -> DeleteCursor {
+        self.delete_cursor.clone()
     }
 
     /// Returns the segment id.
     pub fn segment_id(&self) -> SegmentId {
-        self.meta.id()
+        self.meta().id()
     }
 
+    /// Returns the `segment` associated to the `SegmentEntry`.
+    pub fn segment(&self) -> &Segment {
+        &self.segment
+    }
     /// Accessor to the `SegmentMeta`
     pub fn meta(&self) -> &SegmentMeta {
-        &self.meta
+        self.segment.meta()
     }
 }
 
+
 impl fmt::Debug for SegmentEntry {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "SegmentEntry({:?})", self.meta)
+        write!(formatter, "SegmentEntry({:?})", self.meta())
     }
 }
