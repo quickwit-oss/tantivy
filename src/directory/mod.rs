@@ -13,6 +13,7 @@ mod footer;
 mod managed_directory;
 mod ram_directory;
 mod read_only_source;
+mod spilling_writer;
 mod watch_event_router;
 
 /// Errors specific to the directory module.
@@ -22,6 +23,7 @@ pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RAMDirectory;
+pub(crate) use self::spilling_writer::SpillingWriter;
 pub use self::read_only_source::ReadOnlySource;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io::{self, BufWriter, Write};
@@ -79,10 +81,16 @@ impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
     }
 }
 
+impl TerminatingWrite for Vec<u8> {
+    fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 impl<'a> TerminatingWrite for &'a mut Vec<u8> {
     fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
-        self.flush()
+        Ok(())
     }
 }
 
