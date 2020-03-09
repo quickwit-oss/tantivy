@@ -18,7 +18,7 @@ use crate::indexer::SegmentSerializer;
 use crate::indexer::{DefaultMergePolicy, MergePolicy};
 use crate::indexer::{MergeCandidate, MergeOperation};
 use crate::schema::Schema;
-use crate::Opstamp;
+use crate::{Opstamp, SegmentComponent};
 use futures::channel::oneshot;
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use futures::future::Future;
@@ -134,8 +134,10 @@ fn merge(
     // ... we just serialize this index merger in our new segment to merge the two segments.
     let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)?;
 
-    let num_docs = merger.write(segment_serializer)?;
+    let store_wrt = merged_segment.open_write(SegmentComponent::STORE)?;
+    merger.write_storable_fields(store_wrt)?;
 
+    let num_docs = merger.write(segment_serializer)?;
     let segment_meta = index.new_segment_meta(merged_segment.id(), num_docs);
 
     Ok(SegmentEntry::new(segment_meta, delete_cursor, None))

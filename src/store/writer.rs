@@ -3,8 +3,6 @@ use super::skiplist::SkipListBuilder;
 use super::StoreReader;
 use crate::common::CountingWriter;
 use crate::common::{BinarySerializable, VInt};
-use crate::directory::TerminatingWrite;
-use crate::directory::WritePtr;
 use crate::schema::Document;
 use crate::DocId;
 use std::io::{self, Write};
@@ -19,20 +17,20 @@ const BLOCK_SIZE: usize = 16_384;
 ///
 /// The skip list index on the other hand, is built in memory.
 ///
-pub struct StoreWriter {
+pub struct StoreWriter<W: io::Write> {
     doc: DocId,
     offset_index_writer: SkipListBuilder<u64>,
-    writer: CountingWriter<WritePtr>,
+    writer: CountingWriter<W>,
     intermediary_buffer: Vec<u8>,
     current_block: Vec<u8>,
 }
 
-impl StoreWriter {
+impl<W: io::Write> StoreWriter<W> {
     /// Create a store writer.
     ///
     /// The store writer will writes blocks on disc as
     /// document are added.
-    pub fn new(writer: WritePtr) -> StoreWriter {
+    pub fn new(writer: W) -> StoreWriter<W> {
         StoreWriter {
             doc: 0,
             offset_index_writer: SkipListBuilder::new(4),
@@ -102,7 +100,7 @@ impl StoreWriter {
     ///
     /// Compress the last unfinished block if any,
     /// and serializes the skip list index on disc.
-    pub fn close(mut self) -> io::Result<()> {
+    pub fn close(mut self) -> io::Result<W> {
         if !self.current_block.is_empty() {
             self.write_and_compress_block()?;
         }
@@ -110,6 +108,9 @@ impl StoreWriter {
         self.offset_index_writer.write(&mut self.writer)?;
         header_offset.serialize(&mut self.writer)?;
         self.doc.serialize(&mut self.writer)?;
-        self.writer.terminate()
+        self.writer.flush()?;
+        let (wrt, _) = self.writer.finish()?;
+        Ok(wrt)
+
     }
 }

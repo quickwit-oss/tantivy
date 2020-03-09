@@ -11,13 +11,15 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
+use crate::store::StoreWriter;
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
-use crate::DocId;
 use crate::Opstamp;
+use crate::{DocId, SegmentComponent};
 use std::io;
 use std::str;
+use crate::directory::SpillingWriter;
 
 /// Computes the initial size of the hash table.
 ///
@@ -43,11 +45,12 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
 pub struct SegmentWriter {
     max_doc: DocId,
     multifield_postings: MultiFieldPostingsWriter,
-    segment_serializer: SegmentSerializer,
+    segment: Segment,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
+    store_writer: StoreWriter<SpillingWriter>,
 }
 
 impl SegmentWriter {
@@ -62,11 +65,10 @@ impl SegmentWriter {
     /// - schema
     pub fn for_segment(
         memory_budget: usize,
-        mut segment: Segment,
+        segment: Segment,
         schema: &Schema,
     ) -> crate::Result<SegmentWriter> {
         let table_num_bits = initial_table_size(memory_budget)?;
-        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()
@@ -82,14 +84,22 @@ impl SegmentWriter {
                 },
             )
             .collect();
+        let mut segment_clone = segment.clone();
+        let spilling_wrt = SpillingWriter::new(1_000, Box::new(move || {
+            segment_clone
+                .open_write(SegmentComponent::STORE)
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        }));
+        let store_writer = StoreWriter::new(spilling_wrt);
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
             fieldnorms_writer: FieldNormsWriter::for_schema(schema),
-            segment_serializer,
+            segment,
             fast_field_writers: FastFieldsWriter::from_schema(schema),
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
+            store_writer,
         })
     }
 
@@ -99,11 +109,14 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        let spilling_wrt = self.store_writer.close()?;
+        spilling_wrt.flush_and_finalize()?;
+        let segment_serializer = SegmentSerializer::for_segment(&mut self.segment)?;
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
-            self.segment_serializer,
+            segment_serializer,
         )?;
         Ok(self.doc_opstamps)
     }
@@ -246,8 +259,7 @@ impl SegmentWriter {
         }
         doc.filter_fields(|field| schema.get_field_entry(field).is_stored());
         doc.prepare_for_store();
-        let doc_writer = self.segment_serializer.get_store_writer();
-        doc_writer.store(&doc)?;
+        self.store_writer.store(&doc)?;
         self.max_doc += 1;
         Ok(())
     }

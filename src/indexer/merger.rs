@@ -2,6 +2,7 @@ use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
+use crate::directory::WritePtr;
 use crate::docset::DocSet;
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
@@ -661,7 +662,8 @@ impl IndexMerger {
         Ok(term_ordinal_mappings)
     }
 
-    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> crate::Result<()> {
+    pub fn write_storable_fields(&self, store_wrt: WritePtr) -> crate::Result<()> {
+        let mut store_writer = StoreWriter::new(store_wrt);
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
             if reader.num_deleted_docs() > 0 {
@@ -673,6 +675,7 @@ impl IndexMerger {
                 store_writer.stack(&store_reader)?;
             }
         }
+        store_writer.close()?;
         Ok(())
     }
 }
@@ -682,7 +685,6 @@ impl SerializableSegment for IndexMerger {
         let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
         self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
         self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;
-        self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
         Ok(self.max_doc)
     }
