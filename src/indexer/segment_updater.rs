@@ -328,10 +328,17 @@ impl SegmentUpdater {
         &self,
         opstamp: Opstamp,
         payload: Option<String>,
+        soft_commit: bool,
     ) -> impl Future<Output = crate::Result<()>> {
         let segment_updater: SegmentUpdater = self.clone();
+        let directory = self.index.directory().clone();
         self.schedule_future(async move {
-            let segment_entries = segment_updater.purge_deletes(opstamp)?;
+            let mut segment_entries = segment_updater.purge_deletes(opstamp)?;
+            if !soft_commit {
+                for segment_entry in &mut segment_entries {
+                    segment_entry.persist(directory.clone())?;
+                }
+            }
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload)?;
             let _ = garbage_collect_files(segment_updater.clone()).await;
@@ -471,7 +478,7 @@ impl SegmentUpdater {
         let end_merge_future = self.schedule_future(async move {
             info!("End merge {:?}", after_merge_segment_entry.meta());
             {
-                let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+                let mut delete_cursor = after_merge_segment_entry.delete_cursor();
                 if let Some(delete_operation) = delete_cursor.get() {
                     let committed_opstamp = segment_updater.load_metas().opstamp;
                     if delete_operation.opstamp < committed_opstamp {

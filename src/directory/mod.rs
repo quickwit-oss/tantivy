@@ -23,7 +23,7 @@ pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RAMDirectory;
-pub(crate) use self::spilling_writer::SpillingWriter;
+pub(crate) use self::spilling_writer::{SpillingWriter, SpillingResult};
 pub use self::read_only_source::ReadOnlySource;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io::{self, BufWriter, Write};

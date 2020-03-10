@@ -34,6 +34,7 @@ impl SegmentRegisters {
     pub fn committed_segment(&self) -> Vec<Segment> {
         self.committed.segments()
     }
+
     /// Check if all the segments are committed or uncommited.
     ///
     /// If some segment is missing or segments are in a different state (this should not happen

@@ -19,7 +19,8 @@ use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 use std::io;
 use std::str;
-use crate::directory::SpillingWriter;
+use crate::directory::{SpillingWriter, SpillingResult, TerminatingWrite};
+use std::io::Write;
 
 /// Computes the initial size of the hash table.
 ///
@@ -111,7 +112,25 @@ impl SegmentWriter {
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         let spilling_wrt = self.store_writer.close()?;
-        spilling_wrt.flush_and_finalize()?;
+        let mut segment: Segment;
+        match spilling_wrt.finalize()? {
+            SpillingResult::Spilled => {
+                segment = self.segment.clone();
+            }
+            SpillingResult::Buffer(buf) => {
+                let mut store_wrt = self.segment.open_write(SegmentComponent::STORE)?;
+                store_wrt.write_all(&buf[..])?;
+                store_wrt.terminate()?;
+                segment = self.segment.clone();
+                // TODO fix volatile branch
+                /*
+                segment = self.segment.into_volatile();
+                let mut store_wrt = segment.open_write(SegmentComponent::STORE)?;
+                store_wrt.write_all(&buf[..])?;
+                store_wrt.terminate()?;
+                */
+            }
+        }
         let segment_serializer = SegmentSerializer::for_segment(&mut self.segment)?;
         write(
             &self.multifield_postings,

@@ -4,6 +4,7 @@ use crate::core::SegmentMeta;
 use crate::indexer::delete_queue::DeleteCursor;
 use std::fmt;
 use crate::{Segment, Opstamp};
+use crate::directory::ManagedDirectory;
 
 /// A segment entry describes the state of
 /// a given segment, at a given instant.
@@ -37,6 +38,12 @@ impl SegmentEntry {
             delete_bitset,
             delete_cursor,
         }
+    }
+
+    pub fn persist(&mut self, dest_directory: ManagedDirectory) -> crate::Result<()> {
+        // TODO take in account delete bitset?
+        self.segment.persist(dest_directory)?;
+        Ok(())
     }
 
     /// Return a reference to the segment entry deleted bitset.

@@ -107,6 +107,9 @@ impl Segment {
         Ok(())
     }
 
+    pub fn into_volatile(&self) -> Segment {
+        Segment::new_volatile(self.meta.clone(), self.schema.clone())
+    }
 
     /// Returns our index's schema.
     pub fn schema(&self) -> Schema {

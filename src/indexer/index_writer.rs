@@ -632,7 +632,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self, soft_commit: bool) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -660,7 +660,7 @@ impl IndexWriter {
         }
 
         let commit_opstamp = self.stamper.stamp();
-        let prepared_commit = PreparedCommit::new(self, commit_opstamp);
+        let prepared_commit = PreparedCommit::new(self, commit_opstamp, soft_commit);
         info!("Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
@@ -680,7 +680,7 @@ impl IndexWriter {
     /// that made it in the commit.
     ///
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
-        self.prepare_commit()?.commit()
+        self.prepare_commit(false)?.commit()
     }
 
     pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
@@ -1078,7 +1078,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
+                let mut prepared_commit = index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.commit().expect("commit failed");
             }
@@ -1111,7 +1111,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
+                let mut prepared_commit = index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.abort().expect("commit failed");
             }

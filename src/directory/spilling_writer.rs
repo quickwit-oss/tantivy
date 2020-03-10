@@ -1,7 +1,7 @@
 use crate::directory::{WritePtr, TerminatingWrite};
 use std::io::{self, Write};
 
-enum SpillingState {
+pub enum SpillingState {
     Buffer {
         buffer: Vec<u8>,
         capacity: usize,
@@ -83,7 +83,7 @@ impl SpillingWriter {
     pub fn finalize(self) -> io::Result<SpillingResult> {
         match self.state.expect("state cannot be None") {
             SpillingState::Spilled(mut wrt) => {
-                wrt.flush()?;
+                wrt.terminate()?;
                 Ok(SpillingResult::Spilled)
             }
             SpillingState::Buffer { buffer, .. } => Ok(SpillingResult::Buffer(buffer)),

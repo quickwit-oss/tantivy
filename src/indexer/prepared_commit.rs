@@ -7,14 +7,16 @@ pub struct PreparedCommit<'a> {
     index_writer: &'a mut IndexWriter,
     payload: Option<String>,
     opstamp: Opstamp,
+    soft_commit: bool
 }
 
 impl<'a> PreparedCommit<'a> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp) -> PreparedCommit<'_> {
+    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp, soft_commit: bool) -> PreparedCommit<'_> {
         PreparedCommit {
             index_writer,
             payload: None,
             opstamp,
+            soft_commit
         }
     }
 
@@ -35,7 +37,7 @@ impl<'a> PreparedCommit<'a> {
         let _ = block_on(
             self.index_writer
                 .segment_updater()
-                .schedule_commit(self.opstamp, self.payload),
+                .schedule_commit(self.opstamp, self.payload, self.soft_commit),
         );
         Ok(self.opstamp)
     }
