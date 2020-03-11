@@ -1,5 +1,4 @@
 use super::operation::{AddOperation, UserOperation};
-use crate::indexer::segment_manager::SegmentRegisters;
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use crate::common::BitSet;
@@ -9,23 +8,26 @@ use crate::core::SegmentComponent;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::SegmentReader;
-use crate::directory::TerminatingWrite;
 use crate::directory::{DirectoryLock, GarbageCollectionResult};
+use crate::directory::{TerminatingWrite, WatchCallbackList};
 use crate::docset::DocSet;
 use crate::error::TantivyError;
 use crate::fastfield::write_delete_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::operation::DeleteOperation;
+use crate::indexer::segment_manager::SegmentRegisters;
+use crate::indexer::segment_register::SegmentRegister;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::MergePolicy;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentWriter;
+use crate::reader::NRTReader;
 use crate::schema::Document;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::tokenizer::TokenizerManager;
-use crate::Opstamp;
+use crate::{IndexReader, Opstamp};
 use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
@@ -36,7 +38,6 @@ use std::ops::Range;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
-use crate::indexer::segment_register::SegmentRegister;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -92,6 +93,8 @@ pub struct IndexWriter {
 
     stamper: Stamper,
     committed_opstamp: Opstamp,
+
+    on_commit: WatchCallbackList,
 }
 
 fn compute_deleted_bitset(
@@ -217,7 +220,7 @@ fn index_documents(
     let schema = segment.schema();
 
     let mut segment_writer =
-        SegmentWriter::for_segment(memory_budget, segment.clone(), &schema, tokenizers)?;
+        SegmentWriter::for_segment(memory_budget, segment, &schema, tokenizers)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
@@ -242,24 +245,14 @@ fn index_documents(
     // the worker thread.
     assert!(max_doc > 0);
 
-    let doc_opstamps: Vec<Opstamp> = segment_writer.finalize()?;
-
-    let segment_with_max_doc = segment.with_max_doc(max_doc);
+    let (segment, doc_opstamps): (Segment, Vec<Opstamp>) = segment_writer.finalize()?;
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
 
-    let delete_bitset_opt = apply_deletes(
-        &segment_with_max_doc,
-        &mut delete_cursor,
-        &doc_opstamps,
-        last_docstamp,
-    )?;
+    let delete_bitset_opt =
+        apply_deletes(&segment, &mut delete_cursor, &doc_opstamps, last_docstamp)?;
 
-    let segment_entry = SegmentEntry::new(
-        segment_with_max_doc,
-        delete_cursor,
-        delete_bitset_opt,
-    );
+    let segment_entry = SegmentEntry::new(segment, delete_cursor, delete_bitset_opt);
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
     Ok(true)
 }
@@ -368,7 +361,8 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
-            segment_registers
+            segment_registers,
+            on_commit: Default::default(),
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -681,6 +675,24 @@ impl IndexWriter {
     ///
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
         self.prepare_commit(false)?.commit()
+    }
+
+    pub fn soft_commit(&mut self) -> crate::Result<Opstamp> {
+        self.prepare_commit(true)?.commit()
+    }
+
+    pub(crate) fn trigger_commit(&self) -> impl Future<Output = ()> {
+        self.on_commit.broadcast()
+    }
+
+    pub fn reader(&self, num_searchers: usize) -> crate::Result<IndexReader> {
+        let nrt_reader = NRTReader::create(
+            num_searchers,
+            self.index.clone(),
+            self.segment_registers.clone(),
+            &self.on_commit,
+        )?;
+        Ok(IndexReader::NRT(nrt_reader))
     }
 
     pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
@@ -1078,7 +1090,8 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit(false).expect("commit failed");
+                let mut prepared_commit =
+                    index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.commit().expect("commit failed");
             }
@@ -1111,7 +1124,8 @@ mod tests {
                 index_writer.add_document(doc!(text_field => "a"));
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit(false).expect("commit failed");
+                let mut prepared_commit =
+                    index_writer.prepare_commit(false).expect("commit failed");
                 prepared_commit.set_payload("first commit");
                 prepared_commit.abort().expect("commit failed");
             }
@@ -1288,5 +1302,42 @@ mod tests {
         index_writer.add_document(doc!(idfield=>"myid"));
         let commit = index_writer.commit();
         assert!(commit.is_ok());
+    }
+
+    #[test]
+    fn test_index_writer_reader() {
+        let mut schema_builder = schema::Schema::builder();
+        let idfield = schema_builder.add_text_field("id", STRING);
+        schema_builder.add_text_field("optfield", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.commit().is_ok());
+        let reader = index_writer.reader(2).unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 1u64);
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.commit().is_ok());
+        assert_eq!(reader.searcher().num_docs(), 2u64);
+        assert_eq!(searcher.num_docs(), 1u64);
+    }
+
+    #[test]
+    fn test_index_writer_reader_soft_commit() {
+        let mut schema_builder = schema::Schema::builder();
+        let idfield = schema_builder.add_text_field("id", STRING);
+        schema_builder.add_text_field("optfield", STRING);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(idfield=>"myid"));
+        assert!(index_writer.soft_commit().is_ok());
+        let nrt_reader = index_writer.reader(2).unwrap();
+        let normal_reader = index.reader_builder().try_into().unwrap();
+        assert_eq!(nrt_reader.searcher().num_docs(), 1u64);
+        assert_eq!(normal_reader.searcher().num_docs(), 0u64);
+        assert!(index_writer.commit().is_ok());
+        assert!(normal_reader.reload().is_ok());
+        assert_eq!(nrt_reader.searcher().num_docs(), 1u64);
+        assert_eq!(normal_reader.searcher().num_docs(), 1u64);
     }
 }

@@ -220,10 +220,12 @@ pub(crate) mod test {
         assert_eq!(minmax(vals.into_iter()), None);
     }
 
+    #[test]
     fn test_minmax_one() {
-        assert_eq!(minmax(vec![1].into_iter()), None);
+        assert_eq!(minmax(vec![1].into_iter()), Some((1, 1)));
     }
 
+    #[test]
     fn test_minmax_two() {
         assert_eq!(minmax(vec![1, 2].into_iter()), Some((1, 2)));
         assert_eq!(minmax(vec![2, 1].into_iter()), Some((1, 2)));

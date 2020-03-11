@@ -1,8 +1,8 @@
 use crate::common::MAX_DOC_LIMIT;
-use crate::directory::TerminatingWrite;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
+use crate::directory::TerminatingWrite;
 use crate::directory::WritePtr;
 use crate::docset::DocSet;
 use crate::fastfield::BytesFastFieldReader;

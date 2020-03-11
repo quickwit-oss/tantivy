@@ -216,12 +216,15 @@ pub mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
-        let segment = index.new_segment();
 
-        {
-            let mut segment_writer =
-                SegmentWriter::for_segment(3_000_000, segment.clone(), &schema, index.tokenizers())
-                    .unwrap();
+        let segment = {
+            let mut segment_writer = SegmentWriter::for_segment(
+                3_000_000,
+                index.new_segment(),
+                &schema,
+                index.tokenizers(),
+            )
+            .unwrap();
             {
                 let mut doc = Document::default();
                 // checking that position works if the field has two values
@@ -253,8 +256,9 @@ pub mod tests {
                 };
                 segment_writer.add_document(op, &schema).unwrap();
             }
-            segment_writer.finalize().unwrap();
-        }
+            let (segment, _) = segment_writer.finalize().unwrap();
+            segment
+        };
         {
             let segment_reader = SegmentReader::open(&segment).unwrap();
             {

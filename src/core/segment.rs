@@ -18,6 +18,16 @@ pub(crate) enum SegmentDirectory {
     Volatile(RAMDirectory),
 }
 
+impl fmt::Debug for SegmentDirectory {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SegmentDirectory::Volatile(_) => write!(f, "volatile")?,
+            SegmentDirectory::Persisted(dir) => write!(f, "Persisted({:?})", dir)?,
+        }
+        Ok(())
+    }
+}
+
 impl SegmentDirectory {
     pub fn new_volatile() -> SegmentDirectory {
         SegmentDirectory::Volatile(RAMDirectory::default())
@@ -60,7 +70,12 @@ pub struct Segment {
 
 impl fmt::Debug for Segment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Segment({:?})", self.id().uuid_string())
+        write!(
+            f,
+            "Segment(id={:?}, directory={:?})",
+            self.id().uuid_string(),
+            self.directory
+        )
     }
 }
 

@@ -10,7 +10,7 @@ use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
-use crate::indexer::segment_manager::{SegmentsStatus, SegmentRegisters};
+use crate::indexer::segment_manager::{SegmentRegisters, SegmentsStatus};
 use crate::indexer::stamper::Stamper;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentSerializer;
@@ -116,14 +116,14 @@ fn merge(
 
     // First we apply all of the delet to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
-            advance_deletes( segment_entry, target_opstamp)?;
+        advance_deletes(segment_entry, target_opstamp)?;
     }
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
     let segments: Vec<Segment> = segment_entries
         .iter()
-        .map(|segment_entry| index.segment(segment_entry.meta().clone()))
+        .map(|segment_entry| segment_entry.segment().clone())
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
@@ -137,7 +137,11 @@ fn merge(
 
     let max_doc = merger.write(segment_serializer)?;
 
-    Ok(SegmentEntry::new(merged_segment.with_max_doc(max_doc), delete_cursor, None))
+    Ok(SegmentEntry::new(
+        merged_segment.with_max_doc(max_doc),
+        delete_cursor,
+        None,
+    ))
 }
 
 pub(crate) struct InnerSegmentUpdater {
@@ -163,7 +167,7 @@ impl SegmentUpdater {
     pub fn create(
         segment_registers: Arc<RwLock<SegmentRegisters>>,
         index: Index,
-        stamper: Stamper
+        stamper: Stamper,
     ) -> crate::Result<SegmentUpdater> {
         let segment_manager = SegmentManager::new(segment_registers);
         let pool = ThreadPoolBuilder::new()
@@ -340,7 +344,9 @@ impl SegmentUpdater {
                 }
             }
             segment_updater.segment_manager.commit(segment_entries);
-            segment_updater.save_metas(opstamp, payload)?;
+            if !soft_commit {
+                segment_updater.save_metas(opstamp, payload)?;
+            }
             let _ = garbage_collect_files(segment_updater.clone()).await;
             segment_updater.consider_merge_options().await;
             Ok(())
@@ -482,10 +488,9 @@ impl SegmentUpdater {
                 if let Some(delete_operation) = delete_cursor.get() {
                     let committed_opstamp = segment_updater.load_metas().opstamp;
                     if delete_operation.opstamp < committed_opstamp {
-                        if let Err(e) = advance_deletes(
-                            &mut after_merge_segment_entry,
-                            committed_opstamp,
-                        ) {
+                        if let Err(e) =
+                            advance_deletes(&mut after_merge_segment_entry, committed_opstamp)
+                        {
                             error!(
                                 "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
                                 merge_operation.segment_ids(),
@@ -545,7 +550,8 @@ mod tests {
 
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::schema::*;
-    use crate::Index;
+    use crate::{Index, SegmentId};
+    use futures::executor::block_on;
 
     #[test]
     fn test_delete_during_merge() {
@@ -695,5 +701,28 @@ mod tests {
             .segment_manager
             .segment_entries();
         assert!(seg_vec.is_empty());
+    }
+
+    #[test]
+    fn test_merge_over_soft_commit() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"));
+        assert!(index_writer.soft_commit().is_ok());
+        index_writer.add_document(doc!(text_field=>"a"));
+        assert!(index_writer.soft_commit().is_ok());
+
+        let reader = index_writer.reader(1).unwrap();
+        let segment_ids: Vec<SegmentId> = reader
+            .searcher()
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
     }
 }

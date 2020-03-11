@@ -1,4 +1,4 @@
-use crate::directory::{WritePtr, TerminatingWrite};
+use crate::directory::{TerminatingWrite, WritePtr};
 use std::io::{self, Write};
 
 pub enum SpillingState {
@@ -11,7 +11,6 @@ pub enum SpillingState {
 }
 
 impl SpillingState {
-
     fn new(
         limit: usize,
         write_factory: Box<dyn FnOnce() -> io::Result<WritePtr>>,
@@ -57,37 +56,16 @@ impl SpillingWriter {
         write_factory: Box<dyn FnOnce() -> io::Result<WritePtr>>,
     ) -> SpillingWriter {
         let state = SpillingState::new(limit, write_factory);
-        SpillingWriter {
-            state: Some(state)
-        }
-    }
-
-    pub fn flush_and_finalize(self) -> io::Result<()> {
-        match self.state.expect("State cannot be none") {
-            SpillingState::Buffer {
-                buffer,
-                write_factory,
-                ..
-            } => {
-                let mut wrt = write_factory()?;
-                wrt.write_all(&buffer[..])?;
-                wrt.terminate()?;
-            }
-            SpillingState::Spilled(wrt) => {
-                wrt.terminate()?;
-            }
-        }
-        Ok(())
+        SpillingWriter { state: Some(state) }
     }
 
     pub fn finalize(self) -> io::Result<SpillingResult> {
         match self.state.expect("state cannot be None") {
-            SpillingState::Spilled(mut wrt) => {
+            SpillingState::Spilled(wrt) => {
                 wrt.terminate()?;
                 Ok(SpillingResult::Spilled)
             }
             SpillingState::Buffer { buffer, .. } => Ok(SpillingResult::Buffer(buffer)),
-
         }
     }
 }
@@ -111,20 +89,18 @@ impl io::Write for SpillingWriter {
     }
 
     fn write_all(&mut self, payload: &[u8]) -> io::Result<()> {
-        let state_opt: Option<io::Result<SpillingState>> =  self.state
-            .take()
-            .map(|mut state| {
-                state = state.reserve(payload.len())?;
-                match &mut state {
-                    SpillingState::Buffer { buffer, .. } => {
-                        buffer.extend_from_slice(payload);
-                    }
-                    SpillingState::Spilled(wrt) => {
-                        wrt.write_all(payload)?;
-                    }
+        let state_opt: Option<io::Result<SpillingState>> = self.state.take().map(|mut state| {
+            state = state.reserve(payload.len())?;
+            match &mut state {
+                SpillingState::Buffer { buffer, .. } => {
+                    buffer.extend_from_slice(payload);
                 }
-                Ok(state)
-            });
+                SpillingState::Spilled(wrt) => {
+                    wrt.write_all(payload)?;
+                }
+            }
+            Ok(state)
+        });
         self.state = state_opt.transpose()?;
         Ok(())
     }

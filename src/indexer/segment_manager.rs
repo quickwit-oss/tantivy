@@ -3,11 +3,11 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::error::TantivyError;
 use crate::indexer::SegmentEntry;
+use crate::Segment;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
-use crate::Segment;
 
 #[derive(Default)]
 pub(crate) struct SegmentRegisters {
@@ -22,8 +22,6 @@ pub(crate) enum SegmentsStatus {
 }
 
 impl SegmentRegisters {
-
-
     pub fn new(committed: SegmentRegister) -> SegmentRegisters {
         SegmentRegisters {
             uncommitted: Default::default(),
@@ -87,12 +85,8 @@ pub fn get_mergeable_segments(
 }
 
 impl SegmentManager {
-
-
     pub(crate) fn new(registers: Arc<RwLock<SegmentRegisters>>) -> SegmentManager {
-        SegmentManager {
-            registers
-        }
+        SegmentManager { registers }
     }
 
     /// Returns all of the segment entries (committed or uncommitted)

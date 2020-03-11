@@ -1,10 +1,10 @@
 use crate::common::BitSet;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::indexer::delete_queue::DeleteCursor;
-use std::fmt;
-use crate::{Segment, Opstamp};
 use crate::directory::ManagedDirectory;
+use crate::indexer::delete_queue::DeleteCursor;
+use crate::{Opstamp, Segment};
+use std::fmt;
 
 /// A segment entry describes the state of
 /// a given segment, at a given instant.
@@ -45,14 +45,6 @@ impl SegmentEntry {
         self.segment.persist(dest_directory)?;
         Ok(())
     }
-
-    /// Return a reference to the segment entry deleted bitset.
-    ///
-    /// `DocId` in this bitset are flagged as deleted.
-    pub fn delete_bitset(&self) -> Option<&BitSet> {
-        self.delete_bitset.as_ref()
-    }
-
 
     pub fn set_delete_cursor(&mut self, delete_cursor: DeleteCursor) {
         self.delete_cursor = delete_cursor;
@@ -95,7 +87,6 @@ impl SegmentEntry {
         self.segment.meta()
     }
 }
-
 
 impl fmt::Debug for SegmentEntry {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

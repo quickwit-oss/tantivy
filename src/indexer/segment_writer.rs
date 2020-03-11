@@ -1,6 +1,7 @@
 use super::operation::AddOperation;
 use crate::core::Segment;
 use crate::core::SerializableSegment;
+use crate::directory::{SpillingResult, SpillingWriter, TerminatingWrite};
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -13,14 +14,13 @@ use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::store::StoreWriter;
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
-use crate::tokenizer::{TokenizerManager, FacetTokenizer, TextAnalyzer};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzer, TokenizerManager};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 use std::io;
-use std::str;
-use crate::directory::{SpillingWriter, SpillingResult, TerminatingWrite};
 use std::io::Write;
+use std::str;
 
 /// Computes the initial size of the hash table.
 ///
@@ -87,11 +87,14 @@ impl SegmentWriter {
             )
             .collect();
         let mut segment_clone = segment.clone();
-        let spilling_wrt = SpillingWriter::new(1_000, Box::new(move || {
-            segment_clone
-                .open_write(SegmentComponent::STORE)
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-        }));
+        let spilling_wrt = SpillingWriter::new(
+            1_000,
+            Box::new(move || {
+                segment_clone
+                    .open_write(SegmentComponent::STORE)
+                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+            }),
+        );
         let store_writer = StoreWriter::new(spilling_wrt);
         Ok(SegmentWriter {
             max_doc: 0,
@@ -109,7 +112,7 @@ impl SegmentWriter {
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
-    pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
+    pub fn finalize(mut self) -> crate::Result<(Segment, Vec<u64>)> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         let spilling_wrt = self.store_writer.close()?;
         let mut segment: Segment;
@@ -118,27 +121,22 @@ impl SegmentWriter {
                 segment = self.segment.clone();
             }
             SpillingResult::Buffer(buf) => {
-                let mut store_wrt = self.segment.open_write(SegmentComponent::STORE)?;
-                store_wrt.write_all(&buf[..])?;
-                store_wrt.terminate()?;
-                segment = self.segment.clone();
                 // TODO fix volatile branch
-                /*
                 segment = self.segment.into_volatile();
                 let mut store_wrt = segment.open_write(SegmentComponent::STORE)?;
                 store_wrt.write_all(&buf[..])?;
                 store_wrt.terminate()?;
-                */
             }
         }
-        let segment_serializer = SegmentSerializer::for_segment(&mut self.segment)?;
+        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
+        segment = segment.with_max_doc(self.max_doc);
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             segment_serializer,
         )?;
-        Ok(self.doc_opstamps)
+        Ok((segment, self.doc_opstamps))
     }
 
     pub fn mem_usage(&self) -> usize {
