@@ -450,7 +450,6 @@ mod tests {
     use crate::Index;
     use crate::IndexWriter;
     use crate::Score;
-    use itertools::Itertools;
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -524,8 +523,8 @@ mod tests {
 
         // precondition for the test to be meaningful: we did get documents
         // with the same score
-        assert!(page_1.iter().map(|result| result.0).all_equal());
-        assert!(page_2.iter().map(|result| result.0).all_equal());
+        assert!(page_1.iter().all(|result| result.0 == page_1[0].0));
+        assert!(page_2.iter().all(|result| result.0 == page_2[0].0));
 
         // sanity check since we're relying on make_index()
         assert_eq!(page_1.len(), 2);

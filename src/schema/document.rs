@@ -3,9 +3,9 @@ use crate::common::BinarySerializable;
 use crate::common::VInt;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
-use itertools::Itertools;
 use serde;
 use std::io::{self, Read, Write};
+use std::mem;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -132,12 +132,34 @@ impl Document {
     pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&FieldValue>)> {
         let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
         field_values.sort_by_key(|field_value| field_value.field());
-        field_values
-            .into_iter()
-            .group_by(|field_value| field_value.field())
-            .into_iter()
-            .map(|(key, group)| (key, group.collect()))
-            .collect::<Vec<(Field, Vec<&FieldValue>)>>()
+
+        let mut grouped_field_values = vec![];
+
+        let mut current_field;
+        let mut current_group;
+
+        let mut field_values_it = field_values.into_iter();
+        if let Some(field_value) = field_values_it.next() {
+            current_field = field_value.field();
+            current_group = vec![field_value]
+        } else {
+            return grouped_field_values;
+        }
+
+        for field_value in field_values_it {
+            if field_value.field() == current_field {
+                current_group.push(field_value);
+            } else {
+                grouped_field_values.push((
+                    current_field,
+                    mem::replace(&mut current_group, vec![field_value]),
+                ));
+                current_field = field_value.field();
+            }
+        }
+
+        grouped_field_values.push((current_field, current_group));
+        grouped_field_values
     }
 
     /// Returns all of the `FieldValue`s associated the given field

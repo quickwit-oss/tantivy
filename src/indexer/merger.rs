@@ -21,7 +21,6 @@ use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
 use crate::DocId;
-use itertools::Itertools;
 use std::cmp;
 use std::collections::HashMap;
 
@@ -70,11 +69,11 @@ fn compute_min_max_val(
             Some(delete_bitset) => {
                 // some deleted documents,
                 // we need to recompute the max / min
-                (0..max_doc)
-                    .filter(|doc_id| delete_bitset.is_alive(*doc_id))
-                    .map(|doc_id| u64_reader.get(doc_id))
-                    .minmax()
-                    .into_option()
+                crate::common::minmax(
+                    (0..max_doc)
+                        .filter(|doc_id| delete_bitset.is_alive(*doc_id))
+                        .map(|doc_id| u64_reader.get(doc_id)),
+                )
             }
             None => {
                 // no deleted documents,

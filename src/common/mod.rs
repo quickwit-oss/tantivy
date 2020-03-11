@@ -18,6 +18,19 @@ pub use byteorder::LittleEndian as Endianness;
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
+pub fn minmax<I, T>(mut vals: I) -> Option<(T, T)>
+where
+    I: Iterator<Item = T>,
+    T: Copy + Ord,
+{
+    if let Some(first_el) = vals.next() {
+        return Some(vals.fold((first_el, first_el), |(min_val, max_val), el| {
+            (min_val.min(el), max_val.max(el))
+        }));
+    }
+    None
+}
+
 /// Computes the number of bits that will be used for bitpacking.
 ///
 /// In general the target is the minimum number of bits
@@ -134,6 +147,7 @@ pub fn u64_to_f64(val: u64) -> f64 {
 #[cfg(test)]
 pub(crate) mod test {
 
+    pub use super::minmax;
     pub use super::serialize::test::fixed_size_test;
     use super::{compute_num_bits, f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
     use std::f64;
@@ -198,5 +212,20 @@ pub(crate) mod test {
         // this is the first time I write a unit test for a constant.
         assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
         assert!((super::MAX_DOC_LIMIT as i32) < 0);
+    }
+
+    #[test]
+    fn test_minmax_empty() {
+        let vals: Vec<u32> = vec![];
+        assert_eq!(minmax(vals.into_iter()), None);
+    }
+
+    fn test_minmax_one() {
+        assert_eq!(minmax(vec![1].into_iter()), None);
+    }
+
+    fn test_minmax_two() {
+        assert_eq!(minmax(vec![1, 2].into_iter()), Some((1, 2)));
+        assert_eq!(minmax(vec![2, 1].into_iter()), Some((1, 2)));
     }
 }
