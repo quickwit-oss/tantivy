@@ -469,7 +469,7 @@ mod tests {
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
-        test_index_on_commit_reload_policy_aux(field, &index, &reader);
+        test_index_on_commit_reload_policy_aux(field, index.clone(), &index, &reader);
     }
 
     #[cfg(feature = "mmap")]
@@ -493,7 +493,7 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &index, &reader);
+            test_index_on_commit_reload_policy_aux(field, index.clone(), &index, &reader);
         }
 
         #[test]
@@ -535,12 +535,16 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &write_index, &reader);
+            test_index_on_commit_reload_policy_aux(field, read_index, &write_index, &reader);
         }
     }
 
-    fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
-        let mut reader_index = reader.index();
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        mut reader_index: Index,
+        index: &Index,
+        reader: &IndexReader,
+    ) {
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _watch_handle = reader_index.directory_mut().watch(Box::new(move || {
             let _ = sender.send(());

@@ -112,6 +112,5 @@ impl<W: io::Write> StoreWriter<W> {
         self.doc.serialize(&mut self.writer)?;
         let (wrt, _) = self.writer.finish()?;
         Ok(wrt)
-
     }
 }

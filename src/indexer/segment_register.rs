@@ -1,13 +1,13 @@
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
+use crate::directory::ManagedDirectory;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::segment_entry::SegmentEntry;
+use crate::schema::Schema;
+use crate::Segment;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::{self, Debug, Formatter};
-use crate::Segment;
-use crate::directory::ManagedDirectory;
-use crate::schema::Schema;
 
 /// The segment register keeps track
 /// of the list of segment, their size as well
@@ -48,7 +48,7 @@ impl SegmentRegister {
             .map(|segment_entry| segment_entry.meta().clone())
             .collect()
     }
-    
+
     pub fn segments(&self) -> Vec<Segment> {
         self.segment_states
             .values()
