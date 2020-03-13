@@ -11,10 +11,10 @@ mod directory;
 mod directory_lock;
 mod footer;
 mod managed_directory;
+mod poll_watcher;
 mod ram_directory;
 mod read_only_source;
 mod watch_event_router;
-mod poll_watcher;
 
 /// Errors specific to the directory module.
 pub mod error;

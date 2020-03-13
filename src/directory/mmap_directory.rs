@@ -3,6 +3,7 @@ use crate::directory::error::LockError;
 use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
+use crate::directory::poll_watcher::PollWatcher;
 use crate::directory::read_only_source::BoxedData;
 use crate::directory::AntiCallToken;
 use crate::directory::Directory;
@@ -139,62 +140,62 @@ impl MmapCache {
     }
 }
 
-struct WatcherWrapper {
-    _watcher: Mutex<notify::RecommendedWatcher>,
-    watcher_router: Arc<WatchCallbackList>,
-}
+// struct WatcherWrapper {
+//     _watcher: Mutex<notify::RecommendedWatcher>,
+//     watcher_router: Arc<WatchCallbackList>,
+// }
 
-impl WatcherWrapper {
-    pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
-        let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
-        // We need to initialize the
-        let watcher = notify::raw_watcher(tx)
-            .and_then(|mut watcher| {
-                watcher.watch(path, RecursiveMode::Recursive)?;
-                Ok(watcher)
-            })
-            .map_err(|err| match err {
-                notify::Error::PathNotFound => OpenDirectoryError::DoesNotExist(path.to_owned()),
-                _ => {
-                    panic!("Unknown error while starting watching directory {:?}", path);
-                }
-            })?;
-        let watcher_router: Arc<WatchCallbackList> = Default::default();
-        let watcher_router_clone = watcher_router.clone();
-        thread::Builder::new()
-            .name("meta-file-watch-thread".to_string())
-            .spawn(move || {
-                loop {
-                    match watcher_recv.recv().map(|evt| evt.path) {
-                        Ok(Some(changed_path)) => {
-                            // ... Actually subject to false positive.
-                            // We might want to be more accurate than this at one point.
-                            if let Some(filename) = changed_path.file_name() {
-                                if filename == *META_FILEPATH {
-                                    let _ = watcher_router_clone.broadcast();
-                                }
-                            }
-                        }
-                        Ok(None) => {
-                            // not an event we are interested in.
-                        }
-                        Err(_e) => {
-                            // the watch send channel was dropped
-                            break;
-                        }
-                    }
-                }
-            })?;
-        Ok(WatcherWrapper {
-            _watcher: Mutex::new(watcher),
-            watcher_router,
-        })
-    }
+// impl WatcherWrapper {
+//     pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
+//         let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
+//         // We need to initialize the
+//         let watcher = notify::raw_watcher(tx)
+//             .and_then(|mut watcher| {
+//                 watcher.watch(path, RecursiveMode::Recursive)?;
+//                 Ok(watcher)
+//             })
+//             .map_err(|err| match err {
+//                 notify::Error::PathNotFound => OpenDirectoryError::DoesNotExist(path.to_owned()),
+//                 _ => {
+//                     panic!("Unknown error while starting watching directory {:?}", path);
+//                 }
+//             })?;
+//         let watcher_router: Arc<WatchCallbackList> = Default::default();
+//         let watcher_router_clone = watcher_router.clone();
+//         thread::Builder::new()
+//             .name("meta-file-watch-thread".to_string())
+//             .spawn(move || {
+//                 loop {
+//                     match watcher_recv.recv().map(|evt| evt.path) {
+//                         Ok(Some(changed_path)) => {
+//                             // ... Actually subject to false positive.
+//                             // We might want to be more accurate than this at one point.
+//                             if let Some(filename) = changed_path.file_name() {
+//                                 if filename == *META_FILEPATH {
+//                                     let _ = watcher_router_clone.broadcast();
+//                                 }
+//                             }
+//                         }
+//                         Ok(None) => {
+//                             // not an event we are interested in.
+//                         }
+//                         Err(_e) => {
+//                             // the watch send channel was dropped
+//                             break;
+//                         }
+//                     }
+//                 }
+//             })?;
+//         Ok(WatcherWrapper {
+//             _watcher: Mutex::new(watcher),
+//             watcher_router,
+//         })
+//     }
 
-    pub fn watch(&mut self, watch_callback: WatchCallback) -> WatchHandle {
-        self.watcher_router.subscribe(watch_callback)
-    }
-}
+//     pub fn watch(&mut self, watch_callback: WatchCallback) -> WatchHandle {
+//         self.watcher_router.subscribe(watch_callback)
+//     }
+// }
 
 /// Directory storing data in files, read via mmap.
 ///
@@ -217,7 +218,7 @@ struct MmapDirectoryInner {
     root_path: PathBuf,
     mmap_cache: RwLock<MmapCache>,
     _temp_directory: Option<TempDir>,
-    watcher: RwLock<Option<WatcherWrapper>>,
+    watcher: RwLock<Option<PollWatcher>>,
 }
 
 impl MmapDirectoryInner {
@@ -238,7 +239,7 @@ impl MmapDirectoryInner {
         // The downside is that we might create a watch wrapper that is not useful.
         let need_initialization = self.watcher.read().unwrap().is_none();
         if need_initialization {
-            let watch_wrapper = WatcherWrapper::new(&self.root_path)?;
+            let watch_wrapper = PollWatcher::new(&self.root_path)?;
             let mut watch_wlock = self.watcher.write().unwrap();
             // the watcher could have been initialized when we released the lock, and
             // we do not want to lose the watched files that were set.
@@ -630,7 +631,7 @@ mod tests {
         let counter_clone = counter.clone();
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let tmp_dirpath = tmp_dir.path().to_owned();
-        let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath).unwrap();
+        let mut watch_wrapper = PollWatcher::new(&tmp_dirpath).unwrap();
         let tmp_file = tmp_dirpath.join(*META_FILEPATH);
         let _handle = watch_wrapper.watch(Box::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
