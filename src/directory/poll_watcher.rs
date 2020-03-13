@@ -6,11 +6,26 @@ use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
+use std::fs;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
-const POLL_INTERVAL_MS: u64 = 1;
+
+const POLL_INTERVAL_MS: u64 = 10;
 
 pub struct PollWatcher {
     watcher_router: Arc<WatchCallbackList>,
+}
+
+#[derive(Hash)]
+struct State {
+    data: String,
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 impl PollWatcher {
@@ -21,10 +36,15 @@ impl PollWatcher {
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
             .spawn(move || {
-                let mut current_meta_time: u128 = Self::meta_last_update(&meta_path).unwrap_or(0);
+                let mut current_hash: u64 = Self::hash(&meta_path).unwrap_or(0);
+                let mut current_meta_time: u128 = Self::last_update(&meta_path).unwrap_or(0);
                 loop {
-                    let new_meta_time: u128 = Self::meta_last_update(&meta_path).unwrap_or(0);
-                    if new_meta_time > current_meta_time {
+                    let new_hash: u64 = Self::hash(&meta_path).unwrap_or(0);
+                    let new_meta_time: u128 = Self::last_update(&meta_path).unwrap_or(0);
+                    // println!("hash: {} {}\ntime: {} {}\n---", new_hash, current_hash, new_meta_time, current_meta_time);
+                    if (new_hash != current_hash) || (new_meta_time != current_meta_time) {
+                        // println!("update...");
+                        current_hash = new_hash;
                         current_meta_time = new_meta_time;
                         let _ = watcher_router_clone.broadcast();
                     }
@@ -34,8 +54,13 @@ impl PollWatcher {
         Ok(Self { watcher_router })
     }
 
-    fn meta_last_update(meta_path: &Path) -> Result<u128, io::Error> {
-        let meta = meta_path.metadata()?.modified()?;
+    fn hash(path: &Path) -> Result<u64, io::Error> {
+        let data = fs::read_to_string(path)?;
+        Ok(calculate_hash(&State{data}))
+    }
+
+    fn last_update(path: &Path) -> Result<u128, io::Error> {
+        let meta = path.metadata()?.modified()?;
         Ok(meta.duration_since(UNIX_EPOCH).unwrap().as_nanos())
     }
 

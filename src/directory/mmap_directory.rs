@@ -1,4 +1,3 @@
-use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
@@ -16,17 +15,13 @@ use crate::directory::WatchHandle;
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
 use memmap::Mmap;
-use notify::RawEvent;
-use notify::RecursiveMode;
-use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::fs::{self, File};
-use std::io::{self, Seek, SeekFrom};
-use std::io::{BufWriter, Read, Write};
+use std::io::{self, Seek, SeekFrom, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 
@@ -575,8 +570,9 @@ mod tests {
         let counter_clone = counter.clone();
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let tmp_dirpath = tmp_dir.path().to_owned();
-        let mut watch_wrapper = PollWatcher::new(&tmp_dirpath).unwrap();
         let tmp_file = tmp_dirpath.join(*META_FILEPATH);
+        fs::write(&tmp_file, b"").unwrap();
+        let mut watch_wrapper = PollWatcher::new(&tmp_dirpath).unwrap();
         let _handle = watch_wrapper.watch(Box::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         }));
@@ -585,8 +581,9 @@ mod tests {
             let _ = sender.send(());
         }));
         assert_eq!(counter.load(Ordering::SeqCst), 0);
+        fs::write(&tmp_file, b"whateverwilldo123").unwrap();
         fs::write(&tmp_file, b"whateverwilldo").unwrap();
-        assert!(receiver.recv_timeout(Duration::from_millis(500)).is_ok());
+        assert!(receiver.recv_timeout(Duration::from_millis(1_000)).is_ok());
         assert!(counter.load(Ordering::SeqCst) >= 1);
     }
 
