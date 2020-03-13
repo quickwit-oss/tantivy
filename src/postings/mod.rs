@@ -54,7 +54,7 @@ pub mod tests {
     use crate::docset::{DocSet, SkipResult};
     use crate::fieldnorm::FieldNormReader;
     use crate::indexer::operation::AddOperation;
-    use crate::indexer::SegmentWriter;
+    use crate::indexer::{IndexWriterConfig, SegmentWriter};
     use crate::merge_policy::NoMergePolicy;
     use crate::query::Scorer;
     use crate::schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
@@ -219,7 +219,7 @@ pub mod tests {
 
         let segment = {
             let mut segment_writer = SegmentWriter::for_segment(
-                3_000_000,
+                &IndexWriterConfig::for_test(),
                 index.new_segment(),
                 &schema,
                 index.tokenizers(),

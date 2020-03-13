@@ -1,0 +1,9 @@
+- segment writer serializes if already flush
+- flush if exceed max doc. 
+- unit tests
+- reader from `IndexWriter`
+- configurable limit to flush 
+- bundle directory
+- add index worker when exceeds some doc limit
+- flush before prepare commit.
+- segment_writer should not receive a segment 

@@ -119,7 +119,7 @@ fn merge(
         advance_deletes(segment_entry, target_opstamp)?;
     }
 
-    let delete_cursor = segment_entries[0].delete_cursor().clone();
+    let delete_cursor = segment_entries[0].delete_cursor();
 
     let segments: Vec<Segment> = segment_entries
         .iter()

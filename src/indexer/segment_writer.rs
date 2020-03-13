@@ -5,6 +5,7 @@ use crate::directory::{SpillingResult, SpillingWriter, TerminatingWrite};
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::indexer::segment_serializer::SegmentSerializer;
+use crate::indexer::IndexWriterConfig;
 use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
 use crate::schema::FieldType;
@@ -25,10 +26,10 @@ use std::str;
 /// Computes the initial size of the hash table.
 ///
 /// Returns a number of bit `b`, such that the recommended initial table size is 2^b.
-fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
-    let table_memory_upper_bound = per_thread_memory_budget / 3;
+fn initial_table_size(per_thread_memory_budget: u64) -> crate::Result<usize> {
+    let table_memory_upper_bound = per_thread_memory_budget / 3u64;
     if let Some(limit) = (10..)
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_memory_upper_bound)
+        .take_while(|num_bits| compute_table_size(*num_bits) < table_memory_upper_bound)
         .last()
     {
         Ok(limit.min(19)) // we cap it at 2^19 = 512K.
@@ -65,12 +66,12 @@ impl SegmentWriter {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(
-        memory_budget: usize,
+        config: &IndexWriterConfig,
         segment: Segment,
         schema: &Schema,
         tokenizer_manager: &TokenizerManager,
     ) -> crate::Result<SegmentWriter> {
-        let table_num_bits = initial_table_size(memory_budget)?;
+        let table_num_bits = initial_table_size(config.heap_size_in_byte_per_thread())?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()
@@ -88,7 +89,7 @@ impl SegmentWriter {
             .collect();
         let mut segment_clone = segment.clone();
         let spilling_wrt = SpillingWriter::new(
-            1_000,
+            50_000_000,
             Box::new(move || {
                 segment_clone
                     .open_write(SegmentComponent::STORE)
@@ -121,7 +122,6 @@ impl SegmentWriter {
                 segment = self.segment.clone();
             }
             SpillingResult::Buffer(buf) => {
-                // TODO fix volatile branch
                 segment = self.segment.into_volatile();
                 let mut store_wrt = segment.open_write(SegmentComponent::STORE)?;
                 store_wrt.write_all(&buf[..])?;
@@ -139,7 +139,7 @@ impl SegmentWriter {
         Ok((segment, self.doc_opstamps))
     }
 
-    pub fn mem_usage(&self) -> usize {
+    pub fn mem_usage(&self) -> u64 {
         self.multifield_postings.mem_usage()
     }
 

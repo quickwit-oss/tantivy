@@ -95,7 +95,7 @@ impl MultiFieldPostingsWriter {
         }
     }
 
-    pub fn mem_usage(&self) -> usize {
+    pub fn mem_usage(&self) -> u64 {
         self.term_index.mem_usage() + self.heap.mem_usage()
     }
 

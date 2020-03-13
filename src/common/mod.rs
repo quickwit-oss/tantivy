@@ -2,6 +2,7 @@ pub mod bitpacker;
 mod bitset;
 mod composite_file;
 mod counting_writer;
+mod mutable_enum;
 mod serialize;
 mod vint;
 
@@ -9,6 +10,7 @@ pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::counting_writer::CountingWriter;
+pub(crate) use self::mutable_enum::MutableEnum;
 pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::vint::{read_u32_vint, serialize_vint_u32, write_u32_vint, VInt};
 pub use byteorder::LittleEndian as Endianness;

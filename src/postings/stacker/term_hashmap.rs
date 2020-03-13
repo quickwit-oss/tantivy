@@ -12,8 +12,8 @@ use std::slice;
 
 /// Returns the actual memory size in bytes
 /// required to create a table of size $2^num_bits$.
-pub fn compute_table_size(num_bits: usize) -> usize {
-    (1 << num_bits) * mem::size_of::<KeyValue>()
+pub fn compute_table_size(num_bits: usize) -> u64 {
+    (1u64 << num_bits as u64) * mem::size_of::<KeyValue>() as u64
 }
 
 /// `KeyValue` is the item stored in the hash table.
@@ -116,8 +116,8 @@ impl TermHashMap {
         QuadraticProbing::compute(hash as usize, self.mask)
     }
 
-    pub fn mem_usage(&self) -> usize {
-        self.table.len() * mem::size_of::<KeyValue>()
+    pub fn mem_usage(&self) -> u64 {
+        self.table.len() as u64 * mem::size_of::<KeyValue>() as u64
     }
 
     fn is_saturated(&self) -> bool {

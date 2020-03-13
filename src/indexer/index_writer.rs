@@ -19,9 +19,9 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::segment_manager::SegmentRegisters;
 use crate::indexer::segment_register::SegmentRegister;
 use crate::indexer::stamper::Stamper;
-use crate::indexer::MergePolicy;
 use crate::indexer::SegmentEntry;
 use crate::indexer::SegmentWriter;
+use crate::indexer::{IndexWriterConfig, MergePolicy};
 use crate::reader::NRTReader;
 use crate::schema::Document;
 use crate::schema::IndexRecordOption;
@@ -38,14 +38,6 @@ use std::ops::Range;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::thread::JoinHandle;
-
-// Size of the margin for the heap. A segment is closed when the remaining memory
-// in the heap goes below MARGIN_IN_BYTES.
-pub const MARGIN_IN_BYTES: usize = 1_000_000;
-
-// We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
-pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
@@ -73,10 +65,9 @@ pub struct IndexWriter {
     _directory_lock: Option<DirectoryLock>,
 
     index: Index,
+    config: IndexWriterConfig,
 
     segment_registers: Arc<RwLock<SegmentRegisters>>,
-
-    heap_size_in_bytes_per_thread: usize,
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
@@ -86,9 +77,6 @@ pub struct IndexWriter {
     segment_updater: SegmentUpdater,
 
     worker_id: usize,
-
-    num_threads: usize,
-
     delete_queue: DeleteQueue,
 
     stamper: Stamper,
@@ -210,7 +198,7 @@ pub(crate) fn advance_deletes(
 }
 
 fn index_documents(
-    memory_budget: usize,
+    config: IndexWriterConfig,
     segment: Segment,
     grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
     segment_updater: &mut SegmentUpdater,
@@ -219,14 +207,13 @@ fn index_documents(
 ) -> crate::Result<bool> {
     let schema = segment.schema();
 
-    let mut segment_writer =
-        SegmentWriter::for_segment(memory_budget, segment, &schema, tokenizers)?;
+    let mut segment_writer = SegmentWriter::for_segment(&config, segment, &schema, tokenizers)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
         }
         let mem_usage = segment_writer.mem_usage();
-        if mem_usage >= memory_budget - MARGIN_IN_BYTES {
+        if mem_usage >= config.heap_size_before_flushing() {
             info!(
                 "Buffer limit reached, flushing segment with maxdoc={}.",
                 segment_writer.max_doc()
@@ -304,21 +291,10 @@ impl IndexWriter {
     /// If the heap size per thread is too small, panics.
     pub(crate) fn new(
         index: &Index,
-        num_threads: usize,
-        heap_size_in_bytes_per_thread: usize,
+        mut config: IndexWriterConfig,
         directory_lock: DirectoryLock,
     ) -> crate::Result<IndexWriter> {
-        if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
-            let err_msg = format!(
-                "The heap size per thread needs to be at least {}.",
-                HEAP_SIZE_MIN
-            );
-            return Err(TantivyError::InvalidArgument(err_msg));
-        }
-        if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
-            let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
-            return Err(TantivyError::InvalidArgument(err_msg));
-        }
+        config.validate()?;
         let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
@@ -344,8 +320,8 @@ impl IndexWriter {
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
 
-            heap_size_in_bytes_per_thread,
             index: index.clone(),
+            config,
 
             operation_receiver: document_receiver,
             operation_sender: document_sender,
@@ -353,7 +329,6 @@ impl IndexWriter {
             segment_updater,
 
             workers_join_handle: vec![],
-            num_threads,
 
             delete_queue,
 
@@ -422,8 +397,8 @@ impl IndexWriter {
 
         let mut delete_cursor = self.delete_queue.cursor();
 
-        let mem_budget = self.heap_size_in_bytes_per_thread;
         let index = self.index.clone();
+        let config = self.config.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
@@ -452,7 +427,7 @@ impl IndexWriter {
                     }
                     let segment = index.new_segment();
                     index_documents(
-                        mem_budget,
+                        config.clone(),
                         segment,
                         &mut document_iterator,
                         &mut segment_updater,
@@ -477,7 +452,7 @@ impl IndexWriter {
     }
 
     fn start_workers(&mut self) -> crate::Result<()> {
-        for _ in 0..self.num_threads {
+        for _ in 0..self.config.max_indexing_threads {
             self.add_indexing_worker()?;
         }
         Ok(())
@@ -582,12 +557,8 @@ impl IndexWriter {
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
-        let new_index_writer: IndexWriter = IndexWriter::new(
-            &self.index,
-            self.num_threads,
-            self.heap_size_in_bytes_per_thread,
-            directory_lock,
-        )?;
+        let new_index_writer: IndexWriter =
+            IndexWriter::new(&self.index, self.config.clone(), directory_lock)?;
 
         // the current `self` is dropped right away because of this call.
         //

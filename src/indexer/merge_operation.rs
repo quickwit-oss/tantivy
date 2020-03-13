@@ -1,17 +1,22 @@
+use crate::indexer::resource_manager::{Allocation, ResourceManager};
 use crate::Opstamp;
 use crate::SegmentId;
 use census::{Inventory, TrackedObject};
 use std::collections::HashSet;
+use std::fmt;
 use std::ops::Deref;
 
 #[derive(Default)]
-pub(crate) struct MergeOperationInventory(Inventory<InnerMergeOperation>);
+pub(crate) struct MergeOperationInventory {
+    inventory: Inventory<InnerMergeOperation>,
+    num_merge_watcher: ResourceManager,
+}
 
 impl Deref for MergeOperationInventory {
     type Target = Inventory<InnerMergeOperation>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inventory
     }
 }
 
@@ -24,6 +29,10 @@ impl MergeOperationInventory {
             }
         }
         segment_in_merge
+    }
+
+    pub fn wait_until_empty(&self) {
+        self.num_merge_watcher.wait_until_in_range(0..1);
     }
 }
 
@@ -47,6 +56,17 @@ pub struct MergeOperation {
 pub(crate) struct InnerMergeOperation {
     target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
+    _allocation: Allocation,
+}
+
+impl fmt::Debug for InnerMergeOperation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "MergeOp(target_opstamp={:?}, segment_ids={:?})",
+            self.target_opstamp, self.segment_ids
+        )
+    }
 }
 
 impl MergeOperation {
@@ -55,9 +75,11 @@ impl MergeOperation {
         target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
     ) -> MergeOperation {
+        let allocation = inventory.num_merge_watcher.allocate(1);
         let inner_merge_operation = InnerMergeOperation {
             target_opstamp,
             segment_ids,
+            _allocation: allocation,
         };
         MergeOperation {
             inner: inventory.track(inner_merge_operation),

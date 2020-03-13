@@ -2,12 +2,14 @@ pub mod delete_queue;
 
 mod doc_opstamp_mapping;
 pub mod index_writer;
+mod index_writer_config;
 mod log_merge_policy;
 mod merge_operation;
 pub mod merge_policy;
 pub mod merger;
 pub mod operation;
 mod prepared_commit;
+mod resource_manager;
 mod segment_entry;
 mod segment_manager;
 mod segment_register;
@@ -17,6 +19,7 @@ mod segment_writer;
 mod stamper;
 
 pub use self::index_writer::IndexWriter;
+pub use self::index_writer_config::IndexWriterConfig;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};

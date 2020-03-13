@@ -163,7 +163,7 @@ pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMet
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
 pub use crate::indexer::operation::UserOperation;
-pub use crate::indexer::IndexWriter;
+pub use crate::indexer::{IndexWriter, IndexWriterConfig};
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};

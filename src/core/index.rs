@@ -12,8 +12,8 @@ use crate::directory::INDEX_WRITER_LOCK;
 use crate::directory::{Directory, RAMDirectory};
 use crate::error::DataCorruption;
 use crate::error::TantivyError;
-use crate::indexer::index_writer::HEAP_SIZE_MIN;
 use crate::indexer::segment_updater::save_new_metas;
+use crate::indexer::IndexWriterConfig;
 use crate::reader::IndexReader;
 use crate::reader::IndexReaderBuilder;
 use crate::schema::Field;
@@ -273,30 +273,14 @@ impl Index {
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
-        overall_heap_size_in_bytes: usize,
+        overall_heap_size_in_bytes: u64,
     ) -> crate::Result<IndexWriter> {
-        let directory_lock = self
-            .directory
-            .acquire_lock(&INDEX_WRITER_LOCK)
-            .map_err(|err| {
-                TantivyError::LockFailure(
-                    err,
-                    Some(
-                        "Failed to acquire index lock. If you are using\
-                         a regular directory, this means there is already an \
-                         `IndexWriter` working on this `Directory`, in this process \
-                         or in a different process."
-                            .to_string(),
-                    ),
-                )
-            })?;
-        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        IndexWriter::new(
-            self,
-            num_threads,
-            heap_size_in_bytes_per_thread,
-            directory_lock,
-        )
+        let config = IndexWriterConfig {
+            max_indexing_threads: num_threads,
+            memory_budget: overall_heap_size_in_bytes,
+            ..Default::default()
+        };
+        self.writer_from_config(config)
     }
 
     /// Creates a multithreaded writer
@@ -309,13 +293,36 @@ impl Index {
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// # Panics
     /// If the heap size per thread is too small, panics.
-    pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
-        let mut num_threads = num_cpus::get();
-        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
-            num_threads = (overall_heap_size_in_bytes / HEAP_SIZE_MIN).max(1);
-        }
-        self.writer_with_num_threads(num_threads, overall_heap_size_in_bytes)
+    pub fn writer(&self, overall_heap_size_in_bytes: u64) -> crate::Result<IndexWriter> {
+        let config = IndexWriterConfig {
+            max_indexing_threads: num_cpus::get(),
+            memory_budget: overall_heap_size_in_bytes,
+            ..Default::default()
+        };
+        self.writer_from_config(config)
+    }
+
+    /// Creates a new writer with a given configuration.
+    ///
+    /// See [`IndexWriterConfig`](./struct.IndexWriterConfig.html) for more information.
+    pub fn writer_from_config(&self, mut config: IndexWriterConfig) -> crate::Result<IndexWriter> {
+        config.validate()?;
+        let directory_lock = self
+            .directory
+            .acquire_lock(&INDEX_WRITER_LOCK)
+            .map_err(|err| {
+                TantivyError::LockFailure(
+                    err,
+                    Some(
+                        "Failed to acquire index lock. If you are using \
+                         a regular directory, this means there is already an \
+                         `IndexWriter` working on this `Directory`, in this process \
+                         or in a different process."
+                            .to_string(),
+                    ),
+                )
+            })?;
+        IndexWriter::new(self, config, directory_lock)
     }
 
     /// Accessor to the index schema

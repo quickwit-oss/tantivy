@@ -1,7 +1,9 @@
+use crate::common::MutableEnum;
 use crate::directory::{TerminatingWrite, WritePtr};
 use std::io::{self, Write};
 
-pub enum SpillingState {
+/// Represents the state of the `SpillingWriter`.
+enum SpillingState {
     Buffer {
         buffer: Vec<u8>,
         capacity: usize,
@@ -22,6 +24,9 @@ impl SpillingState {
         }
     }
 
+    // Change the state in such a way that it is ready to accept
+    // `extra_capacity` bytes.
+    //
     fn reserve(self, extra_capacity: usize) -> io::Result<SpillingState> {
         match self {
             SpillingState::Buffer {
@@ -46,21 +51,43 @@ impl SpillingState {
     }
 }
 
+/// The `SpillingWriter` is a writer that start by writing in a
+/// buffer.
+///
+/// Once a memory limit is reached, the spilling writer will
+/// call a given `WritePtr` factory and start spilling into it.
+///
+/// Spilling here includes:
+/// - writing all of the data that were written in the in-memory buffer so far
+/// - writing subsequent data as well.
+///
+/// Once entering "spilling" mode, the `SpillingWriter` stays in this mode.
 pub struct SpillingWriter {
-    state: Option<SpillingState>,
+    state: MutableEnum<SpillingState>,
 }
 
 impl SpillingWriter {
+    //// Creates a new `Spilling Writer`.
     pub fn new(
         limit: usize,
         write_factory: Box<dyn FnOnce() -> io::Result<WritePtr>>,
     ) -> SpillingWriter {
         let state = SpillingState::new(limit, write_factory);
-        SpillingWriter { state: Some(state) }
+        SpillingWriter {
+            state: MutableEnum::wrap(state),
+        }
     }
 
+    /// Finalizes the `SpillingWriter`.
+    ///
+    /// The `SpillingResult` object is an enum specific
+    /// to whether the `SpillingWriter` reached the spilling limit
+    /// (In that case, the buffer is returned).
+    ///
+    /// If the writer reached the spilling mode, the underlying `WritePtr`
+    /// is terminated and SpillingResult::Spilled is returned.
     pub fn finalize(self) -> io::Result<SpillingResult> {
-        match self.state.expect("state cannot be None") {
+        match self.state.into() {
             SpillingState::Spilled(wrt) => {
                 wrt.terminate()?;
                 Ok(SpillingResult::Spilled)
@@ -70,6 +97,7 @@ impl SpillingWriter {
     }
 }
 
+/// enum used as the result of `.finalize()`.
 pub enum SpillingResult {
     Spilled,
     Buffer(Vec<u8>),
@@ -82,14 +110,14 @@ impl io::Write for SpillingWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if let Some(SpillingState::Spilled(wrt)) = &mut self.state {
+        if let SpillingState::Spilled(wrt) = &mut *self.state {
             wrt.flush()?;
         }
         Ok(())
     }
 
     fn write_all(&mut self, payload: &[u8]) -> io::Result<()> {
-        let state_opt: Option<io::Result<SpillingState>> = self.state.take().map(|mut state| {
+        self.state.map_mutate(|mut state| {
             state = state.reserve(payload.len())?;
             match &mut state {
                 SpillingState::Buffer { buffer, .. } => {
@@ -100,9 +128,7 @@ impl io::Write for SpillingWriter {
                 }
             }
             Ok(state)
-        });
-        self.state = state_opt.transpose()?;
-        Ok(())
+        })
     }
 }
 

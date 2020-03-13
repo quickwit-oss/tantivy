@@ -40,7 +40,7 @@ rust-stemmers = "1.2"
 downcast-rs = { version="1.0" }
 tantivy-query-grammar = { version="0.12", path="./query-grammar" }
 bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
-census = "0.4"
+census =  {path="../census"}
 fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"

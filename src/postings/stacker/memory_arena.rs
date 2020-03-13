@@ -106,8 +106,8 @@ impl MemoryArena {
     ///
     /// Internally, it counts a number of `1MB` pages
     /// and therefore delivers an upperbound.
-    pub fn mem_usage(&self) -> usize {
-        self.pages.len() * PAGE_SIZE
+    pub fn mem_usage(&self) -> u64 {
+        (self.pages.len() as u64) * (PAGE_SIZE as u64)
     }
 
     pub fn write_at<Item: Copy + 'static>(&mut self, addr: Addr, val: Item) {

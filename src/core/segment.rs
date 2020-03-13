@@ -110,6 +110,7 @@ impl Segment {
         Segment::new_persisted(meta, segment_directory, index.schema())
     }
 
+    /// Persists a given `Segment` to a directory.
     pub fn persist(&mut self, mut dest_directory: ManagedDirectory) -> crate::Result<()> {
         if let SegmentDirectory::Persisted(_) = self.directory {
             // this segment is already persisted.
