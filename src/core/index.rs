@@ -480,8 +480,8 @@ mod tests {
         use super::*;
         use crate::Directory;
         use std::path::PathBuf;
-        use tempfile::TempDir;
         use std::time::Duration;
+        use tempfile::TempDir;
 
         #[test]
         fn test_index_on_commit_reload_policy_mmap() {
