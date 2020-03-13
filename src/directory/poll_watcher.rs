@@ -1,13 +1,13 @@
 use crate::core::META_FILEPATH;
-use crate::directory::error::{
-    DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
-};
+use crate::directory::error::OpenDirectoryError;
 use crate::directory::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, UNIX_EPOCH};
+
+const POLL_INTERVAL_MS: u64 = 1;
 
 pub struct PollWatcher {
     watcher_router: Arc<WatchCallbackList>,
@@ -26,9 +26,9 @@ impl PollWatcher {
                     let new_meta_time: u128 = Self::meta_last_update(&meta_path).unwrap_or(0);
                     if new_meta_time > current_meta_time {
                         current_meta_time = new_meta_time;
-                        watcher_router_clone.broadcast();
+                        let _ = watcher_router_clone.broadcast();
                     }
-                    thread::sleep(Duration::from_millis(1));
+                    thread::sleep(Duration::from_millis(POLL_INTERVAL_MS));
                 }
             })?;
         Ok(Self { watcher_router })
