@@ -12,7 +12,6 @@ pub mod tests {
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
     use crate::core::Index;
-    use crate::error::TantivyError;
     use crate::schema::{Schema, Term, TEXT};
     use crate::tests::assert_nearly_equals;
     use crate::DocAddress;
@@ -127,21 +126,16 @@ pub mod tests {
             Term::from_field_text(text_field, "a"),
             Term::from_field_text(text_field, "b"),
         ]);
-        match searcher
+
+        let search_result = searcher
             .search(&phrase_query, &TEST_COLLECTOR_WITH_SCORE)
-            .map(|_| ())
-            .unwrap_err()
-        {
-            TantivyError::SchemaError(ref msg) => {
-                assert_eq!(
-                    "Applied phrase query on field \"text\", which does not have positions indexed",
-                    msg.as_str()
-                );
-            }
-            _ => {
-                panic!("Should have returned an error");
-            }
-        }
+            .map(|_| ());
+        assert!(matches!(
+            search_result,
+            Err(crate::TantivyError::SchemaError(msg))
+            if msg == "Applied phrase query on field \"text\", which does not have positions \
+            indexed"
+        ));
     }
 
     #[test]

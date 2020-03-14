@@ -156,30 +156,17 @@ mod tests {
 
     #[test]
     fn test_field_options() {
-        {
-            let field_options = STORED | TEXT;
-            assert!(field_options.is_stored());
-            assert!(field_options.get_indexing_options().is_some());
-        }
-        {
-            let mut schema_builder = Schema::builder();
-            schema_builder.add_text_field("body", TEXT);
-            let schema = schema_builder.build();
-            let field = schema.get_field("body").unwrap();
-            let field_entry = schema.get_field_entry(field);
-            match field_entry.field_type() {
-                &FieldType::Str(ref text_options) => {
-                    assert!(text_options.get_indexing_options().is_some());
-                    assert_eq!(
-                        text_options.get_indexing_options().unwrap().tokenizer(),
-                        "default"
-                    );
-                }
-                _ => {
-                    panic!("");
-                }
-            }
-        }
+        let field_options = STORED | TEXT;
+        assert!(field_options.is_stored());
+        assert!(field_options.get_indexing_options().is_some());
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("body", TEXT);
+        let schema = schema_builder.build();
+        let field = schema.get_field("body").unwrap();
+        let field_entry = schema.get_field_entry(field);
+        assert!(matches!(field_entry.field_type(),
+                &FieldType::Str(ref text_options)
+                if text_options.get_indexing_options().unwrap().tokenizer() == "default"));
     }
 
     #[test]
