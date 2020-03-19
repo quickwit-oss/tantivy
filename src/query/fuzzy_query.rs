@@ -106,7 +106,11 @@ impl FuzzyTermQuery {
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
-                let automaton = automaton_builder.build_dfa(self.term.text());
+                let automaton = if self.prefix {
+                    automaton_builder.build_prefix_dfa(self.term.text())
+                } else {
+                    automaton_builder.build_dfa(self.term.text())
+                };
                 Ok(AutomatonWeight::new(self.term.field(), automaton))
             }
             None => Err(InvalidArgument(format!(
@@ -159,6 +163,18 @@ mod test {
             let term = Term::from_field_text(country_field, "japon");
 
             let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            let (score, _) = top_docs[0];
+            assert_nearly_equals(1f32, score);
+        }
+
+        {
+            let term = Term::from_field_text(country_field, "jap");
+
+            let fuzzy_query = FuzzyTermQuery::new_prefix(term, 1, true);
             let top_docs = searcher
                 .search(&fuzzy_query, &TopDocs::with_limit(2))
                 .unwrap();

@@ -1,3 +1,7 @@
+Tantivy 0.13.0
+======================
+- Bugfix in `FuzzyTermQuery` not matching terms by prefix when it should (@Peachball)
+
 Tantivy 0.12.0
 ======================
 - Removing static dispatch in tokenizers for simplicity. (#762)
