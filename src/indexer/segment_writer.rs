@@ -22,6 +22,7 @@ use crate::{DocId, SegmentComponent};
 use std::io;
 use std::io::Write;
 use std::str;
+use crate::indexer::resource_manager::ResourceManager;
 
 /// Computes the initial size of the hash table.
 ///
@@ -53,6 +54,7 @@ pub struct SegmentWriter {
     doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     store_writer: StoreWriter<SpillingWriter>,
+    memory_manager: ResourceManager,
 }
 
 impl SegmentWriter {
@@ -70,6 +72,7 @@ impl SegmentWriter {
         segment: Segment,
         schema: &Schema,
         tokenizer_manager: &TokenizerManager,
+        memory_manager: ResourceManager
     ) -> crate::Result<SegmentWriter> {
         let table_num_bits = initial_table_size(config.heap_size_in_byte_per_thread())?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
@@ -106,6 +109,7 @@ impl SegmentWriter {
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
             store_writer,
+            memory_manager
         })
     }
 
@@ -122,7 +126,7 @@ impl SegmentWriter {
                 segment = self.segment.clone();
             }
             SpillingResult::Buffer(buf) => {
-                segment = self.segment.into_volatile();
+                segment = self.segment.into_volatile(self.memory_manager.clone());
                 let mut store_wrt = segment.open_write(SegmentComponent::STORE)?;
                 store_wrt.write_all(&buf[..])?;
                 store_wrt.terminate()?;

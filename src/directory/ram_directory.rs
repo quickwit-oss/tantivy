@@ -11,6 +11,7 @@ use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
+use crate::indexer::ResourceManager;
 
 /// Writer associated with the `RAMDirectory`
 ///
@@ -82,11 +83,12 @@ impl TerminatingWrite for VecWriter {
 struct InnerDirectory {
     fs: HashMap<PathBuf, ReadOnlySource>,
     watch_router: WatchCallbackList,
+    memory_manager: ResourceManager,
 }
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = ReadOnlySource::new(Vec::from(data));
+        let data = ReadOnlySource::new_with_allocation(Vec::from(data), &self.memory_manager);
         self.fs.insert(path, data).is_some()
     }
 
@@ -134,9 +136,21 @@ pub struct RAMDirectory {
 }
 
 impl RAMDirectory {
-    /// Constructor
+
     pub fn create() -> RAMDirectory {
-        Self::default()
+        RAMDirectory::default()
+    }
+
+    /// Constructor
+    pub fn create_with_memory_manager(memory_manager: ResourceManager) -> RAMDirectory {
+        let inner_directory = InnerDirectory {
+            fs: Default::default(),
+            watch_router: Default::default(),
+            memory_manager
+        };
+        RAMDirectory {
+            fs: Arc::new(RwLock::new(inner_directory))
+        }
     }
 
     /// Returns the sum of the size of the different files
@@ -227,6 +241,9 @@ mod tests {
     use crate::Directory;
     use std::io::Write;
     use std::path::Path;
+    use crate::indexer::ResourceManager;
+    use crate::directory::TerminatingWrite;
+    use std::mem;
 
     #[test]
     fn test_persist() {
@@ -243,5 +260,60 @@ mod tests {
         assert!(directory.persist(&mut directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
+    }
+
+    #[test]
+    fn test_memory_manager_several_path() {
+        let memory_manager = ResourceManager::default();
+        let mut ram_directory = RAMDirectory::create_with_memory_manager(memory_manager.clone());
+        assert!(ram_directory.atomic_write(Path::new("/titi"), b"abcd").is_ok());
+        assert_eq!(memory_manager.total_amount(), 4u64);
+        assert!(ram_directory.atomic_write(Path::new("/toto"), b"abcde").is_ok());
+        assert_eq!(memory_manager.total_amount(), 9u64);
+    }
+
+    #[test]
+    fn test_memory_manager_override() {
+        let memory_manager = ResourceManager::default();
+        let mut ram_directory = RAMDirectory::create_with_memory_manager(memory_manager.clone());
+        assert!(ram_directory.atomic_write(Path::new("/titi"), b"abcde").is_ok());
+        assert_eq!(memory_manager.total_amount(), 5u64);
+        assert!(ram_directory.atomic_write(Path::new("/titi"), b"abcdef").is_ok());
+        assert_eq!(memory_manager.total_amount(), 6u64);
+    }
+
+    #[test]
+    fn test_memory_manager_seq_wrt() {
+        let memory_manager = ResourceManager::default();
+        let mut ram_directory = RAMDirectory::create_with_memory_manager(memory_manager.clone());
+        let mut wrt = ram_directory.open_write(Path::new("/titi")).unwrap();
+        assert!(wrt.write_all(b"abcde").is_ok());
+        assert!(wrt.terminate().is_ok());
+        assert_eq!(memory_manager.total_amount(), 5u64);
+        assert!(ram_directory.atomic_write(Path::new("/titi"), b"abcdef").is_ok());
+        assert_eq!(memory_manager.total_amount(), 6u64);
+    }
+
+    #[test]
+    fn test_release_on_drop() {
+        let memory_manager = ResourceManager::default();
+        let mut ram_directory = RAMDirectory::create_with_memory_manager(memory_manager.clone());
+        let mut wrt = ram_directory.open_write(Path::new("/titi")).unwrap();
+        assert!(wrt.write_all(b"abcde").is_ok());
+        assert!(wrt.terminate().is_ok());
+        assert_eq!(memory_manager.total_amount(), 5u64);
+        let mut wrt2 = ram_directory.open_write(Path::new("/toto")).unwrap();
+        assert!(wrt2.write_all(b"abcdefghijkl").is_ok());
+        assert!(wrt2.terminate().is_ok());
+        assert_eq!(memory_manager.total_amount(), 17u64);
+        let source = ram_directory.open_read(Path::new("/titi")).unwrap();
+        let source_clone = source.clone();
+        assert_eq!(memory_manager.total_amount(), 17u64);
+        mem::drop(ram_directory);
+        assert_eq!(memory_manager.total_amount(), 5u64);
+        mem::drop(source);
+        assert_eq!(memory_manager.total_amount(), 5u64);
+        mem::drop(source_clone);
+        assert_eq!(memory_manager.total_amount(), 0u64);
     }
 }

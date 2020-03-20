@@ -11,26 +11,31 @@ use crate::Opstamp;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
+use crate::indexer::{Allocation, ResourceManager};
 
 #[derive(Clone)]
 pub(crate) enum SegmentDirectory {
     Persisted(ManagedDirectory),
-    Volatile(RAMDirectory),
+    Volatile {
+        directory: RAMDirectory,
+    },
+}
+
+impl SegmentDirectory {
+    fn new_volatile(memory_manager: ResourceManager) -> SegmentDirectory {
+        SegmentDirectory::Volatile {
+            directory: RAMDirectory::create_with_memory_manager(memory_manager),
+        }
+    }
 }
 
 impl fmt::Debug for SegmentDirectory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SegmentDirectory::Volatile(_) => write!(f, "volatile")?,
+            SegmentDirectory::Volatile { .. } => write!(f, "volatile")?,
             SegmentDirectory::Persisted(dir) => write!(f, "Persisted({:?})", dir)?,
         }
         Ok(())
-    }
-}
-
-impl SegmentDirectory {
-    pub fn new_volatile() -> SegmentDirectory {
-        SegmentDirectory::Volatile(RAMDirectory::default())
     }
 }
 
@@ -45,7 +50,9 @@ impl Deref for SegmentDirectory {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            SegmentDirectory::Volatile(dir) => dir,
+            SegmentDirectory::Volatile {
+                directory, ..
+            } => directory,
             SegmentDirectory::Persisted(dir) => dir,
         }
     }
@@ -54,7 +61,7 @@ impl Deref for SegmentDirectory {
 impl DerefMut for SegmentDirectory {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
-            SegmentDirectory::Volatile(dir) => dir,
+            SegmentDirectory::Volatile { directory, .. } => directory,
             SegmentDirectory::Persisted(dir) => dir,
         }
     }
@@ -96,11 +103,11 @@ impl Segment {
     ///
     /// That segment is entirely dissociated from the index directory.
     /// It will be persisted by a background thread in charge of IO.
-    pub fn new_volatile(meta: SegmentMeta, schema: Schema) -> Segment {
+    pub fn new_volatile(meta: SegmentMeta, schema: Schema, resource_manager: ResourceManager) -> Segment {
         Segment {
             schema,
             meta,
-            directory: SegmentDirectory::new_volatile(),
+            directory: SegmentDirectory::new_volatile(resource_manager),
         }
     }
 
@@ -116,15 +123,15 @@ impl Segment {
             // this segment is already persisted.
             return Ok(());
         }
-        if let SegmentDirectory::Volatile(ram_directory) = &self.directory {
-            ram_directory.persist(&mut dest_directory)?;
+        if let SegmentDirectory::Volatile { directory, ..} = &self.directory {
+            directory.persist(&mut dest_directory)?;
         }
         self.directory = SegmentDirectory::Persisted(dest_directory);
         Ok(())
     }
 
-    pub fn into_volatile(&self) -> Segment {
-        Segment::new_volatile(self.meta.clone(), self.schema.clone())
+    pub fn into_volatile(&self, memory_manager: ResourceManager) -> Segment {
+        Segment::new_volatile(self.meta.clone(), self.schema.clone(), memory_manager)
     }
 
     /// Returns our index's schema.

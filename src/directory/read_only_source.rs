@@ -2,6 +2,7 @@ use crate::common::HasLen;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::ops::Deref;
 use std::sync::Arc;
+use crate::indexer::{Allocation, ResourceManager};
 
 pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
@@ -15,6 +16,7 @@ pub struct ReadOnlySource {
     data: Arc<BoxedData>,
     start: usize,
     stop: usize,
+    allocation: Option<Arc<Allocation>>
 }
 
 unsafe impl StableDeref for ReadOnlySource {}
@@ -35,11 +37,13 @@ impl From<Arc<BoxedData>> for ReadOnlySource {
             data,
             start: 0,
             stop: len,
+            allocation: None
         }
     }
 }
 
 impl ReadOnlySource {
+
     pub(crate) fn new<D>(data: D) -> ReadOnlySource
     where
         D: Deref<Target = [u8]> + Send + Sync + 'static,
@@ -49,8 +53,23 @@ impl ReadOnlySource {
             data: Arc::new(Box::new(data)),
             start: 0,
             stop: len,
+            allocation: None
         }
     }
+
+    pub(crate) fn new_with_allocation<D>(data: D, memory_manager: &ResourceManager) -> ReadOnlySource
+        where
+            D: Deref<Target = [u8]> + Send + Sync + 'static,
+    {
+        let len = data.len();
+        ReadOnlySource {
+            data: Arc::new(Box::new(data)),
+            start: 0,
+            stop: len,
+            allocation: Some(Arc::new(memory_manager.allocate(len as u64)))
+        }
+    }
+
 
     /// Creates an empty ReadOnlySource
     pub fn empty() -> ReadOnlySource {
@@ -98,6 +117,7 @@ impl ReadOnlySource {
             data: self.data.clone(),
             start: self.start + start,
             stop: self.start + stop,
+            allocation: self.allocation.clone()
         }
     }
 

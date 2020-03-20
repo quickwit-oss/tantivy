@@ -190,11 +190,12 @@ mod test {
     use crate::schema::Field;
     use std::io::Write;
     use std::path::Path;
+    use crate::indexer::ResourceManager;
 
     #[test]
     fn test_composite_file() {
         let path = Path::new("test_path");
-        let mut directory = RAMDirectory::create();
+        let mut directory = RAMDirectory::default();
         {
             let w = directory.open_write(path).unwrap();
             let mut composite_write = CompositeWrite::wrap(w);

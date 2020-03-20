@@ -111,6 +111,7 @@ mod tests {
     use super::*;
     use crate::core::{SegmentId, SegmentMetaInventory};
     use crate::indexer::delete_queue::*;
+    use crate::indexer::ResourceManager;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {
         segment_register
@@ -131,16 +132,18 @@ mod tests {
         let segment_id_b = SegmentId::generate_random();
         let segment_id_merged = SegmentId::generate_random();
 
+        let memory_manager = ResourceManager::default();
+
         {
             let meta = inventory.new_segment_meta(segment_id_a, 0u32);
-            let segment = Segment::new_volatile(meta, schema.clone());
+            let segment = Segment::new_volatile(meta, schema.clone(), memory_manager.clone());
             let segment_entry = SegmentEntry::new(segment, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
         assert_eq!(segment_ids(&segment_register), vec![segment_id_a]);
         {
             let meta = inventory.new_segment_meta(segment_id_b, 0u32);
-            let segment = Segment::new_volatile(meta, schema.clone());
+            let segment = Segment::new_volatile(meta, schema.clone(), memory_manager.clone());
             let segment_entry = SegmentEntry::new(segment, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
@@ -148,7 +151,7 @@ mod tests {
         segment_register.remove_segment(&segment_id_b);
         {
             let segment_meta_merged = inventory.new_segment_meta(segment_id_merged, 0u32);
-            let segment_merged = Segment::new_volatile(segment_meta_merged, schema.clone());
+            let segment_merged = Segment::new_volatile(segment_meta_merged, schema.clone(), memory_manager.clone());
             let segment_entry = SegmentEntry::new(segment_merged, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }

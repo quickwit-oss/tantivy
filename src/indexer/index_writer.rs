@@ -19,7 +19,7 @@ use crate::indexer::operation::DeleteOperation;
 use crate::indexer::segment_manager::SegmentRegisters;
 use crate::indexer::segment_register::SegmentRegister;
 use crate::indexer::stamper::Stamper;
-use crate::indexer::SegmentEntry;
+use crate::indexer::{SegmentEntry, ResourceManager};
 use crate::indexer::SegmentWriter;
 use crate::indexer::{IndexWriterConfig, MergePolicy};
 use crate::reader::NRTReader;
@@ -83,6 +83,8 @@ pub struct IndexWriter {
     committed_opstamp: Opstamp,
 
     on_commit: WatchCallbackList,
+
+    memory_manager: ResourceManager,
 }
 
 fn compute_deleted_bitset(
@@ -204,10 +206,12 @@ fn index_documents(
     segment_updater: &mut SegmentUpdater,
     tokenizers: &TokenizerManager,
     mut delete_cursor: DeleteCursor,
+    memory_manager: ResourceManager
 ) -> crate::Result<bool> {
     let schema = segment.schema();
 
-    let mut segment_writer = SegmentWriter::for_segment(&config, segment, &schema, tokenizers)?;
+    let mut segment_writer = SegmentWriter::for_segment(
+        &config, segment, &schema, tokenizers, memory_manager)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
@@ -338,6 +342,8 @@ impl IndexWriter {
             worker_id: 0,
             segment_registers,
             on_commit: Default::default(),
+
+            memory_manager: Default::default()
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -399,6 +405,7 @@ impl IndexWriter {
 
         let index = self.index.clone();
         let config = self.config.clone();
+        let memory_manager = self.memory_manager.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
@@ -433,6 +440,7 @@ impl IndexWriter {
                         &mut segment_updater,
                         index.tokenizers(),
                         delete_cursor.clone(),
+                        memory_manager.clone()
                     )?;
                 }
             })?;
