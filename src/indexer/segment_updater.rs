@@ -435,7 +435,7 @@ impl SegmentUpdater {
 
     async fn consider_merge_options(&self) {
         let (committed_segments, uncommitted_segments) =
-            self.segment_manager.get_mergeable_segments();
+            self.segment_manager.segments_not_in_merge();
 
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independently.

@@ -100,7 +100,14 @@ impl SegmentManager {
         segment_entries
     }
 
-    pub fn get_mergeable_segments(&self) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+    /// Returns the segments that are currently not in merge.
+    ///
+    /// They are split over two `Vec`. The committed segments on one hand
+    /// and the uncommitted ones on the other hand.
+    ///
+    /// This method is useful when searching for merge candidate or segments
+    /// to persists.
+    pub fn segments_not_in_merge(&self) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
         let in_merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
         let registers_lock = self.read();
         (
@@ -111,6 +118,14 @@ impl SegmentManager {
                 .uncommitted
                 .get_mergeable_segments(&in_merge_segment_ids),
         )
+    }
+
+    pub fn largest_segment_not_in_merge(&self) -> Option<SegmentMeta> {
+        let (committed, uncommitted) = self.segments_not_in_merge();
+        let mut segments = vec![];
+        segments.extend(committed);
+        segments.extend(uncommitted);
+        None
     }
 
     // Lock poisoning should never happen :
