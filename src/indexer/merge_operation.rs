@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::ops::Deref;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) struct MergeOperationInventory {
     inventory: Inventory<InnerMergeOperation>,
     num_merge_watcher: ResourceManager,
@@ -32,7 +32,7 @@ impl MergeOperationInventory {
     }
 
     pub fn wait_until_empty(&self) {
-        self.num_merge_watcher.wait_until_in_range(0..1);
+        let _ = self.num_merge_watcher.wait_until_in_range(0..1);
     }
 }
 

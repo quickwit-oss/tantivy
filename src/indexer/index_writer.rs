@@ -371,16 +371,11 @@ impl IndexWriter {
                 })?;
         }
 
-        let result = self
+        self
             .segment_updater
-            .wait_merging_thread()
-            .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
+            .wait_merging_thread();
 
-        if let Err(ref e) = result {
-            error!("Some merging thread failed {:?}", e);
-        }
-
-        result
+        Ok(())
     }
 
     /// Creates a new segment.

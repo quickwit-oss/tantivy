@@ -11,7 +11,7 @@ use crate::Opstamp;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
-use crate::indexer::{Allocation, ResourceManager};
+use crate::indexer::{ResourceManager};
 
 #[derive(Clone)]
 pub(crate) enum SegmentDirectory {

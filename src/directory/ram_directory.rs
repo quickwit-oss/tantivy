@@ -114,8 +114,8 @@ impl InnerDirectory {
         self.watch_router.subscribe(watch_handle)
     }
 
-    fn total_mem_usage(&self) -> usize {
-        self.fs.values().map(|f| f.len()).sum()
+    fn total_mem_usage(&self) -> u64 {
+        self.fs.values().map(|source| source.len() as u64).sum()
     }
 }
 
@@ -137,6 +137,10 @@ pub struct RAMDirectory {
 
 impl RAMDirectory {
 
+    /// Creates a new RAMDirectory.
+    ///
+    /// Check `.create_with_memory_manager(..)` if you want to associate an external memory
+    /// manager to your RAMDirectory.
     pub fn create() -> RAMDirectory {
         RAMDirectory::default()
     }
@@ -155,7 +159,7 @@ impl RAMDirectory {
 
     /// Returns the sum of the size of the different files
     /// in the RAMDirectory.
-    pub fn total_mem_usage(&self) -> usize {
+    pub fn total_mem_usage(&self) -> u64 {
         self.fs.read().unwrap().total_mem_usage()
     }
 

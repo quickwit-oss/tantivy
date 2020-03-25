@@ -13,6 +13,9 @@ pub struct IndexWriterConfig {
     pub max_indexing_threads: usize,
     pub max_merging_threads: usize,
     pub memory_budget: u64,
+    pub store_flush_num_bytes: u64,
+    pub persist_low: u64,
+    pub persist_high: u64,
 }
 
 impl Default for IndexWriterConfig {
@@ -21,6 +24,9 @@ impl Default for IndexWriterConfig {
             max_indexing_threads: 1,
             max_merging_threads: 3,
             memory_budget: 50_000_000u64,
+            store_flush_num_bytes: 10_000_000u64,
+            persist_low: 10_000_000u64,
+            persist_high: 50_000_000u64
         }
     }
 }
@@ -32,6 +38,9 @@ impl IndexWriterConfig {
             max_indexing_threads: 1,
             max_merging_threads: 5,
             memory_budget: 4_000_000u64,
+            store_flush_num_bytes: 500_000u64,
+            persist_low: 2_000_000u64,
+            persist_high: 3_000_000u64,
         }
     }
 

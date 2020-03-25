@@ -2,8 +2,8 @@ use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::error::TantivyError;
-use crate::indexer::SegmentEntry;
-use crate::Segment;
+use crate::indexer::{SegmentEntry, MergeOperationInventory, MergeCandidate, MergeOperation};
+use crate::{Segment, Opstamp};
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::sync::{Arc, RwLock};
@@ -56,6 +56,7 @@ impl SegmentRegisters {
 #[derive(Default)]
 pub struct SegmentManager {
     registers: Arc<RwLock<SegmentRegisters>>,
+    merge_operations: MergeOperationInventory,
 }
 
 impl Debug for SegmentManager {
@@ -69,24 +70,26 @@ impl Debug for SegmentManager {
     }
 }
 
-pub fn get_mergeable_segments(
-    in_merge_segment_ids: &HashSet<SegmentId>,
-    segment_manager: &SegmentManager,
-) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
-    let registers_lock = segment_manager.read();
-    (
-        registers_lock
-            .committed
-            .get_mergeable_segments(in_merge_segment_ids),
-        registers_lock
-            .uncommitted
-            .get_mergeable_segments(in_merge_segment_ids),
-    )
-}
 
 impl SegmentManager {
     pub(crate) fn new(registers: Arc<RwLock<SegmentRegisters>>) -> SegmentManager {
-        SegmentManager { registers }
+        SegmentManager {
+            registers,
+            merge_operations: Default::default()
+        }
+    }
+
+    pub fn new_merge_operation(&self, opstamp: Opstamp, merge_candidate: MergeCandidate) -> MergeOperation {
+        MergeOperation::new(
+            &self.merge_operations,
+            opstamp,
+            merge_candidate.0
+
+        )
+    }
+
+    pub fn wait_merging_thread(&self) {
+        self.merge_operations.wait_until_empty()
     }
 
     /// Returns all of the segment entries (committed or uncommitted)
@@ -95,6 +98,19 @@ impl SegmentManager {
         let mut segment_entries = registers_lock.uncommitted.segment_entries();
         segment_entries.extend(registers_lock.committed.segment_entries());
         segment_entries
+    }
+
+    pub fn get_mergeable_segments(&self) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+        let in_merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
+        let registers_lock = self.read();
+        (
+            registers_lock
+                .committed
+                .get_mergeable_segments(&in_merge_segment_ids),
+            registers_lock
+                .uncommitted
+                .get_mergeable_segments(&in_merge_segment_ids),
+        )
     }
 
     // Lock poisoning should never happen :

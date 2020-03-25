@@ -1,4 +1,4 @@
-use super::segment_manager::{get_mergeable_segments, SegmentManager};
+use super::segment_manager::SegmentManager;
 use crate::core::Index;
 use crate::core::IndexMeta;
 use crate::core::Segment;
@@ -8,7 +8,6 @@ use crate::core::SerializableSegment;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::indexer::index_writer::advance_deletes;
-use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
 use crate::indexer::segment_manager::{SegmentRegisters, SegmentsStatus};
 use crate::indexer::stamper::Stamper;
@@ -160,7 +159,6 @@ pub(crate) struct InnerSegmentUpdater {
     merge_policy: RwLock<Arc<Box<dyn MergePolicy>>>,
     killed: AtomicBool,
     stamper: Stamper,
-    merge_operations: MergeOperationInventory,
 }
 
 impl SegmentUpdater {
@@ -198,7 +196,6 @@ impl SegmentUpdater {
             merge_policy: RwLock::new(Arc::new(Box::new(DefaultMergePolicy::default()))),
             killed: AtomicBool::new(false),
             stamper,
-            merge_operations: Default::default(),
         })))
     }
 
@@ -363,7 +360,7 @@ impl SegmentUpdater {
 
     pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
         let commit_opstamp = self.load_metas().opstamp;
-        MergeOperation::new(&self.merge_operations, commit_opstamp, segment_ids.to_vec())
+        self.segment_manager.new_merge_operation(commit_opstamp, MergeCandidate(segment_ids.to_vec()))
     }
 
     // Starts a merge operation. This function will block until the merge operation is effectively
@@ -437,9 +434,8 @@ impl SegmentUpdater {
     }
 
     async fn consider_merge_options(&self) {
-        let merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
         let (committed_segments, uncommitted_segments) =
-            get_mergeable_segments(&merge_segment_ids, &self.segment_manager);
+            self.segment_manager.get_mergeable_segments();
 
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independently.
@@ -450,7 +446,7 @@ impl SegmentUpdater {
             .compute_merge_candidates(&uncommitted_segments)
             .into_iter()
             .map(|merge_candidate| {
-                MergeOperation::new(&self.merge_operations, current_opstamp, merge_candidate.0)
+                self.segment_manager.new_merge_operation(current_opstamp, merge_candidate)
             })
             .collect();
 
@@ -459,7 +455,7 @@ impl SegmentUpdater {
             .compute_merge_candidates(&committed_segments)
             .into_iter()
             .map(|merge_candidate: MergeCandidate| {
-                MergeOperation::new(&self.merge_operations, commit_opstamp, merge_candidate.0)
+                self.segment_manager.new_merge_operation(commit_opstamp, merge_candidate)
             })
             .collect::<Vec<_>>();
         merge_candidates.extend(committed_merge_candidates.into_iter());
@@ -539,9 +535,8 @@ impl SegmentUpdater {
     ///
     /// Obsolete files will eventually be cleaned up
     /// by the directory garbage collector.
-    pub fn wait_merging_thread(&self) -> crate::Result<()> {
-        self.merge_operations.wait_until_empty();
-        Ok(())
+    pub fn wait_merging_thread(&self) {
+        self.segment_manager.wait_merging_thread()
     }
 }
 

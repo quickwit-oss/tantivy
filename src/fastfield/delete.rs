@@ -89,7 +89,7 @@ mod tests {
 
     fn test_delete_bitset_helper(bitset: &BitSet, max_doc: u32) {
         let test_path = PathBuf::from("test");
-        let mut directory = RAMDirectory::create();
+        let mut directory = RAMDirectory::default();
         {
             let mut writer = directory.open_write(&*test_path).unwrap();
             write_delete_bitset(bitset, max_doc, &mut writer).unwrap();

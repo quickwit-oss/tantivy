@@ -1,11 +1,26 @@
 use std::ops::RangeBounds;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 
+struct LockedData {
+    count: u64,
+    enabled: bool
+}
+
+impl Default for LockedData {
+    fn default() -> Self {
+        LockedData {
+            count: 0u64,
+            enabled: true
+        }
+    }
+}
+
 #[derive(Default)]
 struct Inner {
-    resource_level: Mutex<u64>,
+    resource_level: Mutex<LockedData>,
     convdvar: Condvar,
 }
+
 
 /// The resource manager makes it possible to track the amount of level of a given resource.
 /// There is no magic here : it is to the description of the user to declare how much
@@ -29,10 +44,10 @@ pub struct ResourceManager {
 impl ResourceManager {
     /// Return the total amount of reousrce allocated
     pub fn total_amount(&self) -> u64 {
-        *self.lock()
+        self.lock().count
     }
 
-    fn lock(&self) -> MutexGuard<u64> {
+    fn lock(&self) -> MutexGuard<LockedData> {
         self.inner
             .resource_level
             .lock()
@@ -44,8 +59,8 @@ impl ResourceManager {
             return;
         }
         let mut lock = self.lock();
-        let new_val = (*lock as i64) + delta;
-        *lock = new_val as u64;
+        let new_val = lock.count as i64 + delta;
+        lock.count = new_val as u64;
         self.inner.convdvar.notify_all();
     }
 
@@ -61,17 +76,32 @@ impl ResourceManager {
         }
     }
 
+    /// Stops the resource manager.
+    ///
+    /// If any thread is waiting via `.wait_until_in_range(...)`, the method will stop
+    /// being blocking and will return an error.
+    pub fn terminate(&self) {
+        self.lock().enabled = false;
+        self.inner.convdvar.notify_all();
+    }
+
     /// Blocks the current thread until the resource level reaches the given range,
     /// in a cpu-efficient way.
     ///
     /// This method does not necessarily wakes up the current thread at every transition
     /// into the targetted range, but any durable entry in the range will be detected.
-    pub fn wait_until_in_range<R: RangeBounds<u64>>(&self, range: R) -> u64 {
+    pub fn wait_until_in_range<R: RangeBounds<u64>>(&self, range: R) -> Result<u64, u64> {
         let mut levels = self.lock();
-        while !range.contains(&*levels) {
-            levels = self.inner.convdvar.wait(levels).unwrap();
+        if !levels.enabled {
+            return Err(levels.count)
         }
-        *levels
+        while !range.contains(&levels.count) {
+           levels = self.inner.convdvar.wait(levels).unwrap();
+            if !levels.enabled {
+                return Err(levels.count)
+            }
+        }
+        Ok(levels.count)
     }
 }
 
@@ -149,7 +179,7 @@ mod tests {
             std::mem::drop(_allocation3);
             assert!(block_on(recv).is_ok());
         });
-        assert_eq!(memory.wait_until_in_range(5u64..8u64), 5u64);
+        assert_eq!(memory.wait_until_in_range(5u64..8u64), Ok(5u64));
         assert!(send.send(()).is_ok());
     }
 
@@ -165,5 +195,19 @@ mod tests {
         alloc.modify(14u64);
         assert_eq!(alloc.amount(), 14u64);
         assert_eq!(memory.total_amount(), 14u64 + 3u64)
+    }
+    
+    #[test]
+    fn test_stop_resource_manager() {
+        let resource_manager = ResourceManager::default();
+        let resource_manager_clone = resource_manager.clone();
+        let (sender, recv) = oneshot::channel();
+        let join_handle = thread::spawn(move || {
+            assert!(sender.send(()).is_ok());
+            resource_manager_clone.wait_until_in_range(10..20)
+        });
+        let _ = block_on(recv);
+        resource_manager.terminate();
+        assert_eq!(join_handle.join().unwrap(), Err(0u64));
     }
 }

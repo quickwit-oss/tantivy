@@ -19,6 +19,7 @@ mod segment_writer;
 mod stamper;
 
 pub(crate) use self::resource_manager::{Allocation, ResourceManager};
+pub(crate) use self::merge_operation::MergeOperationInventory;
 pub use self::index_writer::IndexWriter;
 pub use self::index_writer_config::IndexWriterConfig;
 pub use self::log_merge_policy::LogMergePolicy;

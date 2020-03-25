@@ -15,6 +15,8 @@ mod ram_directory;
 mod read_only_source;
 mod spilling_writer;
 mod watch_event_router;
+mod persistor;
+
 
 /// Errors specific to the directory module.
 pub mod error;

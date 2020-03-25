@@ -190,7 +190,7 @@ mod test {
     use crate::schema::Field;
     use std::io::Write;
     use std::path::Path;
-    use crate::indexer::ResourceManager;
+    
 
     #[test]
     fn test_composite_file() {
