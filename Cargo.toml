@@ -29,7 +29,7 @@ serde = {version="1.0", features=["derive"]}
 serde_json = "1.0"
 num_cpus = "1.2"
 fs2={version="0.4", optional=true}
-levenshtein_automata = "0.1"
+levenshtein_automata = "0.2"
 notify = {version="4", optional=true}
 uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.7"
