@@ -18,5 +18,5 @@ install:
 build: false
 
 test_script:
-  - REM SET RUST_LOG=tantivy,test & cargo test --verbose --no-default-features --features mmap
+  - REM SET RUST_LOG=tantivy,test & cargo test --all --verbose --no-default-features --features mmap
   - REM SET RUST_BACKTRACE=1 & cargo build --examples

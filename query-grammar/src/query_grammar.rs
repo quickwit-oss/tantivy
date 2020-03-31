@@ -154,17 +154,11 @@ fn negate(expr: UserInputAST) -> UserInputAST {
     expr.unary(Occur::MustNot)
 }
 
-fn must(expr: UserInputAST) -> UserInputAST {
-    expr.unary(Occur::Must)
-}
-
 fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
     parser(|input| {
-        char('-')
-            .with(leaf())
-            .map(negate)
-            .or(char('+').with(leaf()).map(must))
-            .or(char('(').with(ast()).skip(char(')')))
+        char('(')
+            .with(ast())
+            .skip(char(')'))
             .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All)))
             .or(attempt(
                 string("NOT").skip(spaces1()).with(leaf()).map(negate),
@@ -174,6 +168,16 @@ fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
             .parse_stream(input)
             .into_result()
     })
+}
+
+fn occur_symbol<'a>() -> impl Parser<&'a str, Output = Occur> {
+    char('-')
+        .map(|_| Occur::MustNot)
+        .or(char('+').map(|_| Occur::Must))
+}
+
+fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAST)> {
+    (optional(occur_symbol()), boosted_leaf())
 }
 
 fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f32> {
@@ -239,21 +243,29 @@ fn aggregate_binary_expressions(
     }
 }
 
-pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
-    let operand_leaf = (
+fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAST)> {
+    (
         binary_operand().skip(spaces()),
         boosted_leaf().skip(spaces()),
-    );
-    let boolean_expr = (boosted_leaf().skip(spaces().silent()), many1(operand_leaf))
+    )
+}
+
+pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+    let boolean_expr = (boosted_leaf().skip(spaces()), many1(operand_leaf()))
         .map(|(left, right)| aggregate_binary_expressions(left, right));
-    let whitespace_separated_leaves =
-        many1(boosted_leaf().skip(spaces().silent())).map(|subqueries: Vec<UserInputAST>| {
+    let whitespace_separated_leaves = many1(occur_leaf().skip(spaces().silent())).map(
+        |subqueries: Vec<(Option<Occur>, UserInputAST)>| {
             if subqueries.len() == 1 {
-                subqueries.into_iter().next().unwrap()
+                let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
+                match occur_opt.unwrap_or(Occur::Should) {
+                    Occur::Must | Occur::Should => ast,
+                    Occur::MustNot => UserInputAST::Clause(vec![(Some(Occur::MustNot), ast)]),
+                }
             } else {
                 UserInputAST::Clause(subqueries.into_iter().collect())
             }
-        });
+        },
+    );
     let expr = attempt(boolean_expr).or(whitespace_separated_leaves);
     spaces().with(expr).skip(spaces())
 }
@@ -281,6 +293,12 @@ mod test {
             val,
             expected
         );
+    }
+
+    #[test]
+    fn test_occur_symbol() {
+        assert_eq!(super::occur_symbol().parse("-"), Ok((Occur::MustNot, "")));
+        assert_eq!(super::occur_symbol().parse("+"), Ok((Occur::Must, "")));
     }
 
     #[test]
@@ -330,7 +348,7 @@ mod test {
             "Err(UnexpectedParse)"
         );
         test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
-        test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
+        test_parse_query_to_ast_helper("NOT a", "(-\"a\")");
     }
 
     #[test]
@@ -338,16 +356,16 @@ mod test {
         assert!(parse_to_ast().parse("a^2^3").is_err());
         assert!(parse_to_ast().parse("a^2^").is_err());
         test_parse_query_to_ast_helper("a^3", "(\"a\")^3");
-        test_parse_query_to_ast_helper("a^3 b^2", "((\"a\")^3 (\"b\")^2)");
+        test_parse_query_to_ast_helper("a^3 b^2", "(*(\"a\")^3 *(\"b\")^2)");
         test_parse_query_to_ast_helper("a^1", "\"a\"");
     }
 
     #[test]
     fn test_parse_query_to_ast_binary_op() {
-        test_parse_query_to_ast_helper("a AND b", "(+(\"a\") +(\"b\"))");
-        test_parse_query_to_ast_helper("a OR b", "(?(\"a\") ?(\"b\"))");
-        test_parse_query_to_ast_helper("a OR b AND c", "(?(\"a\") ?((+(\"b\") +(\"c\"))))");
-        test_parse_query_to_ast_helper("a AND b         AND c", "(+(\"a\") +(\"b\") +(\"c\"))");
+        test_parse_query_to_ast_helper("a AND b", "(+\"a\" +\"b\")");
+        test_parse_query_to_ast_helper("a OR b", "(?\"a\" ?\"b\")");
+        test_parse_query_to_ast_helper("a OR b AND c", "(?\"a\" ?(+\"b\" +\"c\"))");
+        test_parse_query_to_ast_helper("a AND b         AND c", "(+\"a\" +\"b\" +\"c\")");
         assert_eq!(
             format!("{:?}", parse_to_ast().parse("a OR b aaa")),
             "Err(UnexpectedParse)"
@@ -386,6 +404,13 @@ mod test {
     }
 
     #[test]
+    fn test_occur_leaf() {
+        let ((occur, ast), _) = super::occur_leaf().parse("+abc").unwrap();
+        assert_eq!(occur, Some(Occur::Must));
+        assert_eq!(format!("{:?}", ast), "\"abc\"");
+    }
+
+    #[test]
     fn test_range_parser() {
         // testing the range() parser separately
         let res = range().parse("title: <hello").unwrap().0;
@@ -413,32 +438,67 @@ mod test {
     fn test_parse_query_to_triming_spaces() {
         test_parse_query_to_ast_helper("   abc", "\"abc\"");
         test_parse_query_to_ast_helper("abc ", "\"abc\"");
-        test_parse_query_to_ast_helper("(  a OR abc)", "(?(\"a\") ?(\"abc\"))");
-        test_parse_query_to_ast_helper("(a  OR abc)", "(?(\"a\") ?(\"abc\"))");
-        test_parse_query_to_ast_helper("(a OR  abc)", "(?(\"a\") ?(\"abc\"))");
-        test_parse_query_to_ast_helper("a OR abc ", "(?(\"a\") ?(\"abc\"))");
-        test_parse_query_to_ast_helper("(a OR abc )", "(?(\"a\") ?(\"abc\"))");
-        test_parse_query_to_ast_helper("(a OR  abc) ", "(?(\"a\") ?(\"abc\"))");
+        test_parse_query_to_ast_helper("(  a OR abc)", "(?\"a\" ?\"abc\")");
+        test_parse_query_to_ast_helper("(a  OR abc)", "(?\"a\" ?\"abc\")");
+        test_parse_query_to_ast_helper("(a OR  abc)", "(?\"a\" ?\"abc\")");
+        test_parse_query_to_ast_helper("a OR abc ", "(?\"a\" ?\"abc\")");
+        test_parse_query_to_ast_helper("(a OR abc )", "(?\"a\" ?\"abc\")");
+        test_parse_query_to_ast_helper("(a OR  abc) ", "(?\"a\" ?\"abc\")");
     }
 
     #[test]
-    fn test_parse_query_to_ast() {
+    fn test_parse_query_single_term() {
         test_parse_query_to_ast_helper("abc", "\"abc\"");
-        test_parse_query_to_ast_helper("a b", "(\"a\" \"b\")");
-        test_parse_query_to_ast_helper("+(a b)", "+((\"a\" \"b\"))");
-        test_parse_query_to_ast_helper("+d", "+(\"d\")");
-        test_parse_query_to_ast_helper("+(a b) +d", "(+((\"a\" \"b\")) +(\"d\"))");
-        test_parse_query_to_ast_helper("(+a +b) d", "((+(\"a\") +(\"b\")) \"d\")");
-        test_parse_query_to_ast_helper("(+a)", "+(\"a\")");
-        test_parse_query_to_ast_helper("(+a +b)", "(+(\"a\") +(\"b\"))");
+    }
+
+    #[test]
+    fn test_parse_query_default_clause() {
+        test_parse_query_to_ast_helper("a b", "(*\"a\" *\"b\")");
+    }
+
+    #[test]
+    fn test_parse_query_must_default_clause() {
+        test_parse_query_to_ast_helper("+(a b)", "(*\"a\" *\"b\")");
+    }
+
+    #[test]
+    fn test_parse_query_must_single_term() {
+        test_parse_query_to_ast_helper("+d", "\"d\"");
+    }
+
+    #[test]
+    fn test_single_term_with_field() {
         test_parse_query_to_ast_helper("abc:toto", "abc:\"toto\"");
+    }
+
+    #[test]
+    fn test_single_term_with_float() {
         test_parse_query_to_ast_helper("abc:1.1", "abc:\"1.1\"");
-        test_parse_query_to_ast_helper("+abc:toto", "+(abc:\"toto\")");
-        test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+(abc:\"toto\") -(\"titi\"))");
-        test_parse_query_to_ast_helper("-abc:toto", "-(abc:\"toto\")");
-        test_parse_query_to_ast_helper("abc:a b", "(abc:\"a\" \"b\")");
+    }
+
+    #[test]
+    fn test_must_clause() {
+        test_parse_query_to_ast_helper("(+a +b)", "(+\"a\" +\"b\")");
+    }
+
+    #[test]
+    fn test_parse_test_query_plus_a_b_plus_d() {
+        test_parse_query_to_ast_helper("+(a b) +d", "(+(*\"a\" *\"b\") +\"d\")");
+    }
+
+    #[test]
+    fn test_parse_test_query_other() {
+        test_parse_query_to_ast_helper("(+a +b) d", "(*(+\"a\" +\"b\") *\"d\")");
+        test_parse_query_to_ast_helper("+abc:toto", "abc:\"toto\"");
+        test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+abc:\"toto\" -\"titi\")");
+        test_parse_query_to_ast_helper("-abc:toto", "(-abc:\"toto\")");
+        test_parse_query_to_ast_helper("abc:a b", "(*abc:\"a\" *\"b\")");
         test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "foo:[\"1\" TO \"5\"]");
+    }
+
+    #[test]
+    fn test_parse_query_with_range() {
         test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
         test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
