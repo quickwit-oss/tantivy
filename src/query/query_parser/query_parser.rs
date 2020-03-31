@@ -55,8 +55,8 @@ pub enum QueryParserError {
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     #[fail(
-    display = "The tokenizer '{:?}' for the field '{:?}' is unknown",
-    _0, _1
+        display = "The tokenizer '{:?}' for the field '{:?}' is unknown",
+        _0, _1
     )]
     UnknownTokenizer(String, String),
     /// The query contains a range query with a phrase as one of the bounds.
@@ -1049,7 +1049,7 @@ mod test {
             test_parse_query_to_logical_ast_helper(
                 "title:a AND title:b",
                 "(+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98]))",
-                default_conjunction
+                default_conjunction,
             );
         }
     }
@@ -1060,9 +1060,8 @@ mod test {
             test_parse_query_to_logical_ast_helper(
                 "title:a OR title:b",
                 "(Term(field=0,bytes=[97]) Term(field=0,bytes=[98]))",
-                default_conjunction
+                default_conjunction,
             );
         }
     }
-
 }

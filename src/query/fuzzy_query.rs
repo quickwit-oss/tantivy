@@ -2,10 +2,36 @@ use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
 use crate::Searcher;
 use crate::TantivyError::InvalidArgument;
-use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::ops::Range;
+use tantivy_fst::Automaton;
+
+struct DFAWrapper(pub DFA);
+
+impl Automaton for DFAWrapper {
+    type State = u32;
+
+    fn start(&self) -> Self::State {
+        self.0.initial_state()
+    }
+
+    fn is_match(&self, state: &Self::State) -> bool {
+        match self.0.distance(*state) {
+            Distance::Exact(_) => true,
+            Distance::AtLeast(_) => false,
+        }
+    }
+
+    fn can_match(&self, state: &u32) -> bool {
+        state != levenshtein_automata::SINK_STATE
+    }
+
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        self.0.transition(*state, byte)
+    }
+}
 
 /// A range of Levenshtein distances that we will build DFAs for our terms
 /// The computation is exponential, so best keep it to low single digits
@@ -101,7 +127,7 @@ impl FuzzyTermQuery {
         }
     }
 
-    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DFA>> {
+    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DFAWrapper>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
@@ -111,7 +137,10 @@ impl FuzzyTermQuery {
                 } else {
                     automaton_builder.build_dfa(self.term.text())
                 };
-                Ok(AutomatonWeight::new(self.term.field(), automaton))
+                Ok(AutomatonWeight::new(
+                    self.term.field(),
+                    DFAWrapper(automaton),
+                ))
             }
             None => Err(InvalidArgument(format!(
                 "Levenshtein distance of {} is not allowed. Choose a value in the {:?} range",
