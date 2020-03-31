@@ -55,8 +55,8 @@ pub enum QueryParserError {
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     #[fail(
-        display = "The tokenizer '{:?}' for the field '{:?}' is unknown",
-        _0, _1
+    display = "The tokenizer '{:?}' for the field '{:?}' is unknown",
+    _0, _1
     )]
     UnknownTokenizer(String, String),
     /// The query contains a range query with a phrase as one of the bounds.
@@ -174,6 +174,16 @@ pub struct QueryParser {
     boost: HashMap<Field, f32>,
 }
 
+fn all_negative(ast: &LogicalAST) -> bool {
+    match ast {
+        LogicalAST::Leaf(_) => false,
+        LogicalAST::Boost(ref child_ast, _) => all_negative(&*child_ast),
+        LogicalAST::Clause(children) => children
+            .iter()
+            .all(|(ref occur, child)| (*occur == Occur::MustNot) || all_negative(child)),
+    }
+}
+
 impl QueryParser {
     /// Creates a `QueryParser`, given
     /// * schema - index Schema
@@ -253,8 +263,13 @@ impl QueryParser {
         &self,
         user_input_ast: UserInputAST,
     ) -> Result<LogicalAST, QueryParserError> {
-        let (occur, ast) = self.compute_logical_ast_with_occur(user_input_ast)?;
-        if occur == Occur::MustNot {
+        let ast = self.compute_logical_ast_with_occur(user_input_ast)?;
+        if let LogicalAST::Clause(children) = &ast {
+            if children.is_empty() {
+                return Ok(ast);
+            }
+        }
+        if all_negative(&ast) {
             return Err(QueryParserError::AllButQueryForbidden);
         }
         Ok(ast)
@@ -410,31 +425,23 @@ impl QueryParser {
     fn compute_logical_ast_with_occur(
         &self,
         user_input_ast: UserInputAST,
-    ) -> Result<(Occur, LogicalAST), QueryParserError> {
+    ) -> Result<LogicalAST, QueryParserError> {
         match user_input_ast {
             UserInputAST::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
                 let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
-                for sub_query in sub_queries {
-                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(sub_query)?;
-                    let new_occur = Occur::compose(default_occur, occur);
-                    logical_sub_queries.push((new_occur, sub_ast));
+                for (occur_opt, sub_ast) in sub_queries {
+                    let sub_ast = self.compute_logical_ast_with_occur(sub_ast)?;
+                    let occur = occur_opt.unwrap_or(default_occur);
+                    logical_sub_queries.push((occur, sub_ast));
                 }
-                Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
-            }
-            UserInputAST::Unary(left_occur, subquery) => {
-                let (right_occur, logical_sub_queries) =
-                    self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((Occur::compose(left_occur, right_occur), logical_sub_queries))
+                Ok(LogicalAST::Clause(logical_sub_queries))
             }
             UserInputAST::Boost(ast, boost) => {
-                let (occur, ast_without_occur) = self.compute_logical_ast_with_occur(*ast)?;
-                Ok((occur, ast_without_occur.boost(boost)))
+                let ast = self.compute_logical_ast_with_occur(*ast)?;
+                Ok(ast.boost(boost))
             }
-            UserInputAST::Leaf(leaf) => {
-                let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
-                Ok((Occur::Should, result_ast))
-            }
+            UserInputAST::Leaf(leaf) => self.compute_logical_ast_from_leaf(*leaf),
         }
     }
 
@@ -783,6 +790,20 @@ mod test {
     }
 
     #[test]
+    fn test_parse_query_to_ast_ab_c() {
+        test_parse_query_to_logical_ast_helper(
+            "(+title:a +title:b) title:c",
+            "((+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98])) Term(field=0,bytes=[99]))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "(+title:a +title:b) title:c",
+            "(+(+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98])) +Term(field=0,bytes=[99]))",
+            true,
+        );
+    }
+
+    #[test]
     pub fn test_parse_query_to_ast_single_term() {
         test_parse_query_to_logical_ast_helper(
             "title:toto",
@@ -801,11 +822,13 @@ mod test {
              Term(field=1,bytes=[116, 105, 116, 105])))",
             false,
         );
-        assert_eq!(
-            parse_query_to_logical_ast("-title:toto", false)
-                .err()
-                .unwrap(),
-            QueryParserError::AllButQueryForbidden
+    }
+
+    #[test]
+    fn test_single_negative_term() {
+        assert_matches!(
+            parse_query_to_logical_ast("-title:toto", false),
+            Err(QueryParserError::AllButQueryForbidden)
         );
     }
 
@@ -966,6 +989,18 @@ mod test {
     }
 
     #[test]
+    pub fn test_parse_query_single_negative_term_through_error() {
+        assert_matches!(
+            parse_query_to_logical_ast("-title:toto", true),
+            Err(QueryParserError::AllButQueryForbidden)
+        );
+        assert_matches!(
+            parse_query_to_logical_ast("-title:toto", false),
+            Err(QueryParserError::AllButQueryForbidden)
+        );
+    }
+
+    #[test]
     pub fn test_parse_query_to_ast_conjunction() {
         test_parse_query_to_logical_ast_helper(
             "title:toto",
@@ -983,12 +1018,6 @@ mod test {
              -(Term(field=0,bytes=[116, 105, 116, 105]) \
              Term(field=1,bytes=[116, 105, 116, 105])))",
             true,
-        );
-        assert_eq!(
-            parse_query_to_logical_ast("-title:toto", true)
-                .err()
-                .unwrap(),
-            QueryParserError::AllButQueryForbidden
         );
         test_parse_query_to_logical_ast_helper(
             "title:a b",
@@ -1013,4 +1042,27 @@ mod test {
             false
         );
     }
+
+    #[test]
+    fn test_and_default_regardless_of_default_conjunctive() {
+        for &default_conjunction in &[false, true] {
+            test_parse_query_to_logical_ast_helper(
+                "title:a AND title:b",
+                "(+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98]))",
+                default_conjunction
+            );
+        }
+    }
+
+    #[test]
+    fn test_or_default_conjunctive() {
+        for &default_conjunction in &[false, true] {
+            test_parse_query_to_logical_ast_helper(
+                "title:a OR title:b",
+                "(Term(field=0,bytes=[97]) Term(field=0,bytes=[98]))",
+                default_conjunction
+            );
+        }
+    }
+
 }

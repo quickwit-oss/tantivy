@@ -85,15 +85,14 @@ impl UserInputBound {
 }
 
 pub enum UserInputAST {
-    Clause(Vec<UserInputAST>),
-    Unary(Occur, Box<UserInputAST>),
+    Clause(Vec<(Option<Occur>, UserInputAST)>),
     Leaf(Box<UserInputLeaf>),
     Boost(Box<UserInputAST>, f32),
 }
 
 impl UserInputAST {
     pub fn unary(self, occur: Occur) -> UserInputAST {
-        UserInputAST::Unary(occur, Box::new(self))
+        UserInputAST::Clause(vec![(Some(occur), self)])
     }
 
     fn compose(occur: Occur, asts: Vec<UserInputAST>) -> UserInputAST {
@@ -104,7 +103,7 @@ impl UserInputAST {
         } else {
             UserInputAST::Clause(
                 asts.into_iter()
-                    .map(|ast: UserInputAST| ast.unary(occur))
+                    .map(|ast: UserInputAST| (Some(occur), ast))
                     .collect::<Vec<_>>(),
             )
         }
@@ -135,24 +134,35 @@ impl From<UserInputLeaf> for UserInputAST {
     }
 }
 
+fn print_occur_ast(
+    occur_opt: Option<Occur>,
+    ast: &UserInputAST,
+    formatter: &mut fmt::Formatter,
+) -> fmt::Result {
+    if let Some(occur) = occur_opt {
+        write!(formatter, "{}{:?}", occur, ast)?;
+    } else {
+        write!(formatter, "*{:?}", ast)?;
+    }
+    Ok(())
+}
+
 impl fmt::Debug for UserInputAST {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
                     write!(formatter, "(")?;
-                    write!(formatter, "{:?}", &subqueries[0])?;
+                    print_occur_ast(subqueries[0].0, &subqueries[0].1, formatter)?;
                     for subquery in &subqueries[1..] {
-                        write!(formatter, " {:?}", subquery)?;
+                        write!(formatter, " ")?;
+                        print_occur_ast(subquery.0, &subquery.1, formatter)?;
                     }
                     write!(formatter, ")")?;
                 }
                 Ok(())
-            }
-            UserInputAST::Unary(ref occur, ref subquery) => {
-                write!(formatter, "{}({:?})", occur, subquery)
             }
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
             UserInputAST::Boost(ref leaf, boost) => write!(formatter, "({:?})^{}", leaf, boost),
