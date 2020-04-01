@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 use tantivy_fst::Automaton;
 
-struct DFAWrapper(pub DFA);
+pub(crate) struct DFAWrapper(pub DFA);
 
 impl Automaton for DFAWrapper {
     type State = u32;
@@ -25,7 +25,7 @@ impl Automaton for DFAWrapper {
     }
 
     fn can_match(&self, state: &u32) -> bool {
-        state != levenshtein_automata::SINK_STATE
+        *state != levenshtein_automata::SINK_STATE
     }
 
     fn accept(&self, state: &Self::State, byte: u8) -> Self::State {

@@ -24,6 +24,7 @@ mod term_query;
 mod union;
 mod weight;
 
+
 #[cfg(test)]
 mod vec_docset;
 
@@ -43,6 +44,7 @@ pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
 pub use self::fuzzy_query::FuzzyTermQuery;
+pub(crate) use self::fuzzy_query::DFAWrapper;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::Query;
