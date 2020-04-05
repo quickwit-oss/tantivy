@@ -25,7 +25,7 @@ mod sse2 {
     ///
     /// There is no early exit here. We simply count the
     /// number of elements that are `< target`.
-    pub(crate) fn linear_search_sse2_128(arr: &AlignedBuffer, target: u32) -> usize {
+    pub fn linear_search_sse2_128(arr: &AlignedBuffer, target: u32) -> usize {
         unsafe {
             let ptr = arr as *const AlignedBuffer as *const DataType;
             let vkey = set1(target as i32);
@@ -62,6 +62,8 @@ mod sse2 {
         }
     }
 }
+
+pub use self::sse2::linear_search_sse2_128;
 
 /// This `linear search` browser exhaustively through the array.
 /// but the early exit is very difficult to predict.

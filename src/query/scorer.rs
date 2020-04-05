@@ -4,6 +4,8 @@ use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
 use std::ops::DerefMut;
+use crate::collector::{SegmentCollector, Collector, TopDocs, Count};
+
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -19,6 +21,12 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
         while self.advance() {
             callback(self.doc(), self.score());
+        }
+    }
+
+    fn top_k(&mut self, collector: &mut <(Count, TopDocs) as Collector>::Child) {
+        while self.advance() {
+            collector.collect(self.doc(), self.score());
         }
     }
 }

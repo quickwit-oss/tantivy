@@ -3,7 +3,7 @@ Postings module (also called inverted index)
 */
 
 mod block_search;
-pub(crate) mod compression;
+pub mod compression;
 /// Postings module
 ///
 /// Postings, also called inverted lists, is the key datastructure

@@ -1,11 +1,17 @@
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
-use crate::DocAddress;
+use crate::{DocAddress, Score};
 use crate::Term;
 use downcast_rs::impl_downcast;
 use std::collections::BTreeSet;
 use std::fmt;
+use crate::collector::{TopDocs, Collector, SegmentCollector, Count};
+
+pub struct TopKResult {
+    pub count: u64,
+    docs: Vec<(Score, DocAddress)>
+}
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -54,6 +60,27 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
         let reader = searcher.segment_reader(doc_address.segment_ord());
         let weight = self.weight(searcher, true)?;
         weight.explain(reader, doc_address.doc())
+    }
+
+    fn top_k(&self, searcher: &Searcher, num_hits: usize) -> crate::Result<TopKResult> {
+        let top_docs = TopDocs::with_limit(num_hits);
+        let collector = (Count, top_docs);
+        let weight = self.weight(searcher, false)?;
+        let mut count = 0u64;
+        let mut result = 0;
+        let mut child_fruits = Vec::with_capacity(searcher.segment_readers().len());
+        for (segment_ord, reader) in searcher.segment_readers().iter().enumerate() {
+            let mut child_top_k = collector.for_segment(segment_ord as u32, reader)?;
+            let mut scorer = weight.scorer(reader, 1.0f32)?;
+            // handle deletes
+            scorer.top_k(&mut child_top_k);
+            child_fruits.push(child_top_k.harvest());
+        }
+        let (count, docs) = collector.merge_fruits(child_fruits)?;
+        Ok(TopKResult {
+            count: count as u64,
+            docs
+        })
     }
 
     /// Returns the number of documents matching the query.

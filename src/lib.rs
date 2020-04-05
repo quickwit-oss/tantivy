@@ -269,6 +269,144 @@ impl DocAddress {
     }
 }
 
+
+
+mod sse2 {
+    use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
+    use std::arch::x86_64::__m128i as DataType;
+    use std::arch::x86_64::_mm_add_epi32 as op_add;
+    use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
+    use std::arch::x86_64::_mm_load_si128 as op_load;
+    // requires 128-bits alignment
+    use std::arch::x86_64::_mm_set1_epi32 as set1;
+    use std::arch::x86_64::_mm_setzero_si128 as set0;
+    use std::arch::x86_64::_mm_sub_epi32 as op_sub;
+    use std::arch::x86_64::{_mm_cvtsi128_si32, _mm_shuffle_epi32};
+
+    const MASK1: i32 = 78;
+    const MASK2: i32 = 177;
+
+    /// Performs an exhaustive linear search over the
+    ///
+    /// There is no early exit here. We simply count the
+    /// number of elements that are `< target`.
+    pub unsafe fn linear_search_sse2_128(arr: &AlignedBuffer, target: u32) -> usize {
+        let ptr = arr as *const AlignedBuffer as *const DataType;
+        let vkey = set1(target as i32);
+        let mut cnt = set0();
+        // We work over 4 `__m128i` at a time.
+        // A single `__m128i` actual contains 4 `u32`.
+        for i in 0..(COMPRESSION_BLOCK_SIZE as isize) / (4 * 4) {
+            let cmp1 = op_lt(op_load(ptr.offset(i * 4)), vkey);
+            let cmp2 = op_lt(op_load(ptr.offset(i * 4 + 1)), vkey);
+            let cmp3 = op_lt(op_load(ptr.offset(i * 4 + 2)), vkey);
+            let cmp4 = op_lt(op_load(ptr.offset(i * 4 + 3)), vkey);
+            let sum = op_add(op_add(cmp1, cmp2), op_add(cmp3, cmp4));
+            cnt = op_sub(cnt, sum);
+        }
+        cnt = op_add(cnt, _mm_shuffle_epi32(cnt, MASK1));
+        cnt = op_add(cnt, _mm_shuffle_epi32(cnt, MASK2));
+        _mm_cvtsi128_si32(cnt) as usize
+    }
+}
+
+
+const MAX_DOC: u32 = 2_000_000_000u32;
+
+use sse2::linear_search_sse2_128;
+use crate::postings::BlockSegmentPostings;
+use crate::schema::IndexRecordOption;
+
+struct DocCursor {
+    block_segment_postings: BlockSegmentPostings,
+    cursor: usize,
+}
+
+impl DocCursor {
+    fn new(mut block_segment_postings: BlockSegmentPostings) -> DocCursor {
+        block_segment_postings.advance();
+        DocCursor {
+            block_segment_postings,
+            cursor: 0,
+        }
+    }
+    fn doc(&self,) -> DocId {
+        self.block_segment_postings.doc(self.cursor)
+    }
+
+    fn len(&self,) -> usize {
+        self.block_segment_postings.doc_freq()
+    }
+
+    fn advance(&mut self) {
+        if self.cursor == 127 {
+            self.block_segment_postings.advance();
+            self.cursor = 0;
+        } else {
+            self.cursor += 1;
+        }
+    }
+
+    fn skip_to(&mut self, target: DocId) {
+        if self.block_segment_postings.skip_reader.doc() >= target {
+            unsafe {
+                let mut ptr = self.block_segment_postings.docs_aligned_b().0.get_unchecked(self.cursor) as *const u32;
+                while *ptr < target {
+                    self.cursor += 1;
+                    ptr = ptr.offset(1);
+                }
+            }
+            return;
+        }
+        self.block_segment_postings.skip_to_b(target);
+        let block= self.block_segment_postings.docs_aligned_b();
+        self.cursor = unsafe { linear_search_sse2_128(&block, target) };
+
+    }
+}
+
+pub fn intersection(idx: &InvertedIndexReader, terms: &[Term]) -> crate::Result<u32> {
+    let mut posting_lists: Vec<DocCursor> = Vec::with_capacity(terms.len());
+    for term in terms {
+        if let Some(mut block_postings) = idx.read_block_postings(term, IndexRecordOption::Basic) {
+            posting_lists.push(DocCursor::new(block_postings ));
+        } else {
+            return Ok(0);
+        }
+    }
+    posting_lists.sort_by_key(|posting_list| posting_list.len());
+    Ok({ intersection_idx(&mut posting_lists[..]) })
+}
+
+fn intersection_idx(posting_lists: &mut [DocCursor]) -> DocId {
+    let mut candidate = posting_lists[0].doc();
+    let mut i = 1;
+
+    let mut count = 0u32;
+
+    let num_posting_lists = posting_lists.len();
+    loop {
+        while i < num_posting_lists {
+            posting_lists[i].skip_to(candidate);
+            if posting_lists[i].doc() != candidate {
+                candidate = posting_lists[i].doc();
+                i = 0;
+                continue;
+            }
+            i += 1;
+        }
+        count += 1;
+        if candidate == MAX_DOC {
+            break;
+        }
+        posting_lists[0].advance();
+        candidate = posting_lists[0].doc();
+        i = 1;
+    }
+    count - 1u32
+}
+
+
 /// `DocAddress` contains all the necessary information
 /// to identify a document given a `Searcher` object.
 ///

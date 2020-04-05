@@ -49,7 +49,7 @@ impl SkipSerializer {
     }
 }
 
-pub(crate) struct SkipReader {
+pub struct SkipReader {
     doc: DocId,
     owned_read: OwnedRead,
     doc_num_bits: u8,

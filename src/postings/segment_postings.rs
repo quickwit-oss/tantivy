@@ -317,7 +317,7 @@ pub struct BlockSegmentPostings {
     num_vint_docs: usize,
 
     remaining_data: OwnedRead,
-    skip_reader: SkipReader,
+    pub skip_reader: SkipReader,
 }
 
 fn split_into_skips_and_postings(
@@ -414,7 +414,12 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
-    pub(crate) fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
+    #[inline(always)]
+    pub fn docs_aligned_b(&self) -> &AlignedBuffer {
+        self.doc_decoder.output_aligned_2()
+    }
+
+    pub fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
         self.doc_decoder.output_aligned()
     }
 
@@ -486,6 +491,7 @@ impl BlockSegmentPostings {
                     }
                 }
                 self.doc_offset = self.skip_reader.doc();
+                unsafe { core::arch::x86_64::_mm_prefetch(self.remaining_data.as_ref() as *mut i8, _MM_HINT_T1) };
                 return BlockSegmentPostingsSkipResult::Success(skip_freqs);
             } else {
                 skip_freqs += self.skip_reader.tf_sum();
@@ -524,6 +530,41 @@ impl BlockSegmentPostings {
                 .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
         }
         BlockSegmentPostingsSkipResult::Terminated
+    }
+
+    /// Ensure we are located on the right block.
+    #[inline(never)]
+    pub fn skip_to_b(&mut self, target_doc: DocId) {
+       while self.skip_reader.advance() {
+            if self.skip_reader.doc() >= target_doc {
+                // the last document of the current block is larger
+                // than the target.
+                //
+                // We found our block!
+                let num_bits = self.skip_reader.doc_num_bits();
+                let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
+                    self.remaining_data.as_ref(),
+                    self.doc_offset,
+                    num_bits,
+                );
+                let tf_num_bits = self.skip_reader.tf_num_bits();
+                let num_bytes_to_skip = compressed_block_size(tf_num_bits);
+                self.remaining_data.advance(num_consumed_bytes + num_bytes_to_skip);
+                self.doc_offset = self.skip_reader.doc();
+                return;
+            } else {
+                let advance_len = self.skip_reader.total_block_len();
+                self.doc_offset = self.skip_reader.doc();
+                self.remaining_data.advance(advance_len);
+            }
+        }
+
+        // we are now on the last, incomplete, variable encoded block.
+        self.doc_decoder.uncompress_vint_sorted_b(
+           self.remaining_data.as_ref(),
+           self.doc_offset,
+          self.num_vint_docs
+        );
     }
 
     /// Advance to the next block.

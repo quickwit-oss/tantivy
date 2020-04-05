@@ -46,7 +46,7 @@ impl BlockEncoder {
 /// We ensure that the OutputBuffer is align on 128 bits
 /// in order to run SSE2 linear search on it.
 #[repr(align(128))]
-pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
+pub struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
 
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
@@ -65,6 +65,18 @@ impl BlockDecoder {
             output: AlignedBuffer([val; COMPRESSION_BLOCK_SIZE]),
             output_len: 0,
         }
+    }
+
+    pub fn uncompress_vint_sorted_b<'a>(
+        &mut self,
+        compressed_data: &'a [u8],
+        offset: u32,
+        num_els: usize,
+    ) {
+        if num_els > 0 {
+            vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset);
+        }
+        self.output.0[num_els..].iter_mut().for_each(|val| *val = 2_000_000_000u32);
     }
 
     pub fn uncompress_block_sorted(
@@ -92,6 +104,11 @@ impl BlockDecoder {
     #[inline]
     pub(crate) fn output_aligned(&self) -> (&AlignedBuffer, usize) {
         (&self.output, self.output_len)
+    }
+
+    #[inline]
+    pub(crate) fn output_aligned_2(&self) -> &AlignedBuffer {
+        &self.output
     }
 
     #[inline]
