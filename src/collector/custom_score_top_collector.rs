@@ -28,7 +28,7 @@ where
 /// It is the segment local version of the [`CustomScorer`](./trait.CustomScorer.html).
 pub trait CustomSegmentScorer<TScore>: 'static {
     /// Computes the score of a specific `doc`.
-    fn score(&self, doc: DocId) -> TScore;
+    fn score(&mut self, doc: DocId) -> TScore;
 }
 
 /// `CustomScorer` makes it possible to define any kind of score.
@@ -117,9 +117,9 @@ where
 
 impl<F, TScore> CustomSegmentScorer<TScore> for F
 where
-    F: 'static + Sync + Send + Fn(DocId) -> TScore,
+    F: 'static + FnMut(DocId) -> TScore,
 {
-    fn score(&self, doc: DocId) -> TScore {
+    fn score(&mut self, doc: DocId) -> TScore {
         (self)(doc)
     }
 }
