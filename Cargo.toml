@@ -45,7 +45,7 @@ fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"
 htmlescape = "0.3.1"
-fail = "0.3"
+fail = "0.4"
 murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1.0"
@@ -60,7 +60,7 @@ maplit = "1"
 matches = "0.1.8"
 
 [dev-dependencies.fail]
-version = "0.3"
+version = "0.4"
 features = ["failpoints"]
 
 [profile.release]
