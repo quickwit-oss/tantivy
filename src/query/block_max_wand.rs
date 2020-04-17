@@ -155,11 +155,6 @@ where
             .map(|docset| docset.block_max_score())
             .sum();
         if (self.threshold_fn)(&block_upper_bound) {
-            println!(
-                "Above T: {} ({:?})",
-                pivot.doc,
-                self.docsets.iter().map(|s| s.doc()).collect::<Vec<_>>()
-            );
             if pivot.doc == self.docsets[0].doc() {
                 // NOTE(elshize): One additional check needs to be done to improve performance:
                 // update block-wise bound while accumulating score with the actual score,
@@ -218,17 +213,8 @@ where
         loop {
             match {
                 if let Some(pivot) = self.find_pivot_position() {
-                    println!(
-                        "pivot = {:?}\n{:?}",
-                        pivot,
-                        self.docsets.iter().map(|s| s.doc()).collect::<Vec<_>>()
-                    );
                     self.advance_with_pivot(pivot)
                 } else {
-                    println!(
-                        "[no pivot] {:?}",
-                        self.docsets.iter().map(|s| s.doc()).collect::<Vec<_>>()
-                    );
                     AdvanceResult::End
                 }
             } {
@@ -491,9 +477,7 @@ mod tests {
         )));
         let inner = std::rc::Rc::clone(&top_bmw);
         let mut bmw = BlockMaxWand::new(posting_lists, SumCombiner::default(), move |score| {
-            let is_above = inner.borrow().above_threshold(score);
-            println!("{} (above = {})", score, is_above);
-            is_above
+            inner.borrow().above_threshold(score)
         });
         while bmw.advance() {
             top_bmw.borrow_mut().collect(bmw.doc(), bmw.score());
