@@ -1,7 +1,9 @@
+mod block_max_term_scorer;
 mod term_query;
 mod term_scorer;
 mod term_weight;
 
+pub use self::block_max_term_scorer::BlockMaxTermScorer;
 pub use self::term_query::TermQuery;
 pub use self::term_scorer::TermScorer;
 pub use self::term_weight::TermWeight;

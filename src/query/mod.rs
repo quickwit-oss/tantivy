@@ -5,6 +5,8 @@ Query
 mod all_query;
 mod automaton_weight;
 mod bitset;
+mod block_max_scorer;
+mod block_max_wand;
 mod bm25;
 mod boolean_query;
 mod boost_query;
@@ -24,7 +26,6 @@ mod term_query;
 mod union;
 mod weight;
 
-
 #[cfg(test)]
 mod vec_docset;
 
@@ -38,13 +39,14 @@ pub use self::vec_docset::VecDocSet;
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
+pub use self::block_max_scorer::BlockMaxScorer;
 pub use self::boolean_query::BooleanQuery;
 pub use self::boost_query::BoostQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
-pub use self::fuzzy_query::FuzzyTermQuery;
 pub(crate) use self::fuzzy_query::DFAWrapper;
+pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::Query;
