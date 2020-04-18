@@ -1,6 +1,4 @@
-/*!
-Query
-*/
+/*! Query Module */
 
 mod all_query;
 mod automaton_weight;
@@ -24,7 +22,6 @@ mod term_query;
 mod union;
 mod weight;
 
-
 #[cfg(test)]
 mod vec_docset;
 
@@ -43,8 +40,9 @@ pub use self::boost_query::BoostQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
-pub use self::fuzzy_query::FuzzyTermQuery;
+#[cfg(test)]
 pub(crate) use self::fuzzy_query::DFAWrapper;
+pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::Query;
