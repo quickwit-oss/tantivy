@@ -29,7 +29,7 @@ where
 /// It is the segment local version of the [`ScoreTweaker`](./trait.ScoreTweaker.html).
 pub trait ScoreSegmentTweaker<TScore>: 'static {
     /// Tweak the given `score` for the document `doc`.
-    fn score(&self, doc: DocId, score: Score) -> TScore;
+    fn score(&mut self, doc: DocId, score: Score) -> TScore;
 }
 
 /// `ScoreTweaker` makes it possible to tweak the score
@@ -121,9 +121,9 @@ where
 
 impl<F, TScore> ScoreSegmentTweaker<TScore> for F
 where
-    F: 'static + Sync + Send + Fn(DocId, Score) -> TScore,
+    F: 'static + FnMut(DocId, Score) -> TScore,
 {
-    fn score(&self, doc: DocId, score: Score) -> TScore {
+    fn score(&mut self, doc: DocId, score: Score) -> TScore {
         (self)(doc, score)
     }
 }
