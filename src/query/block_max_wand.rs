@@ -322,6 +322,12 @@ mod tests {
                 block_size,
             }
         }
+        /// Constructs a new set and advances it.
+        fn started(postings: Vec<(DocId, Score)>, block_size: usize) -> VecDocSet {
+            let mut docset = VecDocSet::new(postings, block_size);
+            docset.advance();
+            docset
+        }
     }
 
     impl DocSet for VecDocSet {
@@ -587,11 +593,11 @@ mod tests {
     #[test]
     fn test_find_pivot_position() {
         let postings = vec![
-            VecDocSet::new(vec![(0, 2.0)], 1),
-            VecDocSet::new(vec![(1, 3.0)], 1),
-            VecDocSet::new(vec![(2, 4.0)], 1),
-            VecDocSet::new(vec![(3, 5.0)], 1),
-            VecDocSet::new(vec![(3, 6.0)], 1),
+            VecDocSet::started(vec![(0, 2.0)], 1),
+            VecDocSet::started(vec![(1, 3.0)], 1),
+            VecDocSet::started(vec![(2, 4.0)], 1),
+            VecDocSet::started(vec![(3, 5.0)], 1),
+            VecDocSet::started(vec![(3, 6.0)], 1),
         ];
         assert_eq!(
             find_pivot_position(postings.iter(), &|&score| score > 2.0),
@@ -626,11 +632,11 @@ mod tests {
     #[test]
     fn test_find_next_relevant_doc_before_pivot() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (3, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (4, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(2, 0.0), (6, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(6, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (3, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (4, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(2, 0.0), (6, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(6, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (8, 0.0)], 2)),
         ];
         let (up_to_pivot, rest) = postings.split_at_mut(2);
         let (pivot, after_pivot) = rest.split_first_mut().unwrap();
@@ -641,11 +647,11 @@ mod tests {
     #[test]
     fn test_find_next_relevant_doc_prefix_smaller_than_pivot() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (3, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (4, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(5, 0.0), (8, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(6, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (3, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (4, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(5, 0.0), (8, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(6, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (8, 0.0)], 2)),
         ];
         let (up_to_pivot, rest) = postings.split_at_mut(2);
         let (pivot, after_pivot) = rest.split_first_mut().unwrap();
@@ -656,11 +662,11 @@ mod tests {
     #[test]
     fn test_find_next_relevant_doc_after_pivot() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(2, 0.0), (8, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(5, 0.0), (7, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(2, 0.0), (8, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(5, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (7, 0.0)], 2)),
         ];
         let (up_to_pivot, rest) = postings.split_at_mut(2);
         let (pivot, after_pivot) = rest.split_first_mut().unwrap();
@@ -671,11 +677,11 @@ mod tests {
     #[test]
     fn test_sift_down_already_sifted() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(2, 0.0), (8, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(5, 0.0), (7, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(2, 0.0), (8, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(5, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (7, 0.0)], 2)),
         ];
         sift_down(&mut postings[2..]);
         assert_eq!(
@@ -687,11 +693,11 @@ mod tests {
     #[test]
     fn test_sift_down_sift_one_down() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (8, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(5, 0.0), (7, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(7, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (8, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(5, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(7, 0.0), (7, 0.0)], 2)),
         ];
         sift_down(&mut postings[2..]);
         assert_eq!(
@@ -703,11 +709,11 @@ mod tests {
     #[test]
     fn test_sift_down_to_bottom() {
         let mut postings = vec![
-            Box::new(VecDocSet::new(vec![(0, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(1, 0.0), (8, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(7, 0.0), (8, 0.0)], 2)), // pivot
-            Box::new(VecDocSet::new(vec![(5, 0.0), (7, 0.0)], 2)),
-            Box::new(VecDocSet::new(vec![(6, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(0, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(1, 0.0), (8, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(7, 0.0), (8, 0.0)], 2)), // pivot
+            Box::new(VecDocSet::started(vec![(5, 0.0), (7, 0.0)], 2)),
+            Box::new(VecDocSet::started(vec![(6, 0.0), (7, 0.0)], 2)),
         ];
         sift_down(&mut postings[2..]);
         assert_eq!(
