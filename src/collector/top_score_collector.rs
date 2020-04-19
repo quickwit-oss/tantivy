@@ -66,7 +66,7 @@ struct ScorerByFastFieldReader {
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
-    fn score(&self, doc: DocId) -> u64 {
+    fn score(&mut self, doc: DocId) -> u64 {
         self.ff_reader.get_u64(u64::from(doc))
     }
 }

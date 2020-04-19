@@ -1,6 +1,7 @@
 Tantivy 0.13.0
 ======================
 - Bugfix in `FuzzyTermQuery` not matching terms by prefix when it should (@Peachball)
+- Relaxed constraints on the custom/tweak score functions. At the segment level, they can be mut, and they are not required to be Sync + Send.
 
 Tantivy 0.12.0
 ======================
