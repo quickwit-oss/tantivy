@@ -36,7 +36,7 @@ performance for different type of queries / collection.
 
 
 In general, Tantivy tends to be 
-- slower than Lucene 8 on union with a Top-K due to Block-WAND optimization.
+- slower than Lucene on union with a Top-K due to Block-WAND optimization.
 - faster than Lucene on intersection and phrase queries. 
 
 Your mileage WILL vary depending on the nature of queries and their load.
