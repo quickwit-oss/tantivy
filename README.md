@@ -31,11 +31,15 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Benchmark
 
-Tantivy is typically faster than Lucene, but the results depend on 
-the nature of the queries in your workload.
-
 The following [benchmark](https://tantivy-search.github.io/bench/) break downs 
 performance for different type of queries / collection.
+
+
+In general, Tantivy tends to be 
+- slower than Lucene 8 on union with a Top-K due to Block-WAND optimization.
+- faster than Lucene on intersection and phrase queries. 
+
+Your mileage WILL vary depending on the nature of queries and their load.
 
 # Features
 
