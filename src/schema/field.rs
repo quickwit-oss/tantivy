@@ -1,5 +1,4 @@
 use crate::common::BinarySerializable;
-use serde;
 use std::io;
 use std::io::Read;
 use std::io::Write;

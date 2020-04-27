@@ -1,5 +1,3 @@
-use snap;
-
 use std::io::{self, Read, Write};
 
 /// Name of the compression scheme used in the doc store.

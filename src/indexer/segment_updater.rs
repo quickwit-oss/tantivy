@@ -23,7 +23,6 @@ use futures::channel::oneshot;
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use futures::future::Future;
 use futures::future::TryFutureExt;
-use serde_json;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::io::Write;

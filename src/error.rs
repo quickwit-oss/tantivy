@@ -7,7 +7,6 @@ use crate::directory::error::{Incompatibility, LockError};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::query;
 use crate::schema;
-use serde_json;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;

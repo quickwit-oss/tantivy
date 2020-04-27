@@ -3,7 +3,6 @@ use crate::common::BinarySerializable;
 use crate::common::VInt;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
-use serde;
 use std::io::{self, Read, Write};
 use std::mem;
 

@@ -11,7 +11,6 @@ use crate::error::DataCorruption;
 use crate::Directory;
 
 use crc32fast::Hasher;
-use serde_json;
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
