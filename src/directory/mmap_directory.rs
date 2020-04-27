@@ -224,17 +224,13 @@ struct MmapDirectoryInner {
 }
 
 impl MmapDirectoryInner {
-    fn new(
-        root_path: PathBuf,
-        temp_directory: Option<TempDir>,
-    ) -> Result<MmapDirectoryInner, OpenDirectoryError> {
-        let mmap_directory_inner = MmapDirectoryInner {
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
+        MmapDirectoryInner {
             root_path,
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
             watcher: RwLock::new(None),
-        };
-        Ok(mmap_directory_inner)
+        }
     }
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
@@ -268,14 +264,11 @@ impl fmt::Debug for MmapDirectory {
 }
 
 impl MmapDirectory {
-    fn new(
-        root_path: PathBuf,
-        temp_directory: Option<TempDir>,
-    ) -> Result<MmapDirectory, OpenDirectoryError> {
-        let inner = MmapDirectoryInner::new(root_path, temp_directory)?;
-        Ok(MmapDirectory {
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
+        let inner = MmapDirectoryInner::new(root_path, temp_directory);
+        MmapDirectory {
             inner: Arc::new(inner),
-        })
+        }
     }
 
     /// Creates a new MmapDirectory in a temporary directory.
@@ -285,7 +278,7 @@ impl MmapDirectory {
     pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
         let tempdir = TempDir::new().map_err(OpenDirectoryError::IoError)?;
         let tempdir_path = PathBuf::from(tempdir.path());
-        MmapDirectory::new(tempdir_path, Some(tempdir))
+        Ok(MmapDirectory::new(tempdir_path, Some(tempdir)))
     }
 
     /// Opens a MmapDirectory in a directory.
@@ -303,7 +296,7 @@ impl MmapDirectory {
                 directory_path,
             )))
         } else {
-            Ok(MmapDirectory::new(PathBuf::from(directory_path), None)?)
+            Ok(MmapDirectory::new(PathBuf::from(directory_path), None))
         }
     }
 
