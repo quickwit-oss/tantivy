@@ -1,6 +1,4 @@
-use murmurhash32;
-
-use self::murmurhash32::murmurhash2;
+use murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::store;

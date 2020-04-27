@@ -21,7 +21,6 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
-use num_cpus;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::fmt;

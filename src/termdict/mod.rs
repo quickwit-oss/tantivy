@@ -434,8 +434,8 @@ mod tests {
 
     #[test]
     fn test_automaton_search() {
-        use levenshtein_automata::LevenshteinAutomatonBuilder;
         use crate::query::DFAWrapper;
+        use levenshtein_automata::LevenshteinAutomatonBuilder;
 
         const COUNTRIES: [&'static str; 7] = [
             "San Marino",

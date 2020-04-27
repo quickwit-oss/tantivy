@@ -1,10 +1,7 @@
 use crate::common::BinarySerializable;
 use crate::schema::Field;
 use crate::schema::Value;
-use serde;
-use std::io;
-use std::io::Read;
-use std::io::Write;
+use std::io::{self, Read, Write};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, serde::Serialize, serde::Deserialize)]

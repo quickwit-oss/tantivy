@@ -7,7 +7,6 @@ use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
-use tantivy_fst;
 use tantivy_fst::raw::Fst;
 use tantivy_fst::Automaton;
 

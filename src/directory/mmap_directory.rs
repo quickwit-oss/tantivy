@@ -1,10 +1,3 @@
-use fs2;
-use notify;
-
-use self::fs2::FileExt;
-use self::notify::RawEvent;
-use self::notify::RecursiveMode;
-use self::notify::Watcher;
 use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{
@@ -20,8 +13,11 @@ use crate::directory::WatchCallback;
 use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
 use crate::directory::{TerminatingWrite, WritePtr};
-use atomicwrites;
+use fs2::FileExt;
 use memmap::Mmap;
+use notify::RawEvent;
+use notify::RecursiveMode;
+use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
