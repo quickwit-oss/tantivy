@@ -9,6 +9,7 @@ use crate::directory::META_LOCK;
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
+use std::convert::TryInto;
 use std::sync::Arc;
 
 /// Defines when a new version of the index should be reloaded.
@@ -60,7 +61,6 @@ impl IndexReaderBuilder {
     /// Building the reader is a non-trivial operation that requires
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
-    /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
     pub fn try_into(self) -> crate::Result<IndexReader> {
         let inner_reader = InnerIndexReader {
             index: self.index,
@@ -110,6 +110,14 @@ impl IndexReaderBuilder {
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
+    }
+}
+
+impl TryInto<IndexReader> for IndexReaderBuilder {
+    type Error = crate::TantivyError;
+
+    fn try_into(self) -> crate::Result<IndexReader> {
+        IndexReaderBuilder::try_into(self)
     }
 }
 
