@@ -62,7 +62,7 @@ impl BlockMaxPostings for BlockMaxSegmentPostings {
         self.max_term_freq
     }
     fn block_max_term_freq(&mut self) -> u32 {
-        if matches!(self.max_blocks.skip_next(self.doc()), SkipResult::End) {
+        if let SkipResult::End = self.max_blocks.skip_next(self.doc()) {
             panic!("Max blocks corrupted: reached end of max block");
         }
         self.max_blocks.term_freq()

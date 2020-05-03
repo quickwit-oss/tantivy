@@ -50,7 +50,7 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1.0"
 rayon = "1"
-ordered-float = "1"
+# ordered-float = "1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"

@@ -11,26 +11,21 @@ struct Pivot {
     doc: DocId,
 }
 
-enum AdvanceResult {
-    Found,
-    Skipped,
-    End,
-}
 
 /// Find the position in the sorted list of posting lists of the **pivot**.
 fn find_pivot_position<'a, TScorer, F>(
     mut docsets: impl Iterator<Item = &'a TScorer>,
     condition: &F,
 ) -> Option<Pivot>
-where
-    F: Fn(&Score) -> bool,
-    TScorer: BlockMaxScorer + Scorer,
+    where
+        F: Fn(&Score) -> bool,
+        TScorer: BlockMaxScorer + Scorer,
 {
     let mut position = 0;
-    let mut uppder_bound = Score::default();
+    let mut upper_bound = Score::default();
     while let Some(docset) = docsets.next() {
-        uppder_bound += docset.max_score();
-        if condition(&uppder_bound) {
+        upper_bound += docset.max_score();
+        if condition(&upper_bound) {
             let pivot_doc = docset.doc();
             let first_occurrence = position;
             while let Some(docset) = docsets.next() {
@@ -59,9 +54,9 @@ fn find_next_relevant_doc<'a, T, TScorer>(
     pivot_docset: &'a mut T,
     docset_after_pivot: Option<&'a mut T>,
 ) -> DocId
-where
-    T: AsMut<TScorer>,
-    TScorer: BlockMaxScorer + Scorer,
+    where
+        T: AsMut<TScorer>,
+        TScorer: BlockMaxScorer + Scorer,
 {
     let pivot_docset = pivot_docset.as_mut();
     let mut next_doc = 1 + docsets_up_to_pivot
@@ -85,9 +80,9 @@ where
 
 /// Sifts down the first element of the slice.
 fn sift_down<T, TScorer>(docsets: &mut [T])
-where
-    T: AsRef<TScorer>,
-    TScorer: BlockMaxScorer + Scorer,
+    where
+        T: AsRef<TScorer>,
+        TScorer: BlockMaxScorer + Scorer,
 {
     for idx in 1..docsets.len() {
         if docsets[idx].as_ref().doc() < docsets[idx - 1].as_ref().doc() {
@@ -111,10 +106,10 @@ pub struct BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner> {
 }
 
 impl<TScorer, ThresholdFn, TScoreCombiner> BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner>
-where
-    TScoreCombiner: ScoreCombiner,
-    TScorer: BlockMaxScorer + Scorer,
-    ThresholdFn: Fn(&Score) -> bool + 'static,
+    where
+        TScoreCombiner: ScoreCombiner,
+        TScorer: BlockMaxScorer + Scorer,
+        ThresholdFn: Fn(&Score) -> bool + 'static,
 {
     fn new(
         docsets: Vec<TScorer>,
@@ -149,7 +144,7 @@ where
         )
     }
 
-    fn advance_with_pivot(&mut self, pivot: Pivot) -> AdvanceResult {
+    fn advance_with_pivot(&mut self, pivot: Pivot) -> SkipResult {
         let block_upper_bound: Score = self.docsets[..=pivot.position]
             .iter_mut()
             .map(|docset| docset.block_max_score())
@@ -169,7 +164,7 @@ where
                 self.score = self.combiner.score();
                 self.doc = pivot.doc;
                 self.docsets.sort_by_key(Box::<TScorer>::doc);
-                AdvanceResult::Found
+                SkipResult::Reached
             } else {
                 // The subraction is correct because otherwise we would go to the other branch.
                 let advanced_idx = pivot.first_occurrence - 1;
@@ -177,10 +172,10 @@ where
                     self.docsets.swap_remove(advanced_idx);
                 }
                 if self.docsets.is_empty() {
-                    AdvanceResult::End
+                    SkipResult::End
                 } else {
                     sift_down(&mut self.docsets[advanced_idx..]);
-                    AdvanceResult::Skipped
+                    SkipResult::OverStep
                 }
             }
         } else {
@@ -193,36 +188,31 @@ where
                 self.docsets.swap_remove(0);
             }
             if self.docsets.is_empty() {
-                AdvanceResult::End
+                SkipResult::End
             } else {
                 sift_down(&mut self.docsets[..]);
-                AdvanceResult::Skipped
+                SkipResult::OverStep
             }
         }
     }
 }
 
 impl<TScorer, ThresholdFn, TScoreCombiner> DocSet
-    for BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner>
-where
-    TScorer: BlockMaxScorer + Scorer,
-    TScoreCombiner: ScoreCombiner,
-    ThresholdFn: Fn(&Score) -> bool + 'static,
+for BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner>
+    where
+        TScorer: BlockMaxScorer + Scorer,
+        TScoreCombiner: ScoreCombiner,
+        ThresholdFn: Fn(&Score) -> bool + 'static,
 {
     fn advance(&mut self) -> bool {
-        loop {
-            match {
-                if let Some(pivot) = self.find_pivot_position() {
-                    self.advance_with_pivot(pivot)
-                } else {
-                    AdvanceResult::End
-                }
-            } {
-                AdvanceResult::End => return false,
-                AdvanceResult::Found => return true,
-                _ => {}
+        while let Some(pivot) = self.find_pivot_position() {
+            match self.advance_with_pivot(pivot) {
+                SkipResult::End => { return false },
+                SkipResult::Reached=> { return true; }
+                SkipResult::OverStep => {}
             }
         }
+        false
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
@@ -254,11 +244,11 @@ where
 }
 
 impl<TScorer, ThresholdFn, TScoreCombiner> Scorer
-    for BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner>
-where
-    TScoreCombiner: ScoreCombiner,
-    TScorer: Scorer + BlockMaxScorer,
-    ThresholdFn: Fn(&Score) -> bool + 'static,
+for BlockMaxWand<TScorer, ThresholdFn, TScoreCombiner>
+    where
+        TScoreCombiner: ScoreCombiner,
+        TScorer: Scorer + BlockMaxScorer,
+        ThresholdFn: Fn(&Score) -> bool + 'static,
 {
     fn score(&mut self) -> Score {
         self.score
@@ -276,7 +266,6 @@ mod tests {
     use crate::query::{BlockMaxScorer, Scorer};
     use crate::{DocId, Score};
     use float_cmp::approx_eq;
-    use ordered_float::OrderedFloat;
     use proptest::strategy::Strategy;
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
@@ -293,7 +282,7 @@ mod tests {
 
     impl VecDocSet {
         fn new(postings: Vec<(DocId, Score)>, block_size: usize) -> VecDocSet {
-            let block_max_scores: Vec<_> = postings
+            let block_max_scores: Vec<(DocId, f32)> = postings
                 .chunks(block_size)
                 .into_iter()
                 .map(|block| {
@@ -301,24 +290,21 @@ mod tests {
                         block.iter().last().unwrap().0,
                         block
                             .iter()
-                            .map(|(_, s)| OrderedFloat(*s))
-                            .max()
-                            .unwrap()
-                            .into_inner(),
+                            .map(|(_, s)| *s)
+                            .fold(-f32::INFINITY, |left, right| left.max(right))
                     )
                 })
                 .collect();
             let max_score = block_max_scores
                 .iter()
                 .copied()
-                .map(|(_, s)| OrderedFloat(s))
-                .max()
-                .unwrap();
+                .map(|(_, s)| s)
+                .fold(-f32::INFINITY, |left, right| left.max(right));
             VecDocSet {
                 postings,
                 cursor: Wrapping(0_usize) - Wrapping(1_usize),
                 block_max_scores,
-                max_score: max_score.into_inner(),
+                max_score,
                 block_size,
             }
         }
@@ -490,12 +476,12 @@ mod tests {
         }
         drop(bmw);
         for ((expected_score, expected_doc), (actual_score, actual_doc)) in
-            top_union.harvest().into_iter().zip(
-                std::rc::Rc::try_unwrap(top_bmw)
-                    .unwrap()
-                    .into_inner()
-                    .harvest(),
-            )
+        top_union.harvest().into_iter().zip(
+            std::rc::Rc::try_unwrap(top_bmw)
+                .unwrap()
+                .into_inner()
+                .harvest(),
+        )
         {
             assert!(approx_eq!(
                 f32,
