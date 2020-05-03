@@ -2,6 +2,8 @@
 Postings module (also called inverted index)
 */
 
+mod block_max_postings;
+mod block_max_segment_postings;
 mod block_search;
 pub(crate) mod compression;
 /// Postings module
@@ -28,6 +30,9 @@ pub(crate) use self::skip::SkipReader;
 pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
+
+pub use self::block_max_postings::BlockMaxPostings;
+pub use self::block_max_segment_postings::BlockMaxSegmentPostings;
 
 pub(crate) use self::stacker::compute_table_size;
 

@@ -50,6 +50,7 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1.0"
 rayon = "1"
+ordered-float = "1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
@@ -58,6 +59,8 @@ winapi = "0.3"
 rand = "0.7"
 maplit = "1"
 matches = "0.1.8"
+proptest = "0.9"
+float-cmp = "0.6"
 
 [dev-dependencies.fail]
 version = "0.4"
