@@ -53,10 +53,10 @@ fn find_pivot_position<'a, TScorer>(
 /// Given an iterator over all ordered lists up to the pivot (inclusive) and the following list (if
 /// exists), it returns the next document ID that can be possibly relevant, based on the block max
 /// scores.
-fn find_next_relevant_doc<'a, T, TScorer>(
-    docsets_up_to_pivot: &'a mut [T],
-    pivot_docset: &'a mut T,
-    docset_after_pivot: Option<&'a mut T>,
+fn find_next_relevant_doc<T, TScorer>(
+    docsets_up_to_pivot: &mut [T],
+    pivot_docset: &mut T,
+    docset_after_pivot: Option<&mut T>,
 ) -> DocId
     where
         T: AsMut<TScorer>,
