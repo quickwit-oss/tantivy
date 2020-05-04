@@ -69,9 +69,7 @@ where
     /// # Panics
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopCollector<T> {
-        if limit < 1 {
-            panic!("Limit must be strictly greater than 0.");
-        }
+        assert!(limit > 0, "Limit must be strictly greater than 0.");
         TopCollector {
             limit,
             _marker: PhantomData,
@@ -124,7 +122,7 @@ where
 /// The theorical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
 pub(crate) struct TopSegmentCollector<T> {
-    limit: usize,
+    pub limit: usize,
     heap: BinaryHeap<ComparableDoc<T, DocId>>,
     segment_id: u32,
 }
@@ -159,6 +157,10 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     #[inline(always)]
     pub(crate) fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
+    }
+
+    pub fn pruning_score(&self) -> Option<T> {
+        self.heap.peek().map(|head| head.feature.clone())
     }
 
     /// Collects a document scored by the given feature

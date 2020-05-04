@@ -4,7 +4,6 @@ use crate::core::Executor;
 use crate::core::InvertedIndexReader;
 use crate::core::SegmentReader;
 use crate::query::Query;
-use crate::query::Scorer;
 use crate::query::Weight;
 use crate::schema::Document;
 use crate::schema::Schema;
@@ -24,17 +23,9 @@ fn collect_segment<C: Collector>(
     segment_reader: &SegmentReader,
 ) -> crate::Result<C::Fruit> {
     let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
-    let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
-    if let Some(delete_bitset) = segment_reader.delete_bitset() {
-        scorer.for_each(&mut |doc, score| {
-            if delete_bitset.is_alive(doc) {
-                segment_collector.collect(doc, score);
-            }
-        });
-    } else {
-        scorer.for_each(&mut |doc, score| segment_collector.collect(doc, score));
-    }
-    Ok(segment_collector.harvest())
+    let segment_collector =
+        collector.for_segment(segment_ord as u32, segment_reader)?;
+    Ok(segment_collector.collect_scorer(&mut scorer, segment_reader.delete_bitset()))
 }
 
 /// Holds a list of `SegmentReader`s ready for search.

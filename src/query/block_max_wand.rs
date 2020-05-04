@@ -13,6 +13,10 @@ struct Pivot {
 
 
 /// Find the position in the sorted list of posting lists of the **pivot**.
+///
+/// docsets need to be advanced, and are required to be sorted by the doc they point to.
+///
+/// The pivot is then defined as the lowest DocId that has a chance of matching our condition.
 fn find_pivot_position<'a, TScorer, F>(
     mut docsets: impl Iterator<Item = &'a TScorer>,
     condition: &F,
@@ -129,10 +133,10 @@ impl<TScorer, ThresholdFn, TScoreCombiner> BlockMaxWand<TScorer, ThresholdFn, TS
         non_empty_docsets.sort_by_key(Box::<TScorer>::doc);
         BlockMaxWand {
             docsets: non_empty_docsets,
-            doc: 0,
-            score: 0f32,
             combiner,
             threshold_fn,
+            doc: 0u32,
+            score: 0f32
         }
     }
 
@@ -151,6 +155,11 @@ impl<TScorer, ThresholdFn, TScoreCombiner> BlockMaxWand<TScorer, ThresholdFn, TS
             .sum();
         if (self.threshold_fn)(&block_upper_bound) {
             if pivot.doc == self.docsets[0].doc() {
+                // Since self.docsets is sorted by their current doc, in this branch, all
+                // docsets in [0..=pivot] are positioned on pivot.doc.
+                //
+                // Lets compute the actual score for this doc.
+                //
                 // NOTE(elshize): One additional check needs to be done to improve performance:
                 // update block-wise bound while accumulating score with the actual score,
                 // and check each time if still above threshold.
@@ -166,7 +175,7 @@ impl<TScorer, ThresholdFn, TScoreCombiner> BlockMaxWand<TScorer, ThresholdFn, TS
                 self.docsets.sort_by_key(Box::<TScorer>::doc);
                 SkipResult::Reached
             } else {
-                // The subraction is correct because otherwise we would go to the other branch.
+                // The substraction is correct because otherwise we would go to the other branch.
                 let advanced_idx = pivot.first_occurrence - 1;
                 if !self.docsets[advanced_idx].advance() {
                     self.docsets.swap_remove(advanced_idx);

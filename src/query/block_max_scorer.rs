@@ -35,10 +35,10 @@ impl BlockMaxScorer for Box<dyn BlockMaxScorer> {
     fn block_max_score(&mut self) -> Score {
         self.deref_mut().block_max_score()
     }
-    fn max_score(&self) -> Score {
-        self.deref().max_score()
-    }
     fn block_max_doc(&mut self) -> DocId {
         self.deref_mut().block_max_doc()
+    }
+    fn max_score(&self) -> Score {
+        self.deref().max_score()
     }
 }

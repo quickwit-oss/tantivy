@@ -21,7 +21,20 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
             callback(self.doc(), self.score());
         }
     }
+
+    /// Returns `Some(&mut self)` if pruning is supported by the current scorer.
+    /// None, if pruning is score is not supported.
+    fn get_pruning_scorer(&mut self) -> Option<&mut dyn ScorerWithPruning> {
+        None
+    }
 }
+
+pub trait ScorerWithPruning: Scorer {
+    /// Advance to the next document that has a score strictly greater than
+    /// `lower_bound_score`.
+    fn advance_with_pruning(&mut self, lower_bound_score: Score) -> bool;
+}
+
 
 impl_downcast!(Scorer);
 

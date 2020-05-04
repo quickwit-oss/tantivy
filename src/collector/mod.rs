@@ -109,6 +109,8 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
+use crate::fastfield::DeleteBitSet;
+use crate::query::Scorer;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -161,7 +163,7 @@ pub trait Collector: Sync {
 ///
 /// `.collect(doc, score)` will be called for every documents
 /// matching the query.
-pub trait SegmentCollector: 'static {
+pub trait SegmentCollector: 'static + Sized {
     /// `Fruit` is the type for the result of our collection.
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
@@ -171,6 +173,19 @@ pub trait SegmentCollector: 'static {
 
     /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;
+
+    fn collect_scorer(mut self, scorer: &mut dyn Scorer, delete_bitset: Option<&DeleteBitSet>) -> Self::Fruit {
+        if let Some(delete_bitset) = delete_bitset {
+            scorer.for_each(&mut |doc, score| {
+                if delete_bitset.is_alive(doc) {
+                    self.collect(doc, score);
+                }
+            });
+        } else {
+            scorer.for_each(&mut |doc, score| self.collect(doc, score));
+        }
+        self.harvest()
+    }
 }
 
 // -----------------------------------------------

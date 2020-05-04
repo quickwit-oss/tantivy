@@ -6,7 +6,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::FastFieldReader;
+use crate::fastfield::{FastFieldReader, DeleteBitSet};
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
@@ -14,6 +14,7 @@ use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
 use std::fmt;
+use crate::query::Scorer;
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -437,6 +438,34 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
     fn harvest(self) -> Vec<(Score, DocAddress)> {
         self.0.harvest()
+    }
+
+    fn collect_scorer(mut self, scorer: &mut dyn Scorer, delete_bitset: Option<&DeleteBitSet>) -> Self::Fruit {
+        if let Some(delete_bitset) = delete_bitset {
+            scorer.for_each(&mut |doc, score| {
+                if delete_bitset.is_alive(doc) {
+                    self.collect(doc, score);
+                }
+            });
+            return self.harvest();
+            // TODO(implement the optimisation for deletes)
+        }
+        if let Some(pruning_scorer) = scorer.get_pruning_scorer() {
+            let limit = self.0.limit;
+            for _ in 0..limit {
+                if !pruning_scorer.advance() {
+                    return self.harvest();
+                }
+                self.collect(pruning_scorer.doc(), pruning_scorer.score());
+            }
+            let mut pruning_score = self.0.pruning_score().unwrap_or(0.0f32);
+            while pruning_scorer.advance_with_pruning(pruning_score) {
+                self.collect(pruning_scorer.doc(), pruning_scorer.score());
+                pruning_score = self.0.pruning_score().unwrap_or(0.0f32);
+            }
+        }
+        scorer.for_each(&mut |doc, score| self.collect(doc, score));
+        self.harvest()
     }
 }
 
