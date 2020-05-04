@@ -100,6 +100,9 @@ mod top_collector;
 
 mod top_score_collector;
 pub use self::top_score_collector::TopDocs;
+#[cfg(test)]
+pub(crate) use self::top_score_collector::TopScoreSegmentCollector;
+
 
 mod custom_score_top_collector;
 pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};

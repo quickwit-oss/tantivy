@@ -128,7 +128,7 @@ pub(crate) struct TopSegmentCollector<T> {
 }
 
 impl<T: PartialOrd> TopSegmentCollector<T> {
-    fn new(segment_id: SegmentLocalId, limit: usize) -> TopSegmentCollector<T> {
+    pub fn new(segment_id: SegmentLocalId, limit: usize) -> TopSegmentCollector<T> {
         TopSegmentCollector {
             limit,
             heap: BinaryHeap::with_capacity(limit),

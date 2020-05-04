@@ -429,6 +429,12 @@ impl Collector for TopDocs {
 /// Segment Collector associated to `TopDocs`.
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 
+impl TopScoreSegmentCollector {
+    pub fn new(segment_id: SegmentLocalId, limit: usize) -> Self {
+        TopScoreSegmentCollector(TopSegmentCollector::new(segment_id, limit))
+    }
+}
+
 impl SegmentCollector for TopScoreSegmentCollector {
     type Fruit = Vec<(Score, DocAddress)>;
 
