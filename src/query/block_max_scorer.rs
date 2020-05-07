@@ -2,14 +2,13 @@ use crate::docset::DocSet;
 use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use crate::query::Scorer;
 
 /// A set of documents matching a query within a specific segment
 /// and having a maximum score within certain blocks.
 ///
 /// See [`Query`](./trait.Query.html) and [`Scorer`](./trait.Scorer.html).
-pub trait BlockMaxScorer: downcast_rs::Downcast + DocSet + 'static {
+pub trait BlockMaxScorer: downcast_rs::Downcast + DocSet + Scorer + 'static {
     /// Returns the maximum score within the current block.
     ///
     /// The blocks are defined when indexing. For example, blocks can be
@@ -30,15 +29,3 @@ pub trait BlockMaxScorer: downcast_rs::Downcast + DocSet + 'static {
 }
 
 impl_downcast!(BlockMaxScorer);
-
-impl BlockMaxScorer for Box<dyn BlockMaxScorer> {
-    fn block_max_score(&mut self) -> Score {
-        self.deref_mut().block_max_score()
-    }
-    fn block_max_doc(&mut self) -> DocId {
-        self.deref_mut().block_max_doc()
-    }
-    fn max_score(&self) -> Score {
-        self.deref().max_score()
-    }
-}

@@ -59,6 +59,8 @@ pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
 pub use tantivy_query_grammar::Occur;
+pub use self::weight::PruningScorerIfPossible;
+
 
 #[cfg(test)]
 mod tests {

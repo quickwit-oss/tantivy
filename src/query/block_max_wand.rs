@@ -3,7 +3,7 @@ use crate::query::score_combiner::ScoreCombiner;
 use crate::query::{BlockMaxScorer, Scorer};
 use crate::DocId;
 use crate::Score;
-use crate::query::scorer::ScorerWithPruning;
+use crate::query::weight::PruningScorer;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct Pivot {
@@ -22,8 +22,7 @@ fn find_pivot_position<'a, TScorer>(
     mut docsets: impl Iterator<Item = &'a TScorer>,
     lower_bound_score: Score,
 ) -> Option<Pivot>
-    where
-        TScorer: BlockMaxScorer + Scorer,
+    where TScorer: BlockMaxScorer
 {
     let mut position = 0;
     let mut upper_bound = Score::default();
@@ -83,17 +82,21 @@ fn find_next_relevant_doc<T, TScorer>(
 }
 
 /// Sifts down the first element of the slice.
+///
+/// `docsets[1..]` are assumed sorted.
+/// This function swaps `docsets[0]` with its right
+/// neighbor successively -bubble sort style- until it reaches the first
+/// position such that `docsets` is sorted.
 fn sift_down<T, TScorer>(docsets: &mut [T])
     where
         T: AsRef<TScorer>,
         TScorer: BlockMaxScorer + Scorer,
 {
     for idx in 1..docsets.len() {
-        if docsets[idx].as_ref().doc() < docsets[idx - 1].as_ref().doc() {
-            docsets.swap(idx, idx - 1);
-        } else {
-            break;
+        if docsets[idx].as_ref().doc() >= docsets[idx - 1].as_ref().doc() {
+            return;
         }
+        docsets.swap(idx, idx - 1);
     }
 }
 
@@ -170,17 +173,19 @@ impl<TScorer, TScoreCombiner> BlockMaxWand<TScorer, TScoreCombiner>
                 self.docsets.sort_by_key(Box::<TScorer>::doc);
                 SkipResult::Reached
             } else {
-                // The substraction is correct because otherwise we would go to the other branch.
+                // The substraction does not underflow because otherwise we would go to the other
+                // branch.
+                //
+                // `advanced_idx` is the last idx that is not positionned on the pivot yet.
                 let advanced_idx = pivot.first_occurrence - 1;
                 if !self.docsets[advanced_idx].advance() {
                     self.docsets.swap_remove(advanced_idx);
                 }
                 if self.docsets.is_empty() {
-                    SkipResult::End
-                } else {
-                    sift_down(&mut self.docsets[advanced_idx..]);
-                    SkipResult::OverStep
+                    return SkipResult::End;
                 }
+                sift_down(&mut self.docsets[advanced_idx..]);
+                SkipResult::OverStep
             }
         } else {
             let (up_to_pivot, pivot_and_rest) = self.docsets.split_at_mut(pivot.position as usize);
@@ -192,75 +197,28 @@ impl<TScorer, TScoreCombiner> BlockMaxWand<TScorer, TScoreCombiner>
                 self.docsets.swap_remove(0);
             }
             if self.docsets.is_empty() {
-                SkipResult::End
-            } else {
-                sift_down(&mut self.docsets[..]);
-                SkipResult::OverStep
-            }
-        }
-    }
-}
-
-impl<TScorer, TScoreCombiner> DocSet
-for BlockMaxWand<TScorer, TScoreCombiner>
-    where
-        TScorer: BlockMaxScorer + Scorer,
-        TScoreCombiner: ScoreCombiner,
-{
-    fn advance(&mut self) -> bool {
-       unimplemented!();
-    }
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        while self.doc() < target {
-            if !self.advance() {
                 return SkipResult::End;
             }
-        }
-        if self.doc() == target {
-            SkipResult::Reached
-        } else {
+            sift_down(&mut self.docsets[..]);
             SkipResult::OverStep
         }
     }
-
-    // TODO implement `count` efficiently.
-
-    fn doc(&self) -> DocId {
-        self.doc
-    }
-
-    fn size_hint(&self) -> u32 {
-        0u32
-    }
-
-    fn count_including_deleted(&mut self) -> u32 {
-        unimplemented!();
-    }
 }
 
-impl<TScorer, TScoreCombiner> Scorer
+impl<TScorer, TScoreCombiner> PruningScorer
 for BlockMaxWand<TScorer, TScoreCombiner>
     where
         TScoreCombiner: ScoreCombiner,
         TScorer: Scorer + BlockMaxScorer,
 {
-    fn score(&mut self) -> Score {
+    fn doc(&self) -> DocId {
+        self.doc
+    }
+
+    fn score(&self) -> Score {
         self.score
     }
 
-    /// Returns `Some(&mut self)` if pruning is supported by the current scorer.
-    /// None, if pruning is score is not supported.
-    fn get_pruning_scorer(&mut self) -> Option<&mut dyn ScorerWithPruning> {
-        Some(self)
-    }
-}
-
-impl<TScorer, TScoreCombiner> ScorerWithPruning
-for BlockMaxWand<TScorer, TScoreCombiner>
-    where
-        TScoreCombiner: ScoreCombiner,
-        TScorer: Scorer + BlockMaxScorer {
     fn advance_with_pruning(&mut self, lower_bound_score: f32) -> bool {
         while let Some(pivot) = self.find_pivot_position(lower_bound_score) {
             match self.advance_with_pivot(pivot, lower_bound_score) {
@@ -272,6 +230,7 @@ for BlockMaxWand<TScorer, TScoreCombiner>
         false
     }
 }
+
 
 #[cfg(test)]
 mod tests {

@@ -56,7 +56,7 @@ impl<T: PartialOrd, D: PartialOrd> PartialEq for ComparableDoc<T, D> {
 impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
-    limit: usize,
+    pub limit: usize,
     _marker: PhantomData<T>,
 }
 

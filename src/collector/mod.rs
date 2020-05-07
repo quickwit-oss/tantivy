@@ -84,7 +84,7 @@ See the `custom_collector` example.
 
 */
 
-use crate::DocId;
+use crate::{DocId, Searcher, Executor};
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -113,13 +113,16 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 use crate::fastfield::DeleteBitSet;
-use crate::query::Scorer;
+use crate::query::{Scorer, Weight};
+use std::borrow::BorrowMut;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
 pub trait Fruit: Send + downcast_rs::Downcast {}
 
 impl<T> Fruit for T where T: Send + downcast_rs::Downcast {}
+
+
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
@@ -159,6 +162,20 @@ pub trait Collector: Sync {
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit>;
+
+    fn collect_weight(&self, searcher: &Searcher, weight: &dyn Weight, executor: &Executor) -> crate::Result<Self::Fruit> {
+        let segment_readers = searcher.segment_readers();
+        let fruits = executor.map(
+            |(segment_ord, segment_reader)| {
+                let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
+                let segment_collector =
+                    self.for_segment(segment_ord as u32, segment_reader)?;
+                Ok(segment_collector.collect_scorer(scorer.borrow_mut(), segment_reader.delete_bitset()))
+            },
+            segment_readers.iter().enumerate(),
+        )?;
+        self.merge_fruits(fruits)
+    }
 }
 
 /// The `SegmentCollector` is the trait in charge of defining the

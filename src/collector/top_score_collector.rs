@@ -6,15 +6,15 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{FastFieldReader, DeleteBitSet};
+use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
-use crate::DocAddress;
+use crate::{DocAddress, Executor, Searcher};
 use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
 use std::fmt;
-use crate::query::Scorer;
+use crate::query::{Weight, PruningScorerIfPossible};
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -418,6 +418,42 @@ impl Collector for TopDocs {
         true
     }
 
+    fn collect_weight(&self, searcher: &Searcher, weight: &dyn Weight, executor: &Executor) -> crate::Result<Self::Fruit> {
+        let segment_readers = searcher.segment_readers();
+        let fruits = executor.map(
+            |(segment_ord, segment_reader)| {
+                match weight.pruning_scorer(segment_reader, 1.0f32)? {
+                    PruningScorerIfPossible::NonPruning(mut scorer) => {
+                        let segment_collector =
+                            self.for_segment(segment_ord as u32, segment_reader)?;
+                        let fruit =
+                            segment_collector.collect_scorer(scorer.as_mut(), segment_reader.delete_bitset());
+                        Ok(fruit)
+                    }
+                    PruningScorerIfPossible::Pruning(mut pruning_scorer) => {
+                        let limit = self.0.limit;
+                        let mut segment_collector =
+                            self.for_segment(segment_ord as u32, segment_reader)?;
+                        for _ in 0..limit {
+                            if !pruning_scorer.advance() {
+                                return Ok(segment_collector.harvest());
+                            }
+                            segment_collector.collect(pruning_scorer.doc(), pruning_scorer.score());
+                        }
+                        let mut pruning_score = segment_collector.0.pruning_score().unwrap_or(0.0f32);
+                        while pruning_scorer.advance_with_pruning(pruning_score) {
+                            segment_collector.0.collect(pruning_scorer.doc(), pruning_scorer.score());
+                            pruning_score = segment_collector.0.pruning_score().unwrap_or(0.0f32);
+                        }
+                        Ok(segment_collector.harvest())
+                    }
+                }
+            },
+            segment_readers.iter().enumerate(),
+        )?;
+        self.merge_fruits(fruits)
+    }
+
     fn merge_fruits(
         &self,
         child_fruits: Vec<Vec<(Score, DocAddress)>>,
@@ -444,34 +480,6 @@ impl SegmentCollector for TopScoreSegmentCollector {
 
     fn harvest(self) -> Vec<(Score, DocAddress)> {
         self.0.harvest()
-    }
-
-    fn collect_scorer(mut self, scorer: &mut dyn Scorer, delete_bitset: Option<&DeleteBitSet>) -> Self::Fruit {
-        if let Some(delete_bitset) = delete_bitset {
-            scorer.for_each(&mut |doc, score| {
-                if delete_bitset.is_alive(doc) {
-                    self.collect(doc, score);
-                }
-            });
-            return self.harvest();
-            // TODO(implement the optimisation for deletes)
-        }
-        if let Some(pruning_scorer) = scorer.get_pruning_scorer() {
-            let limit = self.0.limit;
-            for _ in 0..limit {
-                if !pruning_scorer.advance() {
-                    return self.harvest();
-                }
-                self.collect(pruning_scorer.doc(), pruning_scorer.score());
-            }
-            let mut pruning_score = self.0.pruning_score().unwrap_or(0.0f32);
-            while pruning_scorer.advance_with_pruning(pruning_score) {
-                self.collect(pruning_scorer.doc(), pruning_scorer.score());
-                pruning_score = self.0.pruning_score().unwrap_or(0.0f32);
-            }
-        }
-        scorer.for_each(&mut |doc, score| self.collect(doc, score));
-        self.harvest()
     }
 }
 

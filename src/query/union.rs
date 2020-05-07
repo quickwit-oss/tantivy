@@ -1,13 +1,106 @@
 use crate::common::TinySet;
 use crate::docset::{DocSet, SkipResult};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
-use crate::query::Scorer;
+use crate::query::{Scorer, BlockMaxScorer};
 use crate::DocId;
 use crate::Score;
 use std::cmp::Ordering;
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
+
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct Pivot {
+    position: usize,
+    first_occurrence: usize,
+    doc: DocId,
+}
+
+/// Find the position in the sorted list of posting lists of the **pivot**.
+///
+/// docsets need to be advanced, and are required to be sorted by the doc they point to.
+///
+/// The pivot is then defined as the lowest DocId that has a chance of matching our condition.
+fn find_pivot_position<'a, TScorer>(
+    mut docsets: impl Iterator<Item = &'a TScorer>,
+    lower_bound_score: Score,
+) -> Option<Pivot>
+    where TScorer: BlockMaxScorer
+{
+    let mut position = 0;
+    let mut upper_bound = Score::default();
+    while let Some(docset) = docsets.next() {
+        upper_bound += docset.max_score();
+        if lower_bound_score < upper_bound {
+            let pivot_doc = docset.doc();
+            let first_occurrence = position;
+            while let Some(docset) = docsets.next() {
+                if docset.doc() != pivot_doc {
+                    break;
+                } else {
+                    position += 1;
+                }
+            }
+            return Some(Pivot {
+                position,
+                doc: pivot_doc,
+                first_occurrence,
+            });
+        }
+        position += 1;
+    }
+    None
+}
+
+/// Sifts down the first element of the slice.
+///
+/// `docsets[1..]` are assumed sorted.
+/// This function swaps `docsets[0]` with its right
+/// neighbor successively -bubble sort style- until it reaches the first
+/// position such that `docsets` is sorted.
+fn sift_down<TScorer>(docsets: &mut [TScorer])
+    where
+        TScorer: BlockMaxScorer + Scorer,
+{
+    for idx in 1..docsets.len() {
+        if docsets[idx].doc() >= docsets[idx - 1].doc() {
+            return;
+        }
+        docsets.swap(idx, idx - 1);
+    }
+}
+
+
+/// Given an iterator over all ordered lists up to the pivot (inclusive) and the following list (if
+/// exists), it returns the next document ID that can be possibly relevant, based on the block max
+/// scores.
+fn find_next_relevant_doc<TScorer>(
+    docsets_up_to_pivot: &mut [TScorer],
+    pivot_docset: &mut TScorer,
+    docset_after_pivot: Option<&mut TScorer>,
+) -> DocId
+    where
+        TScorer: BlockMaxScorer + Scorer,
+{
+    let mut next_doc = 1 + docsets_up_to_pivot
+        .iter_mut()
+        .map(|docset| docset.block_max_doc())
+        .chain(std::iter::once(pivot_docset.block_max_doc()))
+        .min()
+        .unwrap();
+    if let Some(docset) = docset_after_pivot {
+        let doc = docset.doc();
+        if doc < next_doc {
+            next_doc = doc;
+        }
+    }
+    if next_doc <= pivot_docset.doc() {
+        pivot_docset.doc() + 1
+    } else {
+        next_doc
+    }
+}
 
 // `drain_filter` is not stable yet.
 // This function is similar except that it does is not unstable, and
@@ -38,6 +131,7 @@ pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     doc: DocId,
     score: Score,
 }
+
 
 impl<TScorer, TScoreCombiner> From<Vec<TScorer>> for Union<TScorer, TScoreCombiner>
 where
@@ -125,6 +219,76 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
             }
         }
         false
+    }
+
+
+}
+
+
+impl<TScorer: BlockMaxScorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
+    fn advance_with_pivot(&mut self, pivot: Pivot, lower_bound_score: Score) -> SkipResult {
+        let block_upper_bound: Score = self.docsets[..=pivot.position]
+            .iter_mut()
+            .map(|docset| docset.block_max_score())
+            .sum();
+        if block_upper_bound > lower_bound_score {
+            if pivot.doc == self.docsets[0].doc() {
+                // Since self.docsets is sorted by their current doc, in this branch, all
+                // docsets in [0..=pivot] are positioned on pivot.doc.
+                //
+                // Lets compute the actual score for this doc.
+                //
+                // NOTE(elshize): One additional check needs to be done to improve performance:
+                // update block-wise bound while accumulating score with the actual score,
+                // and check each time if still above threshold.
+                let mut combiner = TScoreCombiner::default();
+                for idx in (0..=pivot.position).rev() {
+                    combiner.update(&mut self.docsets[idx]);
+                    if !self.docsets[idx].advance() {
+                        self.docsets.swap_remove(idx);
+                    }
+                }
+                self.score = combiner.score();
+                self.doc = pivot.doc;
+                self.docsets.sort_by_key(TScorer::doc);
+                SkipResult::Reached
+            } else {
+                // The substraction does not underflow because otherwise we would go to the other
+                // branch.
+                //
+                // `advanced_idx` is the last idx that is not positionned on the pivot yet.
+                let advanced_idx = pivot.first_occurrence - 1;
+                if !self.docsets[advanced_idx].advance() {
+                    self.docsets.swap_remove(advanced_idx);
+                }
+                if self.docsets.is_empty() {
+                    return SkipResult::End;
+                }
+                sift_down(&mut self.docsets[advanced_idx..]);
+                SkipResult::OverStep
+            }
+        } else {
+            let (up_to_pivot, pivot_and_rest) = self.docsets.split_at_mut(pivot.position as usize);
+            let (pivot, after_pivot) = pivot_and_rest.split_first_mut().unwrap();
+            let next_doc = find_next_relevant_doc(up_to_pivot, pivot, after_pivot.first_mut());
+            // NOTE(elshize): It might be more efficient to advance the list with the higher
+            // max score, but let's advance the first one for now for simplicity.
+            if self.docsets[0].skip_next(next_doc) == SkipResult::End {
+                self.docsets.swap_remove(0);
+            }
+            if self.docsets.is_empty() {
+                return SkipResult::End;
+            }
+            sift_down(&mut self.docsets[..]);
+            SkipResult::OverStep
+        }
+    }
+
+    /// Find the position in the sorted list of posting lists of the **pivot**.
+    fn find_pivot_position(&self, lower_bound_score: Score) -> Option<Pivot> {
+        find_pivot_position(
+            self.docsets.iter().map(|docset| docset),
+            lower_bound_score)
     }
 }
 
