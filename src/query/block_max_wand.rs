@@ -248,6 +248,7 @@ mod tests {
     use std::num::Wrapping;
     use crate::collector::{SegmentCollector, TopScoreSegmentCollector};
 
+    /*
     #[derive(Debug, Clone)]
     pub struct VecDocSet {
         postings: Vec<(DocId, Score)>,
@@ -607,4 +608,6 @@ mod tests {
             vec![0, 1, 5, 6, 7]
         );
     }
+    
+     */
 }

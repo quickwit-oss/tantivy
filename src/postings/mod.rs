@@ -14,6 +14,7 @@ mod postings;
 mod postings_writer;
 mod recorder;
 mod segment_postings;
+mod block_segment_postings;
 mod serializer;
 mod skip;
 mod stacker;
@@ -29,8 +30,9 @@ pub use self::postings::Postings;
 pub(crate) use self::skip::SkipReader;
 pub use self::term_info::TermInfo;
 
-pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
+pub use self::segment_postings::SegmentPostings;
 
+pub use self::block_segment_postings::BlockSegmentPostings;
 pub use self::block_max_postings::BlockMaxPostings;
 pub use self::block_max_segment_postings::BlockMaxSegmentPostings;
 
