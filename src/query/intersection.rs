@@ -35,7 +35,7 @@ impl<TDocSet: DocSet> Intersection<TDocSet> {
         Intersection { docsets }
     }
 
-    pub fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
+    pub(crate) fn docset_mut(&mut self, ord: usize) -> &mut TDocSet {
         &mut self.docsets[ord]
     }
 }
@@ -77,11 +77,46 @@ impl<TDocSet: DocSet> DocSet for Intersection<TDocSet> {
     fn size_hint(&self) -> u32 {
         self.docsets[0].size_hint()
     }
+
 }
 
 impl<TDocSet: Scorer + DocSet> Scorer for Intersection<TDocSet> {
     fn score(&mut self) -> Score {
         self.docsets.iter_mut().map(Scorer::score).sum::<Score>()
+    }
+
+
+    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
+        if !self.docsets[0].advance() {
+            return;
+        }
+        let mut candidate_emitter = 0;
+        let mut candidate = self.docsets[0].doc();
+        'outer: loop {
+            for (i, docset) in self.docsets.iter_mut().enumerate() {
+                if i == candidate_emitter {
+                    continue;
+                }
+                match docset.skip_next(candidate) {
+                    SkipResult::End => {
+                        return;
+                    }
+                    SkipResult::OverStep => {
+                        candidate = docset.doc();
+                        candidate_emitter = i;
+                        continue 'outer;
+                    }
+                    SkipResult::Reached => {}
+                }
+            }
+
+            callback(candidate, self.score());
+            if !self.docsets[0].advance() {
+                return;
+            }
+            candidate_emitter = 0;
+            candidate = self.docsets[0].doc();
+        }
     }
 }
 

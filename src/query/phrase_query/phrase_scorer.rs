@@ -177,13 +177,13 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 
     fn phrase_exists(&mut self) -> bool {
         self.intersection_docset
-            .docset_mut_specialized(0)
+            .docset_mut(0)
             .positions(&mut self.left);
         let mut intersection_len = self.left.len();
         for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
-                    .docset_mut_specialized(i)
+                    .docset_mut(i)
                     .positions(&mut self.right);
             }
             intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
@@ -193,7 +193,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
 
         self.intersection_docset
-            .docset_mut_specialized(self.num_terms - 1)
+            .docset_mut(self.num_terms - 1)
             .positions(&mut self.right);
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
@@ -201,14 +201,14 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     fn compute_phrase_count(&mut self) -> u32 {
         {
             self.intersection_docset
-                .docset_mut_specialized(0)
+                .docset_mut(0)
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
         for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
-                    .docset_mut_specialized(i)
+                    .docset_mut(i)
                     .positions(&mut self.right);
             }
             intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
@@ -218,7 +218,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
 
         self.intersection_docset
-            .docset_mut_specialized(self.num_terms - 1)
+            .docset_mut(self.num_terms - 1)
             .positions(&mut self.right);
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
