@@ -43,7 +43,7 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
 }
 
 pub struct PhraseScorer<TPostings: Postings> {
-    intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
+    intersection_docset: Intersection<PostingsWithOffset<TPostings>>,
     num_terms: usize,
     left: Vec<u32>,
     right: Vec<u32>,

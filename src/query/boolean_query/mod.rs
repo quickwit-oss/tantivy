@@ -10,7 +10,6 @@ mod tests {
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
-    use crate::query::Intersection;
     use crate::query::Occur;
     use crate::query::Query;
     use crate::query::QueryParser;
@@ -62,29 +61,6 @@ mod tests {
             .scorer(searcher.segment_reader(0u32), 1.0f32)
             .unwrap();
         assert!(scorer.is::<TermScorer>());
-    }
-
-    #[test]
-    pub fn test_boolean_termonly_intersection() {
-        let (index, text_field) = aux_test_helper();
-        let query_parser = QueryParser::for_index(&index, vec![text_field]);
-        let searcher = index.reader().unwrap().searcher();
-        {
-            let query = query_parser.parse_query("+a +b +c").unwrap();
-            let weight = query.weight(&searcher, true).unwrap();
-            let scorer = weight
-                .scorer(searcher.segment_reader(0u32), 1.0f32)
-                .unwrap();
-            assert!(scorer.is::<Intersection<TermScorer>>());
-        }
-        {
-            let query = query_parser.parse_query("+a +(b c)").unwrap();
-            let weight = query.weight(&searcher, true).unwrap();
-            let scorer = weight
-                .scorer(searcher.segment_reader(0u32), 1.0f32)
-                .unwrap();
-            assert!(scorer.is::<Intersection<Box<dyn Scorer>>>());
-        }
     }
 
     #[test]

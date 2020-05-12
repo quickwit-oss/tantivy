@@ -137,12 +137,11 @@ where
         if self.advance_buffered() {
             return true;
         }
-        if self.refill() {
-            self.advance();
-            true
-        } else {
-            false
+        if !self.refill() {
+            return false;
         }
+        self.advance();
+        true
     }
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
@@ -259,6 +258,22 @@ where
 {
     fn score(&mut self) -> Score {
         self.score
+    }
+
+    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
+        while self.refill() {
+            let offset = self.offset;
+            for (cursor, bitset) in self.bitsets.iter_mut().enumerate() {
+                while let Some(val) = bitset.pop_lowest() {
+                    let delta = val + 64 * cursor as u32;
+                    let doc: DocId = offset + delta;
+                    let score_combiner = &mut self.scores[delta as usize];
+                    let score = score_combiner.score();
+                    score_combiner.clear();
+                    callback(doc, score);
+                }
+            }
+        }
     }
 }
 
