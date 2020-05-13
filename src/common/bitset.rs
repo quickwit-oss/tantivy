@@ -110,10 +110,6 @@ impl TinySet {
         TinySet::range_lower(from_included).complement()
     }
 
-    pub fn clear(&mut self) {
-        self.0 = 0u64;
-    }
-
     pub fn len(self) -> u32 {
         self.0.count_ones()
     }
@@ -204,7 +200,7 @@ mod tests {
 
     use super::BitSet;
     use super::TinySet;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::query::BitSetDocSet;
     use crate::tests;
     use crate::tests::generate_nonunique_unsorted;
@@ -282,7 +278,7 @@ mod tests {
         for el in btreeset.into_iter() {
             assert!(remaining);
             assert_eq!(bitset_docset.doc(), el);
-            remaining = bitset_docset.advance();
+            remaining = bitset_docset.advance() != TERMINATED;
         }
         assert!(!remaining);
     }

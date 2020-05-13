@@ -10,7 +10,7 @@ use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::DocId;
-use crate::{Result, SkipResult};
+use crate::Result;
 use std::collections::Bound;
 use std::ops::Range;
 
@@ -312,7 +312,7 @@ impl Weight for RangeWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0f32)?;
-        if scorer.seek(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         Ok(Explanation::new("RangeQuery", 1.0f32))

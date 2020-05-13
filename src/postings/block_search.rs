@@ -165,8 +165,8 @@ mod tests {
     use super::exponential_search;
     use super::linear_search;
     use super::BlockSearcher;
-    use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
     use crate::docset::TERMINATED;
+    use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
     #[test]
     fn test_linear_search() {

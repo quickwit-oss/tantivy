@@ -62,9 +62,11 @@ fn main() -> tantivy::Result<()> {
         {
             // this buffer will be used to request for positions
             let mut positions: Vec<u32> = Vec::with_capacity(100);
-            while segment_postings.advance() {
-                // the number of time the term appears in the document.
-                let doc_id: DocId = segment_postings.doc(); //< do not try to access this before calling advance once.
+            while segment_postings.doc() != TERMINATED {
+                let doc_id = segment_postings.doc();
+                if doc_id == TERMINATED {
+                    break;
+                }
 
                 // This MAY contains deleted documents as well.
                 if segment_reader.is_deleted(doc_id) {
@@ -86,6 +88,7 @@ fn main() -> tantivy::Result<()> {
                 // Doc 2: TermFreq 1: [0]
                 // ```
                 println!("Doc {}: TermFreq {}: {:?}", doc_id, term_freq, positions);
+                segment_postings.advance();
             }
         }
     }

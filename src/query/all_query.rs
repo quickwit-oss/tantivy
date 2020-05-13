@@ -46,13 +46,13 @@ pub struct AllScorer {
 }
 
 impl DocSet for AllScorer {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         if self.doc + 1 >= self.max_doc {
             self.doc = TERMINATED;
-            return false;
+            return TERMINATED;
         }
         self.doc += 1;
-        true
+        self.doc
     }
 
     fn doc(&self) -> DocId {
@@ -73,6 +73,7 @@ impl Scorer for AllScorer {
 #[cfg(test)]
 mod tests {
     use super::AllQuery;
+    use crate::docset::TERMINATED;
     use crate::query::Query;
     use crate::schema::{Schema, TEXT};
     use crate::Index;
@@ -101,15 +102,15 @@ mod tests {
             let reader = searcher.segment_reader(0);
             let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
             assert_eq!(scorer.doc(), 0u32);
-            assert!(scorer.advance());
+            assert_eq!(scorer.advance(), 1u32);
             assert_eq!(scorer.doc(), 1u32);
-            assert!(!scorer.advance());
+            assert_eq!(scorer.advance(), TERMINATED);
         }
         {
             let reader = searcher.segment_reader(1);
             let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
             assert_eq!(scorer.doc(), 0u32);
-            assert!(!scorer.advance());
+            assert_eq!(scorer.advance(), TERMINATED);
         }
     }
 

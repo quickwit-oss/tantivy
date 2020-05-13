@@ -1,5 +1,5 @@
 use crate::common::BitSet;
-use crate::docset::{DocSet, SkipResult, TERMINATED};
+use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
@@ -66,11 +66,11 @@ impl<TDocSet: DocSet> From<TDocSet> for ConstScorer<TDocSet> {
 }
 
 impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.docset.advance()
     }
 
-    fn seek(&mut self, target: DocId) -> SkipResult {
+    fn seek(&mut self, target: DocId) -> DocId {
         self.docset.seek(target)
     }
 

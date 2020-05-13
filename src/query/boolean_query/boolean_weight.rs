@@ -10,7 +10,7 @@ use crate::query::Scorer;
 use crate::query::Union;
 use crate::query::Weight;
 use crate::query::{intersect_scorers, Explanation};
-use crate::{DocId, SkipResult};
+use crate::DocId;
 use std::collections::HashMap;
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer>
@@ -133,7 +133,7 @@ impl Weight for BooleanWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0f32)?;
-        if scorer.seek(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         if !self.scoring_enabled {

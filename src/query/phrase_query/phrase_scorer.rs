@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, SkipResult, TERMINATED};
+use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::BM25Weight;
@@ -25,11 +25,11 @@ impl<TPostings: Postings> PostingsWithOffset<TPostings> {
 }
 
 impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.postings.advance()
     }
 
-    fn seek(&mut self, target: DocId) -> SkipResult {
+    fn seek(&mut self, target: DocId) -> DocId {
         self.postings.seek(target)
     }
 
@@ -232,13 +232,13 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
 }
 
 impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
-    fn advance(&mut self) -> bool {
-        while self.intersection_docset.advance() {
-            if self.phrase_match() {
-                return true;
+    fn advance(&mut self) -> DocId {
+        loop {
+            let doc = self.intersection_docset.advance();
+            if doc == TERMINATED || self.phrase_match() {
+                return doc;
             }
         }
-        false
     }
 
     /*

@@ -21,14 +21,13 @@ impl From<Vec<DocId>> for VecDocSet {
 }
 
 impl DocSet for VecDocSet {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.cursor += 1;
         if self.cursor >= self.doc_ids.len() {
             self.cursor = self.doc_ids.len();
-            false
-        } else {
-            true
+            return TERMINATED;
         }
+        self.doc()
     }
 
     fn doc(&self) -> DocId {
@@ -53,7 +52,7 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use crate::docset::{DocSet, SkipResult};
+    use crate::docset::DocSet;
     use crate::DocId;
 
     #[test]
@@ -61,13 +60,13 @@ pub mod tests {
         let doc_ids: Vec<DocId> = (0u32..1024u32).map(|e| e * 3).collect();
         let mut postings = VecDocSet::from(doc_ids);
         assert_eq!(postings.doc(), 0u32);
-        assert!(postings.advance());
+        assert_eq!(postings.advance(), 3u32);
         assert_eq!(postings.doc(), 3u32);
-        assert_eq!(postings.seek(14u32), SkipResult::OverStep);
+        assert_eq!(postings.seek(14u32), 15u32);
         assert_eq!(postings.doc(), 15u32);
-        assert_eq!(postings.seek(300u32), SkipResult::Reached);
+        assert_eq!(postings.seek(300u32), 300u32);
         assert_eq!(postings.doc(), 300u32);
-        assert_eq!(postings.seek(6000u32), SkipResult::End);
+        assert_eq!(postings.seek(6000u32), TERMINATED);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, SkipResult, TERMINATED};
+use crate::docset::{DocSet, TERMINATED};
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
@@ -22,14 +22,12 @@ where
         mut excluding_docset: TDocSetExclude,
     ) -> Exclude<TDocSet, TDocSetExclude> {
         while underlying_docset.doc() != TERMINATED {
-            match excluding_docset.seek(underlying_docset.doc()) {
-                SkipResult::OverStep | SkipResult::End => {
-                    break;
-                }
-                SkipResult::Reached => {
-                    underlying_docset.advance();
-                }
+            let target = underlying_docset.doc();
+            if excluding_docset.seek(target) != target {
+                // this document is not excluded.
+                break;
             }
+            underlying_docset.advance();
         }
         Exclude {
             underlying_docset,
@@ -49,10 +47,7 @@ where
     /// increasing `doc`.
     fn accept(&mut self) -> bool {
         let doc = self.underlying_docset.doc();
-        match self.excluding_docset.seek(doc) {
-            SkipResult::OverStep | SkipResult::End => true,
-            SkipResult::Reached => false,
-        }
+        self.excluding_docset.seek(doc) != doc
     }
 }
 
@@ -61,13 +56,15 @@ where
     TDocSet: DocSet,
     TDocSetExclude: DocSet,
 {
-    fn advance(&mut self) -> bool {
-        while self.underlying_docset.advance() {
+    fn advance(&mut self) -> DocId {
+        loop {
+            if self.underlying_docset.advance() == TERMINATED {
+                return TERMINATED;
+            }
             if self.accept() {
-                return true;
+                return self.doc();
             }
         }
-        false
     }
 
     /*

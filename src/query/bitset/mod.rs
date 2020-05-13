@@ -44,19 +44,19 @@ impl From<BitSet> for BitSetDocSet {
 }
 
 impl DocSet for BitSetDocSet {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
             self.doc = (self.cursor_bucket as u32 * 64u32) | lower;
-            return true;
+            return self.doc;
         }
         if let Some(cursor_bucket) = self.docs.first_non_empty_bucket(self.cursor_bucket + 1) {
             self.go_to_bucket(cursor_bucket);
             let lower = self.cursor_tinybitset.pop_lowest().unwrap();
             self.doc = (cursor_bucket * 64u32) | lower;
-            true
+            self.doc
         } else {
             self.doc = TERMINATED;
-            false
+            TERMINATED
         }
     }
 
@@ -126,7 +126,7 @@ impl DocSet for BitSetDocSet {
 mod tests {
     use super::BitSetDocSet;
     use crate::common::BitSet;
-    use crate::docset::{DocSet, SkipResult};
+    use crate::docset::{DocSet, TERMINATED};
     use crate::DocId;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
@@ -141,18 +141,16 @@ mod tests {
     fn test_empty() {
         let bitset = BitSet::with_max_value(1000);
         let mut empty = BitSetDocSet::from(bitset);
-        assert!(!empty.advance())
+        assert_eq!(empty.advance(), TERMINATED)
     }
 
     fn test_go_through_sequential(docs: &[DocId]) {
         let mut docset = create_docbitset(docs, 1_000u32);
-        let mut remaining = !docs.is_empty();
         for &doc in docs {
             assert_eq!(doc, docset.doc());
-            remaining = docset.advance();
+            docset.advance();
         }
-        assert!(!remaining);
-        assert!(!docset.advance());
+        assert_eq!(docset.advance(), TERMINATED);
     }
 
     #[test]
@@ -167,64 +165,64 @@ mod tests {
     fn test_docbitset_skip() {
         {
             let mut docset = create_docbitset(&[1, 5, 6, 7, 5112], 10_000);
-            assert_eq!(docset.seek(7), SkipResult::Reached);
+            assert_eq!(docset.seek(7), 7);
             assert_eq!(docset.doc(), 7);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[1, 5, 6, 7, 5112], 10_000);
-            assert_eq!(docset.seek(3), SkipResult::OverStep);
+            assert_eq!(docset.seek(3), 5);
             assert_eq!(docset.doc(), 5);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 6);
         }
         {
             let mut docset = create_docbitset(&[5112], 10_000);
-            assert_eq!(docset.seek(5112), SkipResult::Reached);
+            assert_eq!(docset.seek(5112), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[5112], 10_000);
-            assert_eq!(docset.seek(5113), SkipResult::End);
-            assert!(!docset.advance());
+            assert_eq!(docset.seek(5113), TERMINATED);
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[5112], 10_000);
-            assert_eq!(docset.seek(5111), SkipResult::OverStep);
+            assert_eq!(docset.seek(5111), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5500, 6666], 10_000);
-            assert_eq!(docset.seek(5112), SkipResult::Reached);
+            assert_eq!(docset.seek(5112), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 5500);
             assert_eq!(docset.doc(), 5500);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 6666);
             assert_eq!(docset.doc(), 6666);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5500, 6666], 10_000);
-            assert_eq!(docset.seek(5111), SkipResult::OverStep);
+            assert_eq!(docset.seek(5111), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 5500);
             assert_eq!(docset.doc(), 5500);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 6666);
             assert_eq!(docset.doc(), 6666);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let mut docset = create_docbitset(&[1, 5, 6, 7, 5112, 5513, 6666], 10_000);
-            assert_eq!(docset.seek(5111), SkipResult::OverStep);
+            assert_eq!(docset.seek(5111), 5112);
             assert_eq!(docset.doc(), 5112);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 5513);
             assert_eq!(docset.doc(), 5513);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 6666);
             assert_eq!(docset.doc(), 6666);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
     }
 }
@@ -234,6 +232,7 @@ mod bench {
 
     use super::BitSet;
     use super::BitSetDocSet;
+    use crate::docset::TERMINATED;
     use crate::test;
     use crate::tests;
     use crate::DocSet;
@@ -268,7 +267,7 @@ mod bench {
         }
         b.iter(|| {
             let mut docset = BitSetDocSet::from(bitset.clone());
-            while docset.advance() {}
+            while docset.advance() != TERMINATED {}
         });
     }
 }

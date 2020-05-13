@@ -49,8 +49,8 @@ impl Weight for EmptyWeight {
 pub struct EmptyScorer;
 
 impl DocSet for EmptyScorer {
-    fn advance(&mut self) -> bool {
-        false
+    fn advance(&mut self) -> DocId {
+        TERMINATED
     }
 
     fn doc(&self) -> DocId {
@@ -78,7 +78,7 @@ mod tests {
     fn test_empty_scorer() {
         let mut empty_scorer = EmptyScorer;
         assert_eq!(empty_scorer.doc(), TERMINATED);
-        assert!(!empty_scorer.advance());
+        assert_eq!(empty_scorer.advance(), TERMINATED);
         assert_eq!(empty_scorer.doc(), TERMINATED);
     }
 }

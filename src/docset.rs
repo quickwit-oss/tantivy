@@ -3,7 +3,6 @@ use crate::fastfield::DeleteBitSet;
 use crate::DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
-use std::cmp::Ordering;
 
 pub const TERMINATED: DocId = i32::MAX as u32;
 
@@ -23,35 +22,21 @@ pub enum SkipResult {
 pub trait DocSet {
     /// Goes to the next element.
     ///
-    /// Right after creating a new DocSet, the docset points to the first document.
-    /// If the DocSet is empty, .doc() should return `TERMINATED`.
-    fn advance(&mut self) -> bool;
+    /// Calling `.advance()` on a terminated DocSet is illegal.
+    fn advance(&mut self) -> DocId;
 
-    /// After skipping, position the iterator in such a way that `.doc()`
-    /// will return a value greater than or equal to target.
+    /// Advances the DocSet forward until reaching, or going to the
+    /// lowest DocId greater than the target.
     ///
-    /// SkipResult expresses whether the `target value` was reached, overstepped,
-    /// or if the `DocSet` was entirely consumed without finding any value
-    /// greater or equal to the `target`.
+    /// If the end of the DocSet is reached, the DocSet will be positionned on TERMINATED.
     ///
-    /// If the docset is already positionned on `target`, `SkipResult::Reached`
-    /// is returned.
-    ///
-    /// If `.skip_next()` oversteps, then the docset must be positionned correctly
-    /// on an existing document. In other words, `.doc()` should return the first document
-    /// greater than `DocId`.
-    fn seek(&mut self, target: DocId) -> SkipResult {
-        loop {
-            match self.doc().cmp(&target) {
-                Ordering::Less => {
-                    if !self.advance() {
-                        return SkipResult::End;
-                    }
-                }
-                Ordering::Equal => return SkipResult::Reached,
-                Ordering::Greater => return SkipResult::OverStep,
-            }
+    /// Calling `.seek(target)` on a terminated DocSet is legal. Implementation
+    /// of DocSet should support it.
+    fn seek(&mut self, target: DocId) -> DocId {
+        while self.doc() < target {
+            self.advance();
         }
+        self.doc()
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -75,7 +60,7 @@ pub trait DocSet {
         }
         for (i, buffer_val) in buffer.iter_mut().enumerate() {
             *buffer_val = self.doc();
-            if !self.advance() {
+            if self.advance() == TERMINATED {
                 return i + 1;
             }
         }
@@ -83,6 +68,9 @@ pub trait DocSet {
     }
 
     /// Returns the current document
+    /// Right after creating a new DocSet, the docset points to the first document.
+    ///
+    /// If the DocSet is empty, .doc() should return `TERMINATED`.
     fn doc(&self) -> DocId;
 
     /// Returns a best-effort hint of the
@@ -91,14 +79,9 @@ pub trait DocSet {
 
     /// Appends all docs to a `bitset`.
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        if self.doc() == TERMINATED {
-            return;
-        }
-        loop {
+        while self.doc() != TERMINATED {
             bitset.insert(self.doc());
-            if !self.advance() {
-                return;
-            }
+            self.advance();
         }
     }
 
@@ -131,12 +114,12 @@ pub trait DocSet {
 }
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.advance()
     }
 
-    fn seek(&mut self, target: DocId) -> SkipResult {
+    fn seek(&mut self, target: DocId) -> DocId {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.seek(target)
     }
@@ -151,6 +134,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.size_hint()
     }
 
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.append_to_bitset(bitset);
+    }
+
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.count(delete_bitset)
@@ -159,10 +147,5 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn count_including_deleted(&mut self) -> u32 {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.count_including_deleted()
-    }
-
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.append_to_bitset(bitset);
     }
 }

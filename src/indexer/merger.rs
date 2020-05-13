@@ -633,7 +633,7 @@ impl IndexMerger {
                                 delta_positions,
                             )?;
                         }
-                        if !segment_postings.advance() {
+                        if segment_postings.advance() == TERMINATED {
                             break;
                         }
                     }

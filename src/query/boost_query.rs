@@ -2,7 +2,7 @@ use crate::common::BitSet;
 use crate::fastfield::DeleteBitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
-use crate::{DocId, DocSet, Searcher, SegmentReader, SkipResult, Term};
+use crate::{DocId, DocSet, Searcher, SegmentReader, Term};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -72,7 +72,7 @@ impl Weight for BoostWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0f32)?;
-        if scorer.seek(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         let mut explanation =
@@ -99,11 +99,11 @@ impl<S: Scorer> BoostScorer<S> {
 }
 
 impl<S: Scorer> DocSet for BoostScorer<S> {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.underlying.advance()
     }
 
-    fn seek(&mut self, target: DocId) -> SkipResult {
+    fn seek(&mut self, target: DocId) -> DocId {
         self.underlying.seek(target)
     }
 

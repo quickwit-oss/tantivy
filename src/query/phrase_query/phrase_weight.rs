@@ -9,8 +9,8 @@ use crate::query::Weight;
 use crate::query::{EmptyScorer, Explanation};
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
+use crate::Result;
 use crate::{DocId, DocSet};
-use crate::{Result, SkipResult};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -99,7 +99,7 @@ impl Weight for PhraseWeight {
             return Err(does_not_match(doc));
         }
         let mut scorer = scorer_opt.unwrap();
-        if scorer.seek(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         let fieldnorm_reader = self.fieldnorm_reader(reader);
@@ -114,6 +114,7 @@ impl Weight for PhraseWeight {
 #[cfg(test)]
 mod tests {
     use super::super::tests::create_index;
+    use crate::docset::TERMINATED;
     use crate::query::PhraseQuery;
     use crate::{DocSet, Term};
 
@@ -134,9 +135,9 @@ mod tests {
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
-        assert!(phrase_scorer.advance());
+        assert_eq!(phrase_scorer.advance(), 2);
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
-        assert!(!phrase_scorer.advance());
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
     }
 }

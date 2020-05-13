@@ -83,7 +83,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
             let delta = doc - min_doc;
             bitsets[(delta / 64) as usize].insert_mut(delta % 64u32);
             score_combiner[delta as usize].update(scorer);
-            if !scorer.advance() {
+            if scorer.advance() == TERMINATED {
                 // remove the docset, it has been entirely consumed.
                 return true;
             }
@@ -131,15 +131,18 @@ where
     TScorer: Scorer,
     TScoreCombiner: ScoreCombiner,
 {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         if self.advance_buffered() {
-            return true;
+            return self.doc;
         }
         if !self.refill() {
             self.doc = TERMINATED;
-            return false;
+            return TERMINATED;
         }
-        self.advance_buffered()
+        if !self.advance_buffered() {
+            return TERMINATED;
+        }
+        self.doc
     }
 
     /*
@@ -268,7 +271,7 @@ mod tests {
 
     use super::Union;
     use super::HORIZON;
-    use crate::docset::{DocSet, SkipResult, TERMINATED};
+    use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::ConstScorer;
@@ -302,7 +305,7 @@ mod tests {
             assert_eq!(union_expected.advance(), union.advance());
             count += 1;
         }
-        assert!(!union_expected.advance());
+        assert_eq!(union_expected.advance(), TERMINATED);
         assert_eq!(count, make_union().count_including_deleted());
     }
 
@@ -344,13 +347,11 @@ mod tests {
             res
         };
         let mut docset = docset_factory();
-        let mut ended = false;
         for el in btree_set {
-            assert!(!ended);
             assert_eq!(el, docset.doc());
-            ended = !docset.advance();
+            docset.advance();
         }
-        assert!(ended);
+        assert_eq!(docset.doc(), TERMINATED);
         test_skip_against_unoptimized(docset_factory, skip_targets);
     }
 
@@ -374,8 +375,8 @@ mod tests {
             ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
         ]);
         assert_eq!(docset.doc(), 0u32);
-        assert_eq!(docset.seek(0u32), SkipResult::Reached);
-        assert_eq!(docset.seek(0u32), SkipResult::Reached);
+        assert_eq!(docset.seek(0u32), 0u32);
+        assert_eq!(docset.seek(0u32), 0u32);
         assert_eq!(docset.doc(), 0u32)
     }
 

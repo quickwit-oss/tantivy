@@ -285,7 +285,7 @@ mod tests {
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::query::BooleanQuery;
     use crate::schema::*;
     use crate::DocAddress;
@@ -472,12 +472,15 @@ mod tests {
     }
 
     fn advance_undeleted(docset: &mut dyn DocSet, reader: &SegmentReader) -> bool {
-        while docset.advance() {
-            if !reader.is_deleted(docset.doc()) {
+        loop {
+            let doc = docset.advance();
+            if doc == TERMINATED {
+                return false;
+            }
+            if !reader.is_deleted(doc) {
                 return true;
             }
         }
-        false
     }
 
     #[test]
@@ -642,7 +645,7 @@ mod tests {
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -665,7 +668,7 @@ mod tests {
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -688,7 +691,7 @@ mod tests {
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -776,7 +779,7 @@ mod tests {
                 .unwrap();
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
-            assert!(!postings.advance());
+            assert_eq!(postings.advance(), TERMINATED);
         }
     }
 

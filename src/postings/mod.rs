@@ -51,7 +51,7 @@ pub mod tests {
     use crate::core::Index;
     use crate::core::SegmentComponent;
     use crate::core::SegmentReader;
-    use crate::docset::{DocSet, SkipResult};
+    use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
@@ -120,7 +120,7 @@ pub mod tests {
             assert_eq!(&[0, 1, 2], &positions[..]);
             postings.positions(&mut positions);
             assert_eq!(&[0, 1, 2], &positions[..]);
-            assert!(postings.advance());
+            assert_eq!(postings.advance(), 1);
             assert_eq!(postings.doc(), 1);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
@@ -129,7 +129,8 @@ pub mod tests {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert!(postings.advance());
+            assert_eq!(postings.doc(), 0);
+            assert_eq!(postings.advance(), 1);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
         }
@@ -137,7 +138,7 @@ pub mod tests {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(postings.seek(1), SkipResult::Reached);
+            assert_eq!(postings.seek(1), 1);
             assert_eq!(postings.doc(), 1);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
@@ -146,7 +147,7 @@ pub mod tests {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(postings.seek(1002), SkipResult::Reached);
+            assert_eq!(postings.seek(1002), 1002);
             assert_eq!(postings.doc(), 1002);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
@@ -155,8 +156,8 @@ pub mod tests {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert_eq!(postings.seek(100), SkipResult::Reached);
-            assert_eq!(postings.seek(1002), SkipResult::Reached);
+            assert_eq!(postings.seek(100), 100);
+            assert_eq!(postings.seek(1002), 1002);
             assert_eq!(postings.doc(), 1002);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
@@ -285,17 +286,17 @@ pub mod tests {
                 assert_eq!(postings_a.term_freq(), 6);
                 postings_a.positions(&mut positions);
                 assert_eq!(&positions[..], [0, 2, 4, 6, 7, 13]);
-                assert!(postings_a.advance());
+                assert_eq!(postings_a.advance(), 1u32);
                 assert_eq!(postings_a.doc(), 1u32);
                 assert_eq!(postings_a.term_freq(), 1);
                 for i in 2u32..1000u32 {
-                    assert!(postings_a.advance());
+                    assert_eq!(postings_a.advance(), i);
                     assert_eq!(postings_a.term_freq(), 1);
                     postings_a.positions(&mut positions);
                     assert_eq!(&positions[..], [i]);
                     assert_eq!(postings_a.doc(), i);
                 }
-                assert!(!postings_a.advance());
+                assert_eq!(postings_a.advance(), TERMINATED);
             }
             {
                 let term_e = Term::from_field_text(text_field, "e");
@@ -304,7 +305,6 @@ pub mod tests {
                     .read_postings(&term_e, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
                 assert_eq!(postings_e.len(), 1000 - 2);
-                let mut more_docs = true;
                 for i in 2u32..1000u32 {
                     assert_eq!(postings_e.term_freq(), i);
                     postings_e.positions(&mut positions);
@@ -313,9 +313,9 @@ pub mod tests {
                         assert_eq!(positions[j], (j as u32));
                     }
                     assert_eq!(postings_e.doc(), i);
-                    more_docs = postings_e.advance();
+                    postings_e.advance();
                 }
-                assert!(!more_docs);
+                assert_eq!(postings_e.doc(), TERMINATED);
             }
         }
     }
@@ -379,10 +379,10 @@ pub mod tests {
                     .inverted_index(term_2.field())
                     .read_postings(&term_2, IndexRecordOption::Basic)
                     .unwrap();
-                assert_eq!(segment_postings.seek(i), SkipResult::Reached);
+                assert_eq!(segment_postings.seek(i), i);
                 assert_eq!(segment_postings.doc(), i);
 
-                assert_eq!(segment_postings.seek(j), SkipResult::Reached);
+                assert_eq!(segment_postings.seek(j), j);
                 assert_eq!(segment_postings.doc(), j);
             }
         }
@@ -396,14 +396,14 @@ pub mod tests {
             // check that `skip_next` advances the iterator
             assert_eq!(segment_postings.doc(), 0);
 
-            assert_eq!(segment_postings.seek(1), SkipResult::Reached);
+            assert_eq!(segment_postings.seek(1), 1);
             assert_eq!(segment_postings.doc(), 1);
 
-            assert_eq!(segment_postings.seek(1), SkipResult::Reached);
+            assert_eq!(segment_postings.seek(1), 1);
             assert_eq!(segment_postings.doc(), 1);
 
             // check that going beyond the end is handled
-            assert_eq!(segment_postings.seek(num_docs), SkipResult::End);
+            assert_eq!(segment_postings.seek(num_docs), TERMINATED);
         }
 
         // check that filtering works
@@ -414,7 +414,7 @@ pub mod tests {
                 .unwrap();
 
             for i in 0..num_docs / 2 {
-                assert_eq!(segment_postings.seek(i * 2), SkipResult::Reached);
+                assert_eq!(segment_postings.seek(i * 2), i * 2);
                 assert_eq!(segment_postings.doc(), i * 2);
             }
 
@@ -424,7 +424,7 @@ pub mod tests {
                 .unwrap();
 
             for i in 0..num_docs / 2 - 1 {
-                assert_eq!(segment_postings.seek(i * 2 + 1), SkipResult::OverStep);
+                assert!(segment_postings.seek(i * 2 + 1) > (i * 1) * 2);
                 assert_eq!(segment_postings.doc(), (i + 1) * 2);
             }
         }
@@ -447,11 +447,11 @@ pub mod tests {
                 .unwrap();
 
             if i % 2 == 0 {
-                assert_eq!(segment_postings.seek(i), SkipResult::Reached);
+                assert_eq!(segment_postings.seek(i), i);
                 assert_eq!(segment_postings.doc(), i);
                 assert!(segment_reader.is_deleted(i));
             } else {
-                assert_eq!(segment_postings.seek(i), SkipResult::Reached);
+                assert_eq!(segment_postings.seek(i), i);
                 assert_eq!(segment_postings.doc(), i);
             }
         }
@@ -466,12 +466,16 @@ pub mod tests {
             let mut last = 2; // start from 5 to avoid seeking to 3 twice
             let mut cur = 3;
             loop {
-                match segment_postings.seek(cur) {
-                    SkipResult::End => break,
-                    SkipResult::Reached => assert_eq!(segment_postings.doc(), cur),
-                    SkipResult::OverStep => assert_eq!(segment_postings.doc(), cur + 1),
+                let seek = segment_postings.seek(cur);
+                if seek == TERMINATED {
+                    break;
                 }
-
+                assert_eq!(seek, segment_postings.doc());
+                if seek == cur {
+                    assert_eq!(segment_postings.doc(), cur);
+                } else {
+                    assert_eq!(segment_postings.doc(), cur + 1);
+                }
                 let next = cur + last;
                 last = cur;
                 cur = next;
@@ -557,7 +561,7 @@ pub mod tests {
     }
 
     impl<TDocSet: DocSet> DocSet for UnoptimizedDocSet<TDocSet> {
-        fn advance(&mut self) -> bool {
+        fn advance(&mut self) -> DocId {
             self.0.advance()
         }
 
@@ -590,23 +594,15 @@ pub mod tests {
                 "Failed while skipping to {}",
                 target
             );
-            match skip_result_opt {
-                SkipResult::Reached => assert_eq!(postings_opt.doc(), target),
-                SkipResult::OverStep => assert!(postings_opt.doc() > target),
-                SkipResult::End => {
-                    return;
-                }
+            assert!(skip_result_opt >= target);
+            assert_eq!(skip_result_opt, postings_opt.doc());
+            if skip_result_opt == TERMINATED {
+                return;
             }
-            while postings_opt.advance() {
-                assert!(postings_unopt.advance());
-                assert_eq!(
-                    postings_opt.doc(),
-                    postings_unopt.doc(),
-                    "Failed while skipping to {}",
-                    target
-                );
+            while postings_opt.doc() != TERMINATED {
+                assert_eq!(postings_opt.doc(), postings_unopt.doc());
+                assert_eq!(postings_opt.advance(), postings_unopt.advance());
             }
-            assert!(!postings_unopt.advance());
         }
     }
 }
@@ -615,7 +611,7 @@ pub mod tests {
 mod bench {
 
     use super::tests::*;
-    use crate::docset::SkipResult;
+    use crate::docset::{SkipResult, TERMINATED};
     use crate::query::Intersection;
     use crate::schema::IndexRecordOption;
     use crate::tests;
@@ -633,7 +629,7 @@ mod bench {
                 .inverted_index(TERM_A.field())
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
-            while segment_postings.advance() {}
+            while segment_postings.advance() != TERMINATED {}
         });
     }
 
@@ -665,7 +661,7 @@ mod bench {
                 segment_postings_c,
                 segment_postings_d,
             ]);
-            while intersection.advance() {}
+            while intersection.advance() != TERMINATED {}
         });
     }
 
@@ -681,11 +677,10 @@ mod bench {
             .unwrap();
 
         let mut existing_docs = Vec::new();
-        segment_postings.advance();
         for doc in &docs {
             if *doc >= segment_postings.doc() {
                 existing_docs.push(*doc);
-                if segment_postings.seek(*doc) == SkipResult::End {
+                if segment_postings.seek(*doc) == TERMINATED {
                     break;
                 }
             }
@@ -697,7 +692,7 @@ mod bench {
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             for doc in &existing_docs {
-                if segment_postings.seek(*doc) == SkipResult::End {
+                if segment_postings.seek(*doc) == TERMINATED {
                     break;
                 }
             }
@@ -736,8 +731,9 @@ mod bench {
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap();
             let mut s = 0u32;
-            while segment_postings.advance() {
+            while segment_postings.doc() != TERMINATED {
                 s += (segment_postings.doc() & n) % 1024;
+                segment_postings.advance()
             }
             s
         });
