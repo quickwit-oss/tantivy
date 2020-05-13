@@ -2,7 +2,7 @@ use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
-use crate::docset::DocSet;
+use crate::docset::{DocSet, TERMINATED};
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
@@ -574,12 +574,16 @@ impl IndexMerger {
                     let inverted_index = segment_reader.inverted_index(indexed_field);
                     let mut segment_postings = inverted_index
                         .read_postings_from_terminfo(term_info, segment_postings_option);
-                    while segment_postings.advance() {
-                        if !segment_reader.is_deleted(segment_postings.doc()) {
+                    loop {
+                        let doc = segment_postings.doc();
+                        if doc == TERMINATED {
+                            return None;
+                        }
+                        if !segment_reader.is_deleted(doc) {
                             return Some((segment_ord, segment_postings));
                         }
+                        segment_postings.advance();
                     }
-                    None
                 })
                 .collect();
 

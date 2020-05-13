@@ -1,4 +1,5 @@
 use crate::common::FixedSize;
+use crate::docset::TERMINATED;
 use bitpacking::{BitPacker, BitPacker4x};
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
@@ -98,6 +99,10 @@ impl BlockDecoder {
     pub fn output(&self, idx: usize) -> u32 {
         self.output.0[idx]
     }
+
+    pub fn clear(&mut self) {
+        self.output.0.iter_mut().for_each(|el| *el = TERMINATED);
+    }
 }
 
 pub trait VIntEncoder {
@@ -134,9 +139,9 @@ pub trait VIntDecoder {
     /// For instance, if delta encoded are `1, 3, 9`, and the
     /// `offset` is 5, then the output will be:
     /// `5 + 1 = 6, 6 + 3= 9, 9 + 9 = 18`
-    fn uncompress_vint_sorted<'a>(
+    fn uncompress_vint_sorted(
         &mut self,
-        compressed_data: &'a [u8],
+        compressed_data: &[u8],
         offset: u32,
         num_els: usize,
     ) -> usize;
@@ -146,7 +151,7 @@ pub trait VIntDecoder {
     ///
     /// The method takes a number of int to decompress, and returns
     /// the amount of bytes that were read to decompress them.
-    fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize;
+    fn uncompress_vint_unsorted(&mut self, compressed_data: &[u8], num_els: usize) -> usize;
 }
 
 impl VIntEncoder for BlockEncoder {
@@ -160,9 +165,9 @@ impl VIntEncoder for BlockEncoder {
 }
 
 impl VIntDecoder for BlockDecoder {
-    fn uncompress_vint_sorted<'a>(
+    fn uncompress_vint_sorted(
         &mut self,
-        compressed_data: &'a [u8],
+        compressed_data: &[u8],
         offset: u32,
         num_els: usize,
     ) -> usize {

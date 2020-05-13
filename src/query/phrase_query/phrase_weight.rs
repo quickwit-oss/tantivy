@@ -99,7 +99,7 @@ impl Weight for PhraseWeight {
             return Err(does_not_match(doc));
         }
         let mut scorer = scorer_opt.unwrap();
-        if scorer.skip_next(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
         let fieldnorm_reader = self.fieldnorm_reader(reader);
@@ -132,7 +132,6 @@ mod tests {
             .phrase_scorer(searcher.segment_reader(0u32), 1.0f32)
             .unwrap()
             .unwrap();
-        assert!(phrase_scorer.advance());
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
         assert!(phrase_scorer.advance());

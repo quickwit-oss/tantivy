@@ -1,10 +1,9 @@
 use crate::common::TinySet;
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
-use std::cmp::Ordering;
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
@@ -47,17 +46,9 @@ where
     fn from(docsets: Vec<TScorer>) -> Union<TScorer, TScoreCombiner> {
         let non_empty_docsets: Vec<TScorer> = docsets
             .into_iter()
-            .flat_map(
-                |mut docset| {
-                    if docset.advance() {
-                        Some(docset)
-                    } else {
-                        None
-                    }
-                },
-            )
+            .filter(|docset| docset.doc() != TERMINATED)
             .collect();
-        Union {
+        let mut union = Union {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
             scores: Box::new([TScoreCombiner::default(); HORIZON as usize]),
@@ -65,7 +56,13 @@ where
             offset: 0,
             doc: 0,
             score: 0f32,
+        };
+        if union.refill() {
+            union.advance();
+        } else {
+            union.doc = TERMINATED;
         }
+        union
     }
 }
 
@@ -99,6 +96,7 @@ impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombin
         if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             self.offset = min_doc;
             self.cursor = 0;
+            self.doc = min_doc;
             refill(
                 &mut self.docsets,
                 &mut *self.bitsets,
@@ -137,14 +135,14 @@ where
         if self.advance_buffered() {
             return true;
         }
-        if self.refill() {
-            self.advance();
-            true
-        } else {
-            false
+        if !self.refill() {
+            self.doc = TERMINATED;
+            return false;
         }
+        self.advance_buffered()
     }
 
+    /*
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -222,6 +220,7 @@ where
             }
         }
     }
+    */
 
     // TODO implement `count` efficiently.
 
@@ -233,6 +232,7 @@ where
         0u32
     }
 
+    /*
     fn count_including_deleted(&mut self) -> u32 {
         let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
             .iter()
@@ -250,6 +250,7 @@ where
         self.cursor = HORIZON_NUM_TINYBITSETS;
         count
     }
+     */
 }
 
 impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
@@ -267,7 +268,7 @@ mod tests {
 
     use super::Union;
     use super::HORIZON;
-    use crate::docset::{DocSet, SkipResult};
+    use crate::docset::{DocSet, SkipResult, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::ConstScorer;
@@ -296,9 +297,9 @@ mod tests {
         };
         let mut union: Union<_, DoNothingCombiner> = make_union();
         let mut count = 0;
-        while union.advance() {
-            assert!(union_expected.advance());
+        while union.doc() != TERMINATED {
             assert_eq!(union_expected.doc(), union.doc());
+            assert_eq!(union_expected.advance(), union.advance());
             count += 1;
         }
         assert!(!union_expected.advance());
@@ -329,9 +330,7 @@ mod tests {
     fn test_aux_union_skip(docs_list: &[Vec<DocId>], skip_targets: Vec<DocId>) {
         let mut btree_set = BTreeSet::new();
         for docs in docs_list {
-            for &doc in docs.iter() {
-                btree_set.insert(doc);
-            }
+            btree_set.extend(docs.iter().cloned());
         }
         let docset_factory = || {
             let res: Box<dyn DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
@@ -345,11 +344,13 @@ mod tests {
             res
         };
         let mut docset = docset_factory();
+        let mut ended = false;
         for el in btree_set {
-            assert!(docset.advance());
+            assert!(!ended);
             assert_eq!(el, docset.doc());
+            ended = !docset.advance();
         }
-        assert!(!docset.advance());
+        assert!(ended);
         test_skip_against_unoptimized(docset_factory, skip_targets);
     }
 
@@ -372,10 +373,10 @@ mod tests {
             ConstScorer::from(VecDocSet::from(vec![0u32, 5u32])),
             ConstScorer::from(VecDocSet::from(vec![1u32, 4u32])),
         ]);
-        assert!(docset.advance());
         assert_eq!(docset.doc(), 0u32);
-        assert_eq!(docset.skip_next(0u32), SkipResult::OverStep);
-        assert_eq!(docset.doc(), 1u32)
+        assert_eq!(docset.seek(0u32), SkipResult::Reached);
+        assert_eq!(docset.seek(0u32), SkipResult::Reached);
+        assert_eq!(docset.doc(), 0u32)
     }
 
     #[test]

@@ -1,9 +1,8 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, SkipResult, TERMINATED};
 use crate::query::score_combiner::ScoreCombiner;
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
 
 /// Given a required scorer and an optional scorer
@@ -29,9 +28,9 @@ where
     /// Creates a new `RequiredOptionalScorer`.
     pub fn new(
         req_scorer: TReqScorer,
-        mut opt_scorer: TOptScorer,
+        opt_scorer: TOptScorer,
     ) -> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
-        let opt_finished = !opt_scorer.advance();
+        let opt_finished = opt_scorer.doc() == TERMINATED;
         RequiredOptionalScorer {
             req_scorer,
             opt_scorer,
@@ -77,20 +76,14 @@ where
         let mut score_combiner = TScoreCombiner::default();
         score_combiner.update(&mut self.req_scorer);
         if !self.opt_finished {
-            match self.opt_scorer.doc().cmp(&doc) {
-                Ordering::Greater => {}
-                Ordering::Equal => {
+            match self.opt_scorer.seek(doc) {
+                SkipResult::Reached => {
                     score_combiner.update(&mut self.opt_scorer);
                 }
-                Ordering::Less => match self.opt_scorer.skip_next(doc) {
-                    SkipResult::Reached => {
-                        score_combiner.update(&mut self.opt_scorer);
-                    }
-                    SkipResult::End => {
-                        self.opt_finished = true;
-                    }
-                    SkipResult::OverStep => {}
-                },
+                SkipResult::End => {
+                    self.opt_finished = true;
+                }
+                SkipResult::OverStep => {}
             }
         }
         let score = score_combiner.score();
@@ -102,7 +95,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::RequiredOptionalScorer;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::{DoNothingCombiner, SumCombiner};
     use crate::query::ConstScorer;
@@ -119,8 +112,9 @@ mod tests {
                 ConstScorer::from(VecDocSet::from(vec![])),
             );
         let mut docs = vec![];
-        while reqoptscorer.advance() {
+        while reqoptscorer.doc() != TERMINATED {
             docs.push(reqoptscorer.doc());
+            reqoptscorer.advance();
         }
         assert_eq!(docs, req);
     }
@@ -133,7 +127,6 @@ mod tests {
                 ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15]), 1.0f32),
             );
         {
-            assert!(reqoptscorer.advance());
             assert_eq!(reqoptscorer.doc(), 1);
             assert_eq!(reqoptscorer.score(), 2f32);
         }

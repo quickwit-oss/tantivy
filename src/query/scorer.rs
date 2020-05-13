@@ -1,5 +1,5 @@
 use crate::common::BitSet;
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, SkipResult, TERMINATED};
 use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
@@ -17,8 +17,13 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     /// Iterates through all of the document matched by the DocSet
     /// `DocSet` and push the scored documents to the collector.
     fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
-        while self.advance() {
-            callback(self.doc(), self.score());
+        loop {
+            let doc = self.doc();
+            if doc == TERMINATED {
+                return;
+            }
+            callback(doc, self.score());
+            self.advance();
         }
     }
 }
@@ -65,8 +70,8 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
         self.docset.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.docset.skip_next(target)
+    fn seek(&mut self, target: DocId) -> SkipResult {
+        self.docset.seek(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {

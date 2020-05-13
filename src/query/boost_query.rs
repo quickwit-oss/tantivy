@@ -72,7 +72,7 @@ impl Weight for BoostWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0f32)?;
-        if scorer.skip_next(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
         let mut explanation =
@@ -103,8 +103,8 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.underlying.skip_next(target)
+    fn seek(&mut self, target: DocId) -> SkipResult {
+        self.underlying.seek(target)
     }
 
     fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {

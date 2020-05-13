@@ -140,8 +140,7 @@ impl BlockSearcher {
     ) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
-            use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-            if self == BlockSearcher::SSE2 && len == COMPRESSION_BLOCK_SIZE {
+            if self == BlockSearcher::SSE2 {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
@@ -167,6 +166,7 @@ mod tests {
     use super::linear_search;
     use super::BlockSearcher;
     use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
+    use crate::docset::TERMINATED;
 
     #[test]
     fn test_linear_search() {
@@ -196,7 +196,7 @@ mod tests {
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
         assert!(block.len() < COMPRESSION_BLOCK_SIZE);
-        let mut output_buffer = [u32::max_value(); COMPRESSION_BLOCK_SIZE];
+        let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE];
         output_buffer[..block.len()].copy_from_slice(block);
         for i in 0..cursor {
             assert_eq!(

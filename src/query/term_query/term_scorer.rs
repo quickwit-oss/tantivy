@@ -49,8 +49,8 @@ impl DocSet for TermScorer {
         self.postings.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.postings.skip_next(target)
+    fn seek(&mut self, target: DocId) -> SkipResult {
+        self.postings.seek(target)
     }
 
     fn doc(&self) -> DocId {

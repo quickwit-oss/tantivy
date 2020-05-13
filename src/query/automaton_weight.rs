@@ -64,7 +64,7 @@ where
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0f32)?;
-        if scorer.skip_next(doc) == SkipResult::Reached {
+        if scorer.seek(doc) == SkipResult::Reached {
             Ok(Explanation::new("AutomatonScorer", 1.0f32))
         } else {
             Err(TantivyError::InvalidArgument(
@@ -141,7 +141,6 @@ mod tests {
         let mut scorer = automaton_weight
             .scorer(searcher.segment_reader(0u32), 1.0f32)
             .unwrap();
-        assert!(scorer.advance());
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.0f32);
         assert!(scorer.advance());
@@ -160,7 +159,6 @@ mod tests {
         let mut scorer = automaton_weight
             .scorer(searcher.segment_reader(0u32), 1.32f32)
             .unwrap();
-        assert!(scorer.advance());
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.32f32);
     }

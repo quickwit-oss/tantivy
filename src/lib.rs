@@ -641,7 +641,6 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
     }
@@ -665,7 +664,6 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
     }
@@ -689,7 +687,6 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
         assert!(!postings.advance());
     }
@@ -760,10 +757,8 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"af af af bc bc");
-                index_writer.add_document(doc);
-            }
+            let doc = doc!(text_field=>"af af af bc bc");
+            index_writer.add_document(doc);
             index_writer.commit().unwrap();
         }
         {
@@ -779,7 +774,6 @@ mod tests {
             let mut postings = inverted_index
                 .read_postings(&term_af, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
             assert!(!postings.advance());

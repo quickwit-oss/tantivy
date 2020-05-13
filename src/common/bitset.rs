@@ -278,11 +278,13 @@ mod tests {
         }
         assert_eq!(btreeset.len(), bitset.len());
         let mut bitset_docset = BitSetDocSet::from(bitset);
+        let mut remaining = true;
         for el in btreeset.into_iter() {
-            bitset_docset.advance();
+            assert!(remaining);
             assert_eq!(bitset_docset.doc(), el);
+            remaining = bitset_docset.advance();
         }
-        assert!(!bitset_docset.advance());
+        assert!(!remaining);
     }
 
     #[test]

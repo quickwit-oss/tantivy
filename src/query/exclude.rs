@@ -1,13 +1,7 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, SkipResult, TERMINATED};
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
-
-#[derive(Clone, Copy, Debug)]
-enum State {
-    ExcludeOne(DocId),
-    Finished,
-}
 
 /// Filters a given `DocSet` by removing the docs from a given `DocSet`.
 ///
@@ -15,27 +9,31 @@ enum State {
 pub struct Exclude<TDocSet, TDocSetExclude> {
     underlying_docset: TDocSet,
     excluding_docset: TDocSetExclude,
-    excluding_state: State,
 }
 
 impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
 where
+    TDocSet: DocSet,
     TDocSetExclude: DocSet,
 {
     /// Creates a new `ExcludeScorer`
     pub fn new(
-        underlying_docset: TDocSet,
+        mut underlying_docset: TDocSet,
         mut excluding_docset: TDocSetExclude,
     ) -> Exclude<TDocSet, TDocSetExclude> {
-        let state = if excluding_docset.advance() {
-            State::ExcludeOne(excluding_docset.doc())
-        } else {
-            State::Finished
-        };
+        while underlying_docset.doc() != TERMINATED {
+            match excluding_docset.seek(underlying_docset.doc()) {
+                SkipResult::OverStep | SkipResult::End => {
+                    break;
+                }
+                SkipResult::Reached => {
+                    underlying_docset.advance();
+                }
+            }
+        }
         Exclude {
             underlying_docset,
             excluding_docset,
-            excluding_state: state,
         }
     }
 }
@@ -51,27 +49,9 @@ where
     /// increasing `doc`.
     fn accept(&mut self) -> bool {
         let doc = self.underlying_docset.doc();
-        match self.excluding_state {
-            State::ExcludeOne(excluded_doc) => {
-                if doc == excluded_doc {
-                    return false;
-                }
-                if excluded_doc > doc {
-                    return true;
-                }
-                match self.excluding_docset.skip_next(doc) {
-                    SkipResult::OverStep => {
-                        self.excluding_state = State::ExcludeOne(self.excluding_docset.doc());
-                        true
-                    }
-                    SkipResult::End => {
-                        self.excluding_state = State::Finished;
-                        true
-                    }
-                    SkipResult::Reached => false,
-                }
-            }
-            State::Finished => true,
+        match self.excluding_docset.seek(doc) {
+            SkipResult::OverStep | SkipResult::End => true,
+            SkipResult::Reached => false,
         }
     }
 }
@@ -90,6 +70,7 @@ where
         false
     }
 
+    /*
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         let underlying_skip_result = self.underlying_docset.skip_next(target);
         if underlying_skip_result == SkipResult::End {
@@ -103,6 +84,7 @@ where
             SkipResult::End
         }
     }
+    */
 
     fn doc(&self) -> DocId {
         self.underlying_docset.doc()
@@ -141,8 +123,9 @@ mod tests {
             VecDocSet::from(vec![1, 2, 3, 10, 16, 24]),
         );
         let mut els = vec![];
-        while exclude_scorer.advance() {
+        while exclude_scorer.doc() != TERMINATED {
             els.push(exclude_scorer.doc());
+            exclude_scorer.advance();
         }
         assert_eq!(els, vec![5, 8, 15]);
     }

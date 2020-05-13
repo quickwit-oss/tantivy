@@ -5,6 +5,8 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 
+pub const TERMINATED: DocId = i32::MAX as u32;
+
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
 pub enum SkipResult {
@@ -20,8 +22,9 @@ pub enum SkipResult {
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet {
     /// Goes to the next element.
-    /// `.advance(...)` needs to be called a first time to point to the correct
-    /// element.
+    ///
+    /// Right after creating a new DocSet, the docset points to the first document.
+    /// If the DocSet is empty, .doc() should return `TERMINATED`.
     fn advance(&mut self) -> bool;
 
     /// After skipping, position the iterator in such a way that `.doc()`
@@ -31,17 +34,13 @@ pub trait DocSet {
     /// or if the `DocSet` was entirely consumed without finding any value
     /// greater or equal to the `target`.
     ///
-    /// WARNING: Calling skip always advances the docset.
-    /// More specifically, if the docset is already positionned on the target
-    /// skipping will advance to the next position and return SkipResult::Overstep.
+    /// If the docset is already positionned on `target`, `SkipResult::Reached`
+    /// is returned.
     ///
     /// If `.skip_next()` oversteps, then the docset must be positionned correctly
     /// on an existing document. In other words, `.doc()` should return the first document
     /// greater than `DocId`.
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if !self.advance() {
-            return SkipResult::End;
-        }
+    fn seek(&mut self, target: DocId) -> SkipResult {
         loop {
             match self.doc().cmp(&target) {
                 Ordering::Less => {
@@ -71,11 +70,13 @@ pub trait DocSet {
     /// use case where batching. The normal way to
     /// go through the `DocId`'s is to call `.advance()`.
     fn fill_buffer(&mut self, buffer: &mut [DocId]) -> usize {
+        if self.doc() == TERMINATED {
+            return 0;
+        }
         for (i, buffer_val) in buffer.iter_mut().enumerate() {
-            if self.advance() {
-                *buffer_val = self.doc();
-            } else {
-                return i;
+            *buffer_val = self.doc();
+            if !self.advance() {
+                return i + 1;
             }
         }
         buffer.len()
@@ -90,8 +91,14 @@ pub trait DocSet {
 
     /// Appends all docs to a `bitset`.
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        while self.advance() {
+        if self.doc() == TERMINATED {
+            return;
+        }
+        loop {
             bitset.insert(self.doc());
+            if !self.advance() {
+                return;
+            }
         }
     }
 
@@ -99,10 +106,11 @@ pub trait DocSet {
     /// Calling this method consumes the `DocSet`.
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
         let mut count = 0u32;
-        while self.advance() {
+        while self.doc() != TERMINATED {
             if !delete_bitset.is_deleted(self.doc()) {
                 count += 1u32;
             }
+            self.advance();
         }
         count
     }
@@ -114,8 +122,9 @@ pub trait DocSet {
     /// given by `count()`.
     fn count_including_deleted(&mut self) -> u32 {
         let mut count = 0u32;
-        while self.advance() {
+        while self.doc() != TERMINATED {
             count += 1u32;
+            self.advance();
         }
         count
     }
@@ -127,9 +136,9 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
+    fn seek(&mut self, target: DocId) -> SkipResult {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.skip_next(target)
+        unboxed.seek(target)
     }
 
     fn doc(&self) -> DocId {

@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, SkipResult, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::BM25Weight;
@@ -29,8 +29,8 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
         self.postings.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.postings.skip_next(target)
+    fn seek(&mut self, target: DocId) -> SkipResult {
+        self.postings.seek(target)
     }
 
     fn doc(&self) -> DocId {
@@ -149,7 +149,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
-        PhraseScorer {
+        let mut scorer = PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
             num_terms: num_docsets,
             left: Vec::with_capacity(100),
@@ -158,7 +158,14 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             similarity_weight,
             fieldnorm_reader,
             score_needed,
+        };
+        while scorer.intersection_docset.doc() != TERMINATED {
+            if scorer.phrase_match() {
+                break;
+            }
+            scorer.intersection_docset.advance();
         }
+        scorer
     }
 
     pub fn phrase_count(&self) -> u32 {
@@ -234,6 +241,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         false
     }
 
+    /*
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if self.intersection_docset.skip_next(target) == SkipResult::End {
             return SkipResult::End;
@@ -251,6 +259,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
             SkipResult::End
         }
     }
+     */
 
     fn doc(&self) -> DocId {
         self.intersection_docset.doc()

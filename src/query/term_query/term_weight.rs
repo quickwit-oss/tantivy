@@ -25,7 +25,7 @@ impl Weight for TermWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
-        if scorer.skip_next(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
         Ok(scorer.explain())
