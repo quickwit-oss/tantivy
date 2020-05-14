@@ -1,4 +1,4 @@
-use crate::DocAddress;
+use crate::{DocAddress, Score};
 use crate::DocId;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -18,9 +18,9 @@ use std::collections::BinaryHeap;
 /// Two elements are equal if their feature is equal, and regardless of whether `doc`
 /// is equal. This should be perfectly fine for this usage, but let's make sure this
 /// struct is never public.
-struct ComparableDoc<T, D> {
-    feature: T,
-    doc: D,
+pub(crate) struct ComparableDoc<T, D> {
+    pub feature: T,
+    pub doc: D,
 }
 
 impl<T: PartialOrd, D: PartialOrd> PartialOrd for ComparableDoc<T, D> {
@@ -56,7 +56,7 @@ impl<T: PartialOrd, D: PartialOrd> PartialEq for ComparableDoc<T, D> {
 impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
-    limit: usize,
+    pub limit: usize,
     _marker: PhantomData<T>,
 }
 
@@ -136,6 +136,18 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
             heap: BinaryHeap::with_capacity(limit),
             segment_id,
         }
+    }
+}
+
+impl TopSegmentCollector<Score> {
+    pub(crate) fn threshold(&self) -> Score {
+        if !self.at_capacity() {
+            return f32::MIN;
+        }
+        self.heap
+            .peek()
+            .map(|head| head.feature)
+            .unwrap_or(f32::MIN)
     }
 }
 

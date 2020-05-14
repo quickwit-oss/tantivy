@@ -26,6 +26,20 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
             self.advance();
         }
     }
+
+    fn for_each_pruning(&mut self, mut threshold: f32, callback: &mut dyn FnMut(DocId, Score) -> Score) {
+        loop {
+            let doc = self.doc();
+            if doc == TERMINATED {
+                return;
+            }
+            let score= self.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+            self.advance();
+        }
+    }
 }
 
 impl_downcast!(Scorer);
