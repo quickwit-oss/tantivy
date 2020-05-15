@@ -60,7 +60,7 @@ pub struct TopDocs(TopCollector<Score>);
 
 impl fmt::Debug for TopDocs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "TopDocs({})", self.0.limit())
+        write!(f, "TopDocs({}, {})", self.0.limit(), self.0.offset())
     }
 }
 
@@ -102,6 +102,43 @@ impl TopDocs {
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopDocs {
         TopDocs(TopCollector::with_limit(limit))
+    }
+
+    /// Creates a top score collector, with a number of documents equal to "limit" and
+    /// skipping the first "offset" documents. This is useful for pagination.
+    ///
+    /// # Panics
+    /// The method panics if limit is 0
+    ///
+    /// ```rust
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::query::QueryParser;
+    /// use tantivy::schema::{Schema, TEXT};
+    /// use tantivy::{doc, DocAddress, Index};
+    ///
+    /// let mut schema_builder = Schema::builder();
+    /// let title = schema_builder.add_text_field("title", TEXT);
+    /// let schema = schema_builder.build();
+    /// let index = Index::create_in_ram(schema);
+    ///
+    /// let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+    /// index_writer.add_document(doc!(title => "The Name of the Wind"));
+    /// index_writer.add_document(doc!(title => "The Diary of Muadib"));
+    /// index_writer.add_document(doc!(title => "A Dairy Cow"));
+    /// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
+    /// assert!(index_writer.commit().is_ok());
+    ///
+    /// let reader = index.reader().unwrap();
+    /// let searcher = reader.searcher();
+    ///
+    /// let query_parser = QueryParser::for_index(&index, vec![title]);
+    /// let query = query_parser.parse_query("diary").unwrap();
+    /// let top_docs = searcher.search(&query, &TopDocs::with_limit_and_offset(1, 1)).unwrap();
+    ///
+    /// assert_eq!(&top_docs[0], &(0.6099695, DocAddress(0, 3)));
+    /// ```
+    pub fn with_limit_and_offset(limit: usize, offset: usize) -> TopDocs {
+        TopDocs(TopCollector::with_limit_and_offset(limit, offset))
     }
 
     /// Set top-K to rank documents by a given fast field.

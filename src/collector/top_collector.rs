@@ -57,6 +57,7 @@ impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
     pub limit: usize,
+    pub offset: usize,
     _marker: PhantomData<T>,
 }
 
@@ -69,17 +70,31 @@ where
     /// # Panics
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopCollector<T> {
+        Self::with_limit_and_offset(limit, 0)
+    }
+
+    /// Creates a top collector, with a number of documents equal to "limit" and
+    /// skipping the first "offset" documents.
+    ///
+    /// # Panics
+    /// The method panics if limit is 0
+    pub fn with_limit_and_offset(limit: usize, offset: usize) -> TopCollector<T> {
         if limit < 1 {
             panic!("Limit must be strictly greater than 0.");
         }
         TopCollector {
             limit,
+            offset,
             _marker: PhantomData,
         }
     }
 
     pub fn limit(&self) -> usize {
         self.limit
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
     }
 
     pub fn merge_fruits(
@@ -92,7 +107,7 @@ where
         let mut top_collector = BinaryHeap::new();
         for child_fruit in children {
             for (feature, doc) in child_fruit {
-                if top_collector.len() < self.limit {
+                if top_collector.len() < (self.limit + self.offset) {
                     top_collector.push(ComparableDoc { feature, doc });
                 } else if let Some(mut head) = top_collector.peek_mut() {
                     if head.feature < feature {
@@ -104,6 +119,7 @@ where
         Ok(top_collector
             .into_sorted_vec()
             .into_iter()
+            .skip(self.offset)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
@@ -113,7 +129,7 @@ where
         segment_id: SegmentLocalId,
         _: &SegmentReader,
     ) -> crate::Result<TopSegmentCollector<F>> {
-        Ok(TopSegmentCollector::new(segment_id, self.limit))
+        Ok(TopSegmentCollector::new(segment_id, self.limit + self.offset))
     }
 }
 
