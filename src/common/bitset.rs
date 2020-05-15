@@ -47,6 +47,11 @@ impl TinySet {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
+    /// Returns the number of elements in the TinySet.
+    pub fn len(self) -> u32 {
+        self.0.count_ones()
+    }
+
     /// Returns the intersection of `self` and `other`
     pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)

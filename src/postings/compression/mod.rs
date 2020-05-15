@@ -91,8 +91,8 @@ impl BlockDecoder {
     }
 
     #[inline]
-    pub(crate) fn output_aligned(&self) -> (&AlignedBuffer, usize) {
-        (&self.output, self.output_len)
+    pub(crate) fn output_aligned(&self) -> &AlignedBuffer {
+        &self.output
     }
 
     #[inline]

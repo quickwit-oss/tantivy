@@ -129,12 +129,13 @@ impl BlockSearcher {
     ///
     /// If SSE2 instructions are available in the `(platform, running CPU)`,
     /// then we use a different implementation that does an exhaustive linear search over
-    /// the full block whenever the block is full (`len == 128`). It is surprisingly faster, most likely because of the lack
-    /// of branch.
+    /// the block regardless of whether the block is full or not.
+    ///
+    /// Indeed, if the block is not full, the remaining items are TERMINATED.
+    /// It is surprisingly faster, most likely because of the lack of branch misprediction.
     pub(crate) fn search_in_block(
         self,
         block_docs: &AlignedBuffer,
-        len: usize,
         start: usize,
         target: u32,
     ) -> usize {
@@ -144,7 +145,7 @@ impl BlockSearcher {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
-        start + galloping(&block_docs.0[start..len], target)
+        start + galloping(&block_docs.0[start..], target)
     }
 }
 
@@ -200,12 +201,7 @@ mod tests {
         output_buffer[..block.len()].copy_from_slice(block);
         for i in 0..cursor {
             assert_eq!(
-                block_searcher.search_in_block(
-                    &AlignedBuffer(output_buffer),
-                    block.len(),
-                    i,
-                    target
-                ),
+                block_searcher.search_in_block(&AlignedBuffer(output_buffer), i, target),
                 cursor
             );
         }

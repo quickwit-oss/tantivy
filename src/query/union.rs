@@ -166,12 +166,10 @@ where
             // Advancing until we reach the end of the bucket
             // or we reach a doc greater or equal to the target.
             let mut doc = self.doc();
-            loop {
-                if doc >= target {
-                    return doc;
-                }
+            while doc < target {
                 doc = self.advance();
             }
+            doc
         } else {
             // clear the buffered info.
             for obsolete_tinyset in self.bitsets.iter_mut() {
@@ -198,22 +196,17 @@ where
         }
     }
 
-    // TODO implement `count` efficiently.
+    // TODO Also implement `count` with deletes efficiently.
 
-    fn doc(&self) -> DocId {
-        self.doc
-    }
-
-    fn size_hint(&self) -> u32 {
-        0u32
-    }
-
-    /*
     fn count_including_deleted(&mut self) -> u32 {
+        if self.doc == TERMINATED {
+            return 0;
+        }
         let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
             .iter()
             .map(|bitset| bitset.len())
-            .sum::<u32>();
+            .sum::<u32>()
+            + 1;
         for bitset in self.bitsets.iter_mut() {
             bitset.clear();
         }
@@ -226,7 +219,14 @@ where
         self.cursor = HORIZON_NUM_TINYBITSETS;
         count
     }
-     */
+
+    fn doc(&self) -> DocId {
+        self.doc
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.docsets.iter().map(|docset| docset.size_hint()).max().unwrap_or(0u32)
+    }
 }
 
 impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>

@@ -3,6 +3,20 @@ Tantivy 0.13.0
 - Bugfix in `FuzzyTermQuery` not matching terms by prefix when it should (@Peachball)
 - Relaxed constraints on the custom/tweak score functions. At the segment level, they can be mut, and they are not required to be Sync + Send.
 - `MMapDirectory::open` does not return a `Result` anymore.
+- Change in the DocSet and Scorer API. (@fulmicoton). 
+A freshly created DocSet point directly to their first doc. A sentinel value called TERMINATED marks the end of a DocSet.
+`.advance()` returns the new DocId. `Scorer::skip(target)` has been replaced by `Scorer::seek(target)` and returns the resulting DocId.
+As a result, iterating through DocSet now looks as follows
+```rust
+let mut doc = docset.doc();
+while doc != TERMINATED {
+   // ...
+   doc = docset.advance();
+}
+```
+The change made it possible to greatly simplify a lot of the docset's code.
+- Misc internal optimization and introduction of the `Scorer::for_each_pruning` function. (@fulmicoton)
+
 
 Tantivy 0.12.0
 ======================

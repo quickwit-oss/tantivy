@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::DocSet;
 use crate::query::score_combiner::ScoreCombiner;
 use crate::query::Scorer;
 use crate::DocId;
@@ -16,7 +16,6 @@ pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
     req_scorer: TReqScorer,
     opt_scorer: TOptScorer,
     score_cache: Option<Score>,
-    opt_finished: bool,
     _phantom: PhantomData<TScoreCombiner>,
 }
 
@@ -30,12 +29,10 @@ where
         req_scorer: TReqScorer,
         opt_scorer: TOptScorer,
     ) -> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
-        let opt_finished = opt_scorer.doc() == TERMINATED;
         RequiredOptionalScorer {
             req_scorer,
             opt_scorer,
             score_cache: None,
-            opt_finished,
             _phantom: PhantomData,
         }
     }
@@ -75,13 +72,8 @@ where
         let doc = self.doc();
         let mut score_combiner = TScoreCombiner::default();
         score_combiner.update(&mut self.req_scorer);
-        if !self.opt_finished {
-            let seek = self.opt_scorer.seek(doc);
-            if seek == TERMINATED {
-                self.opt_finished = true;
-            } else if seek == doc {
-                score_combiner.update(&mut self.opt_scorer);
-            }
+        if self.opt_scorer.seek(doc) == doc {
+            score_combiner.update(&mut self.opt_scorer);
         }
         let score = score_combiner.score();
         self.score_cache = Some(score);

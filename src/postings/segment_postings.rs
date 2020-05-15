@@ -198,10 +198,8 @@ impl DocSet for SegmentPostings {
 
         let cur = self.cur;
 
-        let (output, len) = self.block_cursor.docs_aligned();
-        let new_cur = self
-            .block_searcher
-            .search_in_block(&output, len, cur, target);
+        let output = self.block_cursor.docs_aligned();
+        let new_cur = self.block_searcher.search_in_block(&output, cur, target);
         if let Some(position_computer) = self.position_computer.as_mut() {
             sum_freqs_skipped += self.block_cursor.freqs()[cur..new_cur].iter().sum::<u32>();
             position_computer.add_skip(sum_freqs_skipped as usize);
@@ -400,7 +398,7 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
-    pub(crate) fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
+    pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
         self.doc_decoder.output_aligned()
     }
 

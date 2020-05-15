@@ -57,31 +57,24 @@ where
     TDocSetExclude: DocSet,
 {
     fn advance(&mut self) -> DocId {
-        loop {
-            if self.underlying_docset.advance() == TERMINATED {
-                return TERMINATED;
-            }
+        while self.underlying_docset.advance() != TERMINATED {
             if self.accept() {
                 return self.doc();
             }
         }
+        TERMINATED
     }
 
-    /*
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        let underlying_skip_result = self.underlying_docset.skip_next(target);
-        if underlying_skip_result == SkipResult::End {
-            return SkipResult::End;
+    fn seek(&mut self, target: DocId) -> DocId {
+        let underlying_seek_result = self.underlying_docset.seek(target);
+        if underlying_seek_result == TERMINATED {
+            return TERMINATED;
         }
         if self.accept() {
-            underlying_skip_result
-        } else if self.advance() {
-            SkipResult::OverStep
-        } else {
-            SkipResult::End
+            return underlying_seek_result;
         }
+        self.advance()
     }
-    */
 
     fn doc(&self) -> DocId {
         self.underlying_docset.doc()

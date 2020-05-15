@@ -159,12 +159,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             fieldnorm_reader,
             score_needed,
         };
-        let mut doc = scorer.intersection_docset.doc();
-        while doc != TERMINATED {
-            if scorer.phrase_match() {
-                break;
-            }
-            doc = scorer.intersection_docset.advance();
+        if scorer.doc() != TERMINATED && !scorer.phrase_match() {
+            scorer.advance();
         }
         scorer
     }
@@ -242,25 +238,13 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
         }
     }
 
-    /*
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if self.intersection_docset.skip_next(target) == SkipResult::End {
-            return SkipResult::End;
+    fn seek(&mut self, target: DocId) -> DocId {
+        let doc = self.intersection_docset.seek(target);
+        if doc == TERMINATED || self.phrase_match() {
+            return doc;
         }
-        if self.phrase_match() {
-            if self.doc() == target {
-                return SkipResult::Reached;
-            } else {
-                return SkipResult::OverStep;
-            }
-        }
-        if self.advance() {
-            SkipResult::OverStep
-        } else {
-            SkipResult::End
-        }
+        self.advance()
     }
-     */
 
     fn doc(&self) -> DocId {
         self.intersection_docset.doc()
