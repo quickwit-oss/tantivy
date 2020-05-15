@@ -611,7 +611,7 @@ pub mod tests {
 mod bench {
 
     use super::tests::*;
-    use crate::docset::{SkipResult, TERMINATED};
+    use crate::docset::TERMINATED;
     use crate::query::Intersection;
     use crate::schema::IndexRecordOption;
     use crate::tests;

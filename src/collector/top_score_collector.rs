@@ -1,22 +1,22 @@
 use super::Collector;
 use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
-use crate::collector::top_collector::{TopCollector, ComparableDoc};
 use crate::collector::top_collector::TopSegmentCollector;
+use crate::collector::top_collector::{ComparableDoc, TopCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{FastFieldReader, DeleteBitSet};
+use crate::docset::TERMINATED;
+use crate::fastfield::FastFieldReader;
+use crate::query::Scorer;
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use std::fmt;
-use crate::query::Scorer;
 use std::collections::BinaryHeap;
-use crate::docset::TERMINATED;
+use std::fmt;
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -427,51 +427,61 @@ impl Collector for TopDocs {
         self.0.merge_fruits(child_fruits)
     }
 
-    fn collect_segment(&self, scorer: &mut dyn Scorer, segment_ord: u32, segment_reader: &SegmentReader) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
-        if let Some(delete_bitset) = segment_reader.delete_bitset() {
-            let mut segment_collector = self.for_segment(segment_ord as u32, segment_reader)?;
-            scorer.for_each(&mut |doc, score| {
-                if delete_bitset.is_alive(doc) {
-                    segment_collector.collect(doc, score);
-                }
-            });
-            Ok(segment_collector.harvest())
-        } else {
-            let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> = BinaryHeap::with_capacity(self.0.limit);
-            for i in 0..self.0.limit {
-                let doc = scorer.doc();
-                if doc == TERMINATED {
-                    break;
-                }
+    fn collect_segment(
+        &self,
+        scorer: &mut dyn Scorer,
+        segment_ord: u32,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> =
+            BinaryHeap::with_capacity(self.0.limit);
+        // first we fill the heap with the first `limit` elements.
+        let mut doc = scorer.doc();
+        while doc != TERMINATED && heap.len() < self.0.limit {
+            if !segment_reader.is_deleted(doc) {
                 let score = scorer.score();
-                heap.push(ComparableDoc { feature: score, doc });
-                scorer.advance();
+                heap.push(ComparableDoc {
+                    feature: score,
+                    doc,
+                });
             }
-            let mut threshold = heap.peek()
-                .map(|el| el.feature)
-                .unwrap_or(f32::MIN);
-            scorer.for_each_pruning(threshold, &mut |doc, score| {
-                *heap.peek_mut().unwrap() = ComparableDoc { feature: score, doc };
-                heap.peek()
-                    .map(|el| el.feature)
-                    .unwrap_or(f32::MIN)
-            });
-            let mut fruit: Vec<(Score, DocAddress)> = heap.into_iter().map(|cdoc| (cdoc.feature, DocAddress(segment_ord, cdoc.doc))).collect();
-            fruit.sort_by(|(lscore, _), (rscore, _)| rscore.partial_cmp(&lscore). unwrap());
-            Ok(fruit)
+            doc = scorer.advance();
         }
+
+        let threshold = heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+
+        if let Some(delete_bitset) = segment_reader.delete_bitset() {
+            scorer.for_each_pruning(threshold, &mut |doc, score| {
+                if delete_bitset.is_alive(doc) {
+                    *heap.peek_mut().unwrap() = ComparableDoc {
+                        feature: score,
+                        doc,
+                    };
+                }
+                heap.peek().map(|el| el.feature).unwrap_or(f32::MIN)
+            });
+        } else {
+            scorer.for_each_pruning(threshold, &mut |doc, score| {
+                *heap.peek_mut().unwrap() = ComparableDoc {
+                    feature: score,
+                    doc,
+                };
+                heap.peek().map(|el| el.feature).unwrap_or(f32::MIN)
+            });
+        }
+
+        let fruit = heap
+            .into_sorted_vec()
+            .into_iter()
+            .map(|cid| (cid.feature, DocAddress(segment_ord, cid.doc)))
+            .collect();
+
+        Ok(fruit)
     }
 }
 
 /// Segment Collector associated to `TopDocs`.
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
-
-impl TopScoreSegmentCollector {
-    fn collect_and_return_threshold(&mut self, doc: DocId, score: Score) -> Score {
-        self.0.collect(doc, score);
-        self.0.threshold()
-    }
-}
 
 impl SegmentCollector for TopScoreSegmentCollector {
     type Fruit = Vec<(Score, DocAddress)>;

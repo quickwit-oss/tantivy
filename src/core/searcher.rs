@@ -1,10 +1,8 @@
 use crate::collector::Collector;
-use crate::collector::SegmentCollector;
 use crate::core::Executor;
 use crate::core::InvertedIndexReader;
 use crate::core::SegmentReader;
 use crate::query::Query;
-use crate::query::Weight;
 use crate::schema::Document;
 use crate::schema::Schema;
 use crate::schema::{Field, Term};

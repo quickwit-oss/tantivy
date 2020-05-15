@@ -1,4 +1,4 @@
-use crate::{DocAddress, Score};
+use crate::DocAddress;
 use crate::DocId;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
@@ -136,18 +136,6 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
             heap: BinaryHeap::with_capacity(limit),
             segment_id,
         }
-    }
-}
-
-impl TopSegmentCollector<Score> {
-    pub(crate) fn threshold(&self) -> Score {
-        if !self.at_capacity() {
-            return f32::MIN;
-        }
-        self.heap
-            .peek()
-            .map(|head| head.feature)
-            .unwrap_or(f32::MIN)
     }
 }
 

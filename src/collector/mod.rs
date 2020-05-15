@@ -110,7 +110,6 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 use crate::query::Scorer;
-use crate::fastfield::DeleteBitSet;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -157,7 +156,13 @@ pub trait Collector: Sync {
     /// into one fruit.
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit>;
 
-    fn collect_segment(&self, scorer: &mut dyn Scorer, segment_ord: u32, segment_reader: &SegmentReader) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+    /// Created a segment collector and
+    fn collect_segment(
+        &self,
+        scorer: &mut dyn Scorer,
+        segment_ord: u32,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let mut segment_collector = self.for_segment(segment_ord as u32, segment_reader)?;
         if let Some(delete_bitset) = segment_reader.delete_bitset() {
             scorer.for_each(&mut |doc, score| {

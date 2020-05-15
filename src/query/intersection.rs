@@ -20,15 +20,14 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
     if scorers.len() == 1 {
         return scorers.pop().unwrap();
     }
+    scorers.sort_by_key(|scorer| scorer.size_hint());
     let doc = go_to_first_doc(&mut scorers[..]);
     if doc == TERMINATED {
         return Box::new(EmptyScorer);
     }
     // We know that we have at least 2 elements.
-    scorers.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-    let left = scorers.pop().unwrap();
-    let right = scorers.pop().unwrap();
-    scorers.reverse();
+    let left = scorers.remove(0);
+    let right = scorers.remove(0);
     let all_term_scorers = [&left, &right]
         .iter()
         .all(|&scorer| scorer.is::<TermScorer>());
@@ -37,14 +36,12 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
-            doc,
         });
     }
     Box::new(Intersection {
         left,
         right,
         others: scorers,
-        doc,
     })
 }
 
@@ -53,7 +50,6 @@ pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>>
     left: TDocSet,
     right: TDocSet,
     others: Vec<TOtherDocSet>,
-    doc: DocId,
 }
 
 fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
@@ -61,9 +57,6 @@ fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
     'outer: loop {
         for docset in docsets.iter_mut() {
             let seek_doc = docset.seek(candidate);
-            if seek_doc == TERMINATED {
-                return TERMINATED;
-            }
             if seek_doc > candidate {
                 candidate = docset.doc();
                 continue 'outer;
@@ -77,16 +70,14 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     pub(crate) fn new(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);
-        let doc = go_to_first_doc(&mut docsets);
-        docsets.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-        let left = docsets.pop().unwrap();
-        let right = docsets.pop().unwrap();
-        docsets.reverse();
+        docsets.sort_by_key(|docset| docset.size_hint());
+        go_to_first_doc(&mut docsets);
+        let left = docsets.remove(0);
+        let right = docsets.remove(0);
         Intersection {
             left,
             right,
             others: docsets,
-            doc,
         }
     }
 }
@@ -103,26 +94,21 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
     fn advance(&mut self) -> DocId {
-        if self.doc == TERMINATED {
-            return TERMINATED;
-        }
         let (left, right) = (&mut self.left, &mut self.right);
+        let mut candidate = left.advance();
 
-        self.doc = left.advance();
-
-        'outer: while self.doc != TERMINATED {
+        'outer: loop {
             // In the first part we look for a document in the intersection
             // of the two rarest `DocSet` in the intersection.
+
             loop {
-                let right_doc = right.seek(self.doc);
-                self.doc = left.seek(right_doc);
-                if self.doc == right_doc {
+                let right_doc = right.seek(candidate);
+                candidate = left.seek(right_doc);
+                if candidate == right_doc {
                     break;
                 }
             }
-            if self.doc == TERMINATED {
-                return TERMINATED;
-            }
+
             debug_assert_eq!(left.doc(), right.doc());
             // test the remaining scorers;
             for docset in self.others.iter_mut() {
@@ -131,19 +117,28 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                 //
                 // Calling `skip_next` would advance this docset
                 // and miss it.
-                let seek_doc = docset.seek(self.doc);
-                if seek_doc > self.doc {
-                    self.doc = left.seek(seek_doc);
+                let seek_doc = docset.seek(candidate);
+                if seek_doc > candidate {
+                    candidate = left.seek(seek_doc);
                     continue 'outer;
                 }
             }
-            return self.doc;
+
+            return candidate;
         }
-        TERMINATED
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        self.left.seek(target);
+        let mut docsets: Vec<&mut dyn DocSet> = vec![&mut self.left, &mut self.right];
+        for docset in &mut self.others {
+            docsets.push(docset);
+        }
+        go_to_first_doc(&mut docsets[..])
     }
 
     fn doc(&self) -> DocId {
-        self.doc
+        self.left.doc()
     }
 
     fn size_hint(&self) -> u32 {

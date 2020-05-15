@@ -501,8 +501,7 @@ impl BlockSegmentPostings {
             }
         }
         self.num_vint_docs = 0;
-        return self
-            .docs()
+        self.docs()
             .last()
             .map(|last_doc| {
                 if *last_doc >= target_doc {
@@ -511,7 +510,7 @@ impl BlockSegmentPostings {
                     BlockSegmentPostingsSkipResult::Terminated
                 }
             })
-            .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
+            .unwrap_or(BlockSegmentPostingsSkipResult::Terminated)
     }
 
     /// Advance to the next block.

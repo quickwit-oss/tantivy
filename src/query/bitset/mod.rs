@@ -60,53 +60,23 @@ impl DocSet for BitSetDocSet {
         }
     }
 
-    /*
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        // skip is required to advance.
-        if !self.advance() {
-            return SkipResult::End;
-        }
+    fn seek(&mut self, target: DocId) -> DocId {
         let target_bucket = target / 64u32;
 
         // Mask for all of the bits greater or equal
         // to our target document.
-        match target_bucket.cmp(&self.cursor_bucket) {
-            Ordering::Greater => {
-                self.go_to_bucket(target_bucket);
-                let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
-                self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
-                if !self.advance() {
-                    SkipResult::End
-                } else if self.doc() == target {
-                    SkipResult::Reached
-                } else {
-                    debug_assert!(self.doc() > target);
-                    SkipResult::OverStep
-                }
-            }
-            Ordering::Equal => loop {
-                match self.doc().cmp(&target) {
-                    Ordering::Less => {
-                        if !self.advance() {
-                            return SkipResult::End;
-                        }
-                    }
-                    Ordering::Equal => {
-                        return SkipResult::Reached;
-                    }
-                    Ordering::Greater => {
-                        debug_assert!(self.doc() > target);
-                        return SkipResult::OverStep;
-                    }
-                }
-            },
-            Ordering::Less => {
-                debug_assert!(self.doc() > target);
-                SkipResult::OverStep
-            }
+        if target_bucket > self.cursor_bucket {
+            self.go_to_bucket(target_bucket);
+            let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
+            self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
+            self.advance();
         }
+        let mut doc = self.doc();
+        while doc < target {
+            doc = self.advance();
+        }
+        doc
     }
-    */
 
     /// Returns the current document
     fn doc(&self) -> DocId {

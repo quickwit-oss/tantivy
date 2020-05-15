@@ -33,6 +33,10 @@ impl TinySet {
         TinySet(0u64)
     }
 
+    pub fn clear(&mut self) {
+        self.0 = 0u64;
+    }
+
     /// Returns the complement of the set in `[0, 64[`.
     fn complement(self) -> TinySet {
         TinySet(!self.0)
@@ -109,18 +113,12 @@ impl TinySet {
     pub fn range_greater_or_equal(from_included: u32) -> TinySet {
         TinySet::range_lower(from_included).complement()
     }
-
-    pub fn len(self) -> u32 {
-        self.0.count_ones()
-    }
 }
 
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: usize, //< Technically it should be u32, but we
-    // count multiple inserts.
-    // `usize` guards us from overflow.
+    len: usize,
     max_value: u32,
 }
 

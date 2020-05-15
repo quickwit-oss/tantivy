@@ -1,42 +1,47 @@
-use crate::common::BitSet;
 use crate::fastfield::DeleteBitSet;
 use crate::DocId;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 
+/// Sentinel value returned when a DocSet has been entirely consumed.
+///
+/// This is not u32::MAX as one would have expected, due to the lack of SSE2 instructions
+/// to compare [u32; 4].
 pub const TERMINATED: DocId = i32::MAX as u32;
-
-/// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
-#[derive(PartialEq, Eq, Debug)]
-pub enum SkipResult {
-    /// target was in the docset
-    Reached,
-    /// target was not in the docset, skipping stopped as a greater element was found
-    OverStep,
-    /// the docset was entirely consumed without finding the target, nor any
-    /// element greater than the target.
-    End,
-}
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet {
     /// Goes to the next element.
     ///
-    /// Calling `.advance()` on a terminated DocSet is illegal.
+    /// The DocId of the next element is returned.
+    /// In other words we should always have :
+    /// ```ignore
+    /// let doc = docset.advance();
+    /// assert_eq!(doc, docset.doc());
+    /// ```
+    ///
+    /// If we reached the end of the DocSet, TERMINATED should be returned.
+    ///
+    /// Calling `.advance()` on a terminated DocSet should be supported, and TERMINATED should
+    /// be returned.
+    /// TODO Test existing docsets.
     fn advance(&mut self) -> DocId;
 
-    /// Advances the DocSet forward until reaching, or going to the
+    /// Advances the DocSet forward until reaching the target, or going to the
     /// lowest DocId greater than the target.
     ///
-    /// If the end of the DocSet is reached, the DocSet will be positionned on TERMINATED.
+    /// If the end of the DocSet is reached, TERMINATED is returned.
     ///
     /// Calling `.seek(target)` on a terminated DocSet is legal. Implementation
     /// of DocSet should support it.
+    ///
+    /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a DocSet.
     fn seek(&mut self, target: DocId) -> DocId {
-        while self.doc() < target {
-            self.advance();
+        let mut doc = self.doc();
+        while doc < target {
+            doc = self.advance();
         }
-        self.doc()
+        doc
     }
 
     /// Fills a given mutable buffer with the next doc ids from the
@@ -77,23 +82,16 @@ pub trait DocSet {
     /// length of the docset.
     fn size_hint(&self) -> u32;
 
-    /// Appends all docs to a `bitset`.
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        while self.doc() != TERMINATED {
-            bitset.insert(self.doc());
-            self.advance();
-        }
-    }
-
     /// Returns the number documents matching.
     /// Calling this method consumes the `DocSet`.
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
         let mut count = 0u32;
-        while self.doc() != TERMINATED {
-            if !delete_bitset.is_deleted(self.doc()) {
+        let mut doc = self.doc();
+        while doc != TERMINATED {
+            if !delete_bitset.is_deleted(doc) {
                 count += 1u32;
             }
-            self.advance();
+            doc = self.advance();
         }
         count
     }
@@ -105,11 +103,30 @@ pub trait DocSet {
     /// given by `count()`.
     fn count_including_deleted(&mut self) -> u32 {
         let mut count = 0u32;
-        while self.doc() != TERMINATED {
+        let mut doc = self.doc();
+        while doc != TERMINATED {
             count += 1u32;
-            self.advance();
+            doc = self.advance();
         }
         count
+    }
+}
+
+impl<'a> DocSet for &'a mut dyn DocSet {
+    fn advance(&mut self) -> u32 {
+        (**self).advance()
+    }
+
+    fn seek(&mut self, target: DocId) -> DocId {
+        (**self).seek(target)
+    }
+
+    fn doc(&self) -> u32 {
+        (**self).doc()
+    }
+
+    fn size_hint(&self) -> u32 {
+        (**self).size_hint()
     }
 }
 
@@ -132,11 +149,6 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn size_hint(&self) -> u32 {
         let unboxed: &TDocSet = self.borrow();
         unboxed.size_hint()
-    }
-
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.append_to_bitset(bitset);
     }
 
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {

@@ -187,10 +187,9 @@ pub struct FacetSegmentCollector {
     collapse_facet_ords: Vec<u64>,
 }
 
-
 enum SkipResult {
     Found,
-    NotFound
+    NotFound,
 }
 
 fn skip<'a, I: Iterator<Item = &'a Facet>>(

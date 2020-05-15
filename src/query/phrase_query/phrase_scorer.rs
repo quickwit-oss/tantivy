@@ -159,11 +159,12 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             fieldnorm_reader,
             score_needed,
         };
-        while scorer.intersection_docset.doc() != TERMINATED {
+        let mut doc = scorer.intersection_docset.doc();
+        while doc != TERMINATED {
             if scorer.phrase_match() {
                 break;
             }
-            scorer.intersection_docset.advance();
+            doc = scorer.intersection_docset.advance();
         }
         scorer
     }

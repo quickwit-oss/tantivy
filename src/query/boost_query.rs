@@ -1,4 +1,3 @@
-use crate::common::BitSet;
 use crate::fastfield::DeleteBitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
@@ -117,10 +116,6 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
 
     fn size_hint(&self) -> u32 {
         self.underlying.size_hint()
-    }
-
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        self.underlying.append_to_bitset(bitset)
     }
 
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {

@@ -145,19 +145,9 @@ where
         self.doc
     }
 
-    /*
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if !self.advance() {
-            return SkipResult::End;
-        }
-        match self.doc.cmp(&target) {
-            Ordering::Equal => {
-                return SkipResult::Reached;
-            }
-            Ordering::Greater => {
-                return SkipResult::OverStep;
-            }
-            Ordering::Less => {}
+    fn seek(&mut self, target: DocId) -> DocId {
+        if self.doc >= target {
+            return self.doc;
         }
         let gap = target - self.offset;
         if gap < HORIZON {
@@ -175,18 +165,13 @@ where
 
             // Advancing until we reach the end of the bucket
             // or we reach a doc greater or equal to the target.
-            while self.advance() {
-                match self.doc().cmp(&target) {
-                    Ordering::Equal => {
-                        return SkipResult::Reached;
-                    }
-                    Ordering::Greater => {
-                        return SkipResult::OverStep;
-                    }
-                    Ordering::Less => {}
+            let mut doc = self.doc();
+            loop {
+                if doc >= target {
+                    return doc;
                 }
+                doc = self.advance();
             }
-            SkipResult::End
         } else {
             // clear the buffered info.
             for obsolete_tinyset in self.bitsets.iter_mut() {
@@ -200,30 +185,18 @@ where
             // advance all docsets to a doc >= to the target.
             #[cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::collapsible_if))]
             unordered_drain_filter(&mut self.docsets, |docset| {
-                if docset.doc() < target {
-                    if docset.skip_next(target) == SkipResult::End {
-                        return true;
-                    }
-                }
-                false
+                docset.seek(target) == TERMINATED
             });
 
             // at this point all of the docsets
             // are positionned on a doc >= to the target.
-            if self.refill() {
-                self.advance();
-                if self.doc() == target {
-                    SkipResult::Reached
-                } else {
-                    debug_assert!(self.doc() > target);
-                    SkipResult::OverStep
-                }
-            } else {
-                SkipResult::End
+            if !self.refill() {
+                self.doc = TERMINATED;
+                return TERMINATED;
             }
+            self.advance()
         }
     }
-    */
 
     // TODO implement `count` efficiently.
 

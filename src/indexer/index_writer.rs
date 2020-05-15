@@ -112,16 +112,15 @@ fn compute_deleted_bitset(
         if let Some(mut docset) =
             inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
         {
-            while docset.doc() != TERMINATED {
-                let deleted_doc = docset.doc();
+            let mut deleted_doc = docset.doc();
+            while deleted_doc != TERMINATED {
                 if deleted_doc < limit_doc {
                     delete_bitset.insert(deleted_doc);
                     might_have_changed = true;
                 }
-                docset.advance();
+                deleted_doc = docset.advance();
             }
         }
-
         delete_cursor.advance();
     }
     Ok(might_have_changed)
