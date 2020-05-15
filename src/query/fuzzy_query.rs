@@ -117,7 +117,7 @@ impl FuzzyTermQuery {
         }
     }
 
-    /// Creates a new Fuzzy Query that treats transpositions as cost one rather than two
+    /// Creates a new Fuzzy Query of the Term prefix
     pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
         FuzzyTermQuery {
             term,
@@ -188,6 +188,8 @@ mod test {
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
+
+        // passes because Levenshtein distance is 1 (substitute 'o' with 'a')
         {
             let term = Term::from_field_text(country_field, "japon");
 
@@ -200,6 +202,18 @@ mod test {
             assert_nearly_equals(1f32, score);
         }
 
+        // fails because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
+        {
+            let term = Term::from_field_text(country_field, "jap");
+
+            let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
+            let top_docs = searcher
+                .search(&fuzzy_query, &TopDocs::with_limit(2))
+                .unwrap();
+            assert_eq!(top_docs.len(), 0, "Expected no document");
+        }
+
+        // passes because prefix Levenshtein distance is 0
         {
             let term = Term::from_field_text(country_field, "jap");
 

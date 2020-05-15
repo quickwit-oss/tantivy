@@ -113,8 +113,9 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 /// The language covered by the current parser is extremely simple.
 ///
 /// * simple terms: "e.g.: `Barack Obama` are simply tokenized using
-///   tantivy's `StandardTokenizer`, hence becoming `["barack", "obama"]`.
-///   The terms are then searched within the default terms of the query parser.
+///   tantivy's [`SimpleTokenizer`](tantivy::tokenizer::SimpleTokenizer), hence
+///   becoming `["barack", "obama"]`. The terms are then searched within
+///   the default terms of the query parser.
 ///
 ///   e.g. If `body` and `title` are default fields, our example terms are
 ///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
