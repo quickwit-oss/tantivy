@@ -89,14 +89,6 @@ where
         self
     }
 
-    pub fn limit(&self) -> usize {
-        self.limit
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset
-    }
-
     pub fn merge_fruits(
         &self,
         children: Vec<Vec<(T, DocAddress)>>,
@@ -133,6 +125,19 @@ where
             segment_id,
             self.limit + self.offset,
         ))
+    }
+
+    /// Create a new TopCollector with the same limit and offset.
+    ///
+    /// Ideally we would use Into but the blanket implementation seems to cause the Scorer traits
+    /// to fail.
+    #[doc(hidden)]
+    pub(crate) fn into_tscore<TScore: PartialOrd + Clone>(self) -> TopCollector<TScore> {
+        TopCollector {
+            limit: self.limit,
+            offset: self.offset,
+            _marker: PhantomData,
+        }
     }
 }
 

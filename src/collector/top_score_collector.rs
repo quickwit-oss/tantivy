@@ -60,7 +60,11 @@ pub struct TopDocs(TopCollector<Score>);
 
 impl fmt::Debug for TopDocs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "TopDocs(limit={}, offset={})", self.0.limit(), self.0.offset())
+        write!(
+            f,
+            "TopDocs(limit={}, offset={})",
+            self.0.limit, self.0.offset
+        )
     }
 }
 
@@ -323,7 +327,7 @@ impl TopDocs {
         TScoreSegmentTweaker: ScoreSegmentTweaker<TScore> + 'static,
         TScoreTweaker: ScoreTweaker<TScore, Child = TScoreSegmentTweaker>,
     {
-        TweakedScoreTopCollector::new(score_tweaker, self.0.limit())
+        TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
     }
 
     /// Ranks the documents using a custom score.
@@ -437,7 +441,7 @@ impl TopDocs {
         TCustomSegmentScorer: CustomSegmentScorer<TScore> + 'static,
         TCustomScorer: CustomScorer<TScore, Child = TCustomSegmentScorer>,
     {
-        CustomScoreTopCollector::new(custom_score, self.0.limit())
+        CustomScoreTopCollector::new(custom_score, self.0.into_tscore())
     }
 }
 
@@ -473,10 +477,10 @@ impl Collector for TopDocs {
         segment_reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> =
-            BinaryHeap::with_capacity(self.0.limit);
+            BinaryHeap::with_capacity(self.0.limit + self.0.offset);
         // first we fill the heap with the first `limit` elements.
         let mut doc = scorer.doc();
-        while doc != TERMINATED && heap.len() < self.0.limit {
+        while doc != TERMINATED && heap.len() < (self.0.limit + self.0.offset) {
             if !segment_reader.is_deleted(doc) {
                 let score = scorer.score();
                 heap.push(ComparableDoc {
@@ -487,7 +491,7 @@ impl Collector for TopDocs {
             doc = scorer.advance();
         }
 
-        let threshold = heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+        let threshold = heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN);
 
         if let Some(delete_bitset) = segment_reader.delete_bitset() {
             scorer.for_each_pruning(threshold, &mut |doc, score| {
@@ -497,7 +501,7 @@ impl Collector for TopDocs {
                         doc,
                     };
                 }
-                heap.peek().map(|el| el.feature).unwrap_or(f32::MIN)
+                heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN)
             });
         } else {
             scorer.for_each_pruning(threshold, &mut |doc, score| {
@@ -505,7 +509,7 @@ impl Collector for TopDocs {
                     feature: score,
                     doc,
                 };
-                heap.peek().map(|el| el.feature).unwrap_or(f32::MIN)
+                heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN)
             });
         }
 
@@ -540,7 +544,7 @@ mod tests {
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
-    use crate::DocAddress;
+    use crate::{DocAddress, DocId, SegmentReader};
     use crate::Index;
     use crate::IndexWriter;
     use crate::Score;
@@ -584,6 +588,26 @@ mod tests {
     }
 
     #[test]
+    fn test_top_collector_not_at_capacity_with_offset() {
+        let index = make_index();
+        let field = index.schema().get_field("text").unwrap();
+        let query_parser = QueryParser::for_index(&index, vec![field]);
+        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(4).and_offset(2))
+            .unwrap();
+        assert_eq!(
+            score_docs,
+            vec![
+                (0.48527452, DocAddress(0, 0))
+            ]
+        );
+    }
+
+    #[test]
     fn test_top_collector_at_capacity() {
         let index = make_index();
         let field = index.schema().get_field("text").unwrap();
@@ -600,6 +624,27 @@ mod tests {
             vec![
                 (0.81221175, DocAddress(0u32, 1)),
                 (0.5376842, DocAddress(0u32, 2)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_top_collector_at_capacity_with_offset() {
+        let index = make_index();
+        let field = index.schema().get_field("text").unwrap();
+        let query_parser = QueryParser::for_index(&index, vec![field]);
+        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(2).and_offset(1))
+            .unwrap();
+        assert_eq!(
+            score_docs,
+            vec![
+                (0.5376842, DocAddress(0u32, 2)),
+                (0.48527452, DocAddress(0, 0))
             ]
         );
     }
@@ -715,6 +760,60 @@ mod tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn test_tweak_score_top_collector_with_offset() {
+        let index = make_index();
+        let field = index.schema().get_field("text").unwrap();
+        let query_parser = QueryParser::for_index(&index, vec![field]);
+        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(move |_segment_reader: &SegmentReader| {
+            move |doc: DocId, _original_score: Score| {
+                doc
+            }
+        });
+        let score_docs: Vec<(u32, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &collector)
+            .unwrap();
+
+        assert_eq!(
+            score_docs,
+            vec![
+                (1, DocAddress(0, 1)),
+                (0, DocAddress(0, 0)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_custom_score_top_collector_with_offset() {
+        let index = make_index();
+        let field = index.schema().get_field("text").unwrap();
+        let query_parser = QueryParser::for_index(&index, vec![field]);
+        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let collector = TopDocs::with_limit(2).and_offset(1).custom_score(move |_segment_reader: &SegmentReader| {
+            move |doc: DocId| {
+                doc
+            }
+        });
+        let score_docs: Vec<(u32, DocAddress)> = index
+            .reader()
+            .unwrap()
+            .searcher()
+            .search(&text_query, &collector)
+            .unwrap();
+
+        assert_eq!(
+            score_docs,
+            vec![
+                (1, DocAddress(0, 1)),
+                (0, DocAddress(0, 0)),
+            ]
+        );
     }
 
     fn index(

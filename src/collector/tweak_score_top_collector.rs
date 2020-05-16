@@ -14,11 +14,11 @@ where
 {
     pub fn new(
         score_tweaker: TScoreTweaker,
-        limit: usize,
+        collector: TopCollector<TScore>,
     ) -> TweakedScoreTopCollector<TScoreTweaker, TScore> {
         TweakedScoreTopCollector {
             score_tweaker,
-            collector: TopCollector::with_limit(limit),
+            collector,
         }
     }
 }
