@@ -26,10 +26,8 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            {
-                let doc = doc!(text_field => "a");
-                index_writer.add_document(doc);
-            }
+            let doc = doc!(text_field => "a");
+            index_writer.add_document(doc);
             assert!(index_writer.commit().is_ok());
         }
         let searcher = index.reader().unwrap().searcher();
@@ -40,7 +38,6 @@ mod tests {
         let term_weight = term_query.weight(&searcher, true).unwrap();
         let segment_reader = searcher.segment_reader(0);
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32).unwrap();
-        assert!(term_scorer.advance());
         assert_eq!(term_scorer.doc(), 0);
         assert_eq!(term_scorer.score(), 0.28768212);
     }

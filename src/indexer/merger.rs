@@ -2,7 +2,7 @@ use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
-use crate::docset::DocSet;
+use crate::docset::{DocSet, TERMINATED};
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
@@ -574,10 +574,12 @@ impl IndexMerger {
                     let inverted_index = segment_reader.inverted_index(indexed_field);
                     let mut segment_postings = inverted_index
                         .read_postings_from_terminfo(term_info, segment_postings_option);
-                    while segment_postings.advance() {
-                        if !segment_reader.is_deleted(segment_postings.doc()) {
+                    let mut doc = segment_postings.doc();
+                    while doc != TERMINATED {
+                        if !segment_reader.is_deleted(doc) {
                             return Some((segment_ord, segment_postings));
                         }
+                        doc = segment_postings.advance();
                     }
                     None
                 })
@@ -604,17 +606,9 @@ impl IndexMerger {
                 // postings serializer.
                 for (segment_ord, mut segment_postings) in segment_postings {
                     let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-                    loop {
-                        let doc = segment_postings.doc();
 
-                        // `.advance()` has been called once before the loop.
-                        //
-                        // It was required to make sure we only consider segments
-                        // that effectively contain at least one non-deleted document
-                        // and remove terms that do not have documents associated.
-                        //
-                        //  For this reason, we cannot use a `while segment_postings.advance()` loop.
-
+                    let mut doc = segment_postings.doc();
+                    while doc != TERMINATED {
                         // deleted doc are skipped as they do not have a `remapped_doc_id`.
                         if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
                             // we make sure to only write the term iff
@@ -629,9 +623,8 @@ impl IndexMerger {
                                 delta_positions,
                             )?;
                         }
-                        if !segment_postings.advance() {
-                            break;
-                        }
+
+                        doc = segment_postings.advance();
                     }
                 }
 

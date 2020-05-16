@@ -1,9 +1,8 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::DocSet;
 use crate::query::score_combiner::ScoreCombiner;
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
-use std::cmp::Ordering;
 use std::marker::PhantomData;
 
 /// Given a required scorer and an optional scorer
@@ -17,7 +16,6 @@ pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
     req_scorer: TReqScorer,
     opt_scorer: TOptScorer,
     score_cache: Option<Score>,
-    opt_finished: bool,
     _phantom: PhantomData<TScoreCombiner>,
 }
 
@@ -29,14 +27,12 @@ where
     /// Creates a new `RequiredOptionalScorer`.
     pub fn new(
         req_scorer: TReqScorer,
-        mut opt_scorer: TOptScorer,
+        opt_scorer: TOptScorer,
     ) -> RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
-        let opt_finished = !opt_scorer.advance();
         RequiredOptionalScorer {
             req_scorer,
             opt_scorer,
             score_cache: None,
-            opt_finished,
             _phantom: PhantomData,
         }
     }
@@ -48,7 +44,7 @@ where
     TReqScorer: DocSet,
     TOptScorer: DocSet,
 {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.score_cache = None;
         self.req_scorer.advance()
     }
@@ -76,22 +72,8 @@ where
         let doc = self.doc();
         let mut score_combiner = TScoreCombiner::default();
         score_combiner.update(&mut self.req_scorer);
-        if !self.opt_finished {
-            match self.opt_scorer.doc().cmp(&doc) {
-                Ordering::Greater => {}
-                Ordering::Equal => {
-                    score_combiner.update(&mut self.opt_scorer);
-                }
-                Ordering::Less => match self.opt_scorer.skip_next(doc) {
-                    SkipResult::Reached => {
-                        score_combiner.update(&mut self.opt_scorer);
-                    }
-                    SkipResult::End => {
-                        self.opt_finished = true;
-                    }
-                    SkipResult::OverStep => {}
-                },
-            }
+        if self.opt_scorer.seek(doc) == doc {
+            score_combiner.update(&mut self.opt_scorer);
         }
         let score = score_combiner.score();
         self.score_cache = Some(score);
@@ -102,7 +84,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::RequiredOptionalScorer;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::{DoNothingCombiner, SumCombiner};
     use crate::query::ConstScorer;
@@ -119,9 +101,7 @@ mod tests {
                 ConstScorer::from(VecDocSet::from(vec![])),
             );
         let mut docs = vec![];
-        while reqoptscorer.advance() {
-            docs.push(reqoptscorer.doc());
-        }
+        reqoptscorer.for_each(&mut |doc, _| docs.push(doc));
         assert_eq!(docs, req);
     }
 
@@ -133,46 +113,45 @@ mod tests {
                 ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15]), 1.0f32),
             );
         {
-            assert!(reqoptscorer.advance());
             assert_eq!(reqoptscorer.doc(), 1);
             assert_eq!(reqoptscorer.score(), 2f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 3);
             assert_eq!(reqoptscorer.doc(), 3);
             assert_eq!(reqoptscorer.score(), 1f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 7);
             assert_eq!(reqoptscorer.doc(), 7);
             assert_eq!(reqoptscorer.score(), 2f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 8);
             assert_eq!(reqoptscorer.doc(), 8);
             assert_eq!(reqoptscorer.score(), 1f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 9);
             assert_eq!(reqoptscorer.doc(), 9);
             assert_eq!(reqoptscorer.score(), 1f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 10);
             assert_eq!(reqoptscorer.doc(), 10);
             assert_eq!(reqoptscorer.score(), 1f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 13);
             assert_eq!(reqoptscorer.doc(), 13);
             assert_eq!(reqoptscorer.score(), 1f32);
         }
         {
-            assert!(reqoptscorer.advance());
+            assert_eq!(reqoptscorer.advance(), 15);
             assert_eq!(reqoptscorer.doc(), 15);
             assert_eq!(reqoptscorer.score(), 2f32);
         }
-        assert!(!reqoptscorer.advance());
+        assert_eq!(reqoptscorer.advance(), TERMINATED);
     }
 
     #[test]

@@ -1,6 +1,5 @@
 use crate::collector::Collector;
 use crate::collector::SegmentCollector;
-use crate::docset::SkipResult;
 use crate::fastfield::FacetReader;
 use crate::schema::Facet;
 use crate::schema::Field;
@@ -188,6 +187,11 @@ pub struct FacetSegmentCollector {
     collapse_facet_ords: Vec<u64>,
 }
 
+enum SkipResult {
+    Found,
+    NotFound,
+}
+
 fn skip<'a, I: Iterator<Item = &'a Facet>>(
     target: &[u8],
     collapse_it: &mut Peekable<I>,
@@ -197,14 +201,14 @@ fn skip<'a, I: Iterator<Item = &'a Facet>>(
             Some(facet_bytes) => match facet_bytes.encoded_str().as_bytes().cmp(target) {
                 Ordering::Less => {}
                 Ordering::Greater => {
-                    return SkipResult::OverStep;
+                    return SkipResult::NotFound;
                 }
                 Ordering::Equal => {
-                    return SkipResult::Reached;
+                    return SkipResult::Found;
                 }
             },
             None => {
-                return SkipResult::End;
+                return SkipResult::NotFound;
             }
         }
         collapse_it.next();
@@ -281,7 +285,7 @@ impl Collector for FacetCollector {
                     // is positionned on a term that has not been processed yet.
                     let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
                     match skip_result {
-                        SkipResult::Reached => {
+                        SkipResult::Found => {
                             // we reach a facet we decided to collapse.
                             let collapse_depth = facet_depth(facet_streamer.key());
                             let mut collapsed_id = 0;
@@ -301,7 +305,7 @@ impl Collector for FacetCollector {
                             }
                             break;
                         }
-                        SkipResult::End | SkipResult::OverStep => {
+                        SkipResult::NotFound => {
                             collapse_mapping.push(0);
                             if !facet_streamer.advance() {
                                 break;

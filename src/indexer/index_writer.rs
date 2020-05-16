@@ -10,7 +10,7 @@ use crate::core::SegmentMeta;
 use crate::core::SegmentReader;
 use crate::directory::TerminatingWrite;
 use crate::directory::{DirectoryLock, GarbageCollectionResult};
-use crate::docset::DocSet;
+use crate::docset::{DocSet, TERMINATED};
 use crate::error::TantivyError;
 use crate::fastfield::write_delete_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
@@ -112,15 +112,15 @@ fn compute_deleted_bitset(
         if let Some(mut docset) =
             inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
         {
-            while docset.advance() {
-                let deleted_doc = docset.doc();
+            let mut deleted_doc = docset.doc();
+            while deleted_doc != TERMINATED {
                 if deleted_doc < limit_doc {
                     delete_bitset.insert(deleted_doc);
                     might_have_changed = true;
                 }
+                deleted_doc = docset.advance();
             }
         }
-
         delete_cursor.advance();
     }
     Ok(might_have_changed)

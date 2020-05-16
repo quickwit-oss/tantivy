@@ -1,7 +1,6 @@
-use crate::common::BitSet;
 use crate::common::HasLen;
 use crate::common::{BinarySerializable, VInt};
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, TERMINATED};
 use crate::positions::PositionReader;
 use crate::postings::compression::{compressed_block_size, AlignedBuffer};
 use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
@@ -14,7 +13,6 @@ use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
 use owned_read::OwnedRead;
-use std::cmp::Ordering;
 use tantivy_fst::Streamer;
 
 struct PositionComputer {
@@ -68,12 +66,14 @@ impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
         let empty_block_cursor = BlockSegmentPostings::empty();
-        SegmentPostings {
+        let mut segment_postings = SegmentPostings {
             block_cursor: empty_block_cursor,
             cur: COMPRESSION_BLOCK_SIZE,
             position_computer: None,
             block_searcher: BlockSearcher::default(),
-        }
+        };
+        segment_postings.advance();
+        segment_postings
     }
 
     /// Creates a segment postings object with the given documents
@@ -116,12 +116,14 @@ impl SegmentPostings {
         segment_block_postings: BlockSegmentPostings,
         positions_stream_opt: Option<PositionReader>,
     ) -> SegmentPostings {
-        SegmentPostings {
+        let mut postings = SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             position_computer: positions_stream_opt.map(PositionComputer::new),
             block_searcher: BlockSearcher::default(),
-        }
+        };
+        postings.advance();
+        postings
     }
 }
 
@@ -129,7 +131,7 @@ impl DocSet for SegmentPostings {
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
     #[inline]
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         if self.position_computer.is_some() && self.cur < COMPRESSION_BLOCK_SIZE {
             let term_freq = self.term_freq() as usize;
             if let Some(position_computer) = self.position_computer.as_mut() {
@@ -138,29 +140,19 @@ impl DocSet for SegmentPostings {
         }
         self.cur += 1;
         if self.cur >= self.block_cursor.block_len() {
-            self.cur = 0;
-            if !self.block_cursor.advance() {
-                self.cur = COMPRESSION_BLOCK_SIZE;
-                return false;
+            if self.block_cursor.advance() {
+                self.cur = 0;
+            } else {
+                self.cur = COMPRESSION_BLOCK_SIZE - 1;
+                return TERMINATED;
             }
         }
-        true
+        self.doc()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if !self.advance() {
-            return SkipResult::End;
-        }
-        match self.doc().cmp(&target) {
-            Ordering::Equal => {
-                return SkipResult::Reached;
-            }
-            Ordering::Greater => {
-                return SkipResult::OverStep;
-            }
-            _ => {
-                // ...
-            }
+    fn seek(&mut self, target: DocId) -> DocId {
+        if self.doc() >= target {
+            return self.doc();
         }
 
         // In the following, thanks to the call to advance above,
@@ -170,44 +162,44 @@ impl DocSet for SegmentPostings {
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
         let mut sum_freqs_skipped: u32 = 0;
-        if !self
+        if self
             .block_cursor
             .docs()
             .last()
-            .map(|doc| *doc >= target)
-            .unwrap_or(false)
-        // there should always be at least a document in the block
-        // since advance returned.
+            .map(|&doc| doc < target)
+            .unwrap_or(true)
         {
-            // we are not in the right block.
-            //
-            // First compute all of the freqs skipped from the current block.
+            // We are not in the right block.
             if self.position_computer.is_some() {
-                sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum();
+                // First compute all of the freqs skipped from the current block.
+                sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum::<u32>();
                 match self.block_cursor.skip_to(target) {
                     BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
                         sum_freqs_skipped += block_skip_freqs;
                     }
                     BlockSegmentPostingsSkipResult::Terminated => {
-                        return SkipResult::End;
+                        self.block_cursor.doc_decoder.clear();
+                        self.cur = 0;
+                        return TERMINATED;
                     }
                 }
             } else if self.block_cursor.skip_to(target)
                 == BlockSegmentPostingsSkipResult::Terminated
             {
                 // no positions needed. no need to sum freqs.
-                return SkipResult::End;
+                self.block_cursor.doc_decoder.clear();
+                self.cur = 0;
+                return TERMINATED;
             }
             self.cur = 0;
         }
 
+        // At this point we are on the block, that might contain our document.
+
         let cur = self.cur;
 
-        // we're in the right block now, start with an exponential search
-        let (output, len) = self.block_cursor.docs_aligned();
-        let new_cur = self
-            .block_searcher
-            .search_in_block(&output, len, cur, target);
+        let output = self.block_cursor.docs_aligned();
+        let new_cur = self.block_searcher.search_in_block(&output, cur, target);
         if let Some(position_computer) = self.position_computer.as_mut() {
             sum_freqs_skipped += self.block_cursor.freqs()[cur..new_cur].iter().sum::<u32>();
             position_computer.add_skip(sum_freqs_skipped as usize);
@@ -217,11 +209,7 @@ impl DocSet for SegmentPostings {
         // `doc` is now the first element >= `target`
         let doc = output.0[new_cur];
         debug_assert!(doc >= target);
-        if doc == target {
-            SkipResult::Reached
-        } else {
-            SkipResult::OverStep
-        }
+        doc
     }
 
     /// Return the current document's `DocId`.
@@ -231,18 +219,14 @@ impl DocSet for SegmentPostings {
     /// Will panics if called without having called advance before.
     #[inline]
     fn doc(&self) -> DocId {
-        let docs = self.block_cursor.docs();
-        debug_assert!(
-            self.cur < docs.len(),
-            "Have you forgotten to call `.advance()` at least once before calling `.doc()`                                      ."
-        );
-        docs[self.cur]
+        self.block_cursor.doc(self.cur)
     }
 
     fn size_hint(&self) -> u32 {
         self.len() as u32
     }
 
+    /*
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
         // finish the current block
         if self.advance() {
@@ -257,6 +241,7 @@ impl DocSet for SegmentPostings {
             }
         }
     }
+     */
 }
 
 impl HasLen for SegmentPostings {
@@ -324,15 +309,14 @@ fn split_into_skips_and_postings(
     doc_freq: u32,
     mut data: OwnedRead,
 ) -> (Option<OwnedRead>, OwnedRead) {
-    if doc_freq >= USE_SKIP_INFO_LIMIT {
-        let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0 as usize;
-        let mut postings_data = data.clone();
-        postings_data.advance(skip_len);
-        data.clip(skip_len);
-        (Some(data), postings_data)
-    } else {
-        (None, data)
+    if doc_freq < USE_SKIP_INFO_LIMIT {
+        return (None, data);
     }
+    let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0 as usize;
+    let mut postings_data = data.clone();
+    postings_data.advance(skip_len);
+    data.clip(skip_len);
+    (Some(data), postings_data)
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -414,7 +398,7 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
-    pub(crate) fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
+    pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
         self.doc_decoder.output_aligned()
     }
 
@@ -495,35 +479,36 @@ impl BlockSegmentPostings {
             }
         }
 
-        // we are now on the last, incomplete, variable encoded block.
-        if self.num_vint_docs > 0 {
-            let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-                self.remaining_data.as_ref(),
-                self.doc_offset,
-                self.num_vint_docs,
-            );
-            self.remaining_data.advance(num_compressed_bytes);
-            match self.freq_reading_option {
-                FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
-                FreqReadingOption::ReadFreq => {
-                    self.freq_decoder
-                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
-                }
-            }
-            self.num_vint_docs = 0;
-            return self
-                .docs()
-                .last()
-                .map(|last_doc| {
-                    if *last_doc >= target_doc {
-                        BlockSegmentPostingsSkipResult::Success(skip_freqs)
-                    } else {
-                        BlockSegmentPostingsSkipResult::Terminated
-                    }
-                })
-                .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
+        self.doc_decoder.clear();
+
+        if self.num_vint_docs == 0 {
+            return BlockSegmentPostingsSkipResult::Terminated;
         }
-        BlockSegmentPostingsSkipResult::Terminated
+        // we are now on the last, incomplete, variable encoded block.
+        let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
+            self.remaining_data.as_ref(),
+            self.doc_offset,
+            self.num_vint_docs,
+        );
+        self.remaining_data.advance(num_compressed_bytes);
+        match self.freq_reading_option {
+            FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
+            FreqReadingOption::ReadFreq => {
+                self.freq_decoder
+                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+            }
+        }
+        self.num_vint_docs = 0;
+        self.docs()
+            .last()
+            .map(|last_doc| {
+                if *last_doc >= target_doc {
+                    BlockSegmentPostingsSkipResult::Success(skip_freqs)
+                } else {
+                    BlockSegmentPostingsSkipResult::Terminated
+                }
+            })
+            .unwrap_or(BlockSegmentPostingsSkipResult::Terminated)
     }
 
     /// Advance to the next block.
@@ -554,26 +539,27 @@ impl BlockSegmentPostings {
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
-            true
-        } else if self.num_vint_docs > 0 {
-            let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-                self.remaining_data.as_ref(),
-                self.doc_offset,
-                self.num_vint_docs,
-            );
-            self.remaining_data.advance(num_compressed_bytes);
-            match self.freq_reading_option {
-                FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
-                FreqReadingOption::ReadFreq => {
-                    self.freq_decoder
-                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
-                }
-            }
-            self.num_vint_docs = 0;
-            true
-        } else {
-            false
+            return true;
         }
+        self.doc_decoder.clear();
+        if self.num_vint_docs == 0 {
+            return false;
+        }
+        let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
+            self.remaining_data.as_ref(),
+            self.doc_offset,
+            self.num_vint_docs,
+        );
+        self.remaining_data.advance(num_compressed_bytes);
+        match self.freq_reading_option {
+            FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
+            FreqReadingOption::ReadFreq => {
+                self.freq_decoder
+                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+            }
+        }
+        self.num_vint_docs = 0;
+        true
     }
 
     /// Returns an empty segment postings object
@@ -613,34 +599,34 @@ mod tests {
     use super::SegmentPostings;
     use crate::common::HasLen;
     use crate::core::Index;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::postings::postings::Postings;
     use crate::schema::IndexRecordOption;
     use crate::schema::Schema;
     use crate::schema::Term;
     use crate::schema::INDEXED;
     use crate::DocId;
-    use crate::SkipResult;
     use tantivy_fst::Streamer;
 
     #[test]
     fn test_empty_segment_postings() {
         let mut postings = SegmentPostings::empty();
-        assert!(!postings.advance());
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
+        assert_eq!(postings.advance(), TERMINATED);
         assert_eq!(postings.len(), 0);
     }
 
     #[test]
-    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
-    fn test_panic_if_doc_called_before_advance() {
-        SegmentPostings::empty().doc();
+    fn test_empty_postings_doc_returns_terminated() {
+        let mut postings = SegmentPostings::empty();
+        assert_eq!(postings.doc(), TERMINATED);
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
-    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
-    fn test_panic_if_freq_called_before_advance() {
-        SegmentPostings::empty().term_freq();
+    fn test_empty_postings_doc_term_freq_returns_0() {
+        let postings = SegmentPostings::empty();
+        assert_eq!(postings.term_freq(), 1);
     }
 
     #[test]
@@ -674,25 +660,27 @@ mod tests {
         {
             let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
-            assert_eq!(docset.skip_next(128), SkipResult::OverStep);
+            assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 130);
             assert_eq!(docset.doc(), 130);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
-            assert_eq!(docset.skip_next(129), SkipResult::Reached);
+            assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
-            assert!(docset.advance());
+            assert_eq!(docset.advance(), 130);
             assert_eq!(docset.doc(), 130);
-            assert!(!docset.advance());
+            assert_eq!(docset.advance(), TERMINATED);
         }
         {
             let block_segments = build_block_postings(&doc_ids);
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
-            assert_eq!(docset.skip_next(131), SkipResult::End);
+            assert_eq!(docset.doc(), 0);
+            assert_eq!(docset.seek(131), TERMINATED);
+            assert_eq!(docset.doc(), TERMINATED);
         }
     }
 

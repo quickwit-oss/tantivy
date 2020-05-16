@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::{DocSet, TERMINATED};
 use crate::query::term_query::TermScorer;
 use crate::query::EmptyScorer;
 use crate::query::Scorer;
@@ -20,12 +20,14 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
     if scorers.len() == 1 {
         return scorers.pop().unwrap();
     }
+    scorers.sort_by_key(|scorer| scorer.size_hint());
+    let doc = go_to_first_doc(&mut scorers[..]);
+    if doc == TERMINATED {
+        return Box::new(EmptyScorer);
+    }
     // We know that we have at least 2 elements.
-    let num_docsets = scorers.len();
-    scorers.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-    let left = scorers.pop().unwrap();
-    let right = scorers.pop().unwrap();
-    scorers.reverse();
+    let left = scorers.remove(0);
+    let right = scorers.remove(0);
     let all_term_scorers = [&left, &right]
         .iter()
         .all(|&scorer| scorer.is::<TermScorer>());
@@ -34,14 +36,12 @@ pub fn intersect_scorers(mut scorers: Vec<Box<dyn Scorer>>) -> Box<dyn Scorer> {
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
-            num_docsets,
         });
     }
     Box::new(Intersection {
         left,
         right,
         others: scorers,
-        num_docsets,
     })
 }
 
@@ -50,22 +50,34 @@ pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>>
     left: TDocSet,
     right: TDocSet,
     others: Vec<TOtherDocSet>,
-    num_docsets: usize,
+}
+
+fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
+    let mut candidate = 0;
+    'outer: loop {
+        for docset in docsets.iter_mut() {
+            let seek_doc = docset.seek(candidate);
+            if seek_doc > candidate {
+                candidate = docset.doc();
+                continue 'outer;
+            }
+        }
+        return candidate;
+    }
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     pub(crate) fn new(mut docsets: Vec<TDocSet>) -> Intersection<TDocSet, TDocSet> {
         let num_docsets = docsets.len();
         assert!(num_docsets >= 2);
-        docsets.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-        let left = docsets.pop().unwrap();
-        let right = docsets.pop().unwrap();
-        docsets.reverse();
+        docsets.sort_by_key(|docset| docset.size_hint());
+        go_to_first_doc(&mut docsets);
+        let left = docsets.remove(0);
+        let right = docsets.remove(0);
         Intersection {
             left,
             right,
             others: docsets,
-            num_docsets,
         }
     }
 }
@@ -80,128 +92,49 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     }
 }
 
-impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> {
-    pub(crate) fn docset_mut(&mut self, ord: usize) -> &mut dyn DocSet {
-        match ord {
-            0 => &mut self.left,
-            1 => &mut self.right,
-            n => &mut self.others[n - 2],
-        }
-    }
-}
-
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         let (left, right) = (&mut self.left, &mut self.right);
-
-        if !left.advance() {
-            return false;
-        }
-
-        let mut candidate = left.doc();
-        let mut other_candidate_ord: usize = usize::max_value();
+        let mut candidate = left.advance();
 
         'outer: loop {
             // In the first part we look for a document in the intersection
             // of the two rarest `DocSet` in the intersection.
+
             loop {
-                match right.skip_next(candidate) {
-                    SkipResult::Reached => {
-                        break;
-                    }
-                    SkipResult::OverStep => {
-                        candidate = right.doc();
-                        other_candidate_ord = usize::max_value();
-                    }
-                    SkipResult::End => {
-                        return false;
-                    }
-                }
-                match left.skip_next(candidate) {
-                    SkipResult::Reached => {
-                        break;
-                    }
-                    SkipResult::OverStep => {
-                        candidate = left.doc();
-                        other_candidate_ord = usize::max_value();
-                    }
-                    SkipResult::End => {
-                        return false;
-                    }
+                let right_doc = right.seek(candidate);
+                candidate = left.seek(right_doc);
+                if candidate == right_doc {
+                    break;
                 }
             }
+
+            debug_assert_eq!(left.doc(), right.doc());
             // test the remaining scorers;
-            for (ord, docset) in self.others.iter_mut().enumerate() {
-                if ord == other_candidate_ord {
-                    continue;
-                }
+            for docset in self.others.iter_mut() {
                 // `candidate_ord` is already at the
                 // right position.
                 //
                 // Calling `skip_next` would advance this docset
                 // and miss it.
-                match docset.skip_next(candidate) {
-                    SkipResult::Reached => {}
-                    SkipResult::OverStep => {
-                        // this is not in the intersection,
-                        // let's update our candidate.
-                        candidate = docset.doc();
-                        match left.skip_next(candidate) {
-                            SkipResult::Reached => {
-                                other_candidate_ord = ord;
-                            }
-                            SkipResult::OverStep => {
-                                candidate = left.doc();
-                                other_candidate_ord = usize::max_value();
-                            }
-                            SkipResult::End => {
-                                return false;
-                            }
-                        }
-                        continue 'outer;
-                    }
-                    SkipResult::End => {
-                        return false;
-                    }
+                let seek_doc = docset.seek(candidate);
+                if seek_doc > candidate {
+                    candidate = left.seek(seek_doc);
+                    continue 'outer;
                 }
             }
-            return true;
+
+            return candidate;
         }
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        // We optimize skipping by skipping every single member
-        // of the intersection to target.
-        let mut current_target: DocId = target;
-        let mut current_ord = self.num_docsets;
-
-        'outer: loop {
-            for ord in 0..self.num_docsets {
-                let docset = self.docset_mut(ord);
-                if ord == current_ord {
-                    continue;
-                }
-                match docset.skip_next(current_target) {
-                    SkipResult::End => {
-                        return SkipResult::End;
-                    }
-                    SkipResult::OverStep => {
-                        // update the target
-                        // for the remaining members of the intersection.
-                        current_target = docset.doc();
-                        current_ord = ord;
-                        continue 'outer;
-                    }
-                    SkipResult::Reached => {}
-                }
-            }
-            if target == current_target {
-                return SkipResult::Reached;
-            } else {
-                assert!(current_target > target);
-                return SkipResult::OverStep;
-            }
+    fn seek(&mut self, target: DocId) -> DocId {
+        self.left.seek(target);
+        let mut docsets: Vec<&mut dyn DocSet> = vec![&mut self.left, &mut self.right];
+        for docset in &mut self.others {
+            docsets.push(docset);
         }
+        go_to_first_doc(&mut docsets[..])
     }
 
     fn doc(&self) -> DocId {
@@ -228,7 +161,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::Intersection;
-    use crate::docset::{DocSet, SkipResult};
+    use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::VecDocSet;
 
@@ -238,20 +171,18 @@ mod tests {
             let left = VecDocSet::from(vec![1, 3, 9]);
             let right = VecDocSet::from(vec![3, 4, 9, 18]);
             let mut intersection = Intersection::new(vec![left, right]);
-            assert!(intersection.advance());
             assert_eq!(intersection.doc(), 3);
-            assert!(intersection.advance());
+            assert_eq!(intersection.advance(), 9);
             assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
+            assert_eq!(intersection.advance(), TERMINATED);
         }
         {
             let a = VecDocSet::from(vec![1, 3, 9]);
             let b = VecDocSet::from(vec![3, 4, 9, 18]);
             let c = VecDocSet::from(vec![1, 5, 9, 111]);
             let mut intersection = Intersection::new(vec![a, b, c]);
-            assert!(intersection.advance());
             assert_eq!(intersection.doc(), 9);
-            assert!(!intersection.advance());
+            assert_eq!(intersection.advance(), TERMINATED);
         }
     }
 
@@ -260,8 +191,8 @@ mod tests {
         let left = VecDocSet::from(vec![0]);
         let right = VecDocSet::from(vec![0]);
         let mut intersection = Intersection::new(vec![left, right]);
-        assert!(intersection.advance());
         assert_eq!(intersection.doc(), 0);
+        assert_eq!(intersection.advance(), TERMINATED);
     }
 
     #[test]
@@ -269,7 +200,7 @@ mod tests {
         let left = VecDocSet::from(vec![0, 1, 2, 4]);
         let right = VecDocSet::from(vec![2, 5]);
         let mut intersection = Intersection::new(vec![left, right]);
-        assert_eq!(intersection.skip_next(2), SkipResult::Reached);
+        assert_eq!(intersection.seek(2), 2);
         assert_eq!(intersection.doc(), 2);
     }
 
@@ -312,7 +243,7 @@ mod tests {
         let a = VecDocSet::from(vec![1, 3]);
         let b = VecDocSet::from(vec![1, 4]);
         let c = VecDocSet::from(vec![3, 9]);
-        let mut intersection = Intersection::new(vec![a, b, c]);
-        assert!(!intersection.advance());
+        let intersection = Intersection::new(vec![a, b, c]);
+        assert_eq!(intersection.doc(), TERMINATED);
     }
 }

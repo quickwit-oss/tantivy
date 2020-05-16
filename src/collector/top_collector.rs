@@ -18,9 +18,9 @@ use std::collections::BinaryHeap;
 /// Two elements are equal if their feature is equal, and regardless of whether `doc`
 /// is equal. This should be perfectly fine for this usage, but let's make sure this
 /// struct is never public.
-struct ComparableDoc<T, D> {
-    feature: T,
-    doc: D,
+pub(crate) struct ComparableDoc<T, D> {
+    pub feature: T,
+    pub doc: D,
 }
 
 impl<T: PartialOrd, D: PartialOrd> PartialOrd for ComparableDoc<T, D> {
@@ -56,7 +56,7 @@ impl<T: PartialOrd, D: PartialOrd> PartialEq for ComparableDoc<T, D> {
 impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
-    limit: usize,
+    pub limit: usize,
     _marker: PhantomData<T>,
 }
 

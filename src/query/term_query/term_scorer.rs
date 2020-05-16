@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, SkipResult};
+use crate::docset::DocSet;
 use crate::query::{Explanation, Scorer};
 use crate::DocId;
 use crate::Score;
@@ -45,12 +45,12 @@ impl TermScorer {
 }
 
 impl DocSet for TermScorer {
-    fn advance(&mut self) -> bool {
+    fn advance(&mut self) -> DocId {
         self.postings.advance()
     }
 
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.postings.skip_next(target)
+    fn seek(&mut self, target: DocId) -> DocId {
+        self.postings.seek(target)
     }
 
     fn doc(&self) -> DocId {

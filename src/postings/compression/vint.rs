@@ -42,7 +42,7 @@ pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a 
 }
 
 #[inline(always)]
-pub fn uncompress_sorted<'a>(compressed_data: &'a [u8], output: &mut [u32], offset: u32) -> usize {
+pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32) -> usize {
     let mut read_byte = 0;
     let mut result = offset;
     for output_mut in output.iter_mut() {

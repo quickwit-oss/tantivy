@@ -1,4 +1,5 @@
 use super::Scorer;
+use crate::docset::TERMINATED;
 use crate::query::explanation::does_not_match;
 use crate::query::Weight;
 use crate::query::{Explanation, Query};
@@ -48,15 +49,12 @@ impl Weight for EmptyWeight {
 pub struct EmptyScorer;
 
 impl DocSet for EmptyScorer {
-    fn advance(&mut self) -> bool {
-        false
+    fn advance(&mut self) -> DocId {
+        TERMINATED
     }
 
     fn doc(&self) -> DocId {
-        panic!(
-            "You may not call .doc() on a scorer \
-             where the last call to advance() did not return true."
-        );
+        TERMINATED
     }
 
     fn size_hint(&self) -> u32 {
@@ -72,18 +70,15 @@ impl Scorer for EmptyScorer {
 
 #[cfg(test)]
 mod tests {
+    use crate::docset::TERMINATED;
     use crate::query::EmptyScorer;
     use crate::DocSet;
 
     #[test]
     fn test_empty_scorer() {
         let mut empty_scorer = EmptyScorer;
-        assert!(!empty_scorer.advance());
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_empty_scorer_panic_on_doc_call() {
-        EmptyScorer.doc();
+        assert_eq!(empty_scorer.doc(), TERMINATED);
+        assert_eq!(empty_scorer.advance(), TERMINATED);
+        assert_eq!(empty_scorer.doc(), TERMINATED);
     }
 }

@@ -8,8 +8,8 @@ use crate::query::Weight;
 use crate::query::{Explanation, Scorer};
 use crate::schema::IndexRecordOption;
 use crate::DocId;
+use crate::Result;
 use crate::Term;
-use crate::{Result, SkipResult};
 
 pub struct TermWeight {
     term: Term,
@@ -25,7 +25,7 @@ impl Weight for TermWeight {
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
-        if scorer.skip_next(doc) != SkipResult::Reached {
+        if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
         Ok(scorer.explain())

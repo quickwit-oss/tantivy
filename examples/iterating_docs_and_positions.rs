@@ -10,7 +10,7 @@
 // ---
 // Importing tantivy...
 use tantivy::schema::*;
-use tantivy::{doc, DocId, DocSet, Index, Postings};
+use tantivy::{doc, DocSet, Index, Postings, TERMINATED};
 
 fn main() -> tantivy::Result<()> {
     // We first create a schema for the sake of the
@@ -62,12 +62,11 @@ fn main() -> tantivy::Result<()> {
         {
             // this buffer will be used to request for positions
             let mut positions: Vec<u32> = Vec::with_capacity(100);
-            while segment_postings.advance() {
-                // the number of time the term appears in the document.
-                let doc_id: DocId = segment_postings.doc(); //< do not try to access this before calling advance once.
-
+            let mut doc_id = segment_postings.doc();
+            while doc_id != TERMINATED {
                 // This MAY contains deleted documents as well.
                 if segment_reader.is_deleted(doc_id) {
+                    doc_id = segment_postings.advance();
                     continue;
                 }
 
@@ -86,6 +85,7 @@ fn main() -> tantivy::Result<()> {
                 // Doc 2: TermFreq 1: [0]
                 // ```
                 println!("Doc {}: TermFreq {}: {:?}", doc_id, term_freq, positions);
+                doc_id = segment_postings.advance();
             }
         }
     }

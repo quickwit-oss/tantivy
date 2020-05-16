@@ -109,6 +109,7 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
+use crate::query::Scorer;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -154,6 +155,28 @@ pub trait Collector: Sync {
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit>;
+
+    /// Created a segment collector and
+    fn collect_segment(
+        &self,
+        scorer: &mut dyn Scorer,
+        segment_ord: u32,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
+        let mut segment_collector = self.for_segment(segment_ord as u32, segment_reader)?;
+        if let Some(delete_bitset) = segment_reader.delete_bitset() {
+            scorer.for_each(&mut |doc, score| {
+                if delete_bitset.is_alive(doc) {
+                    segment_collector.collect(doc, score);
+                }
+            });
+        } else {
+            scorer.for_each(&mut |doc, score| {
+                segment_collector.collect(doc, score);
+            })
+        }
+        Ok(segment_collector.harvest())
+    }
 }
 
 /// The `SegmentCollector` is the trait in charge of defining the

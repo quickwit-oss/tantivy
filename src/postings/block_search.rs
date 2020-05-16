@@ -129,23 +129,23 @@ impl BlockSearcher {
     ///
     /// If SSE2 instructions are available in the `(platform, running CPU)`,
     /// then we use a different implementation that does an exhaustive linear search over
-    /// the full block whenever the block is full (`len == 128`). It is surprisingly faster, most likely because of the lack
-    /// of branch.
+    /// the block regardless of whether the block is full or not.
+    ///
+    /// Indeed, if the block is not full, the remaining items are TERMINATED.
+    /// It is surprisingly faster, most likely because of the lack of branch misprediction.
     pub(crate) fn search_in_block(
         self,
         block_docs: &AlignedBuffer,
-        len: usize,
         start: usize,
         target: u32,
     ) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
-            use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-            if self == BlockSearcher::SSE2 && len == COMPRESSION_BLOCK_SIZE {
+            if self == BlockSearcher::SSE2 {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
-        start + galloping(&block_docs.0[start..len], target)
+        start + galloping(&block_docs.0[start..], target)
     }
 }
 
@@ -166,6 +166,7 @@ mod tests {
     use super::exponential_search;
     use super::linear_search;
     use super::BlockSearcher;
+    use crate::docset::TERMINATED;
     use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
     #[test]
@@ -196,16 +197,11 @@ mod tests {
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
         assert!(block.len() < COMPRESSION_BLOCK_SIZE);
-        let mut output_buffer = [u32::max_value(); COMPRESSION_BLOCK_SIZE];
+        let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE];
         output_buffer[..block.len()].copy_from_slice(block);
         for i in 0..cursor {
             assert_eq!(
-                block_searcher.search_in_block(
-                    &AlignedBuffer(output_buffer),
-                    block.len(),
-                    i,
-                    target
-                ),
+                block_searcher.search_in_block(&AlignedBuffer(output_buffer), i, target),
                 cursor
             );
         }

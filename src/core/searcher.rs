@@ -1,11 +1,8 @@
 use crate::collector::Collector;
-use crate::collector::SegmentCollector;
 use crate::core::Executor;
 use crate::core::InvertedIndexReader;
 use crate::core::SegmentReader;
 use crate::query::Query;
-use crate::query::Scorer;
-use crate::query::Weight;
 use crate::schema::Document;
 use crate::schema::Schema;
 use crate::schema::{Field, Term};
@@ -16,26 +13,6 @@ use crate::DocAddress;
 use crate::Index;
 use std::fmt;
 use std::sync::Arc;
-
-fn collect_segment<C: Collector>(
-    collector: &C,
-    weight: &dyn Weight,
-    segment_ord: u32,
-    segment_reader: &SegmentReader,
-) -> crate::Result<C::Fruit> {
-    let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
-    let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
-    if let Some(delete_bitset) = segment_reader.delete_bitset() {
-        scorer.for_each(&mut |doc, score| {
-            if delete_bitset.is_alive(doc) {
-                segment_collector.collect(doc, score);
-            }
-        });
-    } else {
-        scorer.for_each(&mut |doc, score| segment_collector.collect(doc, score));
-    }
-    Ok(segment_collector.harvest())
-}
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -163,12 +140,8 @@ impl Searcher {
         let segment_readers = self.segment_readers();
         let fruits = executor.map(
             |(segment_ord, segment_reader)| {
-                collect_segment(
-                    collector,
-                    weight.as_ref(),
-                    segment_ord as u32,
-                    segment_reader,
-                )
+                let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
+                collector.collect_segment(scorer.as_mut(), segment_ord as u32, segment_reader)
             },
             segment_readers.iter().enumerate(),
         )?;

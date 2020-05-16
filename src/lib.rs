@@ -156,7 +156,7 @@ mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
-pub use self::docset::{DocSet, SkipResult};
+pub use self::docset::{DocSet, TERMINATED};
 pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
@@ -285,7 +285,7 @@ mod tests {
 
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::query::BooleanQuery;
     use crate::schema::*;
     use crate::DocAddress;
@@ -381,19 +381,12 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            {
-                let doc = doc!(text_field=>"a");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a a");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"a"));
+            index_writer.add_document(doc!(text_field=>"a a"));
             index_writer.commit().unwrap();
         }
         {
-            let doc = doc!(text_field=>"c");
-            index_writer.add_document(doc);
+            index_writer.add_document(doc!(text_field=>"c"));
             index_writer.commit().unwrap();
         }
         {
@@ -472,10 +465,12 @@ mod tests {
     }
 
     fn advance_undeleted(docset: &mut dyn DocSet, reader: &SegmentReader) -> bool {
-        while docset.advance() {
-            if !reader.is_deleted(docset.doc()) {
+        let mut doc = docset.advance();
+        while doc != TERMINATED {
+            if !reader.is_deleted(doc) {
                 return true;
             }
+            doc = docset.advance();
         }
         false
     }
@@ -641,9 +636,8 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -665,9 +659,8 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -689,9 +682,8 @@ mod tests {
             .inverted_index(term.field())
             .read_postings(&term, IndexRecordOption::Basic)
             .unwrap();
-        assert!(postings.advance());
         assert_eq!(postings.doc(), 0);
-        assert!(!postings.advance());
+        assert_eq!(postings.advance(), TERMINATED);
     }
 
     #[test]
@@ -760,10 +752,8 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"af af af bc bc");
-                index_writer.add_document(doc);
-            }
+            let doc = doc!(text_field=>"af af af bc bc");
+            index_writer.add_document(doc);
             index_writer.commit().unwrap();
         }
         {
@@ -779,10 +769,9 @@ mod tests {
             let mut postings = inverted_index
                 .read_postings(&term_af, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
-            assert!(postings.advance());
             assert_eq!(postings.doc(), 0);
             assert_eq!(postings.term_freq(), 3);
-            assert!(!postings.advance());
+            assert_eq!(postings.advance(), TERMINATED);
         }
     }
 

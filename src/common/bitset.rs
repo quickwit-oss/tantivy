@@ -33,6 +33,10 @@ impl TinySet {
         TinySet(0u64)
     }
 
+    pub fn clear(&mut self) {
+        self.0 = 0u64;
+    }
+
     /// Returns the complement of the set in `[0, 64[`.
     fn complement(self) -> TinySet {
         TinySet(!self.0)
@@ -41,6 +45,11 @@ impl TinySet {
     /// Returns true iff the `TinySet` contains the element `el`.
     pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
+    }
+
+    /// Returns the number of elements in the TinySet.
+    pub fn len(self) -> u32 {
+        self.0.count_ones()
     }
 
     /// Returns the intersection of `self` and `other`
@@ -109,22 +118,12 @@ impl TinySet {
     pub fn range_greater_or_equal(from_included: u32) -> TinySet {
         TinySet::range_lower(from_included).complement()
     }
-
-    pub fn clear(&mut self) {
-        self.0 = 0u64;
-    }
-
-    pub fn len(self) -> u32 {
-        self.0.count_ones()
-    }
 }
 
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: usize, //< Technically it should be u32, but we
-    // count multiple inserts.
-    // `usize` guards us from overflow.
+    len: usize,
     max_value: u32,
 }
 
@@ -204,7 +203,7 @@ mod tests {
 
     use super::BitSet;
     use super::TinySet;
-    use crate::docset::DocSet;
+    use crate::docset::{DocSet, TERMINATED};
     use crate::query::BitSetDocSet;
     use crate::tests;
     use crate::tests::generate_nonunique_unsorted;
@@ -278,11 +277,13 @@ mod tests {
         }
         assert_eq!(btreeset.len(), bitset.len());
         let mut bitset_docset = BitSetDocSet::from(bitset);
+        let mut remaining = true;
         for el in btreeset.into_iter() {
-            bitset_docset.advance();
+            assert!(remaining);
             assert_eq!(bitset_docset.doc(), el);
+            remaining = bitset_docset.advance() != TERMINATED;
         }
-        assert!(!bitset_docset.advance());
+        assert!(!remaining);
     }
 
     #[test]
