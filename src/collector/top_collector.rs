@@ -70,23 +70,23 @@ where
     /// # Panics
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopCollector<T> {
-        Self::with_limit_and_offset(limit, 0)
-    }
-
-    /// Creates a top collector, with a number of documents equal to "limit" and
-    /// skipping the first "offset" documents.
-    ///
-    /// # Panics
-    /// The method panics if limit is 0
-    pub fn with_limit_and_offset(limit: usize, offset: usize) -> TopCollector<T> {
         if limit < 1 {
             panic!("Limit must be strictly greater than 0.");
         }
-        TopCollector {
+        Self {
             limit,
-            offset,
+            offset: 0,
             _marker: PhantomData,
         }
+    }
+
+    /// Skip the first "offset" documents when collecting.
+    ///
+    /// This is equivalent to `OFFSET` in MySQL or PostgreSQL and `start` in
+    /// Lucene's TopDocsCollector.
+    pub fn and_offset(mut self, offset: usize) -> TopCollector<T> {
+        self.offset = offset;
+        self
     }
 
     pub fn limit(&self) -> usize {
@@ -129,7 +129,10 @@ where
         segment_id: SegmentLocalId,
         _: &SegmentReader,
     ) -> crate::Result<TopSegmentCollector<F>> {
-        Ok(TopSegmentCollector::new(segment_id, self.limit + self.offset))
+        Ok(TopSegmentCollector::new(
+            segment_id,
+            self.limit + self.offset,
+        ))
     }
 }
 
@@ -203,7 +206,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::TopSegmentCollector;
+    use super::{TopCollector, TopSegmentCollector};
     use crate::DocAddress;
 
     #[test]
@@ -263,6 +266,48 @@ mod tests {
             top_collector_limit_2.harvest(),
             top_collector_limit_3.harvest()[..2].to_vec(),
         );
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_and_offset() {
+        let collector = TopCollector::with_limit(2).and_offset(1);
+
+        let results = collector
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress(0, 1)),
+                (0.8, DocAddress(0, 2)),
+                (0.7, DocAddress(0, 3)),
+                (0.6, DocAddress(0, 4)),
+                (0.5, DocAddress(0, 5)),
+            ]])
+            .unwrap();
+
+        assert_eq!(
+            results,
+            vec![(0.8, DocAddress(0, 2)), (0.7, DocAddress(0, 3)),]
+        );
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_larger_than_set_and_offset() {
+        let collector = TopCollector::with_limit(2).and_offset(1);
+
+        let results = collector
+            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .unwrap();
+
+        assert_eq!(results, vec![(0.8, DocAddress(0, 2)),]);
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_and_offset_larger_than_set() {
+        let collector = TopCollector::with_limit(2).and_offset(20);
+
+        let results = collector
+            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .unwrap();
+
+        assert_eq!(results, vec![]);
     }
 }
 
