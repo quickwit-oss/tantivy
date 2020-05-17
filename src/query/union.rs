@@ -4,6 +4,8 @@ use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
+use crate::query::term_query::TermScorer;
+use crate::fastfield::DeleteBitSet;
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
@@ -37,6 +39,8 @@ pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     doc: DocId,
     score: Score,
 }
+
+
 
 impl<TScorer, TScoreCombiner> From<Vec<TScorer>> for Union<TScorer, TScoreCombiner>
 where
@@ -198,6 +202,14 @@ where
 
     // TODO Also implement `count` with deletes efficiently.
 
+    fn doc(&self) -> DocId {
+        self.doc
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.docsets.iter().map(|docset| docset.size_hint()).max().unwrap_or(0u32)
+    }
+
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;
@@ -219,15 +231,8 @@ where
         self.cursor = HORIZON_NUM_TINYBITSETS;
         count
     }
-
-    fn doc(&self) -> DocId {
-        self.doc
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.docsets.iter().map(|docset| docset.size_hint()).max().unwrap_or(0u32)
-    }
 }
+
 
 impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
 where
@@ -238,6 +243,59 @@ where
         self.score
     }
 }
+
+pub struct TermUnion<TScoreCombiner> {
+    underlying: Union<TermScorer, TScoreCombiner>
+}
+
+impl<TScoreCombiner: ScoreCombiner> From<Vec<TermScorer>> for TermUnion<TScoreCombiner> {
+    fn from(scorers: Vec<TermScorer>) -> Self {
+        TermUnion {
+            underlying: Union::from(scorers)
+        }
+    }
+}
+
+impl<TScoreCombiner: ScoreCombiner> DocSet for TermUnion<TScoreCombiner> {
+    fn advance(&mut self) -> u32 {
+        self.underlying.advance()
+    }
+
+    fn seek(&mut self, target: u32) -> u32 {
+        self.underlying.seek(target)
+    }
+
+    fn fill_buffer(&mut self, buffer: &mut [u32]) -> usize {
+       self.underlying.fill_buffer(buffer)
+    }
+
+    fn doc(&self) -> u32 {
+        self.underlying.doc()
+    }
+
+    fn size_hint(&self) -> u32 {
+       self.underlying.size_hint()
+    }
+
+    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
+       self.underlying.count(delete_bitset)
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+       self.underlying.count_including_deleted()
+    }
+}
+
+impl<TScoreCombiner: ScoreCombiner> Scorer for TermUnion<TScoreCombiner> {
+    fn score(&mut self) -> f32 {
+       self.underlying.score()
+    }
+
+    fn for_each_pruning(&mut self, mut threshold: f32, callback: &mut dyn FnMut(u32, f32) -> f32) {
+        unimplemented!()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
