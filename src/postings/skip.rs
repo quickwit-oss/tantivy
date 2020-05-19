@@ -103,28 +103,27 @@ impl SkipReader {
 
     pub fn advance(&mut self) -> bool {
         if self.owned_read.as_ref().is_empty() {
-            false
-        } else {
-            let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
-            self.doc += doc_delta as DocId;
-            self.doc_num_bits = self.owned_read.get(0);
-            match self.skip_info {
-                IndexRecordOption::Basic => {
-                    self.owned_read.advance(1);
-                }
-                IndexRecordOption::WithFreqs => {
-                    self.tf_num_bits = self.owned_read.get(1);
-                    self.owned_read.advance(2);
-                }
-                IndexRecordOption::WithFreqsAndPositions => {
-                    self.tf_num_bits = self.owned_read.get(1);
-                    self.owned_read.advance(2);
-                    self.tf_sum =
-                        u32::deserialize(&mut self.owned_read).expect("Failed reading tf_sum");
-                }
-            }
-            true
+            return false;
         }
+        let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
+        self.doc += doc_delta as DocId;
+        self.doc_num_bits = self.owned_read.get(0);
+        match self.skip_info {
+            IndexRecordOption::Basic => {
+                self.owned_read.advance(1);
+            }
+            IndexRecordOption::WithFreqs => {
+                self.tf_num_bits = self.owned_read.get(1);
+                self.owned_read.advance(2);
+            }
+            IndexRecordOption::WithFreqsAndPositions => {
+                self.tf_num_bits = self.owned_read.get(1);
+                self.owned_read.advance(2);
+                self.tf_sum =
+                    u32::deserialize(&mut self.owned_read).expect("Failed reading tf_sum");
+            }
+        }
+        true
     }
 }
 
