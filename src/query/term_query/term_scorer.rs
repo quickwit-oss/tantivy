@@ -9,7 +9,7 @@ use crate::postings::SegmentPostings;
 use crate::query::bm25::BM25Weight;
 
 pub struct TermScorer {
-    postings: SegmentPostings,
+    pub(crate) postings: SegmentPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: BM25Weight,
 }
@@ -33,6 +33,10 @@ impl TermScorer {
         self.postings.term_freq()
     }
 
+    pub fn doc_freq(&self,) -> usize {
+        self.postings.doc_freq()
+    }
+
     pub fn fieldnorm_id(&self) -> u8 {
         self.fieldnorm_reader.fieldnorm_id(self.doc())
     }
@@ -41,6 +45,10 @@ impl TermScorer {
         let fieldnorm_id = self.fieldnorm_id();
         let term_freq = self.term_freq();
         self.similarity_weight.explain(fieldnorm_id, term_freq)
+    }
+
+    pub fn max_score(&self, ) -> f32 {
+        unimplemented!();
     }
 }
 

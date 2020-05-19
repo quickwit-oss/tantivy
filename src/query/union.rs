@@ -1,4 +1,5 @@
 use crate::common::TinySet;
+use crate::query::boolean_query::block_wand;
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::Scorer;
@@ -291,8 +292,9 @@ impl<TScoreCombiner: ScoreCombiner> Scorer for TermUnion<TScoreCombiner> {
        self.underlying.score()
     }
 
-    fn for_each_pruning(&mut self, mut threshold: f32, callback: &mut dyn FnMut(u32, f32) -> f32) {
-        unimplemented!()
+    fn for_each_pruning(&mut self, mut threshold: f32, callback: &mut dyn FnMut(DocId, Score) -> Score) {
+        let term_scorers = std::mem::replace(&mut self.underlying.docsets, vec![]);
+        block_wand(term_scorers, threshold, callback);
     }
 }
 

@@ -56,7 +56,7 @@ impl PositionComputer {
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
 pub struct SegmentPostings {
-    block_cursor: BlockSegmentPostings,
+    pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_computer: Option<PositionComputer>,
     block_searcher: BlockSearcher,
@@ -74,6 +74,10 @@ impl SegmentPostings {
         };
         segment_postings.advance();
         segment_postings
+    }
+
+    pub fn doc_freq(&self) -> usize {
+        self.block_cursor.doc_freq
     }
 
     /// Creates a segment postings object with the given documents
@@ -302,7 +306,7 @@ pub struct BlockSegmentPostings {
     num_vint_docs: usize,
 
     remaining_data: OwnedRead,
-    skip_reader: SkipReader,
+    pub(crate) skip_reader: SkipReader,
 }
 
 fn split_into_skips_and_postings(
