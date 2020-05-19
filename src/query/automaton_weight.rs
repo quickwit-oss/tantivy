@@ -51,9 +51,12 @@ where
             let term_info = term_stream.value();
             let mut block_segment_postings = inverted_index
                 .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
-            while block_segment_postings.advance() {
+            loop {
                 for &doc in block_segment_postings.docs() {
                     doc_bitset.insert(doc);
+                }
+                if !block_segment_postings.advance() {
+                    break;
                 }
             }
         }

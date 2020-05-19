@@ -11,9 +11,9 @@ use crate::postings::Postings;
 
 use crate::schema::IndexRecordOption;
 use crate::DocId;
-use owned_read::OwnedRead;
 
 use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
+use crate::directory::ReadOnlySource;
 
 struct PositionComputer {
     // store the amount of position int
@@ -65,15 +65,12 @@ pub struct SegmentPostings {
 impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
-        let empty_block_cursor = BlockSegmentPostings::empty();
-        let mut segment_postings = SegmentPostings {
-            block_cursor: empty_block_cursor,
-            cur: COMPRESSION_BLOCK_SIZE,
+        SegmentPostings {
+            block_cursor: BlockSegmentPostings::empty(),
+            cur: 0,
             position_computer: None,
             block_searcher: BlockSearcher::default(),
-        };
-        segment_postings.advance();
-        segment_postings
+        }
     }
 
     /// Creates a segment postings object with the given documents
@@ -97,15 +94,13 @@ impl SegmentPostings {
         }
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len() as u32,
-            OwnedRead::new(buffer),
+            ReadOnlySource::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
         );
         SegmentPostings::from_block_postings(block_segment_postings, None)
     }
-}
 
-impl SegmentPostings {
     /// Reads a Segment postings from an &[u8]
     ///
     /// * `len` - number of document in the posting lists.
@@ -116,14 +111,12 @@ impl SegmentPostings {
         segment_block_postings: BlockSegmentPostings,
         positions_stream_opt: Option<PositionReader>,
     ) -> SegmentPostings {
-        let mut postings = SegmentPostings {
+        SegmentPostings {
             block_cursor: segment_block_postings,
-            cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
+            cur: 0, // cursor within the block
             position_computer: positions_stream_opt.map(PositionComputer::new),
             block_searcher: BlockSearcher::default(),
-        };
-        postings.advance();
-        postings
+        }
     }
 }
 
@@ -173,7 +166,7 @@ impl DocSet for SegmentPostings {
             if self.position_computer.is_some() {
                 // First compute all of the freqs skipped from the current block.
                 sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum::<u32>();
-                match self.block_cursor.skip_to(target) {
+                match self.block_cursor.seek(target) {
                     BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
                         sum_freqs_skipped += block_skip_freqs;
                     }
@@ -183,9 +176,7 @@ impl DocSet for SegmentPostings {
                         return TERMINATED;
                     }
                 }
-            } else if self.block_cursor.skip_to(target)
-                == BlockSegmentPostingsSkipResult::Terminated
-            {
+            } else if self.block_cursor.seek(target) == BlockSegmentPostingsSkipResult::Terminated {
                 // no positions needed. no need to sum freqs.
                 self.block_cursor.doc_decoder.clear();
                 self.cur = 0;

@@ -7,7 +7,6 @@ use crate::schema::FieldType;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::termdict::TermDictionary;
-use owned_read::OwnedRead;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -97,8 +96,7 @@ impl InvertedIndexReader {
         let offset = term_info.postings_offset as usize;
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
-        let postings_reader = OwnedRead::new(postings_slice);
-        block_postings.reset(term_info.doc_freq, postings_reader);
+        block_postings.reset(term_info.doc_freq, postings_slice);
     }
 
     /// Returns a block postings given a `Term`.
@@ -127,7 +125,7 @@ impl InvertedIndexReader {
         let postings_data = self.postings_source.slice_from(offset);
         BlockSegmentPostings::from_data(
             term_info.doc_freq,
-            OwnedRead::new(postings_data),
+            postings_data,
             self.record_option,
             requested_option,
         )

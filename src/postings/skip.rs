@@ -3,6 +3,7 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
 use owned_read::OwnedRead;
+use crate::directory::ReadOnlySource;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -59,10 +60,13 @@ pub(crate) struct SkipReader {
 }
 
 impl SkipReader {
-    pub fn new(data: OwnedRead, skip_info: IndexRecordOption) -> SkipReader {
+    pub fn new(
+        data: ReadOnlySource,
+        skip_info: IndexRecordOption
+    ) -> SkipReader {
         SkipReader {
             doc: 0u32,
-            owned_read: data,
+            owned_read: OwnedRead::new(data),
             skip_info,
             doc_num_bits: 0u8,
             tf_num_bits: 0u8,
@@ -70,9 +74,9 @@ impl SkipReader {
         }
     }
 
-    pub fn reset(&mut self, data: OwnedRead) {
+    pub fn reset(&mut self, data: ReadOnlySource) {
         self.doc = 0u32;
-        self.owned_read = data;
+        self.owned_read = OwnedRead::new(data);
         self.doc_num_bits = 0u8;
         self.tf_num_bits = 0u8;
         self.tf_sum = 0u32;
@@ -132,7 +136,7 @@ mod tests {
 
     use super::IndexRecordOption;
     use super::{SkipReader, SkipSerializer};
-    use owned_read::OwnedRead;
+    use crate::directory::ReadOnlySource;
 
     #[test]
     fn test_skip_with_freq() {
@@ -144,7 +148,7 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::WithFreqs);
+        let mut skip_reader = SkipReader::new(ReadOnlySource::new(buf), IndexRecordOption::WithFreqs);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
@@ -164,7 +168,7 @@ mod tests {
             skip_serializer.write_doc(5u32, 5u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::Basic);
+        let mut skip_reader = SkipReader::new(ReadOnlySource::from(buf), IndexRecordOption::Basic);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);

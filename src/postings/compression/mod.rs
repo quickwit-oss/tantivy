@@ -20,7 +20,7 @@ pub struct BlockEncoder {
 
 impl Default for BlockEncoder {
     fn default() -> Self {
-       BlockEncoder::new()
+        BlockEncoder::new()
     }
 }
 
