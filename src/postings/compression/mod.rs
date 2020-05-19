@@ -18,6 +18,12 @@ pub struct BlockEncoder {
     pub output_len: usize,
 }
 
+impl Default for BlockEncoder {
+    fn default() -> Self {
+       BlockEncoder::new()
+    }
+}
+
 impl BlockEncoder {
     pub fn new() -> BlockEncoder {
         BlockEncoder {
@@ -55,11 +61,13 @@ pub struct BlockDecoder {
     pub output_len: usize,
 }
 
-impl BlockDecoder {
-    pub fn new() -> BlockDecoder {
+impl Default for BlockDecoder {
+    fn default() -> Self {
         BlockDecoder::with_val(0u32)
     }
+}
 
+impl BlockDecoder {
     pub fn with_val(val: u32) -> BlockDecoder {
         BlockDecoder {
             bitpacker: BitPacker4x::new(),
@@ -175,7 +183,7 @@ impl VIntDecoder for BlockDecoder {
         vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset)
     }
 
-    fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize {
+    fn uncompress_vint_unsorted(&mut self, compressed_data: &[u8], num_els: usize) -> usize {
         self.output_len = num_els;
         vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
     }
@@ -191,7 +199,7 @@ pub mod tests {
         let vals: Vec<u32> = (0u32..128u32).map(|i| i * 7).collect();
         let mut encoder = BlockEncoder::new();
         let (num_bits, compressed_data) = encoder.compress_block_sorted(&vals, 0);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         {
             let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 0, num_bits);
             assert_eq!(consumed_num_bytes, compressed_data.len());
@@ -204,9 +212,9 @@ pub mod tests {
     #[test]
     fn test_encode_sorted_block_with_offset() {
         let vals: Vec<u32> = (0u32..128u32).map(|i| 11 + i * 7).collect();
-        let mut encoder = BlockEncoder::new();
+        let mut encoder = BlockEncoder::default();
         let (num_bits, compressed_data) = encoder.compress_block_sorted(&vals, 10);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         {
             let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 10, num_bits);
             assert_eq!(consumed_num_bytes, compressed_data.len());
@@ -221,11 +229,11 @@ pub mod tests {
         let mut compressed: Vec<u8> = Vec::new();
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32).collect();
-        let mut encoder = BlockEncoder::new();
+        let mut encoder = BlockEncoder::default();
         let (num_bits, compressed_data) = encoder.compress_block_sorted(&vals, 10);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         {
             let consumed_num_bytes = decoder.uncompress_block_sorted(&compressed, 10, num_bits);
             assert_eq!(consumed_num_bytes, compressed.len() - 1);
@@ -241,11 +249,11 @@ pub mod tests {
         let mut compressed: Vec<u8> = Vec::new();
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32 % 12).collect();
-        let mut encoder = BlockEncoder::new();
+        let mut encoder = BlockEncoder::default();
         let (num_bits, compressed_data) = encoder.compress_block_unsorted(&vals);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         {
             let consumed_num_bytes = decoder.uncompress_block_unsorted(&compressed, num_bits);
             assert_eq!(consumed_num_bytes + 1, compressed.len());
@@ -257,6 +265,11 @@ pub mod tests {
     }
 
     #[test]
+    fn test_block_decoder_initialization() {
+        let block = BlockDecoder::with_val(TERMINATED);
+        assert_eq!(block.output(0), TERMINATED);
+    }
+    #[test]
     fn test_encode_vint() {
         {
             let expected_length = 154;
@@ -265,7 +278,7 @@ pub mod tests {
             for offset in &[0u32, 1u32, 2u32] {
                 let encoded_data = encoder.compress_vint_sorted(&input, *offset);
                 assert!(encoded_data.len() <= expected_length);
-                let mut decoder = BlockDecoder::new();
+                let mut decoder = BlockDecoder::default();
                 let consumed_num_bytes =
                     decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
                 assert_eq!(consumed_num_bytes, encoded_data.len());
