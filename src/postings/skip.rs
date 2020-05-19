@@ -1,9 +1,9 @@
 use crate::common::BinarySerializable;
+use crate::directory::ReadOnlySource;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
 use owned_read::OwnedRead;
-use crate::directory::ReadOnlySource;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -51,35 +51,38 @@ impl SkipSerializer {
 }
 
 pub(crate) struct SkipReader {
-    doc: DocId,
+    last_doc_in_block: DocId,
+    pub(crate) last_doc_in_previous_block: DocId,
     owned_read: OwnedRead,
     doc_num_bits: u8,
     tf_num_bits: u8,
     tf_sum: u32,
     skip_info: IndexRecordOption,
+    byte_offset: usize,
 }
 
 impl SkipReader {
-    pub fn new(
-        data: ReadOnlySource,
-        skip_info: IndexRecordOption
-    ) -> SkipReader {
+    pub fn new(data: ReadOnlySource, skip_info: IndexRecordOption) -> SkipReader {
         SkipReader {
-            doc: 0u32,
+            last_doc_in_block: 0u32,
+            last_doc_in_previous_block: 0u32,
             owned_read: OwnedRead::new(data),
             skip_info,
             doc_num_bits: 0u8,
             tf_num_bits: 0u8,
             tf_sum: 0u32,
+            byte_offset: 0,
         }
     }
 
     pub fn reset(&mut self, data: ReadOnlySource) {
-        self.doc = 0u32;
+        self.last_doc_in_block = 0u32;
+        self.last_doc_in_previous_block = 0u32;
         self.owned_read = OwnedRead::new(data);
         self.doc_num_bits = 0u8;
         self.tf_num_bits = 0u8;
         self.tf_sum = 0u32;
+        self.byte_offset = 0;
     }
 
     pub fn total_block_len(&self) -> usize {
@@ -87,11 +90,15 @@ impl SkipReader {
     }
 
     pub fn doc(&self) -> DocId {
-        self.doc
+        self.last_doc_in_block
     }
 
     pub fn doc_num_bits(&self) -> u8 {
         self.doc_num_bits
+    }
+
+    pub fn byte_offset(&self) -> usize {
+        self.byte_offset
     }
 
     /// Number of bits used to encode term frequencies
@@ -106,11 +113,13 @@ impl SkipReader {
     }
 
     pub fn advance(&mut self) -> bool {
+        self.byte_offset += self.total_block_len();
+        self.last_doc_in_previous_block = self.last_doc_in_block;
         if self.owned_read.as_ref().is_empty() {
             return false;
         }
         let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
-        self.doc += doc_delta as DocId;
+        self.last_doc_in_block += doc_delta as DocId;
         self.doc_num_bits = self.owned_read.get(0);
         match self.skip_info {
             IndexRecordOption::Basic => {
@@ -148,7 +157,8 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(ReadOnlySource::new(buf), IndexRecordOption::WithFreqs);
+        let mut skip_reader =
+            SkipReader::new(ReadOnlySource::new(buf), IndexRecordOption::WithFreqs);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);

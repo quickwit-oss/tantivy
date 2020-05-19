@@ -1,12 +1,11 @@
 use crate::common::{BinarySerializable, VInt};
+use crate::directory::ReadOnlySource;
 use crate::postings::compression::{
     compressed_block_size, AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
 };
 use crate::postings::{FreqReadingOption, SkipReader, USE_SKIP_INFO_LIMIT};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, TERMINATED};
-use owned_read::OwnedRead;
-use crate::directory::ReadOnlySource;
 
 /// `BlockSegmentPostings` is a cursor iterating over blocks
 /// of documents.
@@ -21,11 +20,10 @@ pub struct BlockSegmentPostings {
     freq_reading_option: FreqReadingOption,
 
     doc_freq: usize,
-    doc_offset: DocId,
 
     num_vint_docs: usize,
 
-    remaining_data: OwnedRead,
+    data: ReadOnlySource,
     skip_reader: SkipReader,
 }
 
@@ -33,6 +31,33 @@ pub struct BlockSegmentPostings {
 pub enum BlockSegmentPostingsSkipResult {
     Terminated,
     Success(u32), //< number of term freqs to skip
+}
+
+fn decode_block(
+    doc_decoder: &mut BlockDecoder,
+    freq_decoder_opt: Option<&mut BlockDecoder>,
+    data: &[u8],
+    doc_offset: DocId,
+    doc_num_bits: u8,
+    tf_num_bits: u8,
+) {
+    let num_consumed_bytes = doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits);
+    if let Some(freq_decoder) = freq_decoder_opt {
+        freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
+    }
+}
+
+fn decode_vint_block(
+    doc_decoder: &mut BlockDecoder,
+    freq_decoder_opt: Option<&mut BlockDecoder>,
+    data: &[u8],
+    doc_offset: DocId,
+    num_vint_docs: usize,
+) {
+    let num_consumed_bytes = doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs);
+    if let Some(freq_decoder) = freq_decoder_opt {
+        freq_decoder.uncompress_vint_unsorted(&data[num_consumed_bytes..], num_vint_docs);
+    }
 }
 
 fn split_into_skips_and_postings(
@@ -43,7 +68,9 @@ fn split_into_skips_and_postings(
         return (None, data);
     }
     let mut data_byte_arr = data.as_slice();
-    let skip_len = VInt::deserialize(&mut data_byte_arr).expect("Data corrupted").0 as usize;
+    let skip_len = VInt::deserialize(&mut data_byte_arr)
+        .expect("Data corrupted")
+        .0 as usize;
     let vint_len = data.len() - data_byte_arr.len();
     let (skip_data, postings_data) = data.slice_from(vint_len).split(skip_len);
     (Some(skip_data), postings_data)
@@ -74,9 +101,8 @@ impl BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
-            doc_offset: 0,
             doc_freq,
-            remaining_data: OwnedRead::new(postings_data),
+            data: postings_data,
             skip_reader,
         };
         block_segment_postings.advance();
@@ -97,13 +123,12 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_vint_docs = num_vint_docs;
-        self.remaining_data = OwnedRead::new(postings_data);
+        self.data = ReadOnlySource::new(postings_data);
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data);
         } else {
             self.skip_reader.reset(ReadOnlySource::empty())
         }
-        self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
     }
 
@@ -184,34 +209,10 @@ impl BlockSegmentPostings {
                 // than the target.
                 //
                 // We found our block!
-                let num_bits = self.skip_reader.doc_num_bits();
-                let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
-                    self.remaining_data.as_ref(),
-                    self.doc_offset,
-                    num_bits,
-                );
-                self.remaining_data.advance(num_consumed_bytes);
-                let tf_num_bits = self.skip_reader.tf_num_bits();
-                match self.freq_reading_option {
-                    FreqReadingOption::NoFreq => {}
-                    FreqReadingOption::SkipFreq => {
-                        let num_bytes_to_skip = compressed_block_size(tf_num_bits);
-                        self.remaining_data.advance(num_bytes_to_skip);
-                    }
-                    FreqReadingOption::ReadFreq => {
-                        let num_consumed_bytes = self
-                            .freq_decoder
-                            .uncompress_block_unsorted(self.remaining_data.as_ref(), tf_num_bits);
-                        self.remaining_data.advance(num_consumed_bytes);
-                    }
-                }
-                self.doc_offset = self.skip_reader.doc();
+                self.read_bitpacked_block();
                 return BlockSegmentPostingsSkipResult::Success(skip_freqs);
             } else {
                 skip_freqs += self.skip_reader.tf_sum();
-                let advance_len = self.skip_reader.total_block_len();
-                self.doc_offset = self.skip_reader.doc();
-                self.remaining_data.advance(advance_len);
             }
         }
 
@@ -221,19 +222,7 @@ impl BlockSegmentPostings {
             return BlockSegmentPostingsSkipResult::Terminated;
         }
         // we are now on the last, incomplete, variable encoded block.
-        let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-            self.remaining_data.as_ref(),
-            self.doc_offset,
-            self.num_vint_docs,
-        );
-        self.remaining_data.advance(num_compressed_bytes);
-        match self.freq_reading_option {
-            FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
-            FreqReadingOption::ReadFreq => {
-                self.freq_decoder
-                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
-            }
-        }
+        self.read_vint_block();
         self.num_vint_docs = 0;
         self.docs()
             .last()
@@ -248,45 +237,36 @@ impl BlockSegmentPostings {
     }
 
     fn read_bitpacked_block(&mut self) {
-        let num_bits = self.skip_reader.doc_num_bits();
-        let num_consumed_bytes = self.doc_decoder.uncompress_block_sorted(
-            self.remaining_data.as_ref(),
-            self.doc_offset,
-            num_bits,
-        );
-        self.remaining_data.advance(num_consumed_bytes);
+        let doc_num_bits = self.skip_reader.doc_num_bits();
         let tf_num_bits = self.skip_reader.tf_num_bits();
-        match self.freq_reading_option {
-            FreqReadingOption::NoFreq => {}
-            FreqReadingOption::SkipFreq => {
-                let num_bytes_to_skip = compressed_block_size(tf_num_bits);
-                self.remaining_data.advance(num_bytes_to_skip);
-            }
-            FreqReadingOption::ReadFreq => {
-                let num_consumed_bytes = self
-                    .freq_decoder
-                    .uncompress_block_unsorted(self.remaining_data.as_ref(), tf_num_bits);
-                self.remaining_data.advance(num_consumed_bytes);
-            }
-        }
-        // it will be used as the next offset.
-        self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
+        let offset = self.skip_reader.byte_offset();
+        decode_block(
+            &mut self.doc_decoder,
+            if let FreqReadingOption::ReadFreq = self.freq_reading_option {
+                Some(&mut self.freq_decoder)
+            } else {
+                None
+            },
+            &self.data.as_slice()[offset..],
+            self.skip_reader.last_doc_in_previous_block,
+            doc_num_bits,
+            tf_num_bits,
+        );
     }
 
-    fn read_vint_block(&mut self, num_vint_docs: usize) {
-        let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
-            self.remaining_data.as_ref(),
-            self.doc_offset,
-            num_vint_docs,
+    fn read_vint_block(&mut self) {
+        let offset = self.skip_reader.byte_offset();
+        decode_vint_block(
+            &mut self.doc_decoder,
+            if let FreqReadingOption::ReadFreq = self.freq_reading_option {
+                Some(&mut self.freq_decoder)
+            } else {
+                None
+            },
+            &self.data.as_slice()[offset..],
+            self.skip_reader.last_doc_in_previous_block,
+            self.num_vint_docs,
         );
-        self.remaining_data.advance(num_compressed_bytes);
-        match self.freq_reading_option {
-            FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
-            FreqReadingOption::ReadFreq => {
-                self.freq_decoder
-                    .uncompress_vint_unsorted(self.remaining_data.as_ref(), num_vint_docs);
-            }
-        }
     }
 
     /// Advance to the next block.
@@ -301,7 +281,7 @@ impl BlockSegmentPostings {
         if self.num_vint_docs == 0 {
             return false;
         }
-        self.read_vint_block(self.num_vint_docs);
+        self.read_vint_block();
         self.num_vint_docs = 0;
         true
     }
@@ -310,15 +290,11 @@ impl BlockSegmentPostings {
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             num_vint_docs: 0,
-
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
-
-            doc_offset: 0,
             doc_freq: 0,
-
-            remaining_data: OwnedRead::new(vec![]),
+            data: ReadOnlySource::new(vec![]),
             skip_reader: SkipReader::new(ReadOnlySource::new(vec![]), IndexRecordOption::Basic),
         }
     }

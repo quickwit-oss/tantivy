@@ -12,8 +12,8 @@ use crate::postings::Postings;
 use crate::schema::IndexRecordOption;
 use crate::DocId;
 
-use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
 use crate::directory::ReadOnlySource;
+use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
 
 struct PositionComputer {
     // store the amount of position int
