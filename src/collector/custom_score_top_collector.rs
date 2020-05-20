@@ -13,11 +13,11 @@ where
 {
     pub fn new(
         custom_scorer: TCustomScorer,
-        limit: usize,
+        collector: TopCollector<TScore>,
     ) -> CustomScoreTopCollector<TCustomScorer, TScore> {
         CustomScoreTopCollector {
             custom_scorer,
-            collector: TopCollector::with_limit(limit),
+            collector,
         }
     }
 }

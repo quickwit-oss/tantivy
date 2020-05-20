@@ -57,6 +57,7 @@ impl<T: PartialOrd, D: PartialOrd> Eq for ComparableDoc<T, D> {}
 
 pub(crate) struct TopCollector<T> {
     pub limit: usize,
+    pub offset: usize,
     _marker: PhantomData<T>,
 }
 
@@ -72,14 +73,20 @@ where
         if limit < 1 {
             panic!("Limit must be strictly greater than 0.");
         }
-        TopCollector {
+        Self {
             limit,
+            offset: 0,
             _marker: PhantomData,
         }
     }
 
-    pub fn limit(&self) -> usize {
-        self.limit
+    /// Skip the first "offset" documents when collecting.
+    ///
+    /// This is equivalent to `OFFSET` in MySQL or PostgreSQL and `start` in
+    /// Lucene's TopDocsCollector.
+    pub fn and_offset(mut self, offset: usize) -> TopCollector<T> {
+        self.offset = offset;
+        self
     }
 
     pub fn merge_fruits(
@@ -92,7 +99,7 @@ where
         let mut top_collector = BinaryHeap::new();
         for child_fruit in children {
             for (feature, doc) in child_fruit {
-                if top_collector.len() < self.limit {
+                if top_collector.len() < (self.limit + self.offset) {
                     top_collector.push(ComparableDoc { feature, doc });
                 } else if let Some(mut head) = top_collector.peek_mut() {
                     if head.feature < feature {
@@ -104,6 +111,7 @@ where
         Ok(top_collector
             .into_sorted_vec()
             .into_iter()
+            .skip(self.offset)
             .map(|cdoc| (cdoc.feature, cdoc.doc))
             .collect())
     }
@@ -113,7 +121,23 @@ where
         segment_id: SegmentLocalId,
         _: &SegmentReader,
     ) -> crate::Result<TopSegmentCollector<F>> {
-        Ok(TopSegmentCollector::new(segment_id, self.limit))
+        Ok(TopSegmentCollector::new(
+            segment_id,
+            self.limit + self.offset,
+        ))
+    }
+
+    /// Create a new TopCollector with the same limit and offset.
+    ///
+    /// Ideally we would use Into but the blanket implementation seems to cause the Scorer traits
+    /// to fail.
+    #[doc(hidden)]
+    pub(crate) fn into_tscore<TScore: PartialOrd + Clone>(self) -> TopCollector<TScore> {
+        TopCollector {
+            limit: self.limit,
+            offset: self.offset,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -187,7 +211,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::TopSegmentCollector;
+    use super::{TopCollector, TopSegmentCollector};
     use crate::DocAddress;
 
     #[test]
@@ -247,6 +271,48 @@ mod tests {
             top_collector_limit_2.harvest(),
             top_collector_limit_3.harvest()[..2].to_vec(),
         );
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_and_offset() {
+        let collector = TopCollector::with_limit(2).and_offset(1);
+
+        let results = collector
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress(0, 1)),
+                (0.8, DocAddress(0, 2)),
+                (0.7, DocAddress(0, 3)),
+                (0.6, DocAddress(0, 4)),
+                (0.5, DocAddress(0, 5)),
+            ]])
+            .unwrap();
+
+        assert_eq!(
+            results,
+            vec![(0.8, DocAddress(0, 2)), (0.7, DocAddress(0, 3)),]
+        );
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_larger_than_set_and_offset() {
+        let collector = TopCollector::with_limit(2).and_offset(1);
+
+        let results = collector
+            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .unwrap();
+
+        assert_eq!(results, vec![(0.8, DocAddress(0, 2)),]);
+    }
+
+    #[test]
+    fn test_top_collector_with_limit_and_offset_larger_than_set() {
+        let collector = TopCollector::with_limit(2).and_offset(20);
+
+        let results = collector
+            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .unwrap();
+
+        assert_eq!(results, vec![]);
     }
 }
 

@@ -7,7 +7,7 @@ use std::borrow::BorrowMut;
 ///
 /// This is not u32::MAX as one would have expected, due to the lack of SSE2 instructions
 /// to compare [u32; 4].
-pub const TERMINATED: DocId = i32::MAX as u32;
+pub const TERMINATED: DocId = std::i32::MAX as u32;
 
 /// Represents an iterable set of sorted doc ids.
 pub trait DocSet {
