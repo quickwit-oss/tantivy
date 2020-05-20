@@ -544,10 +544,10 @@ mod tests {
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
-    use crate::{DocAddress, DocId, SegmentReader};
     use crate::Index;
     use crate::IndexWriter;
     use crate::Score;
+    use crate::{DocAddress, DocId, SegmentReader};
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -599,12 +599,7 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(4).and_offset(2))
             .unwrap();
-        assert_eq!(
-            score_docs,
-            vec![
-                (0.48527452, DocAddress(0, 0))
-            ]
-        );
+        assert_eq!(score_docs, vec![(0.48527452, DocAddress(0, 0))]);
     }
 
     #[test]
@@ -768,11 +763,9 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(move |_segment_reader: &SegmentReader| {
-            move |doc: DocId, _original_score: Score| {
-                doc
-            }
-        });
+        let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(
+            move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
+        );
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()
@@ -782,10 +775,7 @@ mod tests {
 
         assert_eq!(
             score_docs,
-            vec![
-                (1, DocAddress(0, 1)),
-                (0, DocAddress(0, 0)),
-            ]
+            vec![(1, DocAddress(0, 1)), (0, DocAddress(0, 0)),]
         );
     }
 
@@ -795,11 +785,9 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let collector = TopDocs::with_limit(2).and_offset(1).custom_score(move |_segment_reader: &SegmentReader| {
-            move |doc: DocId| {
-                doc
-            }
-        });
+        let collector = TopDocs::with_limit(2)
+            .and_offset(1)
+            .custom_score(move |_segment_reader: &SegmentReader| move |doc: DocId| doc);
         let score_docs: Vec<(u32, DocAddress)> = index
             .reader()
             .unwrap()
@@ -809,10 +797,7 @@ mod tests {
 
         assert_eq!(
             score_docs,
-            vec![
-                (1, DocAddress(0, 1)),
-                (0, DocAddress(0, 0)),
-            ]
+            vec![(1, DocAddress(0, 1)), (0, DocAddress(0, 0)),]
         );
     }
 
