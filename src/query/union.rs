@@ -225,7 +225,11 @@ where
     }
 
     fn size_hint(&self) -> u32 {
-        self.docsets.iter().map(|docset| docset.size_hint()).max().unwrap_or(0u32)
+        self.docsets
+            .iter()
+            .map(|docset| docset.size_hint())
+            .max()
+            .unwrap_or(0u32)
     }
 }
 

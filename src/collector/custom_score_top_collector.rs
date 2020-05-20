@@ -11,7 +11,7 @@ impl<TCustomScorer, TScore> CustomScoreTopCollector<TCustomScorer, TScore>
 where
     TScore: Clone + PartialOrd,
 {
-    pub fn new(
+    pub(crate) fn new(
         custom_scorer: TCustomScorer,
         collector: TopCollector<TScore>,
     ) -> CustomScoreTopCollector<TCustomScorer, TScore> {
