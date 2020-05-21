@@ -23,9 +23,8 @@ pub(crate) use self::block_search::BlockSearcher;
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
-use self::compression::COMPRESSION_BLOCK_SIZE;
 pub use self::postings::Postings;
-pub(crate) use self::skip::SkipReader;
+pub(crate) use self::skip::{SkipReader, BlockInfo};
 pub use self::term_info::TermInfo;
 
 pub use self::block_segment_postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
@@ -35,7 +34,6 @@ pub(crate) use self::stacker::compute_table_size;
 
 pub use crate::common::HasLen;
 
-pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
 pub(crate) type UnorderedTermId = u64;
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]

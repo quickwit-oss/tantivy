@@ -144,6 +144,7 @@ impl DocSet for SegmentPostings {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
+        dbg!("seek");
         if self.doc() >= target {
             return self.doc();
         }
