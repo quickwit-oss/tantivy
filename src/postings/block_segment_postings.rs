@@ -25,13 +25,7 @@ pub struct BlockSegmentPostings {
     skip_reader: SkipReader,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum BlockSegmentPostingsSkipResult {
-    Terminated,
-    Success(u32), //< number of term freqs to skip
-}
-
-fn decode_block(
+fn decode_bitpacked_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
     data: &[u8],
@@ -177,68 +171,32 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_len
     }
 
+    pub(crate) fn position_offset(&self) -> u64 {
+        self.skip_reader.position_offset()
+    }
+
     /// Position on a block that may contains `target_doc`.
     ///
     /// If the current block last element is greater or equal to `target_doc`, return true.
     ///
-    /// Returns Success(num_term_freq_to_skip) if a block that has an element greater or equal to the target is found.
+    /// Returns true if a block that has an element greater or equal to the target is found.
     /// Returning true does not guarantee that the smallest element of the block is smaller
     /// than the target. It only guarantees that the last element is greater or equal.
     ///
-    /// Returns End iff all of the document remaining are smaller than
+    /// Returns false iff all of the document remaining are smaller than
     /// `doc_id`. In that case, all of these document are consumed.
-    ///
-    pub fn seek(&mut self, target_doc: DocId) -> BlockSegmentPostingsSkipResult {
-        let mut skip_freqs = 0u32;
-        if self
-            .doc_decoder
-            .output_array()
-            .last()
-            .map(|&last_doc_in_block| last_doc_in_block >= target_doc)
-            .unwrap_or(false)
-        {
-            return BlockSegmentPostingsSkipResult::Success(0u32);
-        }
-        while self.skip_reader.advance() {
-            if self.skip_reader.doc() >= target_doc {
-                // the last document of the current block is larger
-                // than the target.
-                //
-                // We found our block!
-                self.read_block();
-                return BlockSegmentPostingsSkipResult::Success(skip_freqs);
-            } else {
-                skip_freqs += self.skip_reader.tf_sum();
-            }
-        }
-
-        self.doc_decoder.clear();
-
-        let num_vint_docs = if let BlockInfo::VInt(num_vint_docs) = self.skip_reader.block_info() {
-            num_vint_docs
-        } else {
-            // TODO
-            unimplemented!()
-        };
-        if num_vint_docs == 0 {
-            return BlockSegmentPostingsSkipResult::Terminated;
-        }
-        // we are now on the last, incomplete, variable encoded block.
+    pub fn seek(&mut self, target_doc: DocId) -> bool {
+        self.skip_reader.seek(target_doc);
         self.read_block();
 
+        // The last block last doc may actually stop before the target.
         self.docs()
             .last()
-            .map(|last_doc| {
-                if *last_doc >= target_doc {
-                    BlockSegmentPostingsSkipResult::Success(skip_freqs)
-                } else {
-                    BlockSegmentPostingsSkipResult::Terminated
-                }
-            })
-            .unwrap_or(BlockSegmentPostingsSkipResult::Terminated)
+            .map(|last_doc| *last_doc >= target_doc)
+            .unwrap_or(false)
     }
 
-    pub fn read_block(&mut self) {
+    fn read_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
@@ -246,7 +204,7 @@ impl BlockSegmentPostings {
                 tf_num_bits,
                 ..
             } => {
-                decode_block(
+                decode_bitpacked_block(
                     &mut self.doc_decoder,
                     if let FreqReadingOption::ReadFreq = self.freq_reading_option {
                         Some(&mut self.freq_decoder)
@@ -279,15 +237,8 @@ impl BlockSegmentPostings {
     ///
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
-        if self.skip_reader.advance() {
-            self.read_block();
-            return true;
-        }
-
-        if let BlockInfo::VInt(num_vint_docs) = self.skip_reader.block_info() {
-            if num_vint_docs == 0 {
-                return false;
-            }
+        if !self.skip_reader.advance() {
+            return false;
         }
         self.read_block();
         true
@@ -309,7 +260,6 @@ impl BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
     use super::BlockSegmentPostings;
-    use super::BlockSegmentPostingsSkipResult;
     use crate::common::HasLen;
     use crate::core::Index;
     use crate::docset::{DocSet, TERMINATED};
@@ -427,20 +377,11 @@ mod tests {
     fn test_block_segment_postings_skip() {
         for i in 0..4 {
             let mut block_postings = build_block_postings(&[3]);
-            assert_eq!(
-                block_postings.seek(i),
-                BlockSegmentPostingsSkipResult::Success(0u32)
-            );
-            assert_eq!(
-                block_postings.seek(i),
-                BlockSegmentPostingsSkipResult::Success(0u32)
-            );
+            assert_eq!(block_postings.seek(i), true);
+            assert_eq!(block_postings.seek(i), true);
         }
         let mut block_postings = build_block_postings(&[3]);
-        assert_eq!(
-            block_postings.seek(4u32),
-            BlockSegmentPostingsSkipResult::Terminated
-        );
+        assert_eq!(block_postings.seek(4u32), false);
     }
 
     #[test]
@@ -451,22 +392,13 @@ mod tests {
         }
         let mut block_postings = build_block_postings(&docs[..]);
         for i in vec![0, 424, 10000] {
-            assert_eq!(
-                block_postings.seek(i),
-                BlockSegmentPostingsSkipResult::Success(0u32)
-            );
+            assert!(block_postings.seek(i));
             let docs = block_postings.docs();
             assert!(docs[0] <= i);
             assert!(docs.last().cloned().unwrap_or(0u32) >= i);
         }
-        assert_eq!(
-            block_postings.seek(100_000),
-            BlockSegmentPostingsSkipResult::Terminated
-        );
-        assert_eq!(
-            block_postings.seek(101_000),
-            BlockSegmentPostingsSkipResult::Terminated
-        );
+        assert!(!block_postings.seek(100_000));
+        assert!(!block_postings.seek(101_000));
     }
 
     #[test]

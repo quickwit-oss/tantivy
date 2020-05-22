@@ -5,10 +5,6 @@ Postings module (also called inverted index)
 mod block_search;
 mod block_segment_postings;
 pub(crate) mod compression;
-/// Postings module
-///
-/// Postings, also called inverted lists, is the key datastructure
-/// to full-text search.
 mod postings;
 mod postings_writer;
 mod recorder;
@@ -27,7 +23,7 @@ pub use self::postings::Postings;
 pub(crate) use self::skip::{BlockInfo, SkipReader};
 pub use self::term_info::TermInfo;
 
-pub use self::block_segment_postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
+pub use self::block_segment_postings::BlockSegmentPostings;
 pub use self::segment_postings::SegmentPostings;
 
 pub(crate) use self::stacker::compute_table_size;

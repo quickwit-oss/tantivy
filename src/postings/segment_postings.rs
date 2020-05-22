@@ -13,42 +13,7 @@ use crate::schema::IndexRecordOption;
 use crate::DocId;
 
 use crate::directory::ReadOnlySource;
-use crate::postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};
-
-struct PositionComputer {
-    // store the amount of position int
-    // before reading positions.
-    //
-    // if none, position are already loaded in
-    // the positions vec.
-    position_to_skip: usize,
-    position_reader: PositionReader,
-}
-
-impl PositionComputer {
-    pub fn new(position_reader: PositionReader) -> PositionComputer {
-        PositionComputer {
-            position_to_skip: 0,
-            position_reader,
-        }
-    }
-
-    pub fn add_skip(&mut self, num_skip: usize) {
-        self.position_to_skip += num_skip;
-    }
-
-    // Positions can only be read once.
-    pub fn positions_with_offset(&mut self, offset: u32, output: &mut [u32]) {
-        self.position_reader.skip(self.position_to_skip);
-        self.position_to_skip = 0;
-        self.position_reader.read(output);
-        let mut cum = offset;
-        for output_mut in output.iter_mut() {
-            cum += *output_mut;
-            *output_mut = cum;
-        }
-    }
-}
+use crate::postings::BlockSegmentPostings;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
@@ -58,7 +23,7 @@ impl PositionComputer {
 pub struct SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
-    position_computer: Option<PositionComputer>,
+    position_reader: Option<PositionReader>,
     block_searcher: BlockSearcher,
 }
 
@@ -68,7 +33,7 @@ impl SegmentPostings {
         SegmentPostings {
             block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
-            position_computer: None,
+            position_reader: None,
             block_searcher: BlockSearcher::default(),
         }
     }
@@ -109,12 +74,12 @@ impl SegmentPostings {
     ///   frequencies and/or positions
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        positions_stream_opt: Option<PositionReader>,
+        position_reader: Option<PositionReader>,
     ) -> SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: 0, // cursor within the block
-            position_computer: positions_stream_opt.map(PositionComputer::new),
+            position_reader,
             block_searcher: BlockSearcher::default(),
         }
     }
@@ -125,12 +90,6 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
-        if self.position_computer.is_some() && self.cur < COMPRESSION_BLOCK_SIZE {
-            let term_freq = self.term_freq() as usize;
-            if let Some(position_computer) = self.position_computer.as_mut() {
-                position_computer.add_skip(term_freq);
-            }
-        }
         self.cur += 1;
         if self.cur >= self.block_cursor.block_len() {
             if self.block_cursor.advance() {
@@ -144,18 +103,13 @@ impl DocSet for SegmentPostings {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        dbg!("seek");
-        if self.doc() >= target {
-            return self.doc();
+        let doc = self.doc();
+        if doc >= target {
+            return doc;
         }
-
-        // In the following, thanks to the call to advance above,
-        // we know that the position is not loaded and we need
-        // to skip every doc_freq we cross.
 
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
-        let mut sum_freqs_skipped: u32 = 0;
         if self
             .block_cursor
             .docs()
@@ -164,21 +118,7 @@ impl DocSet for SegmentPostings {
             .unwrap_or(true)
         {
             // We are not in the right block.
-            if self.position_computer.is_some() {
-                // First compute all of the freqs skipped from the current block.
-                sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum::<u32>();
-                match self.block_cursor.seek(target) {
-                    BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
-                        sum_freqs_skipped += block_skip_freqs;
-                    }
-                    BlockSegmentPostingsSkipResult::Terminated => {
-                        self.block_cursor.doc_decoder.clear();
-                        self.cur = 0;
-                        return TERMINATED;
-                    }
-                }
-            } else if self.block_cursor.seek(target) == BlockSegmentPostingsSkipResult::Terminated {
-                // no positions needed. no need to sum freqs.
+            if !self.block_cursor.seek(target) {
                 self.block_cursor.doc_decoder.clear();
                 self.cur = 0;
                 return TERMINATED;
@@ -192,10 +132,6 @@ impl DocSet for SegmentPostings {
 
         let output = self.block_cursor.docs_aligned();
         let new_cur = self.block_searcher.search_in_block(&output, cur, target);
-        if let Some(position_computer) = self.position_computer.as_mut() {
-            sum_freqs_skipped += self.block_cursor.freqs()[cur..new_cur].iter().sum::<u32>();
-            position_computer.add_skip(sum_freqs_skipped as usize);
-        }
         self.cur = new_cur;
 
         // `doc` is now the first element >= `target`
@@ -250,9 +186,19 @@ impl Postings for SegmentPostings {
 
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         let term_freq = self.term_freq() as usize;
-        if let Some(position_comp) = self.position_computer.as_mut() {
+        if let Some(position_reader) = self.position_reader.as_mut() {
+            let read_offset = self.block_cursor.position_offset()
+                + (self.block_cursor.freqs()[..self.cur]
+                    .iter()
+                    .cloned()
+                    .sum::<u32>() as u64);
             output.resize(term_freq, 0u32);
-            position_comp.positions_with_offset(offset, &mut output[..]);
+            position_reader.read(read_offset, &mut output[..]);
+            let mut cum = offset;
+            for output_mut in output.iter_mut() {
+                cum += *output_mut;
+                *output_mut = cum;
+            }
         } else {
             output.clear();
         }
