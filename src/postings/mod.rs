@@ -24,7 +24,7 @@ pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
 pub use self::postings::Postings;
-pub(crate) use self::skip::{SkipReader, BlockInfo};
+pub(crate) use self::skip::{BlockInfo, SkipReader};
 pub use self::term_info::TermInfo;
 
 pub use self::block_segment_postings::{BlockSegmentPostings, BlockSegmentPostingsSkipResult};

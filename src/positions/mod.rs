@@ -39,7 +39,7 @@ pub mod tests {
 
     use super::{PositionReader, PositionSerializer};
     use crate::directory::ReadOnlySource;
-    use crate::positions::COMPRESSION_BLOCK_SIZE;
+    use crate::positions::reader::PositionReaderAbsolute;
     use std::iter;
 
     fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {
@@ -76,19 +76,35 @@ pub mod tests {
     }
 
     #[test]
-    fn test_position_skip() {
-        let v: Vec<u32> = (0..1_000).collect();
+    fn test_position_absolute_read() {
+        let v: Vec<u32> = (0..1000).collect();
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
-
-        let mut position_reader = PositionReader::new(stream, skip, 0u64);
-        position_reader.skip(10);
-        for &n in &[10, 127, COMPRESSION_BLOCK_SIZE, 130, 312] {
+        let mut position_reader = PositionReaderAbsolute::new(stream, skip, 0u64);
+        for &n in &[1, 10, 127, 128, 130, 312] {
             let mut v = vec![0u32; n];
-            position_reader.read(&mut v[..n]);
+            position_reader.read(0, &mut v[..]);
             for i in 0..n {
-                assert_eq!(v[i], 10u32 + i as u32);
+                assert_eq!(v[i], i as u32);
+            }
+        }
+    }
+
+    #[test]
+    fn test_position_absolute_read_with_offset() {
+        let v: Vec<u32> = (0..1000).collect();
+        let (stream, skip) = create_stream_buffer(&v[..]);
+        assert_eq!(skip.len(), 12);
+        assert_eq!(stream.len(), 1168);
+        let mut position_reader = PositionReaderAbsolute::new(stream, skip, 0u64);
+        for &offset in &[1u64, 10u64, 127u64, 128u64, 130u64, 312u64] {
+            for &len in &[1, 10, 130, 500] {
+                let mut v = vec![0u32; len];
+                position_reader.read(offset, &mut v[..]);
+                for i in 0..len {
+                    assert_eq!(v[i], i as u32 + offset as u32);
+                }
             }
         }
     }
@@ -113,6 +129,40 @@ pub mod tests {
                 c += 1;
             }
         }
+    }
+
+
+
+    #[test]
+    fn test_position_absolute_reread_anchor_different_than_block() {
+        let v: Vec<u32> = (0..2_000_000).collect();
+        let (stream, skip) = create_stream_buffer(&v[..]);
+        assert_eq!(skip.len(), 15_749);
+        assert_eq!(stream.len(), 4_987_872);
+       let mut position_reader =
+           PositionReaderAbsolute::new(stream.clone(), skip.clone(), 0);
+       let mut buf = [0u32; 256];
+       position_reader.read(128, &mut buf);
+        for  i in 0..256 {
+            assert_eq!(buf[i], (128 + i) as u32);
+        }
+       position_reader.read(128, &mut buf);
+        for  i in 0..256 {
+            assert_eq!(buf[i], (128 + i) as u32);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "offset arguments should be increasing.")]
+    fn test_position_absolute_panic_if_called_previous_anchor() {
+        let v: Vec<u32> = (0..2_000_000).collect();
+        let (stream, skip) = create_stream_buffer(&v[..]);
+        assert_eq!(skip.len(), 15_749);
+        assert_eq!(stream.len(), 4_987_872);
+        let mut buf = [0u32; 1];
+        let mut position_reader =
+            PositionReaderAbsolute::new(stream.clone(), skip.clone(), 200_000);
+        position_reader.read(10, &mut buf);
     }
 
     #[test]

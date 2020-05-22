@@ -1,9 +1,9 @@
 use crate::common::{BinarySerializable, VInt};
 use crate::directory::ReadOnlySource;
 use crate::postings::compression::{
-    AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE
+    AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
 };
-use crate::postings::{FreqReadingOption, SkipReader, BlockInfo};
+use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::schema::IndexRecordOption;
 use crate::{DocId, TERMINATED};
 
@@ -90,7 +90,7 @@ impl BlockSegmentPostings {
 
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let skip_reader = match skip_data_opt {
-            Some(skip_data) => SkipReader::new(skip_data,  doc_freq, record_option),
+            Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
             None => SkipReader::new(ReadOnlySource::empty(), doc_freq, record_option),
         };
 
@@ -123,7 +123,7 @@ impl BlockSegmentPostings {
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
-            self.skip_reader.reset(ReadOnlySource::empty(),  doc_freq);
+            self.skip_reader.reset(ReadOnlySource::empty(), doc_freq);
         }
         self.doc_freq = doc_freq as usize;
     }
@@ -214,13 +214,12 @@ impl BlockSegmentPostings {
 
         self.doc_decoder.clear();
 
-        let num_vint_docs =
-            if let BlockInfo::VInt(num_vint_docs) = self.skip_reader.block_info() {
-                num_vint_docs
-            } else {
-                // TODO
-                unimplemented!()
-            };
+        let num_vint_docs = if let BlockInfo::VInt(num_vint_docs) = self.skip_reader.block_info() {
+            num_vint_docs
+        } else {
+            // TODO
+            unimplemented!()
+        };
         if num_vint_docs == 0 {
             return BlockSegmentPostingsSkipResult::Terminated;
         }
@@ -239,26 +238,14 @@ impl BlockSegmentPostings {
             .unwrap_or(BlockSegmentPostingsSkipResult::Terminated)
     }
 
-    fn read_bitpacked_block(&mut self, doc_num_bits: u8, tf_num_bits: u8) {
-        let offset = self.skip_reader.byte_offset();
-        decode_block(
-            &mut self.doc_decoder,
-            if let FreqReadingOption::ReadFreq = self.freq_reading_option {
-                Some(&mut self.freq_decoder)
-            } else {
-                None
-            },
-            &self.data.as_slice()[offset..],
-            self.skip_reader.last_doc_in_previous_block,
-            doc_num_bits,
-            tf_num_bits,
-        );
-    }
-
     pub fn read_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
         match self.skip_reader.block_info() {
-            BlockInfo::BitPacked { doc_num_bits, tf_num_bits, ..  } => {
+            BlockInfo::BitPacked {
+                doc_num_bits,
+                tf_num_bits,
+                ..
+            } => {
                 decode_block(
                     &mut self.doc_decoder,
                     if let FreqReadingOption::ReadFreq = self.freq_reading_option {
@@ -298,9 +285,9 @@ impl BlockSegmentPostings {
         }
 
         if let BlockInfo::VInt(num_vint_docs) = self.skip_reader.block_info() {
-           if num_vint_docs== 0 {
-               return false;
-           }
+            if num_vint_docs == 0 {
+                return false;
+            }
         }
         self.read_block();
         true

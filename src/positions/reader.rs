@@ -60,6 +60,23 @@ impl Positions {
         u64::deserialize(&mut long_skip_blocks).expect("Index corrupted")
     }
 
+    fn reader_absolute(&self, offset: u64) -> PositionReaderAbsolute {
+        let long_skip_id = (offset / LONG_SKIP_INTERVAL) as usize;
+        let offset_num_bytes: u64 = self.long_skip(long_skip_id);
+        let mut position_read = OwnedRead::new(self.position_source.clone());
+        position_read.advance(offset_num_bytes as usize);
+        let mut skip_read = OwnedRead::new(self.skip_source.clone());
+        skip_read.advance(long_skip_id * LONG_SKIP_IN_BLOCKS);
+        PositionReaderAbsolute {
+            bit_packer: self.bit_packer,
+            skip_read,
+            position_read,
+            buffer: Box::new([0u32; 128]),
+            block_offset: std::i64::MAX as u64,
+            anchor_offset: (long_skip_id as u64) * LONG_SKIP_INTERVAL,
+        }
+    }
+
     fn reader(&self, offset: u64) -> PositionReader {
         let long_skip_id = (offset / LONG_SKIP_INTERVAL) as usize;
         let small_skip = (offset % LONG_SKIP_INTERVAL) as usize;
@@ -81,12 +98,84 @@ impl Positions {
     }
 }
 
+pub struct PositionReaderAbsolute {
+    skip_read: OwnedRead,
+    position_read: OwnedRead,
+    bit_packer: BitPacker4x,
+    buffer: Box<[u32; COMPRESSION_BLOCK_SIZE]>,
+
+    block_offset: u64,
+    anchor_offset: u64,
+}
+
+impl PositionReaderAbsolute {
+    pub fn new(
+        position_source: ReadOnlySource,
+        skip_source: ReadOnlySource,
+        offset: u64,
+    ) -> PositionReaderAbsolute {
+        Positions::new(position_source, skip_source).reader_absolute(offset)
+    }
+
+    /// Fills a buffer with the positions `[offset..offset+output.len())` integers.
+    ///
+    /// `offset` is required to have a value >= to the offsets given in previous calls
+    /// for the given `PositionReaderAbsolute` instance.
+    pub fn read(&mut self, mut offset: u64, mut output: &mut [u32]) {
+        assert!(
+            offset >= self.anchor_offset,
+            "offset arguments should be increasing."
+        );
+        let delta_to_block_offset = offset as i64 - self.block_offset as i64;
+        if delta_to_block_offset < 0 || delta_to_block_offset >= 128 {
+            // The first position is not within the first block.
+            // We need to decompress the first block.
+            let delta_to_anchor_offset = offset - self.anchor_offset;
+            let num_blocks_to_skip =
+                (delta_to_anchor_offset / (COMPRESSION_BLOCK_SIZE as u64)) as usize;
+            let num_bits: usize = self.skip_read.as_ref()[..num_blocks_to_skip]
+                .iter()
+                .cloned()
+                .map(|num_bits| num_bits as usize)
+                .sum();
+            let num_bytes_to_skip = num_bits * COMPRESSION_BLOCK_SIZE / 8;
+            self.skip_read.advance(num_blocks_to_skip as usize);
+            self.position_read.advance(num_bytes_to_skip);
+            self.anchor_offset = offset - (offset % COMPRESSION_BLOCK_SIZE as u64);
+            self.block_offset = self.anchor_offset;
+            let num_bits = self.skip_read.get(0);
+            self.bit_packer
+                .decompress(self.position_read.as_ref(), self.buffer.as_mut(), num_bits);
+        }
+
+        let mut num_bits = self.skip_read.get(0);
+        let mut position_data = self.position_read.as_ref();
+
+        for i in 1.. {
+            let offset_in_block = (offset as usize) % COMPRESSION_BLOCK_SIZE;
+            let remaining_in_block = COMPRESSION_BLOCK_SIZE - offset_in_block;
+            if remaining_in_block >= output.len() {
+                output.copy_from_slice(&self.buffer[offset_in_block..][..output.len()]);
+                return;
+            }
+            output[..remaining_in_block].copy_from_slice(&self.buffer[offset_in_block..]);
+            output = &mut output[remaining_in_block..];
+            offset += remaining_in_block as u64;
+            position_data = &position_data[(num_bits as usize * COMPRESSION_BLOCK_SIZE / 8)..];
+            num_bits = self.skip_read.get(i);
+            self.bit_packer
+                .decompress(position_data, self.buffer.as_mut(), num_bits);
+            self.block_offset += COMPRESSION_BLOCK_SIZE as u64;
+        }
+    }
+}
+
 pub struct PositionReader {
     skip_read: OwnedRead,
     position_read: OwnedRead,
     bit_packer: BitPacker4x,
     inner_offset: usize,
-    buffer: Box<[u32; 128]>,
+    buffer: Box<[u32; COMPRESSION_BLOCK_SIZE]>,
     ahead: Option<usize>, // if None, no block is loaded.
                           // if Some(num_blocks), the block currently loaded is num_blocks ahead
                           // of the block of the next int to read.
@@ -96,14 +185,14 @@ pub struct PositionReader {
 // compared to the cursor of the actual stream.
 //
 // By contract, when this function is called, the current block has to be
-// decompressed.
+// already decompressed.
 //
 // If the requested number of els ends exactly at a given block, the next
 // block is not decompressed.
 fn read_impl(
     bit_packer: BitPacker4x,
     mut position: &[u8],
-    buffer: &mut [u32; 128],
+    buffer: &mut [u32; COMPRESSION_BLOCK_SIZE],
     mut inner_offset: usize,
     num_bits: &[u8],
     output: &mut [u32],
