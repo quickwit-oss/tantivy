@@ -6,7 +6,6 @@ use crate::directory::WritePtr;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
-use crate::postings::USE_SKIP_INFO_LIMIT;
 use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
@@ -391,7 +390,7 @@ impl<W: Write> PostingsSerializer<W> {
             }
             self.block.clear();
         }
-        if doc_freq >= USE_SKIP_INFO_LIMIT {
+        if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
             let skip_data = self.skip_write.data();
             VInt(skip_data.len() as u64).serialize(&mut self.output_write)?;
             self.output_write.write_all(skip_data)?;
