@@ -139,12 +139,13 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_array()
     }
 
+    #[inline(always)]
     pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
         self.doc_decoder.output_aligned()
     }
 
     /// Return the document at index `idx` of the block.
-    #[inline]
+    #[inline(always)]
     pub fn doc(&self, idx: usize) -> u32 {
         self.doc_decoder.output(idx)
     }
@@ -177,23 +178,12 @@ impl BlockSegmentPostings {
 
     /// Position on a block that may contains `target_doc`.
     ///
-    /// If the current block last element is greater or equal to `target_doc`, return true.
-    ///
-    /// Returns true if a block that has an element greater or equal to the target is found.
-    /// Returning true does not guarantee that the smallest element of the block is smaller
-    /// than the target. It only guarantees that the last element is greater or equal.
-    ///
-    /// Returns false iff all of the document remaining are smaller than
-    /// `doc_id`. In that case, all of these document are consumed.
-    pub fn seek(&mut self, target_doc: DocId) -> bool {
-        self.skip_reader.seek(target_doc);
-        self.read_block();
-
-        // The last block last doc may actually stop before the target.
-        self.docs()
-            .last()
-            .map(|last_doc| *last_doc >= target_doc)
-            .unwrap_or(false)
+    /// If all docs are smaller than target, the block loaded may be empty,
+    /// or be the last an incomplete VInt block.
+    pub fn seek(&mut self, target_doc: DocId) {
+        if self.skip_reader.seek(target_doc) {
+            self.read_block();
+        }
     }
 
     fn read_block(&mut self) {
@@ -263,6 +253,7 @@ mod tests {
     use crate::common::HasLen;
     use crate::core::Index;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::postings::postings::Postings;
     use crate::postings::SegmentPostings;
     use crate::schema::IndexRecordOption;
@@ -374,17 +365,6 @@ mod tests {
     }
 
     #[test]
-    fn test_block_segment_postings_skip() {
-        for i in 0..4 {
-            let mut block_postings = build_block_postings(&[3]);
-            assert_eq!(block_postings.seek(i), true);
-            assert_eq!(block_postings.seek(i), true);
-        }
-        let mut block_postings = build_block_postings(&[3]);
-        assert_eq!(block_postings.seek(4u32), false);
-    }
-
-    #[test]
     fn test_block_segment_postings_skip2() {
         let mut docs = vec![0];
         for i in 0..1300 {
@@ -392,13 +372,13 @@ mod tests {
         }
         let mut block_postings = build_block_postings(&docs[..]);
         for i in vec![0, 424, 10000] {
-            assert!(block_postings.seek(i));
+            block_postings.seek(i);
             let docs = block_postings.docs();
             assert!(docs[0] <= i);
             assert!(docs.last().cloned().unwrap_or(0u32) >= i);
         }
-        assert!(!block_postings.seek(100_000));
-        assert!(!block_postings.seek(101_000));
+        block_postings.seek(100_000);
+        assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
     }
 
     #[test]

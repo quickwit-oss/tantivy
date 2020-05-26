@@ -198,6 +198,18 @@ where
 
     // TODO Also implement `count` with deletes efficiently.
 
+    fn doc(&self) -> DocId {
+        self.doc
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.docsets
+            .iter()
+            .map(|docset| docset.size_hint())
+            .max()
+            .unwrap_or(0u32)
+    }
+
     fn count_including_deleted(&mut self) -> u32 {
         if self.doc == TERMINATED {
             return 0;
@@ -218,18 +230,6 @@ where
         }
         self.cursor = HORIZON_NUM_TINYBITSETS;
         count
-    }
-
-    fn doc(&self) -> DocId {
-        self.doc
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.docsets
-            .iter()
-            .map(|docset| docset.size_hint())
-            .max()
-            .unwrap_or(0u32)
     }
 }
 
