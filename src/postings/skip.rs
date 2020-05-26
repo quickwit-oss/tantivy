@@ -102,7 +102,8 @@ impl SkipReader {
         self.remaining_docs = doc_freq;
     }
 
-    pub fn doc(&self) -> DocId {
+    #[inline(always)]
+    pub(crate) fn last_doc_in_block(&self) -> DocId {
         self.last_doc_in_block
     }
 
@@ -158,10 +159,17 @@ impl SkipReader {
     /// If the target is larger than all documents, the skip_reader
     /// then advance to the last Variable In block.
     ///
-    /// Returns true if the last block is reached.
-    pub fn seek(&mut self, target: DocId) {
-        while self.doc() < target {
+    /// Returns true if the skip reader had to advance,
+    /// false if it was already positionned on the right block.
+    pub fn seek(&mut self, target: DocId) -> bool {
+        if self.last_doc_in_block() >= target {
+            return false;
+        }
+        loop {
             self.advance();
+            if self.last_doc_in_block() >= target {
+                return true;
+            }
         }
     }
 
@@ -218,7 +226,7 @@ mod tests {
             IndexRecordOption::WithFreqs,
         );
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.doc(), 1u32);
+        assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
@@ -228,7 +236,7 @@ mod tests {
             }
         );
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.doc(), 5u32);
+        assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert_eq!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
@@ -257,7 +265,7 @@ mod tests {
             IndexRecordOption::Basic,
         );
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.doc(), 1u32);
+        assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
@@ -267,7 +275,7 @@ mod tests {
             }
         );
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.doc(), 5u32);
+        assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert_eq!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
@@ -295,7 +303,7 @@ mod tests {
             IndexRecordOption::Basic,
         );
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.doc(), 1u32);
+        assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {

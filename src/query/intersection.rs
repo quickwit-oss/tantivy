@@ -112,11 +112,6 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             debug_assert_eq!(left.doc(), right.doc());
             // test the remaining scorers;
             for docset in self.others.iter_mut() {
-                // `candidate_ord` is already at the
-                // right position.
-                //
-                // Calling `skip_next` would advance this docset
-                // and miss it.
                 let seek_doc = docset.seek(candidate);
                 if seek_doc > candidate {
                     candidate = left.seek(seek_doc);

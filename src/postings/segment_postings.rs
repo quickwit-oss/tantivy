@@ -1,6 +1,6 @@
 use crate::common::HasLen;
 
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::DocSet;
 use crate::positions::PositionReader;
 
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -90,61 +90,43 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
-        self.cur += 1;
-        if self.cur >= self.block_cursor.block_len() {
-            if self.block_cursor.advance() {
-                self.cur = 0;
-            } else {
-                self.cur = COMPRESSION_BLOCK_SIZE - 1;
-                return TERMINATED;
-            }
+        if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
+            self.cur = 0;
+            self.block_cursor.advance();
+        } else {
+            self.cur += 1;
         }
         self.doc()
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        let doc = self.doc();
-        if doc >= target {
-            return doc;
+        if self.doc() == target {
+            return target;
         }
-
-        // skip blocks until one that might contain the target
-        // check if we need to go to the next block
-        if self
-            .block_cursor
-            .docs()
-            .last()
-            .map(|&doc| doc < target)
-            .unwrap_or(true)
-        {
-            // We are not in the right block.
-            if !self.block_cursor.seek(target) {
-                self.block_cursor.doc_decoder.clear();
-                self.cur = 0;
-                return TERMINATED;
-            }
-            self.cur = 0;
-        }
+        self.block_cursor.seek(target);
 
         // At this point we are on the block, that might contain our document.
-
-        let cur = self.cur;
-
         let output = self.block_cursor.docs_aligned();
-        let new_cur = self.block_searcher.search_in_block(&output, cur, target);
-        self.cur = new_cur;
+
+        self.cur = self.block_searcher.search_in_block(&output, target);
+
+        // The last block is not full and padded with the value TERMINATED,
+        // so that we are guaranteed to have at least doc in the block (a real one or the padding)
+        // that is greater or equal to the target.
+        debug_assert!(self.cur < COMPRESSION_BLOCK_SIZE);
 
         // `doc` is now the first element >= `target`
-        let doc = output.0[new_cur];
+
+        // If all docs are smaller than target the current block should be incomplemented and padded
+        // with the value `TERMINATED`.
+        //
+        // After the search, the cursor should point to the first value of TERMINATED.
+        let doc = output.0[self.cur];
         debug_assert!(doc >= target);
         doc
     }
 
     /// Return the current document's `DocId`.
-    ///
-    /// # Panics
-    ///
-    /// Will panics if called without having called advance before.
     #[inline]
     fn doc(&self) -> DocId {
         self.block_cursor.doc(self.cur)
