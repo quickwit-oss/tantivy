@@ -105,7 +105,7 @@ extern crate serde_json;
 extern crate log;
 
 #[macro_use]
-extern crate failure;
+extern crate thiserror;
 
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;

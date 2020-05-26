@@ -381,19 +381,16 @@ impl<'de> Deserialize<'de> for Schema {
 
 /// Error that may happen when deserializing
 /// a document from JSON.
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
-    #[fail(display = "The provided string is not valid JSON")]
+    #[error("The provided string is not valid JSON")]
     NotJSON(String),
     /// One of the value node could not be parsed.
-    #[fail(display = "The field '{:?}' could not be parsed: {:?}", _0, _1)]
+    #[error("The field '{0:?}' could not be parsed: {1:?}")]
     ValueError(String, ValueParsingError),
     /// The json-document contains a field that is not declared in the schema.
-    #[fail(
-        display = "The document contains a field that is not declared in the schema: {:?}",
-        _0
-    )]
+    #[error("The document contains a field that is not declared in the schema: {0:?}")]
     NoSuchFieldInSchema(String),
 }
 
