@@ -346,7 +346,7 @@ impl IndexWriter {
 
     fn drop_sender(&mut self) {
         let (sender, _receiver) = channel::bounded(1);
-        mem::replace(&mut self.operation_sender, sender);
+        self.operation_sender = sender;
     }
 
     /// If there are some merging threads, blocks until they all finish their work and

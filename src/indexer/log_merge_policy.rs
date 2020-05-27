@@ -54,10 +54,6 @@ impl LogMergePolicy {
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
-        if segments.is_empty() {
-            return Vec::new();
-        }
-
         let mut size_sorted_tuples = segments
             .iter()
             .map(SegmentMeta::num_docs)
@@ -67,27 +63,35 @@ impl MergePolicy for LogMergePolicy {
 
         size_sorted_tuples.sort_by(|x, y| y.1.cmp(&(x.1)));
 
+        if size_sorted_tuples.len() <= 1 {
+            return Vec::new();
+        }
+
         let size_sorted_log_tuples: Vec<_> = size_sorted_tuples
             .into_iter()
             .map(|(ind, num_docs)| (ind, f64::from(self.clip_min_size(num_docs)).log2()))
             .collect();
 
-        let (first_ind, first_score) = size_sorted_log_tuples[0];
-        let mut current_max_log_size = first_score;
-        let mut levels = vec![vec![first_ind]];
-        for &(ind, score) in (&size_sorted_log_tuples).iter().skip(1) {
-            if score < (current_max_log_size - self.level_log_size) {
-                current_max_log_size = score;
-                levels.push(Vec::new());
+        if let Some(&(first_ind, first_score)) = size_sorted_log_tuples.first() {
+            let mut current_max_log_size = first_score;
+            let mut levels = vec![vec![first_ind]];
+            for &(ind, score) in (&size_sorted_log_tuples).iter().skip(1) {
+                if score < (current_max_log_size - self.level_log_size) {
+                    current_max_log_size = score;
+                    levels.push(Vec::new());
+                }
+                levels.last_mut().unwrap().push(ind);
             }
-            levels.last_mut().unwrap().push(ind);
+            levels
+                .iter()
+                .filter(|level| level.len() >= self.min_merge_size)
+                .map(|ind_vec| {
+                    MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect())
+                })
+                .collect()
+        } else {
+            return vec![];
         }
-
-        levels
-            .iter()
-            .filter(|level| level.len() >= self.min_merge_size)
-            .map(|ind_vec| MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect()))
-            .collect()
     }
 }
 
@@ -179,6 +183,7 @@ mod tests {
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
     }
+
     #[test]
     fn test_log_merge_policy_small_segments() {
         // segments under min_layer_size are merged together
@@ -192,6 +197,17 @@ mod tests {
         ];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);
+    }
+
+    #[test]
+    fn test_log_merge_policy_all_segments_too_large_to_merge() {
+        let eight_large_segments: Vec<SegmentMeta> =
+            std::iter::repeat_with(|| create_random_segment_meta(100_001))
+                .take(8)
+                .collect();
+        assert!(test_merge_policy()
+            .compute_merge_candidates(&eight_large_segments)
+            .is_empty());
     }
 
     #[test]

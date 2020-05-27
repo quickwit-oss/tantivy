@@ -87,6 +87,7 @@ fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
     (begin, end)
 }
 
+#[inline(never)]
 fn galloping(block_docs: &[u32], target: u32) -> usize {
     let (start, end) = exponential_search(&block_docs, target);
     start + linear_search(&block_docs[start..end], target)
@@ -133,19 +134,14 @@ impl BlockSearcher {
     ///
     /// Indeed, if the block is not full, the remaining items are TERMINATED.
     /// It is surprisingly faster, most likely because of the lack of branch misprediction.
-    pub(crate) fn search_in_block(
-        self,
-        block_docs: &AlignedBuffer,
-        start: usize,
-        target: u32,
-    ) -> usize {
+    pub(crate) fn search_in_block(self, block_docs: &AlignedBuffer, target: u32) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
             if self == BlockSearcher::SSE2 {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
-        start + galloping(&block_docs.0[start..], target)
+        galloping(&block_docs.0[..], target)
     }
 }
 
@@ -199,12 +195,10 @@ mod tests {
         assert!(block.len() < COMPRESSION_BLOCK_SIZE);
         let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE];
         output_buffer[..block.len()].copy_from_slice(block);
-        for i in 0..cursor {
-            assert_eq!(
-                block_searcher.search_in_block(&AlignedBuffer(output_buffer), i, target),
-                cursor
-            );
-        }
+        assert_eq!(
+            block_searcher.search_in_block(&AlignedBuffer(output_buffer), target),
+            cursor
+        );
     }
 
     fn util_test_search_in_block_all(block_searcher: BlockSearcher, block: &[u32]) {

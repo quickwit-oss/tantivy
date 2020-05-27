@@ -11,13 +11,13 @@ impl<TCustomScorer, TScore> CustomScoreTopCollector<TCustomScorer, TScore>
 where
     TScore: Clone + PartialOrd,
 {
-    pub fn new(
+    pub(crate) fn new(
         custom_scorer: TCustomScorer,
-        limit: usize,
+        collector: TopCollector<TScore>,
     ) -> CustomScoreTopCollector<TCustomScorer, TScore> {
         CustomScoreTopCollector {
             custom_scorer,
-            collector: TopCollector::with_limit(limit),
+            collector,
         }
     }
 }

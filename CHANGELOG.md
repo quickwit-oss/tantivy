@@ -16,7 +16,7 @@ while doc != TERMINATED {
 ```
 The change made it possible to greatly simplify a lot of the docset's code.
 - Misc internal optimization and introduction of the `Scorer::for_each_pruning` function. (@fulmicoton)
-
+- Added an offset option to the Top(.*)Collectors. (@robyoung)
 
 Tantivy 0.12.0
 ======================
