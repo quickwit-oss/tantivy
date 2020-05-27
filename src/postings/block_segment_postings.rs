@@ -16,6 +16,7 @@ use crate::{DocId, TERMINATED};
 /// use cases, you should prefer using `SegmentPostings` for most usage.
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
+    loaded_offset: usize,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
 
@@ -91,6 +92,7 @@ impl BlockSegmentPostings {
         let doc_freq = doc_freq as usize;
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
+            loaded_offset: std::usize::MAX,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             doc_freq,
@@ -114,6 +116,8 @@ impl BlockSegmentPostings {
     pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: ReadOnlySource) {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         self.data = ReadOnlySource::new(postings_data);
+        self.loaded_offset = std::usize::MAX;
+        self.loaded_offset = std::usize::MAX;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
@@ -181,13 +185,16 @@ impl BlockSegmentPostings {
     /// If all docs are smaller than target, the block loaded may be empty,
     /// or be the last an incomplete VInt block.
     pub fn seek(&mut self, target_doc: DocId) {
-        if self.skip_reader.seek(target_doc) {
-            self.read_block();
-        }
+        self.skip_reader.seek(target_doc);
+        self.load_block();
     }
 
-    fn read_block(&mut self) {
+    fn load_block(&mut self) {
         let offset = self.skip_reader.byte_offset();
+        if self.loaded_offset == offset {
+            return;
+        }
+        self.loaded_offset = offset;
         match self.skip_reader.block_info() {
             BlockInfo::BitPacked {
                 doc_num_bits,
@@ -230,7 +237,7 @@ impl BlockSegmentPostings {
         if !self.skip_reader.advance() {
             return false;
         }
-        self.read_block();
+        self.load_block();
         true
     }
 
@@ -238,6 +245,7 @@ impl BlockSegmentPostings {
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
+            loaded_offset: std::usize::MAX,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
             doc_freq: 0,

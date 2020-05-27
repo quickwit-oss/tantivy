@@ -158,18 +158,9 @@ impl SkipReader {
     ///
     /// If the target is larger than all documents, the skip_reader
     /// then advance to the last Variable In block.
-    ///
-    /// Returns true if the skip reader had to advance,
-    /// false if it was already positionned on the right block.
-    pub fn seek(&mut self, target: DocId) -> bool {
-        if self.last_doc_in_block() >= target {
-            return false;
-        }
-        loop {
+    pub fn seek(&mut self, target: DocId) {
+        while self.last_doc_in_block < target {
             self.advance();
-            if self.last_doc_in_block() >= target {
-                return true;
-            }
         }
     }
 
