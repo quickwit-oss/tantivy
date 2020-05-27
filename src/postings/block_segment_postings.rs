@@ -20,10 +20,10 @@ pub struct BlockSegmentPostings {
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
 
-    doc_freq: usize,
+    doc_freq: u32,
 
     data: ReadOnlySource,
-    skip_reader: SkipReader,
+    pub(crate) skip_reader: SkipReader,
 }
 
 fn decode_bitpacked_block(
@@ -89,7 +89,6 @@ impl BlockSegmentPostings {
             None => SkipReader::new(ReadOnlySource::empty(), doc_freq, record_option),
         };
 
-        let doc_freq = doc_freq as usize;
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
             loaded_offset: std::usize::MAX,
@@ -123,14 +122,14 @@ impl BlockSegmentPostings {
         } else {
             self.skip_reader.reset(ReadOnlySource::empty(), doc_freq);
         }
-        self.doc_freq = doc_freq as usize;
+        self.doc_freq = doc_freq;
     }
 
     /// Returns the document frequency associated to this block postings.
     ///
     /// This `doc_freq` is simply the sum of the length of all of the blocks
     /// length, and it does not take in account deleted documents.
-    pub fn doc_freq(&self) -> usize {
+    pub fn doc_freq(&self) -> u32 {
         self.doc_freq
     }
 

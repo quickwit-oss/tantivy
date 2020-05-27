@@ -33,8 +33,8 @@ impl TermScorer {
         self.postings.term_freq()
     }
 
-    pub fn doc_freq(&self,) -> usize {
-        self.postings.doc_freq()
+    pub fn doc_freq(&self) -> usize {
+        self.postings.doc_freq() as usize
     }
 
     pub fn fieldnorm_id(&self) -> u8 {
@@ -47,7 +47,7 @@ impl TermScorer {
         self.similarity_weight.explain(fieldnorm_id, term_freq)
     }
 
-    pub fn max_score(&self, ) -> f32 {
+    pub fn max_score(&self) -> f32 {
         unimplemented!();
     }
 }

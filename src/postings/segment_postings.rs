@@ -38,8 +38,8 @@ impl SegmentPostings {
         }
     }
 
-    pub fn doc_freq(&self) -> usize {
-        self.block_cursor.doc_freq
+    pub fn doc_freq(&self) -> u32 {
+        self.block_cursor.doc_freq()
     }
 
     /// Creates a segment postings object with the given documents
@@ -143,7 +143,7 @@ impl DocSet for SegmentPostings {
 
 impl HasLen for SegmentPostings {
     fn len(&self) -> usize {
-        self.block_cursor.doc_freq()
+        self.block_cursor.doc_freq() as usize
     }
 }
 

@@ -2,7 +2,7 @@ use crate::common::BinarySerializable;
 use crate::directory::ReadOnlySource;
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
 use crate::schema::IndexRecordOption;
-use crate::{DocId, TERMINATED};
+use crate::{DocId, Score, TERMINATED};
 use owned_read::OwnedRead;
 
 pub struct SkipSerializer {
@@ -102,8 +102,11 @@ impl SkipReader {
         self.remaining_docs = doc_freq;
     }
 
-    #[inline(always)]
-    pub(crate) fn last_doc_in_block(&self) -> DocId {
+    pub fn block_max_score(&self) -> Score {
+        unimplemented!();
+    }
+
+    pub fn last_doc_in_block(&self) -> DocId {
         self.last_doc_in_block
     }
 
@@ -159,7 +162,7 @@ impl SkipReader {
     /// If the target is larger than all documents, the skip_reader
     /// then advance to the last Variable In block.
     pub fn seek(&mut self, target: DocId) {
-        while self.last_doc_in_block < target {
+        while self.last_doc_in_block() < target {
             self.advance();
         }
     }

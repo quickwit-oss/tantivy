@@ -7,9 +7,9 @@ use crate::query::Exclude;
 use crate::query::Occur;
 use crate::query::RequiredOptionalScorer;
 use crate::query::Scorer;
-use crate::query::{Union, TermUnion};
 use crate::query::Weight;
 use crate::query::{intersect_scorers, Explanation};
+use crate::query::{TermUnion, Union};
 use crate::DocId;
 use std::collections::HashMap;
 
@@ -29,8 +29,7 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            let scorer: Box<dyn Scorer> =
-                Box::new(TermUnion::<TScoreCombiner>::from(scorers));
+            let scorer: Box<dyn Scorer> = Box::new(TermUnion::<TScoreCombiner>::from(scorers));
             return scorer;
         }
     }
