@@ -7,9 +7,10 @@ use crate::query::explanation::does_not_match;
 use crate::query::Weight;
 use crate::query::{Explanation, Scorer};
 use crate::schema::IndexRecordOption;
-use crate::DocId;
+use crate::{DocId, Score};
 use crate::Result;
 use crate::Term;
+use crate::query::weight::{for_each_scorer, for_each_pruning_scorer};
 
 pub struct TermWeight {
     term: Term,
@@ -42,6 +43,39 @@ impl Weight for TermWeight {
                 .map(|term_info| term_info.doc_freq)
                 .unwrap_or(0))
         }
+    }
+
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
+    fn for_each(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score),
+    ) -> crate::Result<()> {
+        let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
+        for_each_scorer(&mut scorer, callback);
+        Ok(())
+    }
+
+    /// Calls `callback` with all of the `(doc, score)` for which score
+    /// is exceeding a given threshold.
+    ///
+    /// This method is useful for the TopDocs collector.
+    /// For all docsets, the blanket implementation has the benefit
+    /// of prefiltering (doc, score) pairs, avoiding the
+    /// virtual dispatch cost.
+    ///
+    /// More importantly, it makes it possible for scorers to implement
+    /// important optimization (e.g. BlockWAND for union).
+    fn for_each_pruning(
+        &self,
+        threshold: f32,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> crate::Result<()> {
+        let mut scorer = self.scorer(reader, 1.0f32)?;
+        for_each_pruning_scorer(&mut scorer, threshold, callback);
+        Ok(())
     }
 }
 

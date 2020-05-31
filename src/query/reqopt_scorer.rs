@@ -101,7 +101,10 @@ mod tests {
                 ConstScorer::from(VecDocSet::from(vec![])),
             );
         let mut docs = vec![];
-        reqoptscorer.for_each(&mut |doc, _| docs.push(doc));
+        while reqoptscorer.doc() != TERMINATED {
+            docs.push(reqoptscorer.doc());
+            reqoptscorer.advance();
+        }
         assert_eq!(docs, req);
     }
 
