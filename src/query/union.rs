@@ -293,14 +293,6 @@ impl<TScoreCombiner: ScoreCombiner> Scorer for TermUnion<TScoreCombiner> {
         self.underlying.score()
     }
 
-    fn for_each_pruning(
-        &mut self,
-        threshold: f32,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) {
-        let term_scorers = std::mem::replace(&mut self.underlying.docsets, vec![]);
-        block_wand(term_scorers, threshold, callback);
-    }
 }
 
 #[cfg(test)]

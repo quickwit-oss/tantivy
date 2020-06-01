@@ -1,4 +1,4 @@
-use crate::docset::{DocSet, TERMINATED};
+use crate::docset::DocSet;
 use crate::DocId;
 use crate::Score;
 use downcast_rs::impl_downcast;
@@ -12,41 +12,6 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     ///
     /// This method will perform a bit of computation and is not cached.
     fn score(&mut self) -> Score;
-
-    /// Iterates through all of the document matched by the DocSet
-    /// `DocSet` and push the scored documents to the collector.
-    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
-        let mut doc = self.doc();
-        while doc != TERMINATED {
-            callback(doc, self.score());
-            doc = self.advance();
-        }
-    }
-
-    /// Calls `callback` with all of the `(doc, score)` for which score
-    /// is exceeding a given threshold.
-    ///
-    /// This method is useful for the TopDocs collector.
-    /// For all docsets, the blanket implementation has the benefit
-    /// of prefiltering (doc, score) pairs, avoiding the
-    /// virtual dispatch cost.
-    ///
-    /// More importantly, it makes it possible for scorers to implement
-    /// important optimization (e.g. BlockWAND for union).
-    fn for_each_pruning(
-        &mut self,
-        mut threshold: f32,
-        callback: &mut dyn FnMut(DocId, Score) -> Score,
-    ) {
-        let mut doc = self.doc();
-        while doc != TERMINATED {
-            let score = self.score();
-            if score > threshold {
-                threshold = callback(doc, score);
-            }
-            doc = self.advance();
-        }
-    }
 }
 
 impl_downcast!(Scorer);
@@ -54,11 +19,6 @@ impl_downcast!(Scorer);
 impl Scorer for Box<dyn Scorer> {
     fn score(&mut self) -> Score {
         self.deref_mut().score()
-    }
-
-    fn for_each(&mut self, callback: &mut dyn FnMut(DocId, Score)) {
-        let scorer = self.deref_mut();
-        scorer.for_each(callback);
     }
 }
 

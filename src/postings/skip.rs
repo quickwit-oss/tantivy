@@ -106,7 +106,7 @@ impl SkipReader {
         unimplemented!();
     }
 
-    pub fn last_doc_in_block(&self) -> DocId {
+    pub(crate) fn last_doc_in_block(&self) -> DocId {
         self.last_doc_in_block
     }
 
