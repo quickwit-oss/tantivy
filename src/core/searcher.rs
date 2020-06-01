@@ -140,8 +140,7 @@ impl Searcher {
         let segment_readers = self.segment_readers();
         let fruits = executor.map(
             |(segment_ord, segment_reader)| {
-                let mut scorer = weight.scorer(segment_reader, 1.0f32)?;
-                collector.collect_segment(scorer.as_mut(), segment_ord as u32, segment_reader)
+                collector.collect_segment(weight.as_ref(), segment_ord as u32, segment_reader)
             },
             segment_readers.iter().enumerate(),
         )?;

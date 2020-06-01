@@ -1,7 +1,45 @@
 use super::Scorer;
 use crate::core::SegmentReader;
 use crate::query::Explanation;
-use crate::DocId;
+use crate::{DocId, Score, TERMINATED};
+
+/// Iterates through all of the document matched by the DocSet
+/// `DocSet` and push the scored documents to the collector.
+pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
+    scorer: &mut TScorer,
+    callback: &mut dyn FnMut(DocId, Score),
+) {
+    let mut doc = scorer.doc();
+    while doc != TERMINATED {
+        callback(doc, scorer.score());
+        doc = scorer.advance();
+    }
+}
+
+/// Calls `callback` with all of the `(doc, score)` for which score
+/// is exceeding a given threshold.
+///
+/// This method is useful for the TopDocs collector.
+/// For all docsets, the blanket implementation has the benefit
+/// of prefiltering (doc, score) pairs, avoiding the
+/// virtual dispatch cost.
+///
+/// More importantly, it makes it possible for scorers to implement
+/// important optimization (e.g. BlockWAND for union).
+pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
+    scorer: &mut TScorer,
+    mut threshold: f32,
+    callback: &mut dyn FnMut(DocId, Score) -> Score,
+) {
+    let mut doc = scorer.doc();
+    while doc != TERMINATED {
+        let score = scorer.score();
+        if score > threshold {
+            threshold = callback(doc, score);
+        }
+        doc = scorer.advance();
+    }
+}
 
 /// A Weight is the specialization of a Query
 /// for a given set of segments.
@@ -26,5 +64,38 @@ pub trait Weight: Send + Sync + 'static {
         } else {
             Ok(scorer.count_including_deleted())
         }
+    }
+
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
+    fn for_each(
+        &self,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score),
+    ) -> crate::Result<()> {
+        let mut scorer = self.scorer(reader, 1.0f32)?;
+        for_each_scorer(scorer.as_mut(), callback);
+        Ok(())
+    }
+
+    /// Calls `callback` with all of the `(doc, score)` for which score
+    /// is exceeding a given threshold.
+    ///
+    /// This method is useful for the TopDocs collector.
+    /// For all docsets, the blanket implementation has the benefit
+    /// of prefiltering (doc, score) pairs, avoiding the
+    /// virtual dispatch cost.
+    ///
+    /// More importantly, it makes it possible for scorers to implement
+    /// important optimization (e.g. BlockWAND for union).
+    fn for_each_pruning(
+        &self,
+        threshold: f32,
+        reader: &SegmentReader,
+        callback: &mut dyn FnMut(DocId, Score) -> Score,
+    ) -> crate::Result<()> {
+        let mut scorer = self.scorer(reader, 1.0f32)?;
+        for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
+        Ok(())
     }
 }

@@ -109,7 +109,7 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
-use crate::query::Scorer;
+use crate::query::Weight;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -159,21 +159,22 @@ pub trait Collector: Sync {
     /// Created a segment collector and
     fn collect_segment(
         &self,
-        scorer: &mut dyn Scorer,
+        weight: &dyn Weight,
         segment_ord: u32,
-        segment_reader: &SegmentReader,
+        reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
-        let mut segment_collector = self.for_segment(segment_ord as u32, segment_reader)?;
-        if let Some(delete_bitset) = segment_reader.delete_bitset() {
-            scorer.for_each(&mut |doc, score| {
+        let mut segment_collector = self.for_segment(segment_ord as u32, reader)?;
+
+        if let Some(delete_bitset) = reader.delete_bitset() {
+            weight.for_each(reader, &mut |doc, score| {
                 if delete_bitset.is_alive(doc) {
                     segment_collector.collect(doc, score);
                 }
-            });
+            })?;
         } else {
-            scorer.for_each(&mut |doc, score| {
+            weight.for_each(reader, &mut |doc, score| {
                 segment_collector.collect(doc, score);
-            })
+            })?;
         }
         Ok(segment_collector.harvest())
     }

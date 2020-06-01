@@ -6,9 +6,8 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::docset::TERMINATED;
 use crate::fastfield::FastFieldReader;
-use crate::query::Scorer;
+use crate::query::Weight;
 use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
@@ -472,45 +471,52 @@ impl Collector for TopDocs {
 
     fn collect_segment(
         &self,
-        scorer: &mut dyn Scorer,
+        weight: &dyn Weight,
         segment_ord: u32,
-        segment_reader: &SegmentReader,
+        reader: &SegmentReader,
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
-        let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> =
-            BinaryHeap::with_capacity(self.0.limit + self.0.offset);
-        // first we fill the heap with the first `limit` elements.
-        let mut doc = scorer.doc();
-        while doc != TERMINATED && heap.len() < (self.0.limit + self.0.offset) {
-            if !segment_reader.is_deleted(doc) {
-                let score = scorer.score();
-                heap.push(ComparableDoc {
-                    feature: score,
-                    doc,
-                });
-            }
-            doc = scorer.advance();
-        }
+        let heap_len = self.0.limit + self.0.offset;
+        let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> = BinaryHeap::with_capacity(heap_len);
 
-        let threshold = heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN);
-
-        if let Some(delete_bitset) = segment_reader.delete_bitset() {
-            scorer.for_each_pruning(threshold, &mut |doc, score| {
-                if delete_bitset.is_alive(doc) {
-                    *heap.peek_mut().unwrap() = ComparableDoc {
-                        feature: score,
-                        doc,
-                    };
+        if let Some(delete_bitset) = reader.delete_bitset() {
+            let mut threshold = f32::MIN;
+            weight.for_each_pruning(threshold, reader, &mut |doc, score| {
+                if delete_bitset.is_deleted(doc) {
+                    return threshold;
                 }
-                heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN)
-            });
-        } else {
-            scorer.for_each_pruning(threshold, &mut |doc, score| {
-                *heap.peek_mut().unwrap() = ComparableDoc {
+                let heap_item = ComparableDoc {
                     feature: score,
                     doc,
                 };
+                if heap.len() < heap_len {
+                    heap.push(heap_item);
+                    if heap.len() == heap_len {
+                        threshold = heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+                    }
+                    return threshold;
+                }
+                *heap.peek_mut().unwrap() = heap_item;
+                threshold = heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN);
+                threshold
+            })?;
+        } else {
+            weight.for_each_pruning(f32::MIN, reader, &mut |doc, score| {
+                let heap_item = ComparableDoc {
+                    feature: score,
+                    doc,
+                };
+                if heap.len() < heap_len {
+                    heap.push(heap_item);
+                    // TODO the threshold is suboptimal for heap.len == heap_len
+                    if heap.len() == heap_len {
+                        return heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+                    } else {
+                        return f32::MIN;
+                    }
+                }
+                *heap.peek_mut().unwrap() = heap_item;
                 heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN)
-            });
+            })?;
         }
 
         let fruit = heap
@@ -518,7 +524,6 @@ impl Collector for TopDocs {
             .into_iter()
             .map(|cid| (cid.feature, DocAddress(segment_ord, cid.doc)))
             .collect();
-
         Ok(fruit)
     }
 }
