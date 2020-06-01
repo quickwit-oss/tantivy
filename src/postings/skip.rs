@@ -103,7 +103,7 @@ impl SkipReader {
     }
 
     pub fn block_max_score(&self) -> Score {
-        unimplemented!();
+        f32::MAX
     }
 
     pub(crate) fn last_doc_in_block(&self) -> DocId {

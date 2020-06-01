@@ -48,7 +48,7 @@ impl TermScorer {
     }
 
     pub fn max_score(&self) -> f32 {
-        unimplemented!();
+        f32::MAX
     }
 }
 

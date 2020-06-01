@@ -519,7 +519,7 @@ impl Collector for TopDocs {
             })?;
         }
 
-        let fruit = heap
+        let fruit: Vec<(Score, DocAddress)> = heap
             .into_sorted_vec()
             .into_iter()
             .map(|cid| (cid.feature, DocAddress(segment_ord, cid.doc)))

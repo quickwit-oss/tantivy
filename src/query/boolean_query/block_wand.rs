@@ -46,14 +46,16 @@ fn compute_score(scorers: &mut Vec<TermScorer>, doc: DocId) -> Score {
     score
 }
 
-fn advance_all_scorers(scorers: &mut Vec<TermScorer>) {
+fn advance_all_scorers(scorers: &mut Vec<TermScorer>, pivot: DocId) {
     let mut i = 0;
     while i < scorers.len() {
-        if scorers[i].advance() == TERMINATED {
-            scorers.swap_remove(i);
-        } else {
-            i += 1;
+        if scorers[i].doc() == pivot {
+            if scorers[i].advance() == TERMINATED {
+                scorers.swap_remove(i);
+                continue;
+            }
         }
+        i += 1;
     }
 }
 
@@ -92,13 +94,12 @@ pub fn block_wand(
                     continue;
                 }
             }
-
             // TODO no need to fully score?
             let score = compute_score(&mut scorers, pivot_doc);
             if score > threshold {
                 threshold = callback(pivot_doc, score);
             }
-            advance_all_scorers(&mut scorers);
+            advance_all_scorers(&mut scorers, pivot_doc);
         } else {
             return;
         }

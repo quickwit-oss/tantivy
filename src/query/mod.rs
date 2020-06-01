@@ -27,7 +27,7 @@ mod vec_docset;
 
 pub(crate) mod score_combiner;
 pub use self::intersection::Intersection;
-pub use self::union::{TermUnion, Union};
+pub use self::union::Union;
 
 #[cfg(test)]
 pub use self::vec_docset::VecDocSet;

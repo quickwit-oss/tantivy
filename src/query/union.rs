@@ -1,9 +1,6 @@
 use crate::common::TinySet;
 use crate::docset::{DocSet, TERMINATED};
-use crate::fastfield::DeleteBitSet;
-use crate::query::boolean_query::block_wand;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
-use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
@@ -244,55 +241,6 @@ where
     fn score(&mut self) -> Score {
         self.score
     }
-}
-
-pub struct TermUnion<TScoreCombiner> {
-    underlying: Union<TermScorer, TScoreCombiner>,
-}
-
-impl<TScoreCombiner: ScoreCombiner> From<Vec<TermScorer>> for TermUnion<TScoreCombiner> {
-    fn from(scorers: Vec<TermScorer>) -> Self {
-        TermUnion {
-            underlying: Union::from(scorers),
-        }
-    }
-}
-
-impl<TScoreCombiner: ScoreCombiner> DocSet for TermUnion<TScoreCombiner> {
-    fn advance(&mut self) -> u32 {
-        self.underlying.advance()
-    }
-
-    fn seek(&mut self, target: u32) -> u32 {
-        self.underlying.seek(target)
-    }
-
-    fn fill_buffer(&mut self, buffer: &mut [u32]) -> usize {
-        self.underlying.fill_buffer(buffer)
-    }
-
-    fn doc(&self) -> u32 {
-        self.underlying.doc()
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.underlying.size_hint()
-    }
-
-    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
-        self.underlying.count(delete_bitset)
-    }
-
-    fn count_including_deleted(&mut self) -> u32 {
-        self.underlying.count_including_deleted()
-    }
-}
-
-impl<TScoreCombiner: ScoreCombiner> Scorer for TermUnion<TScoreCombiner> {
-    fn score(&mut self) -> f32 {
-        self.underlying.score()
-    }
-
 }
 
 #[cfg(test)]
