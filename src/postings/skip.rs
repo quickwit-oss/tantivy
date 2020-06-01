@@ -102,6 +102,7 @@ impl SkipReader {
         self.remaining_docs = doc_freq;
     }
 
+    #[cfg(test)]
     #[inline(always)]
     pub(crate) fn last_doc_in_block(&self) -> DocId {
         self.last_doc_in_block

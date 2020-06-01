@@ -41,7 +41,6 @@ pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     }
 }
 
-
 /// A Weight is the specialization of a Query
 /// for a given set of segments.
 ///

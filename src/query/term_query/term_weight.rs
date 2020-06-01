@@ -4,13 +4,13 @@ use crate::docset::DocSet;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::BM25Weight;
 use crate::query::explanation::does_not_match;
+use crate::query::weight::{for_each_pruning_scorer, for_each_scorer};
 use crate::query::Weight;
 use crate::query::{Explanation, Scorer};
 use crate::schema::IndexRecordOption;
-use crate::{DocId, Score};
 use crate::Result;
 use crate::Term;
-use crate::query::weight::{for_each_scorer, for_each_pruning_scorer};
+use crate::{DocId, Score};
 
 pub struct TermWeight {
     term: Term,
