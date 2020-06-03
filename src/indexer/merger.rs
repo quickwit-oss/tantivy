@@ -589,48 +589,45 @@ impl IndexMerger {
             // of all of the segments containing the given term.
             //
             // These segments are non-empty and advance has already been called.
-            if !segment_postings.is_empty() {
-                // If not, the `term` will be entirely removed.
-
-                // We know that there is at least one document containing
-                // the term, so we add it.
-                let to_term_ord = field_serializer.new_term(term_bytes)?;
-
-                if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
-                    for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
-                        term_ord_mapping.register_from_to(segment_ord, from_term_ord, to_term_ord);
-                    }
-                }
-
-                // We can now serialize this postings, by pushing each document to the
-                // postings serializer.
-                for (segment_ord, mut segment_postings) in segment_postings {
-                    let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-
-                    let mut doc = segment_postings.doc();
-                    while doc != TERMINATED {
-                        // deleted doc are skipped as they do not have a `remapped_doc_id`.
-                        if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
-                            // we make sure to only write the term iff
-                            // there is at least one document.
-                            let term_freq = segment_postings.term_freq();
-                            segment_postings.positions(&mut positions_buffer);
-
-                            let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                            field_serializer.write_doc(
-                                remapped_doc_id,
-                                term_freq,
-                                delta_positions,
-                            )?;
-                        }
-
-                        doc = segment_postings.advance();
-                    }
-                }
-
-                // closing the term.
-                field_serializer.close_term()?;
+            if segment_postings.is_empty() {
+                continue;
             }
+            // If not, the `term` will be entirely removed.
+
+            // We know that there is at least one document containing
+            // the term, so we add it.
+            let to_term_ord = field_serializer.new_term(term_bytes)?;
+
+            if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
+                for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
+                    term_ord_mapping.register_from_to(segment_ord, from_term_ord, to_term_ord);
+                }
+            }
+
+            // We can now serialize this postings, by pushing each document to the
+            // postings serializer.
+            for (segment_ord, mut segment_postings) in segment_postings {
+                let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
+
+                let mut doc = segment_postings.doc();
+                while doc != TERMINATED {
+                    // deleted doc are skipped as they do not have a `remapped_doc_id`.
+                    if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
+                        // we make sure to only write the term iff
+                        // there is at least one document.
+                        let term_freq = segment_postings.term_freq();
+                        segment_postings.positions(&mut positions_buffer);
+
+                        let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions)?;
+                    }
+
+                    doc = segment_postings.advance();
+                }
+            }
+
+            // closing the term.
+            field_serializer.close_term()?;
         }
         field_serializer.close()?;
         Ok(term_ord_mapping_opt)
