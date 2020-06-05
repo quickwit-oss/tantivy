@@ -24,8 +24,10 @@ use crate::IndexWriter;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::fmt;
+
 #[cfg(feature = "mmap")]
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 fn load_metas(
