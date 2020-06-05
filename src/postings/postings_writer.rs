@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
+use crate::fieldnorm::FieldNormReaders;
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
@@ -128,6 +129,7 @@ impl MultiFieldPostingsWriter {
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_readers: FieldNormReaders
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
@@ -161,8 +163,9 @@ impl MultiFieldPostingsWriter {
             }
 
             let postings_writer = &self.per_field_postings_writers[field.field_id() as usize];
+            let fieldnorm_reader = fieldnorm_readers.get_field(field);
             let mut field_serializer =
-                serializer.new_field(field, postings_writer.total_num_tokens())?;
+                serializer.new_field(field, postings_writer.total_num_tokens(), fieldnorm_reader)?;
             postings_writer.serialize(
                 &term_offsets[start..stop],
                 &mut field_serializer,

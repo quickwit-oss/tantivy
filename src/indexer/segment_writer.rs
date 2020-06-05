@@ -2,7 +2,7 @@ use super::operation::AddOperation;
 use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
-use crate::fieldnorm::FieldNormsWriter;
+use crate::fieldnorm::{FieldNormsWriter, FieldNormReaders};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
@@ -14,7 +14,7 @@ use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
-use crate::DocId;
+use crate::{DocId, SegmentComponent};
 use crate::Opstamp;
 use std::io;
 use std::str;
@@ -62,11 +62,12 @@ impl SegmentWriter {
     /// - schema
     pub fn for_segment(
         memory_budget: usize,
-        mut segment: Segment,
+        segment: Segment,
         schema: &Schema,
     ) -> crate::Result<SegmentWriter> {
+        let tokenizer_manager = segment.index().tokenizers().clone();
         let table_num_bits = initial_table_size(memory_budget)?;
-        let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
+        let segment_serializer = SegmentSerializer::for_segment(segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()
@@ -76,7 +77,7 @@ impl SegmentWriter {
                         .get_indexing_options()
                         .and_then(|text_index_option| {
                             let tokenizer_name = &text_index_option.tokenizer();
-                            segment.index().tokenizers().get(tokenizer_name)
+                            tokenizer_manager.get(tokenizer_name)
                         }),
                     _ => None,
                 },
@@ -280,9 +281,13 @@ fn write(
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
-    let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer())?;
+    if let Some(fieldnorms_serializer) = serializer.get_fieldnorms_serializer() {
+        fieldnorms_writer.serialize(fieldnorms_serializer)?;
+    }
+    let fieldnorm_data = serializer.segment().open_read(SegmentComponent::FIELDNORMS)?;
+    let fieldnorm_readers = FieldNormReaders::new(fieldnorm_data)?;
+    let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
     fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
-    fieldnorms_writer.serialize(serializer.get_fieldnorms_serializer())?;
     serializer.close()?;
     Ok(())
 }

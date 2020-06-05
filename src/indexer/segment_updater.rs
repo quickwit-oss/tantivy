@@ -112,7 +112,7 @@ fn merge(
     target_opstamp: Opstamp,
 ) -> crate::Result<SegmentEntry> {
     // first we need to apply deletes to our segment.
-    let mut merged_segment = index.new_segment();
+    let merged_segment = index.new_segment();
 
     // First we apply all of the delet to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
@@ -130,12 +130,14 @@ fn merge(
     // An IndexMerger is like a "view" of our merged segments.
     let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
 
+    let merged_segment_id = merged_segment.id();
+
     // ... we just serialize this index merger in our new segment to merge the two segments.
-    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
 
     let num_docs = merger.write(segment_serializer)?;
 
-    let segment_meta = index.new_segment_meta(merged_segment.id(), num_docs);
+    let segment_meta = index.new_segment_meta(merged_segment_id, num_docs);
 
     Ok(SegmentEntry::new(segment_meta, delete_cursor, None))
 }

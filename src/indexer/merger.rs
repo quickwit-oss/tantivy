@@ -8,7 +8,7 @@ use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
 use crate::fastfield::MultiValueIntFastFieldReader;
-use crate::fieldnorm::FieldNormReader;
+use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::indexer::SegmentSerializer;
@@ -20,7 +20,7 @@ use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
-use crate::DocId;
+use crate::{DocId, SegmentComponent};
 use std::cmp;
 use std::collections::HashMap;
 
@@ -167,7 +167,7 @@ impl IndexMerger {
 
     fn write_fieldnorms(
         &self,
-        fieldnorms_serializer: &mut FieldNormsSerializer,
+        mut fieldnorms_serializer: FieldNormsSerializer,
     ) -> crate::Result<()> {
         let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
@@ -181,8 +181,9 @@ impl IndexMerger {
                 }
             }
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
-        }
-        Ok(())
+       }
+       fieldnorms_serializer.close()?;
+       Ok(())
     }
 
     fn write_fast_fields(
@@ -492,6 +493,7 @@ impl IndexMerger {
         indexed_field: Field,
         field_type: &FieldType,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_reader: Option<FieldNormReader>
     ) -> crate::Result<Option<TermOrdinalMapping>> {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
@@ -550,7 +552,7 @@ impl IndexMerger {
         // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
         //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
         // ...
-        let mut field_serializer = serializer.new_field(indexed_field, total_num_tokens)?;
+        let mut field_serializer = serializer.new_field(indexed_field, total_num_tokens, fieldnorm_reader)?;
 
         let field_entry = self.schema.get_field_entry(indexed_field);
 
@@ -615,8 +617,8 @@ impl IndexMerger {
                             // there is at least one document.
                             let term_freq = segment_postings.term_freq();
                             segment_postings.positions(&mut positions_buffer);
-
-                            let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                            let delta_positions =
+                                delta_computer.compute_delta(&positions_buffer);
                             field_serializer.write_doc(
                                 remapped_doc_id,
                                 term_freq,
@@ -639,12 +641,14 @@ impl IndexMerger {
     fn write_postings(
         &self,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_readers: FieldNormReaders
     ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
         for (field, field_entry) in self.schema.fields() {
+            let fieldnorm_reader = fieldnorm_readers.get_field(field);
             if field_entry.is_indexed() {
                 if let Some(term_ordinal_mapping) =
-                    self.write_postings_for_field(field, field_entry.field_type(), serializer)?
+                    self.write_postings_for_field(field, field_entry.field_type(), serializer, fieldnorm_reader)?
                 {
                     term_ordinal_mappings.insert(field, term_ordinal_mapping);
                 }
@@ -671,8 +675,12 @@ impl IndexMerger {
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
-        let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
-        self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
+        if let Some(fieldnorms_serializer) = serializer.get_fieldnorms_serializer() {
+            self.write_fieldnorms(fieldnorms_serializer)?;
+        }
+        let fieldnorm_data = serializer.segment().open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorm_readers = FieldNormReaders::new(fieldnorm_data)?;
+        let term_ord_mappings = self.write_postings(serializer.get_postings_serializer(), fieldnorm_readers)?;
         self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;

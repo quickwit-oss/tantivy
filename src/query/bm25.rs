@@ -143,6 +143,6 @@ mod tests {
 
     #[test]
     fn test_idf() {
-        assert_nearly_equals(idf(1, 2), 0.6931472);
+        assert_nearly_equals(idf(1, 2), std::f32::consts::LN_2);
     }
 }

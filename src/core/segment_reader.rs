@@ -8,7 +8,7 @@ use crate::directory::ReadOnlySource;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
-use crate::fieldnorm::FieldNormReader;
+use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
 use crate::schema::Field;
 use crate::schema::FieldType;
 use crate::schema::Schema;
@@ -48,7 +48,7 @@ pub struct SegmentReader {
     positions_composite: CompositeFile,
     positions_idx_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
-    fieldnorms_composite: CompositeFile,
+    fieldnorm_readers: FieldNormReaders,
 
     store_source: ReadOnlySource,
     delete_bitset_opt: Option<DeleteBitSet>,
@@ -126,8 +126,8 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> FieldNormReader {
-        if let Some(fieldnorm_source) = self.fieldnorms_composite.open_read(field) {
-            FieldNormReader::open(fieldnorm_source)
+        if let Some(fieldnorm_source) = self.fieldnorm_readers.get_field(field) {
+            fieldnorm_source
         } else {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
@@ -178,8 +178,8 @@ impl SegmentReader {
         let fast_field_readers =
             Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
 
-        let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
-        let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
+        let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorm_readers = FieldNormReaders::new(fieldnorm_data)?;
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;
@@ -195,7 +195,7 @@ impl SegmentReader {
             termdict_composite,
             postings_composite,
             fast_fields_readers: fast_field_readers,
-            fieldnorms_composite,
+            fieldnorm_readers,
             segment_id: segment.id(),
             store_source,
             delete_bitset_opt,
@@ -308,7 +308,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.positions_idx_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
-            self.fieldnorms_composite.space_usage(),
+            self.fieldnorm_readers.space_usage(),
             self.get_store_reader().space_usage(),
             self.delete_bitset_opt
                 .as_ref()

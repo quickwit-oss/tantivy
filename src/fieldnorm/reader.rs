@@ -1,6 +1,34 @@
 use super::{fieldnorm_to_id, id_to_fieldnorm};
 use crate::directory::ReadOnlySource;
 use crate::DocId;
+use crate::common::CompositeFile;
+use crate::schema::Field;
+use std::sync::Arc;
+use crate::space_usage::PerFieldSpaceUsage;
+
+#[derive(Clone)]
+pub struct FieldNormReaders {
+    data: Arc<CompositeFile>,
+}
+
+impl FieldNormReaders {
+    pub fn new(source: ReadOnlySource) -> crate::Result<FieldNormReaders> {
+        let data = CompositeFile::open(&source)?;
+        Ok(FieldNormReaders {
+            data: Arc::new(data)
+        })
+    }
+
+    pub fn get_field(&self, field: Field) -> Option<FieldNormReader> {
+        self.data
+            .open_read(field)
+            .map(FieldNormReader::open)
+    }
+
+    pub fn space_usage(&self) -> PerFieldSpaceUsage {
+        self.data.space_usage()
+    }
+}
 
 /// Reads the fieldnorm associated to a document.
 /// The fieldnorm represents the length associated to

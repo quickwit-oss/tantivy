@@ -53,7 +53,7 @@ impl SegmentPostings {
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut buffer = Vec::new();
         {
-            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false, false);
+            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false, false, None);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
             }
