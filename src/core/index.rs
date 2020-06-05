@@ -372,7 +372,7 @@ impl Index {
     }
 
     /// Returns the set of corrupted files
-    pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
+    pub fn validate_checksum(&self) -> crate::Result<HashSet<std::path::PathBuf>> {
         self.directory.list_damaged().map_err(Into::into)
     }
 }
