@@ -178,6 +178,40 @@ mod tests {
     }
 
     #[test]
+    pub fn test_boolean_query_two_excluded() {
+        let (index, text_field) = aux_test_helper();
+
+        let make_term_query = |text: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, text),
+                IndexRecordOption::Basic,
+            );
+            let query: Box<dyn Query> = Box::new(term_query);
+            query
+        };
+
+        let reader = index.reader().unwrap();
+
+        let matching_docs = |boolean_query: &dyn Query| {
+            reader
+                .searcher()
+                .search(boolean_query, &TEST_COLLECTOR_WITH_SCORE)
+                .unwrap()
+                .docs()
+                .iter()
+                .cloned()
+                .map(|doc| doc.1)
+                .collect::<Vec<DocId>>()
+        };
+        let boolean_query = BooleanQuery::from(vec![
+            (Occur::Must, make_term_query("d")),
+            (Occur::MustNot, make_term_query("a")),
+            (Occur::MustNot, make_term_query("b")),
+        ]);
+        assert_eq!(matching_docs(&boolean_query), vec![4]);
+    }
+
+    #[test]
     pub fn test_boolean_query_with_weight() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
