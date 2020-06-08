@@ -20,7 +20,7 @@ mod tests {
     use crate::schema::*;
     use crate::tests::assert_nearly_equals;
     use crate::Index;
-    use crate::{DocAddress, DocId};
+    use crate::{DocAddress, DocId, Score};
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = Schema::builder();
@@ -192,23 +192,31 @@ mod tests {
 
         let reader = index.reader().unwrap();
 
-        let matching_docs = |boolean_query: &dyn Query| {
+        let matching_scores = |boolean_query: &dyn Query| {
             reader
                 .searcher()
                 .search(boolean_query, &TEST_COLLECTOR_WITH_SCORE)
                 .unwrap()
-                .docs()
+                .scores()
                 .iter()
                 .cloned()
-                .map(|doc| doc.1)
-                .collect::<Vec<DocId>>()
+                .collect::<Vec<Score>>()
         };
-        let boolean_query = BooleanQuery::from(vec![
+
+        let boolean_query_no_excluded =
+            BooleanQuery::from(vec![(Occur::Must, make_term_query("d"))]);
+        let scores_no_excluded = matching_scores(&boolean_query_no_excluded);
+        assert_eq!(scores_no_excluded.len(), 2); // docs 3 and 4.
+        let score4 = scores_no_excluded[1]; // for doc 4
+
+        let boolean_query_two_excluded = BooleanQuery::from(vec![
             (Occur::Must, make_term_query("d")),
             (Occur::MustNot, make_term_query("a")),
             (Occur::MustNot, make_term_query("b")),
         ]);
-        assert_eq!(matching_docs(&boolean_query), vec![4]);
+        let scores_excluded = matching_scores(&boolean_query_two_excluded);
+        assert_eq!(scores_excluded.len(), 1); // doc 4, doc 3 is excluded.
+        assert_eq!(scores_excluded[0], score4);
     }
 
     #[test]
@@ -308,7 +316,7 @@ mod tests {
         index_writer.add_document(doc!(
             // tf = 1 1
             title =>  "PDF Мастер Класс \"Морячок\" (Оксана Лифенко)",
-            // tf = 0 0 
+            // tf = 0 0
             text => "https://i.ibb.co/pzvHrDN/I3d U T6 Gg TM.jpg\nhttps://i.ibb.co/NFrb6v6/N0ls Z9nwjb U.jpg\nВ описание входит штаны, кофта, берет, матросский воротник. Описание продается в формате PDF, состоит из 12 страниц формата А4 и может быть напечатано на любом принтере.\nОписание предназначено для кукол BJD RealPuki от FairyLand, но может подойти и другим подобным куклам. Также вы можете вязать этот наряд из обычной пряжи, и он подойдет для куколок побольше.\nhttps://vk.com/market 95724412?w=product 95724412_2212"
         ));
         for _ in 0..1_000 {
