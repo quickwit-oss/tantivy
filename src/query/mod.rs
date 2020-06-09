@@ -35,6 +35,7 @@ pub use self::vec_docset::VecDocSet;
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
+pub use self::bm25::BM25Params;
 pub use self::boolean_query::BooleanQuery;
 pub use self::boost_query::BoostQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};

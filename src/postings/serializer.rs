@@ -12,7 +12,6 @@ use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::DocId;
 use std::io::{self, Write};
 use crate::fieldnorm::FieldNormReader;
-use std::cmp::Ordering;
 
 /// `InvertedIndexSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -49,7 +48,7 @@ pub struct InvertedIndexSerializer {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
-    positionsidx_write: CompositeWrite<WritePtr>,
+    positions_idx_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
@@ -59,14 +58,14 @@ impl InvertedIndexSerializer {
         terms_write: CompositeWrite<WritePtr>,
         postings_write: CompositeWrite<WritePtr>,
         positions_write: CompositeWrite<WritePtr>,
-        positionsidx_write: CompositeWrite<WritePtr>,
+        positions_idx_write: CompositeWrite<WritePtr>,
         schema: Schema,
     ) -> crate::Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
             terms_write,
             postings_write,
             positions_write,
-            positionsidx_write,
+            positions_idx_write,
             schema,
         })
     }
@@ -98,14 +97,14 @@ impl InvertedIndexSerializer {
         let postings_write = self.postings_write.for_field(field);
         total_num_tokens.serialize(postings_write)?;
         let positions_write = self.positions_write.for_field(field);
-        let positionsidx_write = self.positionsidx_write.for_field(field);
+        let positions_idx_write = self.positions_idx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::create(
             &field_type,
             term_dictionary_write,
             postings_write,
             positions_write,
-            positionsidx_write,
+            positions_idx_write,
             fieldnorm_reader
         )
     }
@@ -115,7 +114,7 @@ impl InvertedIndexSerializer {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
-        self.positionsidx_write.close()?;
+        self.positions_idx_write.close()?;
         Ok(())
     }
 }
@@ -313,8 +312,6 @@ pub struct PostingsSerializer<W: Write> {
     termfreq_sum_enabled: bool,
 
     fieldnorm_reader: Option<FieldNormReader>,
-
-    tf_fn_output: Vec<(u8, u32)>
 }
 
 impl<W: Write> PostingsSerializer<W> {
@@ -338,8 +335,6 @@ impl<W: Write> PostingsSerializer<W> {
             termfreq_sum_enabled,
 
             fieldnorm_reader,
-
-            tf_fn_output: Vec::new()
         }
     }
 
@@ -369,15 +364,6 @@ impl<W: Write> PostingsSerializer<W> {
             if let Some(fieldnorm_reader) = &self.fieldnorm_reader {
                 let docs = self.block.doc_ids;
                 let tfs = self.block.term_freqs;
-                let fn_id_tf_pairs = (0..COMPRESSION_BLOCK_SIZE)
-                    .map(|i| {
-                        let doc = docs[i];
-                        let tf = tfs[i];
-                        let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
-                        (fieldnorm_id, tf)
-                    });
-                find_maximal_pairs(fn_id_tf_pairs, &mut self.tf_fn_output);
-                self.skip_write.write_blockwand_info(&self.tf_fn_output[..]);
             }
         }
         self.block.clear();
@@ -440,79 +426,3 @@ impl<W: Write> PostingsSerializer<W> {
     }
 }
 
-
-fn cmp(left: (u8, u32), right: (u8, u32)) -> Option<Ordering> {
-    let fieldnorm_cmp =  left.0.cmp(&right.0).reverse();
-    let term_freq_cmp=  left.1.cmp(&right.1);
-    match (fieldnorm_cmp, term_freq_cmp) {
-        (Ordering::Equal, Ordering::Equal) => Some(Ordering::Equal),
-        (Ordering::Less, Ordering::Greater) | (Ordering::Greater, Ordering::Less) => None,
-        (Ordering::Less, _) | (_, Ordering::Less) => Some(Ordering::Less),
-        (Ordering::Greater, _) | (_, Ordering::Greater) => Some(Ordering::Greater),
-    }
-}
-
-fn remove_lower(output: &mut Vec<(u8, u32)>, new_el: (u8, u32))  {
-    let mut i = 0;
-    while i < output.len() {
-        match cmp(output[i], new_el) {
-            Some(Ordering::Equal) | Some(Ordering::Greater) => {
-                return;
-            }
-            Some(Ordering::Less) => {
-                output.swap_remove(i);
-            }
-            None => {
-                i += 1;
-            }
-        }
-    }
-    output.push(new_el);
-}
-
-fn find_maximal_pairs<Iter: Iterator<Item=(u8, u32)>>(mut fn_tf_it: Iter, output: &mut Vec<(u8, u32)>) {
-    output.clear();
-    if let Some((u32, u8)) = fn_tf_it.next() {
-       output.push((u32, u8));
-    } else {
-      return;
-    }
-    for (fieldnorm_id, term_freq) in fn_tf_it {
-        remove_lower(output, (fieldnorm_id, term_freq));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::find_maximal_pairs;
-
-    #[test]
-    fn test_tf_fn_id_empty() {
-        let mut output: Vec<(u8, u32)> = Vec::new();
-        find_maximal_pairs(vec![].into_iter(), &mut output);
-        assert_eq!(&output[..], &[]);
-    }
-
-    #[test]
-    fn test_tf_fn_id_output_should_be_cleared() {
-        let mut output: Vec<(u8, u32)> = vec![(1u8, 1u32)];
-        find_maximal_pairs(vec![].into_iter(), &mut output);
-        assert_eq!(&output[..], &[]);
-    }
-
-    #[test]
-    fn test_tf_fn_id_no_reduction() {
-        let mut output: Vec<(u8, u32)> = Vec::new();
-        find_maximal_pairs(vec![(1u8, 3u32), (2u8, 4u32)].into_iter(), &mut output);
-        assert_eq!(&output[..], &[(1u8, 3u32), (2u8, 4u32)]);
-    }
-
-    #[test]
-    fn test_tf_fn_id_reduction() {
-        let mut output: Vec<(u8, u32)> = Vec::new();
-        find_maximal_pairs(vec![(1u8, 3u32), (2u8, 2u32)].into_iter(), &mut output);
-        assert_eq!(&output[..], &[(1u8, 3u32)]);
-        find_maximal_pairs(vec![(2u8, 2u32), (1u8, 3u32)].into_iter(), &mut output);
-        assert_eq!(&output[..], &[(1u8, 3u32)]);
-    }
-}

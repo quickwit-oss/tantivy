@@ -40,10 +40,6 @@ impl SkipSerializer {
             .expect("Should never fail");
     }
 
-    pub fn write_blockwand_info(&mut self, fn_tf_pairs: &[(u8, u32)]) {
-
-    }
-
     pub fn data(&self) -> &[u8] {
         &self.buffer[..]
     }

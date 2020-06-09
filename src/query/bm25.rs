@@ -3,26 +3,36 @@ use crate::query::Explanation;
 use crate::Score;
 use crate::Searcher;
 use crate::Term;
+use serde::Serialize;
+use serde::Deserialize;
 
-const K1: f32 = 1.2;
-const B: f32 = 0.75;
+const DEFAULT_K1: f32 = 1.2;
+const DEFAULT_B: f32 = 0.75;
 
 fn idf(doc_freq: u64, doc_count: u64) -> f32 {
     let x = ((doc_count - doc_freq) as f32 + 0.5) / (doc_freq as f32 + 0.5);
     (1f32 + x).ln()
 }
 
-fn cached_tf_component(fieldnorm: u32, average_fieldnorm: f32) -> f32 {
+fn cached_tf_component(fieldnorm: u32, average_fieldnorm: f32, K1: f32, B: f32) -> f32 {
     K1 * (1f32 - B + B * fieldnorm as f32 / average_fieldnorm)
 }
 
-fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
+fn compute_tf_cache(average_fieldnorm: f32, K1: f32, B: f32) -> [f32; 256] {
     let mut cache = [0f32; 256];
     for (fieldnorm_id, cache_mut) in cache.iter_mut().enumerate() {
         let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
-        *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
+        *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm, K1, B);
     }
     cache
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct BM25Params {
+    pub idf: f32,
+    pub avg_fieldnorm: f32,
+    pub K1: f32,
+    pub B: f32,
 }
 
 pub struct BM25Weight {
@@ -30,6 +40,15 @@ pub struct BM25Weight {
     weight: f32,
     cache: [f32; 256],
     average_fieldnorm: f32,
+    K1: f32,
+    B: f32,
+}
+
+impl From<BM25Params> for BM25Weight {
+    fn from(bm25_params: BM25Params) -> Self {
+        let idf_explain = Explanation::new("no-explanation", bm25_params.idf);
+        BM25Weight::new(idf_explain, bm25_params.avg_fieldnorm, bm25_params.K1, bm25_params.B)
+    }
 }
 
 impl BM25Weight {
@@ -39,6 +58,8 @@ impl BM25Weight {
             weight: self.weight * boost,
             cache: self.cache,
             average_fieldnorm: self.average_fieldnorm,
+            K1: self.K1,
+            B: self.B
         }
     }
 
@@ -62,17 +83,9 @@ impl BM25Weight {
         }
         let average_fieldnorm = total_num_tokens as f32 / total_num_docs as f32;
 
-        let mut idf_explain: Explanation;
         if terms.len() == 1 {
             let term_doc_freq = searcher.doc_freq(&terms[0]);
-            let idf = idf(term_doc_freq, total_num_docs);
-            idf_explain =
-                Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);
-            idf_explain.add_const(
-                "n, number of docs containing this term",
-                term_doc_freq as f32,
-            );
-            idf_explain.add_const("N, total number of docs", total_num_docs as f32);
+            BM25Weight::for_one_term(term_doc_freq, total_num_docs, average_fieldnorm)
         } else {
             let idf = terms
                 .iter()
@@ -81,18 +94,32 @@ impl BM25Weight {
                     idf(term_doc_freq, total_num_docs)
                 })
                 .sum::<f32>();
-            idf_explain = Explanation::new("idf", idf);
+            let idf_explain = Explanation::new("idf", idf);
+            BM25Weight::new(idf_explain, average_fieldnorm, DEFAULT_K1, DEFAULT_B)
         }
-        BM25Weight::new(idf_explain, average_fieldnorm)
     }
 
-    fn new(idf_explain: Explanation, average_fieldnorm: f32) -> BM25Weight {
+    pub fn for_one_term(term_doc_freq: u64, total_num_docs: u64, avg_fieldnorm: f32) -> BM25Weight {
+        let idf = idf(term_doc_freq, total_num_docs);
+        let mut idf_explain =
+            Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);
+        idf_explain.add_const(
+            "n, number of docs containing this term",
+            term_doc_freq as f32,
+        );
+        idf_explain.add_const("N, total number of docs", total_num_docs as f32);
+        BM25Weight::new(idf_explain, avg_fieldnorm, DEFAULT_K1, DEFAULT_B)
+    }
+
+    fn new(idf_explain: Explanation, average_fieldnorm: f32, K1: f32, B: f32) -> BM25Weight {
         let weight = idf_explain.value() * (1f32 + K1);
         BM25Weight {
             idf_explain,
             weight,
-            cache: compute_tf_cache(average_fieldnorm),
+            cache: compute_tf_cache(average_fieldnorm, K1, B),
             average_fieldnorm,
+            K1,
+            B
         }
     }
 
@@ -119,8 +146,8 @@ impl BM25Weight {
         );
 
         tf_explanation.add_const("freq, occurrences of term within document", term_freq);
-        tf_explanation.add_const("k1, term saturation parameter", K1);
-        tf_explanation.add_const("b, length normalization parameter", B);
+        tf_explanation.add_const("k1, term saturation parameter", self.K1);
+        tf_explanation.add_const("b, length normalization parameter", self.B);
         tf_explanation.add_const(
             "dl, length of field",
             FieldNormReader::id_to_fieldnorm(fieldnorm_id) as f32,
@@ -128,7 +155,7 @@ impl BM25Weight {
         tf_explanation.add_const("avgdl, average length of field", self.average_fieldnorm);
 
         let mut explanation = Explanation::new("TermQuery, product of...", score);
-        explanation.add_detail(Explanation::new("(K1+1)", K1 + 1f32));
+        explanation.add_detail(Explanation::new("(K1+1)", self.K1 + 1f32));
         explanation.add_detail(self.idf_explain.clone());
         explanation.add_detail(tf_explanation);
         explanation
