@@ -4,7 +4,6 @@ use crate::schema::IndexRecordOption;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::ops::BitOr;
-use crate::query::BM25Params;
 
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -46,7 +45,6 @@ impl Default for TextOptions {
     }
 }
 
-
 /// Configuration defining indexing for a text field.
 ///
 /// It defines
@@ -57,8 +55,6 @@ impl Default for TextOptions {
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    block_wand_bm25: Option<BM25Params>,
 }
 
 impl Default for TextFieldIndexing {
@@ -66,7 +62,6 @@ impl Default for TextFieldIndexing {
         TextFieldIndexing {
             tokenizer: Cow::Borrowed("default"),
             record: IndexRecordOption::Basic,
-            block_wand_bm25: None
         }
     }
 }
@@ -97,11 +92,6 @@ impl TextFieldIndexing {
     pub fn index_option(&self) -> IndexRecordOption {
         self.record
     }
-
-    pub fn set_blockwand_bm25(mut self, bm25_params: BM25Params) -> TextFieldIndexing {
-        self.block_wand_bm25 = Some(bm25_params);
-        self
-    }
 }
 
 /// The field will be untokenized and indexed
@@ -109,7 +99,6 @@ pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("raw"),
         record: IndexRecordOption::Basic,
-        block_wand_bm25: None
     }),
     stored: false,
 };
@@ -119,7 +108,6 @@ pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("default"),
         record: IndexRecordOption::WithFreqsAndPositions,
-        block_wand_bm25: None,
     }),
     stored: false,
 };

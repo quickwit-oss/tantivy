@@ -2,7 +2,7 @@ use super::operation::AddOperation;
 use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
-use crate::fieldnorm::{FieldNormsWriter, FieldNormReaders};
+use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
 use crate::postings::MultiFieldPostingsWriter;
@@ -14,8 +14,8 @@ use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
-use crate::{DocId, SegmentComponent};
 use crate::Opstamp;
+use crate::{DocId, SegmentComponent};
 use std::io;
 use std::str;
 
@@ -281,12 +281,15 @@ fn write(
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
 ) -> crate::Result<()> {
-    if let Some(fieldnorms_serializer) = serializer.get_fieldnorms_serializer() {
+    if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer)?;
     }
-    let fieldnorm_data = serializer.segment().open_read(SegmentComponent::FIELDNORMS)?;
+    let fieldnorm_data = serializer
+        .segment()
+        .open_read(SegmentComponent::FIELDNORMS)?;
     let fieldnorm_readers = FieldNormReaders::new(fieldnorm_data)?;
-    let term_ord_map = multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
+    let term_ord_map =
+        multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
     fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
     serializer.close()?;
     Ok(())

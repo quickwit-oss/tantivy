@@ -3,15 +3,17 @@ use crate::common::{BinarySerializable, VInt};
 use crate::common::{CompositeWrite, CountingWriter};
 use crate::core::Segment;
 use crate::directory::WritePtr;
+use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
+use crate::query::BM25Weight;
 use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::DocId;
+use std::cmp::Ordering;
 use std::io::{self, Write};
-use crate::fieldnorm::FieldNormReader;
 
 /// `InvertedIndexSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -48,7 +50,7 @@ pub struct InvertedIndexSerializer {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
-    positions_idx_write: CompositeWrite<WritePtr>,
+    positionsidx_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
@@ -58,14 +60,14 @@ impl InvertedIndexSerializer {
         terms_write: CompositeWrite<WritePtr>,
         postings_write: CompositeWrite<WritePtr>,
         positions_write: CompositeWrite<WritePtr>,
-        positions_idx_write: CompositeWrite<WritePtr>,
+        positionsidx_write: CompositeWrite<WritePtr>,
         schema: Schema,
     ) -> crate::Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
             terms_write,
             postings_write,
             positions_write,
-            positions_idx_write,
+            positionsidx_write,
             schema,
         })
     }
@@ -90,22 +92,22 @@ impl InvertedIndexSerializer {
         &mut self,
         field: Field,
         total_num_tokens: u64,
-        fieldnorm_reader: Option<FieldNormReader>
+        fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'_>> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         total_num_tokens.serialize(postings_write)?;
         let positions_write = self.positions_write.for_field(field);
-        let positions_idx_write = self.positions_idx_write.for_field(field);
+        let positionsidx_write = self.positionsidx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::create(
             &field_type,
             term_dictionary_write,
             postings_write,
             positions_write,
-            positions_idx_write,
-            fieldnorm_reader
+            positionsidx_write,
+            fieldnorm_reader,
         )
     }
 
@@ -114,7 +116,7 @@ impl InvertedIndexSerializer {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
-        self.positions_idx_write.close()?;
+        self.positionsidx_write.close()?;
         Ok(())
     }
 }
@@ -137,7 +139,7 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
         positionsidx_write: &'a mut CountingWriter<WritePtr>,
-        fieldnorm_reader: Option<FieldNormReader>
+        fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
@@ -151,8 +153,12 @@ impl<'a> FieldSerializer<'a> {
             _ => (false, false),
         };
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
-        let postings_serializer =
-            PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled, fieldnorm_reader);
+        let postings_serializer = PostingsSerializer::new(
+            postings_write,
+            term_freq_enabled,
+            position_enabled,
+            fieldnorm_reader,
+        );
         let positions_serializer_opt = if position_enabled {
             Some(PositionSerializer::new(positions_write, positionsidx_write))
         } else {
@@ -165,7 +171,7 @@ impl<'a> FieldSerializer<'a> {
             positions_serializer_opt,
             current_term_info: TermInfo::default(),
             term_open: false,
-            num_terms: TermOrdinal::default()
+            num_terms: TermOrdinal::default(),
         })
     }
 
@@ -185,8 +191,8 @@ impl<'a> FieldSerializer<'a> {
     /// Starts the postings for a new term.
     /// * term - the term. It needs to come after the previous term according
     ///   to the lexicographical order.
-    /// * doc_freq - return the number of document containing the term.
-    pub fn new_term(&mut self, term: &[u8]) -> io::Result<TermOrdinal> {
+    /// * term_doc_freq - return the number of document containing the term.
+    pub fn new_term(&mut self, term: &[u8], term_doc_freq: u32) -> io::Result<TermOrdinal> {
         assert!(
             !self.term_open,
             "Called new_term, while the previous term was not closed."
@@ -197,6 +203,7 @@ impl<'a> FieldSerializer<'a> {
         self.term_dictionary_builder.insert_key(term)?;
         let term_ordinal = self.num_terms;
         self.num_terms += 1;
+        self.postings_serializer.new_term(term_doc_freq);
         Ok(term_ordinal)
     }
 
@@ -310,8 +317,21 @@ pub struct PostingsSerializer<W: Write> {
 
     termfreq_enabled: bool,
     termfreq_sum_enabled: bool,
-
     fieldnorm_reader: Option<FieldNormReader>,
+
+    bm25_weight: Option<BM25Weight>,
+
+    num_docs: u32, // Number of docs in the segment
+    avg_fieldnorm: f32, // Average number of term in the field for that segment.
+                   // this value is used to compute the block wand information.
+}
+
+fn get_avg_fieldnorm(fieldnorm_reader: &FieldNormReader) -> f32 {
+    let num_docs = fieldnorm_reader.num_docs();
+    let sum_fieldnorm: f32 = (0u32..num_docs)
+        .map(|doc| fieldnorm_reader.fieldnorm(doc) as f32)
+        .sum();
+    sum_fieldnorm / (num_docs as f32)
 }
 
 impl<W: Write> PostingsSerializer<W> {
@@ -319,8 +339,16 @@ impl<W: Write> PostingsSerializer<W> {
         write: W,
         termfreq_enabled: bool,
         termfreq_sum_enabled: bool,
-        fieldnorm_reader: Option<FieldNormReader>
+        fieldnorm_reader: Option<FieldNormReader>,
     ) -> PostingsSerializer<W> {
+        let avg_fieldnorm: f32 = fieldnorm_reader
+            .as_ref()
+            .map(get_avg_fieldnorm)
+            .unwrap_or(0f32);
+        let num_docs = fieldnorm_reader
+            .as_ref()
+            .map(|fieldnorm_reader| fieldnorm_reader.num_docs())
+            .unwrap_or(0u32);
         PostingsSerializer {
             output_write: CountingWriter::wrap(write),
 
@@ -335,6 +363,21 @@ impl<W: Write> PostingsSerializer<W> {
             termfreq_sum_enabled,
 
             fieldnorm_reader,
+            bm25_weight: None,
+
+            num_docs,
+            avg_fieldnorm,
+        }
+    }
+
+    pub fn new_term(&mut self, term_doc_freq: u32) {
+        if self.termfreq_enabled && self.num_docs > 0 {
+            let bm25_weight = BM25Weight::for_one_term(
+                term_doc_freq as u64,
+                self.num_docs as u64,
+                self.avg_fieldnorm,
+            );
+            self.bm25_weight = Some(bm25_weight);
         }
     }
 
@@ -351,7 +394,6 @@ impl<W: Write> PostingsSerializer<W> {
             self.postings_write.extend(block_encoded);
         }
         if self.termfreq_enabled {
-            // encode the term_freqs
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
                 .compress_block_unsorted(&self.block.term_freqs());
@@ -361,10 +403,32 @@ impl<W: Write> PostingsSerializer<W> {
                 let sum_freq = self.block.term_freqs().iter().cloned().sum();
                 self.skip_write.write_total_term_freq(sum_freq);
             }
-            if let Some(fieldnorm_reader) = &self.fieldnorm_reader {
-                let docs = self.block.doc_ids;
-                let tfs = self.block.term_freqs;
+            let mut blockwand_params_opt = None;
+            if let Some(bm25_weight) = self.bm25_weight.as_ref() {
+                if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
+                    let docs = self.block.doc_ids();
+                    let term_freqs = self.block.term_freqs();
+                    blockwand_params_opt = docs
+                        .iter()
+                        .cloned()
+                        .map(|doc| fieldnorm_reader.fieldnorm_id(doc))
+                        .zip(term_freqs.iter().cloned())
+                        .max_by(
+                            |(left_fieldnorm_id, left_term_freq),
+                             (right_fieldnorm_id, right_term_freq)| {
+                                let left_score =
+                                    bm25_weight.tf_factor(*left_fieldnorm_id, *left_term_freq);
+                                let right_score =
+                                    bm25_weight.tf_factor(*right_fieldnorm_id, *right_term_freq);
+                                left_score
+                                    .partial_cmp(&right_score)
+                                    .unwrap_or(Ordering::Equal)
+                            },
+                        );
+                }
             }
+            let (fieldnorm_id, term_freq) = blockwand_params_opt.unwrap_or((0u8, 0u32));
+            self.skip_write.write_blockwand_max(fieldnorm_id, term_freq);
         }
         self.block.clear();
     }
@@ -413,6 +477,7 @@ impl<W: Write> PostingsSerializer<W> {
         }
         self.skip_write.clear();
         self.postings_write.clear();
+        self.bm25_weight = None;
         Ok(())
     }
 
@@ -425,4 +490,3 @@ impl<W: Write> PostingsSerializer<W> {
         self.last_doc_id_encoded = 0;
     }
 }
-

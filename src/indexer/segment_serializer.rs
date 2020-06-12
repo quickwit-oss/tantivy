@@ -50,8 +50,10 @@ impl SegmentSerializer {
         &mut self.fast_field_serializer
     }
 
-    /// Accessor to the field norm serializer.
-    pub fn get_fieldnorms_serializer(&mut self) -> Option<FieldNormsSerializer> {
+    /// Extract the field norm serializer.
+    ///
+    /// Note the fieldnorms serializer can only be extracted once.
+    pub fn extract_fieldnorms_serializer(&mut self) -> Option<FieldNormsSerializer> {
         self.fieldnorms_serializer.take()
     }
 
@@ -62,7 +64,7 @@ impl SegmentSerializer {
 
     /// Finalize the segment serialization.
     pub fn close(mut self) -> crate::Result<()> {
-        if let Some(fieldnorms_serializer) = self.get_fieldnorms_serializer() {
+        if let Some(fieldnorms_serializer) = self.extract_fieldnorms_serializer() {
             fieldnorms_serializer.close()?;
         }
         self.fast_field_serializer.close()?;

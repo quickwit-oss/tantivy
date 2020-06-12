@@ -1,4 +1,5 @@
 use crate::core::SegmentReader;
+use crate::postings::FreqReadingOption;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use crate::query::term_query::TermScorer;
@@ -8,9 +9,9 @@ use crate::query::Exclude;
 use crate::query::Occur;
 use crate::query::RequiredOptionalScorer;
 use crate::query::Scorer;
+use crate::query::Union;
 use crate::query::Weight;
 use crate::query::{intersect_scorers, Explanation};
-use crate::query::Union;
 use crate::{DocId, Score};
 use std::collections::HashMap;
 
@@ -35,20 +36,30 @@ where
                 .into_iter()
                 .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
-            return SpecializedScorer::TermUnion(scorers);
+            if scorers
+                .iter()
+                .all(|scorer| scorer.freq_reading_option() == FreqReadingOption::ReadFreq)
+            {
+                // Block wand is only available iff we read frequencies.
+                return SpecializedScorer::TermUnion(scorers);
+            } else {
+                return SpecializedScorer::Other(Box::new(Union::<_, TScoreCombiner>::from(
+                    scorers,
+                )));
+            }
         }
     }
     SpecializedScorer::Other(Box::new(Union::<_, TScoreCombiner>::from(scorers)))
 }
 
 fn into_box_scorer<TScoreCombiner: ScoreCombiner>(scorer: SpecializedScorer) -> Box<dyn Scorer> {
-        match scorer {
-            SpecializedScorer::TermUnion(term_scorers) => {
-                let union_scorer = Union::<TermScorer, TScoreCombiner>::from(term_scorers);
-                Box::new(union_scorer)
-            },
-            SpecializedScorer::Other(scorer) => scorer,
+    match scorer {
+        SpecializedScorer::TermUnion(term_scorers) => {
+            let union_scorer = Union::<TermScorer, TScoreCombiner>::from(term_scorers);
+            Box::new(union_scorer)
         }
+        SpecializedScorer::Other(scorer) => scorer,
+    }
 }
 
 pub struct BooleanWeight {
@@ -94,36 +105,37 @@ impl BooleanWeight {
         let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
             .map(scorer_union::<TScoreCombiner>)
-            .map(|specialized_scorer| into_box_scorer::<TScoreCombiner>(specialized_scorer));
+            .map(into_box_scorer::<TScoreCombiner>);
 
         let must_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::Must)
             .map(intersect_scorers);
 
-        let positive_scorer: SpecializedScorer =
-            match (should_scorer_opt, must_scorer_opt) {
-                (Some(should_scorer), Some(must_scorer)) => {
-                    if self.scoring_enabled {
-                        SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
-                            Box<dyn Scorer>,
-                            Box<dyn Scorer>,
-                            TScoreCombiner,
-                        >::new(
-                            must_scorer, into_box_scorer::<TScoreCombiner>(should_scorer)
-                        )))
-                    } else {
-                        SpecializedScorer::Other(must_scorer)
-                    }
+        let positive_scorer: SpecializedScorer = match (should_scorer_opt, must_scorer_opt) {
+            (Some(should_scorer), Some(must_scorer)) => {
+                if self.scoring_enabled {
+                    SpecializedScorer::Other(Box::new(RequiredOptionalScorer::<
+                        Box<dyn Scorer>,
+                        Box<dyn Scorer>,
+                        TScoreCombiner,
+                    >::new(
+                        must_scorer,
+                        into_box_scorer::<TScoreCombiner>(should_scorer),
+                    )))
+                } else {
+                    SpecializedScorer::Other(must_scorer)
                 }
-                (None, Some(must_scorer)) => SpecializedScorer::Other(must_scorer),
-                (Some(should_scorer), None) => should_scorer,
-                (None, None) => {
-                    return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
-                }
-            };
+            }
+            (None, Some(must_scorer)) => SpecializedScorer::Other(must_scorer),
+            (Some(should_scorer), None) => should_scorer,
+            (None, None) => {
+                return Ok(SpecializedScorer::Other(Box::new(EmptyScorer)));
+            }
+        };
 
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            let positive_scorer_boxed: Box<dyn Scorer> = into_box_scorer::<TScoreCombiner>(positive_scorer);
+            let positive_scorer_boxed: Box<dyn Scorer> =
+                into_box_scorer::<TScoreCombiner>(positive_scorer);
             Ok(SpecializedScorer::Other(Box::new(Exclude::new(
                 positive_scorer_boxed,
                 exclude_scorer,
@@ -147,7 +159,9 @@ impl Weight for BooleanWeight {
             }
         } else if self.scoring_enabled {
             self.complex_scorer::<SumWithCoordsCombiner>(reader, boost)
-                .map(|specialized_scorer| into_box_scorer::<SumWithCoordsCombiner>(specialized_scorer))
+                .map(|specialized_scorer| {
+                    into_box_scorer::<SumWithCoordsCombiner>(specialized_scorer)
+                })
         } else {
             self.complex_scorer::<DoNothingCombiner>(reader, boost)
                 .map(into_box_scorer::<DoNothingCombiner>)
@@ -182,7 +196,8 @@ impl Weight for BooleanWeight {
         let scorer = self.complex_scorer::<SumWithCoordsCombiner>(reader, 1.0f32)?;
         match scorer {
             SpecializedScorer::TermUnion(term_scorers) => {
-                let mut union_scorer = Union::<TermScorer, SumWithCoordsCombiner>::from(term_scorers);
+                let mut union_scorer =
+                    Union::<TermScorer, SumWithCoordsCombiner>::from(term_scorers);
                 for_each_scorer(&mut union_scorer, callback);
             }
             SpecializedScorer::Other(mut scorer) => {

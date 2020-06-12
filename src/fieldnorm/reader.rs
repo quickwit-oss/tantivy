@@ -1,30 +1,37 @@
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use crate::directory::ReadOnlySource;
-use crate::DocId;
 use crate::common::CompositeFile;
+use crate::directory::ReadOnlySource;
 use crate::schema::Field;
-use std::sync::Arc;
 use crate::space_usage::PerFieldSpaceUsage;
+use crate::DocId;
+use std::sync::Arc;
 
+/// Reader for the fieldnorm (for each document, the number of tokens indexed in the
+/// field) of all indexed fields in the index.
+///
+/// Each fieldnorm is approximately compressed over one byte. We refer to this byte as
+/// `fieldnorm_id`.
+/// The mapping from `fieldnorm` to `fieldnorm_id` is given by monotonic.
 #[derive(Clone)]
 pub struct FieldNormReaders {
     data: Arc<CompositeFile>,
 }
 
 impl FieldNormReaders {
+    /// Creates a field norm reader.
     pub fn new(source: ReadOnlySource) -> crate::Result<FieldNormReaders> {
         let data = CompositeFile::open(&source)?;
         Ok(FieldNormReaders {
-            data: Arc::new(data)
+            data: Arc::new(data),
         })
     }
 
+    /// Returns the FieldNormReader for a specific field.
     pub fn get_field(&self, field: Field) -> Option<FieldNormReader> {
-        self.data
-            .open_read(field)
-            .map(FieldNormReader::open)
+        self.data.open_read(field).map(FieldNormReader::open)
     }
 
+    /// Return a break down of the space usage per field.
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
         self.data.space_usage()
     }
@@ -47,6 +54,7 @@ impl FieldNormReaders {
 /// Apart from compression, this scale also makes it possible to
 /// precompute computationally expensive functions of the fieldnorm
 /// in a very short array.
+#[derive(Clone)]
 pub struct FieldNormReader {
     data: ReadOnlySource,
 }
@@ -55,6 +63,11 @@ impl FieldNormReader {
     /// Opens a field norm reader given its data source.
     pub fn open(data: ReadOnlySource) -> Self {
         FieldNormReader { data }
+    }
+
+    /// Returns the number of documents in this segment.
+    pub fn num_docs(&self) -> u32 {
+        self.data.len() as u32
     }
 
     /// Returns the `fieldnorm` associated to a doc id.
@@ -93,10 +106,11 @@ impl FieldNormReader {
 }
 
 #[cfg(test)]
-impl From<Vec<u32>> for FieldNormReader {
-    fn from(field_norms: Vec<u32>) -> FieldNormReader {
+impl From<&[u32]> for FieldNormReader {
+    fn from(field_norms: &[u32]) -> FieldNormReader {
         let field_norms_id = field_norms
-            .into_iter()
+            .iter()
+            .cloned()
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = ReadOnlySource::from(field_norms_id);

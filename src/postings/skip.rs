@@ -1,6 +1,7 @@
-use crate::common::BinarySerializable;
+use crate::common::{BinarySerializable, VInt};
 use crate::directory::ReadOnlySource;
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
+use crate::query::BM25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 use owned_read::OwnedRead;
@@ -40,6 +41,11 @@ impl SkipSerializer {
             .expect("Should never fail");
     }
 
+    pub fn write_blockwand_max(&mut self, fieldnorm_id: u8, term_freq: u32) {
+        self.buffer.push(fieldnorm_id);
+        VInt(term_freq as u64).serialize_into_vec(&mut self.buffer);
+    }
+
     pub fn data(&self) -> &[u8] {
         &self.buffer[..]
     }
@@ -63,25 +69,29 @@ pub(crate) struct SkipReader {
     position_offset: u64,
 }
 
-#[derive(Clone, Eq, PartialEq, Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum BlockInfo {
     BitPacked {
         doc_num_bits: u8,
         tf_num_bits: u8,
         tf_sum: u32,
+        block_wand_fieldnorm_id: u8,
+        block_wand_term_freq: u32,
     },
-    VInt(u32),
+    VInt {
+        num_docs: u32,
+    },
 }
 
 impl Default for BlockInfo {
     fn default() -> Self {
-        BlockInfo::VInt(0)
+        BlockInfo::VInt { num_docs: 0u32 }
     }
 }
 
 impl SkipReader {
     pub fn new(data: ReadOnlySource, doc_freq: u32, skip_info: IndexRecordOption) -> SkipReader {
-        SkipReader {
+        let mut skip_reader = SkipReader {
             last_doc_in_block: 0u32,
             last_doc_in_previous_block: 0u32,
             owned_read: OwnedRead::new(data),
@@ -90,7 +100,9 @@ impl SkipReader {
             byte_offset: 0,
             remaining_docs: doc_freq,
             position_offset: 0u64,
-        }
+        };
+        skip_reader.advance();
+        skip_reader
     }
 
     pub fn reset(&mut self, data: ReadOnlySource, doc_freq: u32) {
@@ -102,8 +114,15 @@ impl SkipReader {
         self.remaining_docs = doc_freq;
     }
 
-    pub fn block_max_score(&self) -> Score {
-        f32::MAX
+    pub fn block_max_score(&self, bm25_weight: &BM25Weight) -> Option<Score> {
+        match self.block_info {
+            BlockInfo::BitPacked {
+                block_wand_fieldnorm_id,
+                block_wand_term_freq,
+                ..
+            } => Some(bm25_weight.score(block_wand_fieldnorm_id, block_wand_term_freq)),
+            BlockInfo::VInt { .. } => None,
+        }
     }
 
     pub(crate) fn last_doc_in_block(&self) -> DocId {
@@ -129,25 +148,38 @@ impl SkipReader {
                     doc_num_bits,
                     tf_num_bits: 0,
                     tf_sum: 0,
+                    block_wand_fieldnorm_id: 0,
+                    block_wand_term_freq: 0,
                 };
             }
             IndexRecordOption::WithFreqs => {
                 let tf_num_bits = self.owned_read.get(1);
+                let block_wand_fieldnorm_id = self.owned_read.get(2);
+                self.owned_read.advance(3);
+                let block_wand_term_freq =
+                    VInt::deserialize_u64(&mut self.owned_read).unwrap() as u32;
                 self.block_info = BlockInfo::BitPacked {
                     doc_num_bits,
                     tf_num_bits,
                     tf_sum: 0,
+                    block_wand_fieldnorm_id,
+                    block_wand_term_freq,
                 };
-                self.owned_read.advance(2);
             }
             IndexRecordOption::WithFreqsAndPositions => {
                 let tf_num_bits = self.owned_read.get(1);
                 self.owned_read.advance(2);
                 let tf_sum = u32::deserialize(&mut self.owned_read).expect("Failed reading tf_sum");
+                let block_wand_fieldnorm_id = self.owned_read.get(0);
+                self.owned_read.advance(1);
+                let block_wand_term_freq =
+                    VInt::deserialize_u64(&mut self.owned_read).unwrap() as u32;
                 self.block_info = BlockInfo::BitPacked {
                     doc_num_bits,
                     tf_num_bits,
                     tf_sum,
+                    block_wand_fieldnorm_id,
+                    block_wand_term_freq,
                 };
             }
         }
@@ -173,13 +205,14 @@ impl SkipReader {
                 doc_num_bits,
                 tf_num_bits,
                 tf_sum,
+                ..
             } => {
                 self.remaining_docs -= COMPRESSION_BLOCK_SIZE as u32;
                 self.byte_offset += compressed_block_size(doc_num_bits + tf_num_bits);
                 self.position_offset += tf_sum as u64;
             }
-            BlockInfo::VInt(num_vint_docs) => {
-                self.remaining_docs -= num_vint_docs;
+            BlockInfo::VInt { num_docs, .. } => {
+                self.remaining_docs -= num_docs;
             }
         }
         self.last_doc_in_previous_block = self.last_doc_in_block;
@@ -188,7 +221,9 @@ impl SkipReader {
             true
         } else {
             self.last_doc_in_block = TERMINATED;
-            self.block_info = BlockInfo::VInt(self.remaining_docs);
+            self.block_info = BlockInfo::VInt {
+                num_docs: self.remaining_docs,
+            };
             self.remaining_docs > 0
         }
     }
@@ -209,8 +244,10 @@ mod tests {
             let mut skip_serializer = SkipSerializer::new();
             skip_serializer.write_doc(1u32, 2u8);
             skip_serializer.write_term_freq(3u8);
+            skip_serializer.write_blockwand_max(13u8, 3u32);
             skip_serializer.write_doc(5u32, 5u8);
             skip_serializer.write_term_freq(2u8);
+            skip_serializer.write_blockwand_max(8u8, 2u32);
             skip_serializer.data().to_owned()
         };
         let doc_freq = 3u32 + (COMPRESSION_BLOCK_SIZE * 2) as u32;
@@ -219,28 +256,34 @@ mod tests {
             doc_freq,
             IndexRecordOption::WithFreqs,
         );
-        assert!(skip_reader.advance());
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
-        assert_eq!(
-            skip_reader.block_info(),
+        assert!(matches!(
+            skip_reader.block_info,
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
                 tf_num_bits: 3u8,
-                tf_sum: 0
+                tf_sum: 0,
+                block_wand_fieldnorm_id: 13,
+                block_wand_term_freq: 3
             }
-        );
+        ));
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
-        assert_eq!(
+        assert!(matches!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 5u8,
                 tf_num_bits: 2u8,
-                tf_sum: 0
+                tf_sum: 0,
+                block_wand_fieldnorm_id: 8,
+                block_wand_term_freq: 2
             }
-        );
+        ));
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.block_info(), BlockInfo::VInt(3u32));
+        assert!(matches!(
+            skip_reader.block_info(),
+            BlockInfo::VInt { num_docs: 3u32 }
+        ));
         assert!(!skip_reader.advance());
     }
 
@@ -258,28 +301,34 @@ mod tests {
             doc_freq,
             IndexRecordOption::Basic,
         );
-        assert!(skip_reader.advance());
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
-        assert_eq!(
+        assert!(matches!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
                 tf_num_bits: 0,
-                tf_sum: 0u32
+                tf_sum: 0u32,
+                block_wand_fieldnorm_id: 0,
+                block_wand_term_freq: 0
             }
-        );
+        ));
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
-        assert_eq!(
+        assert!(matches!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 5u8,
                 tf_num_bits: 0,
-                tf_sum: 0u32
+                tf_sum: 0u32,
+                block_wand_fieldnorm_id: 0,
+                block_wand_term_freq: 0
             }
-        );
+        ));
         assert!(skip_reader.advance());
-        assert_eq!(skip_reader.block_info(), BlockInfo::VInt(3u32));
+        assert!(matches!(
+            skip_reader.block_info(),
+            BlockInfo::VInt { num_docs: 3u32 }
+        ));
         assert!(!skip_reader.advance());
     }
 
@@ -296,16 +345,17 @@ mod tests {
             doc_freq,
             IndexRecordOption::Basic,
         );
-        assert!(skip_reader.advance());
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
-        assert_eq!(
+        assert!(matches!(
             skip_reader.block_info(),
             BlockInfo::BitPacked {
                 doc_num_bits: 2u8,
                 tf_num_bits: 0,
-                tf_sum: 0u32
+                tf_sum: 0u32,
+                block_wand_fieldnorm_id: 0,
+                block_wand_term_freq: 0
             }
-        );
+        ));
         assert!(!skip_reader.advance());
     }
 }

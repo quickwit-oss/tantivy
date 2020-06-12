@@ -1,5 +1,6 @@
 use crate::{DocId, TantivyError};
 use serde::Serialize;
+use std::fmt;
 
 pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
     TantivyError::InvalidArgument(format!("Document #({}) does not match", doc))
@@ -16,6 +17,12 @@ pub struct Explanation {
     description: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     details: Vec<Explanation>,
+}
+
+impl fmt::Debug for Explanation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Explanation({})", self.to_pretty_json())
+    }
 }
 
 impl Explanation {

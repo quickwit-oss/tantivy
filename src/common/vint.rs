@@ -5,7 +5,7 @@ use std::io::Read;
 use std::io::Write;
 
 ///   Wrapper over a `u64` that serializes as a variable int.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 
 const STOP_BIT: u8 = 128;
