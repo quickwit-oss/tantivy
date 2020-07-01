@@ -22,7 +22,7 @@ pub enum ReloadPolicy {
     /// The index is entirely reloaded manually.
     /// All updates of the index should be manual.
     ///
-    /// No change is reflected automatically. You are required to call `.load_seacher()` manually.
+    /// No change is reflected automatically. You are required to call `IndexReader::reload()` manually.
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
