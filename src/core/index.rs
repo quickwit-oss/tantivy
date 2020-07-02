@@ -283,7 +283,7 @@ impl Index {
                 TantivyError::LockFailure(
                     err,
                     Some(
-                        "Failed to acquire index lock. If you are using\
+                        "Failed to acquire index lock. If you are using \
                          a regular directory, this means there is already an \
                          `IndexWriter` working on this `Directory`, in this process \
                          or in a different process."
