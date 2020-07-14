@@ -199,7 +199,7 @@ impl SkipReader {
         }
     }
 
-    pub fn advance(&mut self) -> bool {
+    pub fn advance(&mut self) {
         match self.block_info {
             BlockInfo::BitPacked {
                 doc_num_bits,
@@ -218,13 +218,9 @@ impl SkipReader {
         self.last_doc_in_previous_block = self.last_doc_in_block;
         if self.remaining_docs >= COMPRESSION_BLOCK_SIZE as u32 {
             self.read_block_info();
-            true
         } else {
             self.last_doc_in_block = TERMINATED;
-            self.block_info = BlockInfo::VInt {
-                num_docs: self.remaining_docs,
-            };
-            self.remaining_docs > 0
+            self.block_info = BlockInfo::VInt { num_docs: self.remaining_docs };
         }
     }
 }
@@ -266,8 +262,8 @@ mod tests {
                 block_wand_fieldnorm_id: 13,
                 block_wand_term_freq: 3
             }
-        ));
-        assert!(skip_reader.advance());
+       ));
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert!(matches!(
             skip_reader.block_info(),
@@ -278,13 +274,11 @@ mod tests {
                 block_wand_fieldnorm_id: 8,
                 block_wand_term_freq: 2
             }
-        ));
-        assert!(skip_reader.advance());
-        assert!(matches!(
-            skip_reader.block_info(),
-            BlockInfo::VInt { num_docs: 3u32 }
-        ));
-        assert!(!skip_reader.advance());
+       ));
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 3u32 }));
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
     }
 
     #[test]
@@ -312,7 +306,7 @@ mod tests {
                 block_wand_term_freq: 0
             }
         ));
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert!(matches!(
             skip_reader.block_info(),
@@ -324,12 +318,10 @@ mod tests {
                 block_wand_term_freq: 0
             }
         ));
-        assert!(skip_reader.advance());
-        assert!(matches!(
-            skip_reader.block_info(),
-            BlockInfo::VInt { num_docs: 3u32 }
-        ));
-        assert!(!skip_reader.advance());
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 3u32 }));
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
     }
 
     #[test]
@@ -356,6 +348,7 @@ mod tests {
                 block_wand_term_freq: 0
             }
         ));
-        assert!(!skip_reader.advance());
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
     }
 }

@@ -53,7 +53,8 @@ pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<dyn Scorer>>
 }
 
 fn go_to_first_doc<TDocSet: DocSet>(docsets: &mut [TDocSet]) -> DocId {
-    let mut candidate = 0;
+    assert!(!docsets.is_empty());
+    let mut candidate = docsets.iter().map(TDocSet::doc).max().unwrap();
     'outer: loop {
         for docset in docsets.iter_mut() {
             let seek_doc = docset.seek(candidate);
@@ -119,6 +120,9 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                 }
             }
 
+            assert_eq!(candidate, self.left.doc());
+            assert_eq!(candidate, self.right.doc());
+            assert!(self.others.iter().all(|docset| docset.doc() == candidate));
             return candidate;
         }
     }
@@ -129,7 +133,12 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
         for docset in &mut self.others {
             docsets.push(docset);
         }
-        go_to_first_doc(&mut docsets[..])
+        let doc = go_to_first_doc(&mut docsets[..]);
+        for docset in docsets{
+            assert_eq!(docset.doc(), doc);
+        }
+        debug_assert!(doc >= target);
+        doc
     }
 
     fn doc(&self) -> DocId {

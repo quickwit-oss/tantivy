@@ -295,8 +295,8 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator<'_> {
-        SegmentReaderAliveDocsIterator::new(&self)
+    pub fn doc_ids_alive<'a>(&'a self) -> impl Iterator<Item = DocId> + 'a {
+        (0u32..self.max_doc).filter(move |doc| !self.is_deleted(*doc))
     }
 
     /// Summarize total space usage of this segment.
@@ -321,52 +321,6 @@ impl SegmentReader {
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
-    }
-}
-
-/// Implements the iterator trait to allow easy iteration
-/// over non-deleted ("alive") DocIds in a SegmentReader
-pub struct SegmentReaderAliveDocsIterator<'a> {
-    reader: &'a SegmentReader,
-    max_doc: DocId,
-    current: DocId,
-}
-
-impl<'a> SegmentReaderAliveDocsIterator<'a> {
-    pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
-        SegmentReaderAliveDocsIterator {
-            reader,
-            max_doc: reader.max_doc(),
-            current: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
-    type Item = DocId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // TODO: Use TinySet (like in BitSetDocSet) to speed this process up
-        if self.current >= self.max_doc {
-            return None;
-        }
-
-        // find the next alive doc id
-        while self.reader.is_deleted(self.current) {
-            self.current += 1;
-
-            if self.current >= self.max_doc {
-                return None;
-            }
-        }
-
-        // capture the current alive DocId
-        let result = Some(self.current);
-
-        // move down the chain
-        self.current += 1;
-
-        result
     }
 }
 

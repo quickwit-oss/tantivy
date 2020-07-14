@@ -104,8 +104,8 @@ impl BooleanWeight {
 
         let exclude_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::MustNot)
-            .map(scorer_union::<TScoreCombiner>)
-            .map(into_box_scorer::<TScoreCombiner>);
+            .map(scorer_union::<DoNothingCombiner>)
+            .map(into_box_scorer::<DoNothingCombiner>);
 
         let must_scorer_opt: Option<Box<dyn Scorer>> = per_occur_scorers
             .remove(&Occur::Must)

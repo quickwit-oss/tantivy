@@ -239,6 +239,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(target >= self.doc());
         let doc = self.intersection_docset.seek(target);
         if doc == TERMINATED || self.phrase_match() {
             return doc;
@@ -266,7 +267,6 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
 
 #[cfg(test)]
 mod tests {
-
     use super::{intersection, intersection_count};
 
     fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {

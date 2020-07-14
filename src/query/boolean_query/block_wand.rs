@@ -38,23 +38,6 @@ fn find_pivot_doc(term_scorers: &[TermScorerWithMaxScore], threshold: f32) -> Op
     Some((before_pivot_len, pivot_len, pivot_doc))
 }
 
-// Shallow advance all of the scorers that are positioned before or on pivot,
-// and returns their number as well as the sum of their block_max_score.
-//
-// This gives us a tighter upperbound of DocId score, without decoding
-// any blocks.
-//
-// After calling this method, some TermScorer might be in a state in which
-// their block is not loaded.
-fn shallow_advance(scorers: &mut Vec<TermScorerWithMaxScore>, pivot: DocId) -> Score {
-    scorers.iter_mut()
-        .map(|scorer| {
-            scorer.shallow_seek(pivot);
-            scorer.block_max_score()
-        })
-        .sum()
-}
-
 struct TermScorerWithMaxScore<'a> {
     scorer: &'a mut TermScorer,
     max_score: f32,

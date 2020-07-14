@@ -11,6 +11,7 @@ mod tests {
     use super::*;
     use crate::assert_nearly_equals;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
+    use crate::collector::TopDocs;
     use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::Intersection;
@@ -22,7 +23,7 @@ mod tests {
     use crate::query::TermQuery;
     use crate::schema::*;
     use crate::Index;
-    use crate::{DocAddress, DocId};
+    use crate::{DocAddress, DocId, Score};
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = Schema::builder();
@@ -180,6 +181,54 @@ mod tests {
     }
 
     #[test]
+    pub fn test_boolean_query_two_excluded() {
+        let (index, text_field) = aux_test_helper();
+
+        let make_term_query = |text: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, text),
+                IndexRecordOption::Basic,
+            );
+            let query: Box<dyn Query> = Box::new(term_query);
+            query
+        };
+
+        let reader = index.reader().unwrap();
+
+        let matching_topdocs = |query: &dyn Query| {
+            reader
+                .searcher()
+                .search(query, &TopDocs::with_limit(3))
+                .unwrap()
+        };
+
+        let score_doc_4: Score; // score of doc 4 should not be influenced by exclusion
+        {
+            let boolean_query_no_excluded =
+                BooleanQuery::from(vec![(Occur::Must, make_term_query("d"))]);
+            let topdocs_no_excluded = matching_topdocs(&boolean_query_no_excluded);
+            assert_eq!(topdocs_no_excluded.len(), 2);
+            let (top_score, top_doc) = topdocs_no_excluded[0];
+            assert_eq!(top_doc, DocAddress(0, 4));
+            assert_eq!(topdocs_no_excluded[1].1, DocAddress(0, 3)); // ignore score of doc 3.
+            score_doc_4 = top_score;
+        }
+
+        {
+            let boolean_query_two_excluded = BooleanQuery::from(vec![
+                (Occur::Must, make_term_query("d")),
+                (Occur::MustNot, make_term_query("a")),
+                (Occur::MustNot, make_term_query("b")),
+            ]);
+            let topdocs_excluded = matching_topdocs(&boolean_query_two_excluded);
+            assert_eq!(topdocs_excluded.len(), 1);
+            let (top_score, top_doc) = topdocs_excluded[0];
+            assert_eq!(top_doc, DocAddress(0, 4));
+            assert_eq!(top_score, score_doc_4);
+        }
+    }
+
+    #[test]
     pub fn test_boolean_query_with_weight() {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -276,7 +325,7 @@ mod tests {
         index_writer.add_document(doc!(
             // tf = 1 1
             title =>  "PDF Мастер Класс \"Морячок\" (Оксана Лифенко)",
-            // tf = 0 0 
+            // tf = 0 0
             text => "https://i.ibb.co/pzvHrDN/I3d U T6 Gg TM.jpg\nhttps://i.ibb.co/NFrb6v6/N0ls Z9nwjb U.jpg\nВ описание входит штаны, кофта, берет, матросский воротник. Описание продается в формате PDF, состоит из 12 страниц формата А4 и может быть напечатано на любом принтере.\nОписание предназначено для кукол BJD RealPuki от FairyLand, но может подойти и другим подобным куклам. Также вы можете вязать этот наряд из обычной пряжи, и он подойдет для куколок побольше.\nhttps://vk.com/market 95724412?w=product 95724412_2212"
         ));
         for _ in 0..1_000 {

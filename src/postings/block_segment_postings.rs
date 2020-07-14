@@ -209,7 +209,6 @@ impl BlockSegmentPostings {
     /// Return the document at index `idx` of the block.
     #[inline(always)]
     pub fn doc(&self, idx: usize) -> u32 {
-        debug_assert!(self.block_is_loaded());
         self.doc_decoder.output(idx)
     }
 
@@ -302,13 +301,9 @@ impl BlockSegmentPostings {
     ///
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
-        if !self.skip_reader.advance() {
-            self.doc_decoder.clear();
-            self.freq_decoder.clear();
-            return false;
-        }
+        self.skip_reader.advance();
         self.load_block();
-        true
+        self.docs().len() > 0
     }
 
     /// Returns an empty segment postings object

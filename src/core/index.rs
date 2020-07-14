@@ -24,8 +24,10 @@ use crate::IndexWriter;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::fmt;
+
 #[cfg(feature = "mmap")]
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 fn load_metas(
@@ -281,7 +283,7 @@ impl Index {
                 TantivyError::LockFailure(
                     err,
                     Some(
-                        "Failed to acquire index lock. If you are using\
+                        "Failed to acquire index lock. If you are using \
                          a regular directory, this means there is already an \
                          `IndexWriter` working on this `Directory`, in this process \
                          or in a different process."
