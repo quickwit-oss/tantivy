@@ -165,7 +165,7 @@ impl SkipReader {
         }
     }
 
-    pub fn advance(&mut self) -> bool {
+    pub fn advance(&mut self) {
         match self.block_info {
             BlockInfo::BitPacked {
                 doc_num_bits,
@@ -183,11 +183,9 @@ impl SkipReader {
         self.last_doc_in_previous_block = self.last_doc_in_block;
         if self.remaining_docs >= COMPRESSION_BLOCK_SIZE as u32 {
             self.read_block_info();
-            true
         } else {
             self.last_doc_in_block = TERMINATED;
             self.block_info = BlockInfo::VInt(self.remaining_docs);
-            self.remaining_docs > 0
         }
     }
 }
@@ -217,7 +215,7 @@ mod tests {
             doc_freq,
             IndexRecordOption::WithFreqs,
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -227,7 +225,7 @@ mod tests {
                 tf_sum: 0
             }
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -237,9 +235,10 @@ mod tests {
                 tf_sum: 0
             }
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.block_info(), BlockInfo::VInt(3u32));
-        assert!(!skip_reader.advance());
+        skip_reader.advance();
+        assert_eq!(skip_reader.block_info(), BlockInfo::VInt(0u32));
     }
 
     #[test]
@@ -256,7 +255,7 @@ mod tests {
             doc_freq,
             IndexRecordOption::Basic,
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -266,7 +265,7 @@ mod tests {
                 tf_sum: 0u32
             }
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 5u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -276,9 +275,10 @@ mod tests {
                 tf_sum: 0u32
             }
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.block_info(), BlockInfo::VInt(3u32));
-        assert!(!skip_reader.advance());
+        skip_reader.advance();
+        assert_eq!(skip_reader.block_info(), BlockInfo::VInt(0u32));
     }
 
     #[test]
@@ -294,7 +294,7 @@ mod tests {
             doc_freq,
             IndexRecordOption::Basic,
         );
-        assert!(skip_reader.advance());
+        skip_reader.advance();
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -304,6 +304,7 @@ mod tests {
                 tf_sum: 0u32
             }
         );
-        assert!(!skip_reader.advance());
+        skip_reader.advance();
+        assert_eq!(skip_reader.block_info(), BlockInfo::VInt(0u32));
     }
 }

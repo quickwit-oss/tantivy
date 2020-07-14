@@ -234,11 +234,9 @@ impl BlockSegmentPostings {
     ///
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
-        if !self.skip_reader.advance() {
-            return false;
-        }
+        self.skip_reader.advance();
         self.load_block();
-        true
+        self.docs().len() > 0
     }
 
     /// Returns an empty segment postings object

@@ -123,6 +123,7 @@ impl DocSet for SegmentPostings {
         // After the search, the cursor should point to the first value of TERMINATED.
         let doc = output.0[self.cur];
         debug_assert!(doc >= target);
+        debug_assert_eq!(doc, self.doc());
         doc
     }
 
