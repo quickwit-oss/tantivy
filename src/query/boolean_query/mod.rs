@@ -141,7 +141,6 @@ mod tests {
                 .map(|doc| doc.1)
                 .collect::<Vec<DocId>>()
         };
-
         {
             let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a"))]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);

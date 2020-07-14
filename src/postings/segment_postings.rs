@@ -100,14 +100,15 @@ impl DocSet for SegmentPostings {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        if self.doc() == target {
-            return target;
+        debug_assert!(self.doc() <= target);
+        if self.doc() >= target {
+            return self.doc();
         }
+
         self.block_cursor.seek(target);
 
         // At this point we are on the block, that might contain our document.
         let output = self.block_cursor.docs_aligned();
-
         self.cur = self.block_searcher.search_in_block(&output, target);
 
         // The last block is not full and padded with the value TERMINATED,
@@ -123,6 +124,7 @@ impl DocSet for SegmentPostings {
         // After the search, the cursor should point to the first value of TERMINATED.
         let doc = output.0[self.cur];
         debug_assert!(doc >= target);
+        debug_assert_eq!(doc, self.doc());
         doc
     }
 

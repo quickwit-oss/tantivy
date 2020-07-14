@@ -11,11 +11,12 @@ mod tests {
 
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
+    use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
     use crate::tests::assert_nearly_equals;
-    use crate::Index;
     use crate::Term;
+    use crate::{Index, TERMINATED};
 
     #[test]
     pub fn test_term_query_no_freq() {
@@ -40,6 +41,41 @@ mod tests {
         let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32).unwrap();
         assert_eq!(term_scorer.doc(), 0);
         assert_eq!(term_scorer.score(), 0.28768212);
+    }
+
+    #[test]
+    pub fn test_term_query_multiple_of_block_len() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+            for _ in 0..COMPRESSION_BLOCK_SIZE {
+                let doc = doc!(text_field => "a");
+                index_writer.add_document(doc);
+            }
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "a"),
+            IndexRecordOption::Basic,
+        );
+        let term_weight = term_query.weight(&searcher, true)?;
+        let segment_reader = searcher.segment_reader(0);
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32)?;
+        for i in 0u32..COMPRESSION_BLOCK_SIZE as u32 {
+            assert_eq!(term_scorer.doc(), i);
+            if i == COMPRESSION_BLOCK_SIZE as u32 - 1u32 {
+                assert_eq!(term_scorer.advance(), TERMINATED);
+            } else {
+                assert_eq!(term_scorer.advance(), i + 1);
+            }
+        }
+        assert_eq!(term_scorer.doc(), TERMINATED);
+        Ok(())
     }
 
     #[test]
@@ -110,6 +146,27 @@ mod tests {
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let reader = index.reader().unwrap();
         assert_eq!(term_query.count(&*reader.searcher()).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_term_query_simple_seek() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"));
+        index_writer.add_document(doc!(text_field=>"a"));
+        index_writer.commit()?;
+        let term_a = Term::from_field_text(text_field, "a");
+        let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
+        let searcher = index.reader()?.searcher();
+        let term_weight = term_query.weight(&searcher, false)?;
+        let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+        assert_eq!(term_scorer.doc(), 0u32);
+        term_scorer.seek(1u32);
+        assert_eq!(term_scorer.doc(), 1u32);
+        Ok(())
     }
 
     #[test]

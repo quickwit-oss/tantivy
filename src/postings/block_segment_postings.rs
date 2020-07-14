@@ -47,7 +47,6 @@ fn decode_vint_block(
     doc_offset: DocId,
     num_vint_docs: usize,
 ) {
-    doc_decoder.clear();
     let num_consumed_bytes = doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs);
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_vint_unsorted(&data[num_consumed_bytes..], num_vint_docs);
@@ -99,7 +98,7 @@ impl BlockSegmentPostings {
             data: postings_data,
             skip_reader,
         };
-        block_segment_postings.advance();
+        block_segment_postings.load_block();
         block_segment_postings
     }
 
@@ -117,13 +116,13 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         self.data = ReadOnlySource::new(postings_data);
         self.loaded_offset = std::usize::MAX;
-        self.loaded_offset = std::usize::MAX;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
             self.skip_reader.reset(ReadOnlySource::empty(), doc_freq);
         }
         self.doc_freq = doc_freq as usize;
+        self.load_block();
     }
 
     /// Returns the document frequency associated to this block postings.
@@ -215,6 +214,10 @@ impl BlockSegmentPostings {
                 );
             }
             BlockInfo::VInt(num_vint_docs) => {
+                self.doc_decoder.clear();
+                if num_vint_docs == 0 {
+                    return;
+                }
                 decode_vint_block(
                     &mut self.doc_decoder,
                     if let FreqReadingOption::ReadFreq = self.freq_reading_option {
@@ -233,12 +236,9 @@ impl BlockSegmentPostings {
     /// Advance to the next block.
     ///
     /// Returns false iff there was no remaining blocks.
-    pub fn advance(&mut self) -> bool {
-        if !self.skip_reader.advance() {
-            return false;
-        }
+    pub fn advance(&mut self) {
+        self.skip_reader.advance();
         self.load_block();
-        true
     }
 
     /// Returns an empty segment postings object
@@ -294,7 +294,8 @@ mod tests {
     #[test]
     fn test_empty_block_segment_postings() {
         let mut postings = BlockSegmentPostings::empty();
-        assert!(!postings.advance());
+        postings.advance();
+        assert!(postings.docs().is_empty());
         assert_eq!(postings.doc_freq(), 0);
     }
 
@@ -306,13 +307,14 @@ mod tests {
         assert_eq!(block_segments.doc_freq(), 100_000);
         loop {
             let block = block_segments.docs();
+            if block.is_empty() {
+                break;
+            }
             for (i, doc) in block.iter().cloned().enumerate() {
                 assert_eq!(offset + (i as u32), doc);
             }
             offset += block.len() as u32;
-            if block_segments.advance() {
-                break;
-            }
+            block_segments.advance();
         }
     }
 
@@ -421,7 +423,6 @@ mod tests {
             let term_info = inverted_index.get_term_info(&term).unwrap();
             inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
         }
-        assert!(block_segments.advance());
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
     }
 }

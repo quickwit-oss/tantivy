@@ -3,6 +3,11 @@ use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
 
+#[inline(always)]
+fn is_within<TDocSetExclude: DocSet>(docset: &mut TDocSetExclude, doc: DocId) -> bool {
+    docset.doc() <= doc && docset.seek(doc) == doc
+}
+
 /// Filters a given `DocSet` by removing the docs from a given `DocSet`.
 ///
 /// The excluding docset has no impact on scoring.
@@ -23,8 +28,7 @@ where
     ) -> Exclude<TDocSet, TDocSetExclude> {
         while underlying_docset.doc() != TERMINATED {
             let target = underlying_docset.doc();
-            if excluding_docset.seek(target) != target {
-                // this document is not excluded.
+            if !is_within(&mut excluding_docset, target) {
                 break;
             }
             underlying_docset.advance();
@@ -36,42 +40,30 @@ where
     }
 }
 
-impl<TDocSet, TDocSetExclude> Exclude<TDocSet, TDocSetExclude>
-where
-    TDocSet: DocSet,
-    TDocSetExclude: DocSet,
-{
-    /// Returns true iff the doc is not removed.
-    ///
-    /// The method has to be called with non strictly
-    /// increasing `doc`.
-    fn accept(&mut self) -> bool {
-        let doc = self.underlying_docset.doc();
-        self.excluding_docset.seek(doc) != doc
-    }
-}
-
 impl<TDocSet, TDocSetExclude> DocSet for Exclude<TDocSet, TDocSetExclude>
 where
     TDocSet: DocSet,
     TDocSetExclude: DocSet,
 {
     fn advance(&mut self) -> DocId {
-        while self.underlying_docset.advance() != TERMINATED {
-            if self.accept() {
-                return self.doc();
+        loop {
+            let candidate = self.underlying_docset.advance();
+            if candidate == TERMINATED {
+                return TERMINATED;
+            }
+            if !is_within(&mut self.excluding_docset, candidate) {
+                return candidate;
             }
         }
-        TERMINATED
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
-        let underlying_seek_result = self.underlying_docset.seek(target);
-        if underlying_seek_result == TERMINATED {
+        let candidate = self.underlying_docset.seek(target);
+        if candidate == TERMINATED {
             return TERMINATED;
         }
-        if self.accept() {
-            return underlying_seek_result;
+        if !is_within(&mut self.excluding_docset, candidate) {
+            return candidate;
         }
         self.advance()
     }

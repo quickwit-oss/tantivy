@@ -43,7 +43,6 @@ where
     fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
-
         let inverted_index = reader.inverted_index(self.field);
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict);
@@ -52,12 +51,14 @@ where
             let mut block_segment_postings = inverted_index
                 .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
             loop {
-                for &doc in block_segment_postings.docs() {
-                    doc_bitset.insert(doc);
-                }
-                if !block_segment_postings.advance() {
+                let docs = block_segment_postings.docs();
+                if docs.is_empty() {
                     break;
                 }
+                for &doc in docs {
+                    doc_bitset.insert(doc);
+                }
+                block_segment_postings.advance();
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
