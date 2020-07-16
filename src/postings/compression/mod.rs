@@ -108,8 +108,8 @@ impl BlockDecoder {
         self.output.0[idx]
     }
 
-    pub fn clear(&mut self) {
-        self.output.0.iter_mut().for_each(|el| *el = TERMINATED);
+    pub fn fill(&mut self, val: u32) {
+        self.output.0.iter_mut().for_each(|el| *el = val);
     }
 }
 

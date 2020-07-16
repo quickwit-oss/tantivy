@@ -584,6 +584,9 @@ pub mod tests {
     ) {
         for target in targets {
             let mut postings_opt = postings_factory();
+            if target < postings_opt.doc() {
+                continue;
+            }
             let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
             let skip_result_opt = postings_opt.seek(target);
             let skip_result_unopt = postings_unopt.seek(target);

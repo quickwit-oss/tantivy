@@ -523,7 +523,7 @@ impl SegmentUpdater {
     ///
     /// Upon termination of the current merging threads,
     /// merge opportunity may appear.
-    //
+    ///
     /// We keep waiting until the merge policy judges that
     /// no opportunity is available.
     ///

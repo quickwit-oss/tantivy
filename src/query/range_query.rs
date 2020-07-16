@@ -301,12 +301,14 @@ impl Weight for RangeWeight {
             let mut block_segment_postings = inverted_index
                 .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
             loop {
+                let docs = block_segment_postings.docs();
+                if docs.is_empty() {
+                    break;
+                }
                 for &doc in block_segment_postings.docs() {
                     doc_bitset.insert(doc);
                 }
-                if !block_segment_postings.advance() {
-                    break;
-                }
+                block_segment_postings.advance();
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);

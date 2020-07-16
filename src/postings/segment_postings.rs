@@ -10,7 +10,7 @@ use crate::postings::BlockSearcher;
 use crate::postings::Postings;
 
 use crate::schema::IndexRecordOption;
-use crate::{DocId, TERMINATED};
+use crate::DocId;
 
 use crate::directory::ReadOnlySource;
 use crate::fieldnorm::FieldNormReader;
@@ -114,14 +114,33 @@ impl SegmentPostings {
             block_searcher: BlockSearcher::default(),
         }
     }
+}
 
+impl DocSet for SegmentPostings {
+    // goes to the next element.
+    // next needs to be called a first time to point to the correct element.
+    #[inline]
+    fn advance(&mut self) -> DocId {
+        assert!(self.block_cursor.block_is_loaded());
+        if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
+            self.cur = 0;
+            self.block_cursor.advance();
+        } else {
+            self.cur += 1;
+        }
+        self.doc()
+    }
 
-    pub(crate) fn seek_after_shallow(&mut self, target: DocId) -> DocId {
-        self.block_cursor.load_block();
+    fn seek(&mut self, target: DocId) -> DocId {
+        debug_assert!(self.doc() <= target);
+        if self.doc() >= target {
+            return self.doc();
+        }
+
+        self.block_cursor.seek(target);
 
         // At this point we are on the block, that might contain our document.
         let output = self.block_cursor.docs_aligned();
-
         self.cur = self.block_searcher.search_in_block(&output, target);
 
         // The last block is not full and padded with the value TERMINATED,
@@ -139,32 +158,6 @@ impl SegmentPostings {
         debug_assert!(doc >= target);
         debug_assert_eq!(doc, self.doc());
         doc
-    }
-}
-
-impl DocSet for SegmentPostings {
-    // goes to the next element.
-    // next needs to be called a first time to point to the correct element.
-    #[inline]
-    fn advance(&mut self) -> DocId {
-        assert!(self.block_cursor.block_is_loaded());
-        if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
-            self.cur = 0;
-            if !self.block_cursor.advance() {
-                return TERMINATED;
-            }
-        } else {
-            self.cur += 1;
-        }
-        self.doc()
-    }
-
-    fn seek(&mut self, target_doc: DocId) -> DocId {
-        if self.doc() == target_doc {
-            return target_doc;
-        }
-        self.block_cursor.shallow_seek(target_doc);
-        self.seek_after_shallow(target_doc)
     }
 
     /// Return the current document's `DocId`.

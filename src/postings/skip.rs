@@ -92,26 +92,40 @@ impl Default for BlockInfo {
 impl SkipReader {
     pub fn new(data: ReadOnlySource, doc_freq: u32, skip_info: IndexRecordOption) -> SkipReader {
         let mut skip_reader = SkipReader {
-            last_doc_in_block: 0u32,
+            last_doc_in_block: if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
+                0
+            } else {
+                TERMINATED
+            },
             last_doc_in_previous_block: 0u32,
             owned_read: OwnedRead::new(data),
             skip_info,
-            block_info: BlockInfo::default(),
+            block_info: BlockInfo::VInt { num_docs: doc_freq },
             byte_offset: 0,
             remaining_docs: doc_freq,
             position_offset: 0u64,
         };
-        skip_reader.advance();
+        if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
+            skip_reader.read_block_info();
+        }
         skip_reader
     }
 
     pub fn reset(&mut self, data: ReadOnlySource, doc_freq: u32) {
-        self.last_doc_in_block = 0u32;
+        self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
+            0
+        } else {
+            TERMINATED
+        };
         self.last_doc_in_previous_block = 0u32;
         self.owned_read = OwnedRead::new(data);
-        self.block_info = BlockInfo::default();
+        self.block_info = BlockInfo::VInt { num_docs: doc_freq };
         self.byte_offset = 0;
         self.remaining_docs = doc_freq;
+        self.position_offset = 0u64;
+        if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
+            self.read_block_info();
+        }
     }
 
     pub fn block_max_score(&self, bm25_weight: &BM25Weight) -> Option<Score> {
@@ -211,8 +225,10 @@ impl SkipReader {
                 self.byte_offset += compressed_block_size(doc_num_bits + tf_num_bits);
                 self.position_offset += tf_sum as u64;
             }
-            BlockInfo::VInt { num_docs, .. } => {
-                self.remaining_docs -= num_docs;
+            BlockInfo::VInt { num_docs} => {
+                debug_assert_eq!(num_docs, self.remaining_docs);
+                self.remaining_docs = 0;
+                self.byte_offset = std::usize::MAX;
             }
         }
         self.last_doc_in_previous_block = self.last_doc_in_block;
@@ -279,6 +295,8 @@ mod tests {
         assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 3u32 }));
         skip_reader.advance();
         assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
     }
 
     #[test]
@@ -320,6 +338,8 @@ mod tests {
         ));
         skip_reader.advance();
         assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 3u32 }));
+        skip_reader.advance();
+        assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
         skip_reader.advance();
         assert!(matches!(skip_reader.block_info(), BlockInfo::VInt { num_docs: 0u32 }));
     }
