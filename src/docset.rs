@@ -38,6 +38,7 @@ pub trait DocSet {
     /// Calling `seek(TERMINATED)` is also legal and is the normal way to consume a DocSet.
     fn seek(&mut self, target: DocId) -> DocId {
         let mut doc = self.doc();
+        debug_assert!(doc <= target);
         while doc < target {
             doc = self.advance();
         }

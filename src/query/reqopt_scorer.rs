@@ -72,7 +72,7 @@ where
         let doc = self.doc();
         let mut score_combiner = TScoreCombiner::default();
         score_combiner.update(&mut self.req_scorer);
-        if self.opt_scorer.seek(doc) == doc {
+        if self.opt_scorer.doc() <= doc && self.opt_scorer.seek(doc) == doc {
             score_combiner.update(&mut self.opt_scorer);
         }
         let score = score_combiner.score();
