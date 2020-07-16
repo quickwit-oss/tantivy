@@ -213,7 +213,7 @@ pub struct IndexMeta {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Payload associated to the last commit.
     ///
-    /// Upon commit, clients can optionally add a small `Striing` payload to their commit
+    /// Upon commit, clients can optionally add a small `String` payload to their commit
     /// to help identify this commit.
     /// This payload is entirely unused by tantivy.
     pub payload: Option<String>,
