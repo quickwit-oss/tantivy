@@ -117,11 +117,16 @@ fn main() -> tantivy::Result<()> {
         if let Some(mut block_segment_postings) =
             inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic)
         {
-            while block_segment_postings.advance() {
+            loop {
+                let docs = block_segment_postings.docs();
+                if docs.is_empty() {
+                    break;
+                }
                 // Once again these docs MAY contains deleted documents as well.
                 let docs = block_segment_postings.docs();
                 // Prints `Docs [0, 2].`
                 println!("Docs {:?}", docs);
+                block_segment_postings.advance();
             }
         }
     }

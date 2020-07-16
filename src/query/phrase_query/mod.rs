@@ -12,10 +12,11 @@ pub mod tests {
     use super::*;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
     use crate::core::Index;
+    use crate::query::Weight;
     use crate::schema::{Schema, Term, TEXT};
     use crate::tests::assert_nearly_equals;
-    use crate::DocAddress;
     use crate::DocId;
+    use crate::{DocAddress, TERMINATED};
 
     pub fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = Schema::builder();
@@ -65,6 +66,23 @@ pub mod tests {
         assert_eq!(test_query(vec!["b", "b"]), vec![0, 1]);
         assert!(test_query(vec!["g", "ewrwer"]).is_empty());
         assert!(test_query(vec!["g", "a"]).is_empty());
+    }
+
+    #[test]
+    pub fn test_phrase_query_simple() -> crate::Result<()> {
+        let index = create_index(&["a b b d c g c", "a b a b c"]);
+        let text_field = index.schema().get_field("text").unwrap();
+        let searcher = index.reader()?.searcher();
+        let terms: Vec<Term> = vec!["a", "b", "c"]
+            .iter()
+            .map(|text| Term::from_field_text(text_field, text))
+            .collect();
+        let phrase_query = PhraseQuery::new(terms);
+        let phrase_weight = phrase_query.phrase_weight(&searcher, false)?;
+        let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        assert_eq!(phrase_scorer.doc(), 1);
+        assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
     }
 
     #[test]
