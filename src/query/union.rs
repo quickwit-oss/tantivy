@@ -183,7 +183,10 @@ where
             // advance all docsets to a doc >= to the target.
             #[cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::collapsible_if))]
             unordered_drain_filter(&mut self.docsets, |docset| {
-                docset.seek(target) == TERMINATED
+                if docset.doc() < target {
+                    docset.seek(target);
+                }
+                docset.doc() == TERMINATED
             });
 
             // at this point all of the docsets

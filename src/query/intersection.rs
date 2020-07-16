@@ -120,9 +120,9 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                 }
             }
 
-            assert_eq!(candidate, self.left.doc());
-            assert_eq!(candidate, self.right.doc());
-            assert!(self.others.iter().all(|docset| docset.doc() == candidate));
+            debug_assert_eq!(candidate, self.left.doc());
+            debug_assert_eq!(candidate, self.right.doc());
+            debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));
             return candidate;
         }
     }
@@ -134,9 +134,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             docsets.push(docset);
         }
         let doc = go_to_first_doc(&mut docsets[..]);
-        for docset in docsets {
-            assert_eq!(docset.doc(), doc);
-        }
+        debug_assert!(docsets.iter().all(|docset| docset.doc() == doc));
         debug_assert!(doc >= target);
         doc
     }
