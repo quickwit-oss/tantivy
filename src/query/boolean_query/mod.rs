@@ -7,6 +7,7 @@ pub use self::boolean_query::BooleanQuery;
 mod tests {
 
     use super::*;
+    use crate::assert_nearly_equals;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::TopDocs;
     use crate::query::score_combiner::SumWithCoordsCombiner;
@@ -19,7 +20,6 @@ mod tests {
     use crate::query::Scorer;
     use crate::query::TermQuery;
     use crate::schema::*;
-    use crate::assert_nearly_equals;
     use crate::Index;
     use crate::{DocAddress, DocId, Score};
 

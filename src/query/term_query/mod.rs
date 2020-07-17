@@ -9,12 +9,12 @@ pub use self::term_weight::TermWeight;
 #[cfg(test)]
 mod tests {
 
+    use crate::assert_nearly_equals;
     use crate::collector::TopDocs;
     use crate::docset::DocSet;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
-    use crate::assert_nearly_equals;
     use crate::Term;
     use crate::{Index, TERMINATED};
 

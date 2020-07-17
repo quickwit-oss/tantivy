@@ -163,10 +163,10 @@ impl Query for FuzzyTermQuery {
 #[cfg(test)]
 mod test {
     use super::FuzzyTermQuery;
+    use crate::assert_nearly_equals;
     use crate::collector::TopDocs;
     use crate::schema::Schema;
     use crate::schema::TEXT;
-    use crate::assert_nearly_equals;
     use crate::Index;
     use crate::Term;
 

@@ -10,11 +10,11 @@ pub use self::phrase_weight::PhraseWeight;
 pub mod tests {
 
     use super::*;
+    use crate::assert_nearly_equals;
     use crate::collector::tests::{TEST_COLLECTOR_WITHOUT_SCORE, TEST_COLLECTOR_WITH_SCORE};
     use crate::core::Index;
     use crate::query::Weight;
     use crate::schema::{Schema, Term, TEXT};
-    use crate::assert_nearly_equals;
     use crate::DocId;
     use crate::{DocAddress, TERMINATED};
 

@@ -298,7 +298,6 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
-
     /// Checks if left and right are close one to each other.
     /// Panics if the two values are more than 0.5% apart.
     #[macro_export]
@@ -320,7 +319,6 @@ mod tests {
             }
         }};
     }
-
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
         let seed: [u8; 32] = [1; 32];

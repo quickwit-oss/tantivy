@@ -89,10 +89,10 @@ impl Query for RegexQuery {
 #[cfg(test)]
 mod test {
     use super::RegexQuery;
+    use crate::assert_nearly_equals;
     use crate::collector::TopDocs;
     use crate::schema::TEXT;
     use crate::schema::{Field, Schema};
-    use crate::assert_nearly_equals;
     use crate::{Index, IndexReader};
     use std::sync::Arc;
     use tantivy_fst::Regex;
