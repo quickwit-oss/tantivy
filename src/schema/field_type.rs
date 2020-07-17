@@ -48,7 +48,7 @@ pub enum Type {
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FieldType {
     /// String field type configuration
     Str(TextOptions),

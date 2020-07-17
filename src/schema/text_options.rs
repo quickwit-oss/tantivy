@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::ops::BitOr;
 
 /// Define how a text field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TextOptions {
     indexing: Option<TextFieldIndexing>,
     stored: bool,
@@ -51,7 +51,7 @@ impl Default for TextOptions {
 /// - the amount of information that should be stored about the presence of a term in a document.
 /// Essentially, should we store the term frequency and/or the positions (See [`IndexRecordOption`](./enum.IndexRecordOption.html)).
 /// - the name of the `Tokenizer` that should be used to process the field.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
