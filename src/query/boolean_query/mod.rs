@@ -19,7 +19,7 @@ mod tests {
     use crate::query::Scorer;
     use crate::query::TermQuery;
     use crate::schema::*;
-    use crate::tests::assert_nearly_equals;
+    use crate::assert_nearly_equals;
     use crate::Index;
     use crate::{DocAddress, DocId, Score};
 
@@ -256,14 +256,14 @@ mod tests {
                 .scorer(searcher.segment_reader(0u32), 1.0f32)
                 .unwrap();
             assert_eq!(boolean_scorer.doc(), 0u32);
-            assert_nearly_equals(boolean_scorer.score(), 0.84163445f32);
+            assert_nearly_equals!(boolean_scorer.score(), 0.84163445f32);
         }
         {
             let mut boolean_scorer = boolean_weight
                 .scorer(searcher.segment_reader(0u32), 2.0f32)
                 .unwrap();
             assert_eq!(boolean_scorer.doc(), 0u32);
-            assert_nearly_equals(boolean_scorer.score(), 1.6832689f32);
+            assert_nearly_equals!(boolean_scorer.score(), 1.6832689f32);
         }
     }
 

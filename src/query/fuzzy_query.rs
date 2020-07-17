@@ -166,7 +166,7 @@ mod test {
     use crate::collector::TopDocs;
     use crate::schema::Schema;
     use crate::schema::TEXT;
-    use crate::tests::assert_nearly_equals;
+    use crate::assert_nearly_equals;
     use crate::Index;
     use crate::Term;
 
@@ -199,7 +199,7 @@ mod test {
                 .unwrap();
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
-            assert_nearly_equals(1f32, score);
+            assert_nearly_equals!(1f32, score);
         }
 
         // fails because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
@@ -223,7 +223,7 @@ mod test {
                 .unwrap();
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
-            assert_nearly_equals(1f32, score);
+            assert_nearly_equals!(1f32, score);
         }
     }
 }

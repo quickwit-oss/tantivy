@@ -14,7 +14,7 @@ pub mod tests {
     use crate::core::Index;
     use crate::query::Weight;
     use crate::schema::{Schema, Term, TEXT};
-    use crate::tests::assert_nearly_equals;
+    use crate::assert_nearly_equals;
     use crate::DocId;
     use crate::{DocAddress, TERMINATED};
 
@@ -175,8 +175,8 @@ pub mod tests {
                 .to_vec()
         };
         let scores = test_query(vec!["a", "b"]);
-        assert_nearly_equals(scores[0], 0.40618482);
-        assert_nearly_equals(scores[1], 0.46844664);
+        assert_nearly_equals!(scores[0], 0.40618482);
+        assert_nearly_equals!(scores[1], 0.46844664);
     }
 
     #[test] // motivated by #234
