@@ -139,10 +139,10 @@ impl BM25Weight {
 mod tests {
 
     use super::idf;
-    use crate::tests::assert_nearly_equals;
+    use crate::assert_nearly_equals;
 
     #[test]
     fn test_idf() {
-        assert_nearly_equals(idf(1, 2), 0.6931472);
+        assert_nearly_equals!(idf(1, 2), 0.6931472);
     }
 }

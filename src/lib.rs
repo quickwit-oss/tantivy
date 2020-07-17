@@ -298,17 +298,26 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
 
-    pub fn assert_nearly_equals(expected: f32, val: f32) {
-        assert!(
-            nearly_equals(val, expected),
-            "Got {}, expected {}.",
-            val,
-            expected
-        );
-    }
-
-    pub fn nearly_equals(a: f32, b: f32) -> bool {
-        (a - b).abs() < 0.0005 * (a + b).abs()
+    /// Checks if left and right are close one to each other.
+    /// Panics if the two values are more than 0.5% apart.
+    #[macro_export]
+    macro_rules! assert_nearly_equals {
+        ($left:expr, $right:expr) => {{
+            match (&$left, &$right) {
+                (left_val, right_val) => {
+                    let diff = (left_val - right_val).abs();
+                    let add = left_val.abs() + right_val.abs();
+                    if diff > 0.0005 * add {
+                        panic!(
+                            r#"assertion failed: `(left ~= right)`
+  left: `{:?}`,
+ right: `{:?}`"#,
+                            &*left_val, &*right_val
+                        )
+                    }
+                }
+            }
+        }};
     }
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {

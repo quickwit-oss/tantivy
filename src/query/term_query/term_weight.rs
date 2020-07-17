@@ -20,12 +20,12 @@ pub struct TermWeight {
 
 impl Weight for TermWeight {
     fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
-        let term_scorer = self.scorer_specialized(reader, boost)?;
+        let term_scorer = self.specialized_scorer(reader, boost)?;
         Ok(Box::new(term_scorer))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
+        let mut scorer = self.specialized_scorer(reader, 1.0f32)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
@@ -52,7 +52,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer_specialized(reader, 1.0f32)?;
+        let mut scorer = self.specialized_scorer(reader, 1.0f32)?;
         for_each_scorer(&mut scorer, callback);
         Ok(())
     }
@@ -92,7 +92,7 @@ impl TermWeight {
         }
     }
 
-    fn scorer_specialized(&self, reader: &SegmentReader, boost: f32) -> Result<TermScorer> {
+    fn specialized_scorer(&self, reader: &SegmentReader, boost: f32) -> Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);
