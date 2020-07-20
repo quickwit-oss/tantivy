@@ -21,7 +21,7 @@ mod reader;
 mod serializer;
 mod writer;
 
-pub use self::reader::FieldNormReader;
+pub use self::reader::{FieldNormReader, FieldNormReaders};
 pub use self::serializer::FieldNormsSerializer;
 pub use self::writer::FieldNormsWriter;
 

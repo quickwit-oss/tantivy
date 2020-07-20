@@ -167,7 +167,7 @@ impl IndexMerger {
 
     fn write_fieldnorms(
         &self,
-        fieldnorms_serializer: &mut FieldNormsSerializer,
+        mut fieldnorms_serializer: FieldNormsSerializer,
     ) -> crate::Result<()> {
         let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
@@ -182,6 +182,7 @@ impl IndexMerger {
             }
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
         }
+        fieldnorms_serializer.close()?;
         Ok(())
     }
 
@@ -668,8 +669,10 @@ impl IndexMerger {
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
+        if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
+            self.write_fieldnorms(fieldnorms_serializer)?;
+        }
         let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
-        self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
         self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
@@ -1504,12 +1507,9 @@ mod tests {
         for i in 0..100 {
             let mut doc = Document::new();
             doc.add_f64(field, 42.0);
-
             doc.add_f64(multi_field, 0.24);
             doc.add_f64(multi_field, 0.27);
-
             writer.add_document(doc);
-
             if i % 5 == 0 {
                 writer.commit()?;
             }
@@ -1521,7 +1521,6 @@ mod tests {
         // If a merging thread fails, we should end up with more
         // than one segment here
         assert_eq!(1, index.searchable_segments()?.len());
-
         Ok(())
     }
 }

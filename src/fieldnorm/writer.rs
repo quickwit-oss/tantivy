@@ -78,11 +78,12 @@ impl FieldNormsWriter {
     }
 
     /// Serialize the seen fieldnorm values to the serializer for all fields.
-    pub fn serialize(&self, fieldnorms_serializer: &mut FieldNormsSerializer) -> io::Result<()> {
+    pub fn serialize(&self, mut fieldnorms_serializer: FieldNormsSerializer) -> io::Result<()> {
         for &field in self.fields.iter() {
             let fieldnorm_values: &[u8] = &self.fieldnorms_buffer[field.field_id() as usize][..];
             fieldnorms_serializer.serialize_field(field, fieldnorm_values)?;
         }
+        fieldnorms_serializer.close()?;
         Ok(())
     }
 }
