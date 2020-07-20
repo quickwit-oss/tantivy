@@ -28,7 +28,7 @@ pub(crate) fn for_each_scorer<TScorer: Scorer + ?Sized>(
 /// important optimization (e.g. BlockWAND for union).
 pub(crate) fn for_each_pruning_scorer<TScorer: Scorer + ?Sized>(
     scorer: &mut TScorer,
-    mut threshold: f32,
+    mut threshold: Score,
     callback: &mut dyn FnMut(DocId, Score) -> Score,
 ) {
     let mut doc = scorer.doc();
@@ -51,14 +51,14 @@ pub trait Weight: Send + Sync + 'static {
     /// `boost` is a multiplier to apply to the score.
     ///
     /// See [`Query`](./trait.Query.html).
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>>;
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>>;
 
     /// Returns an `Explanation` for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation>;
 
     /// Returns the number documents within the given `SegmentReader`.
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         if let Some(delete_bitset) = reader.delete_bitset() {
             Ok(scorer.count(delete_bitset))
         } else {
@@ -73,7 +73,7 @@ pub trait Weight: Send + Sync + 'static {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         for_each_scorer(scorer.as_mut(), callback);
         Ok(())
     }
@@ -90,11 +90,11 @@ pub trait Weight: Send + Sync + 'static {
     /// important optimization (e.g. BlockWAND for union).
     fn for_each_pruning(
         &self,
-        threshold: f32,
+        threshold: Score,
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         for_each_pruning_scorer(scorer.as_mut(), threshold, callback);
         Ok(())
     }

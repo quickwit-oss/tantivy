@@ -1,5 +1,6 @@
-use crate::{DocId, TantivyError};
+use crate::{DocId, Score, TantivyError};
 use serde::Serialize;
+use std::fmt;
 
 pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
     TantivyError::InvalidArgument(format!("Document #({}) does not match", doc))
@@ -12,15 +13,21 @@ pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
 /// representation of this tree when debugging a given score.
 #[derive(Clone, Serialize)]
 pub struct Explanation {
-    value: f32,
+    value: Score,
     description: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     details: Vec<Explanation>,
 }
 
+impl fmt::Debug for Explanation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Explanation({})", self.to_pretty_json())
+    }
+}
+
 impl Explanation {
     /// Creates a new explanation object.
-    pub fn new<T: ToString>(description: T, value: f32) -> Explanation {
+    pub fn new<T: ToString>(description: T, value: Score) -> Explanation {
         Explanation {
             value,
             description: description.to_string(),
@@ -29,7 +36,7 @@ impl Explanation {
     }
 
     /// Returns the value associated to the current node.
-    pub fn value(&self) -> f32 {
+    pub fn value(&self) -> Score {
         self.value
     }
 
@@ -41,7 +48,7 @@ impl Explanation {
     }
 
     /// Shortcut for `self.details.push(Explanation::new(name, value));`
-    pub fn add_const<T: ToString>(&mut self, name: T, value: f32) {
+    pub fn add_const<T: ToString>(&mut self, name: T, value: Score) {
         self.details.push(Explanation::new(name, value));
     }
 

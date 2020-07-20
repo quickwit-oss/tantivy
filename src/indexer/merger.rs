@@ -8,21 +8,22 @@ use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
 use crate::fastfield::MultiValueIntFastFieldReader;
-use crate::fieldnorm::FieldNormReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
+use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
 use crate::indexer::SegmentSerializer;
-use crate::postings::InvertedIndexSerializer;
 use crate::postings::Postings;
+use crate::postings::{InvertedIndexSerializer, SegmentPostings};
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
 use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
-use crate::DocId;
+use crate::{DocId, InvertedIndexReader, SegmentComponent};
 use std::cmp;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -493,10 +494,11 @@ impl IndexMerger {
         indexed_field: Field,
         field_type: &FieldType,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_reader: Option<FieldNormReader>,
     ) -> crate::Result<Option<TermOrdinalMapping>> {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
-        let field_readers = self
+        let field_readers: Vec<Arc<InvertedIndexReader>> = self
             .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
@@ -551,7 +553,8 @@ impl IndexMerger {
         // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
         //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
         // ...
-        let mut field_serializer = serializer.new_field(indexed_field, total_num_tokens)?;
+        let mut field_serializer =
+            serializer.new_field(indexed_field, total_num_tokens, fieldnorm_reader)?;
 
         let field_entry = self.schema.get_field_entry(indexed_field);
 
@@ -561,43 +564,45 @@ impl IndexMerger {
                          indexed. Have you modified the schema?",
         );
 
+        let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+
         while merged_terms.advance() {
+            segment_postings_containing_the_term.clear();
             let term_bytes: &[u8] = merged_terms.key();
 
+            let mut total_doc_freq = 0;
+
             // Let's compute the list of non-empty posting lists
-            let segment_postings: Vec<_> = merged_terms
-                .current_kvs()
-                .iter()
-                .flat_map(|heap_item| {
-                    let segment_ord = heap_item.segment_ord;
-                    let term_info = heap_item.streamer.value();
-                    let segment_reader = &self.readers[heap_item.segment_ord];
-                    let inverted_index = segment_reader.inverted_index(indexed_field);
-                    let mut segment_postings = inverted_index
-                        .read_postings_from_terminfo(term_info, segment_postings_option);
-                    let mut doc = segment_postings.doc();
-                    while doc != TERMINATED {
-                        if !segment_reader.is_deleted(doc) {
-                            return Some((segment_ord, segment_postings));
-                        }
-                        doc = segment_postings.advance();
-                    }
-                    None
-                })
-                .collect();
+            for heap_item in merged_terms.current_kvs() {
+                let segment_ord = heap_item.segment_ord;
+                let term_info = heap_item.streamer.value();
+                let segment_reader = &self.readers[heap_item.segment_ord];
+                let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
+                let segment_postings =
+                    inverted_index.read_postings_from_terminfo(term_info, segment_postings_option);
+                let delete_bitset_opt = segment_reader.delete_bitset();
+                let doc_freq = if let Some(delete_bitset) = delete_bitset_opt {
+                    segment_postings.doc_freq_given_deletes(delete_bitset)
+                } else {
+                    segment_postings.doc_freq()
+                };
+                if doc_freq > 0u32 {
+                    total_doc_freq += doc_freq;
+                    segment_postings_containing_the_term.push((segment_ord, segment_postings));
+                }
+            }
 
             // At this point, `segment_postings` contains the posting list
-            // of all of the segments containing the given term.
+            // of all of the segments containing the given term (and that are non-empty)
             //
             // These segments are non-empty and advance has already been called.
-            if segment_postings.is_empty() {
+            if total_doc_freq == 0u32 {
+                // All docs that used to contain the term have been deleted. The `term` will be
+                // entirely removed.
                 continue;
             }
-            // If not, the `term` will be entirely removed.
 
-            // We know that there is at least one document containing
-            // the term, so we add it.
-            let to_term_ord = field_serializer.new_term(term_bytes)?;
+            let to_term_ord = field_serializer.new_term(term_bytes, total_doc_freq)?;
 
             if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
                 for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
@@ -607,7 +612,9 @@ impl IndexMerger {
 
             // We can now serialize this postings, by pushing each document to the
             // postings serializer.
-            for (segment_ord, mut segment_postings) in segment_postings {
+            for (segment_ord, mut segment_postings) in
+                segment_postings_containing_the_term.drain(..)
+            {
                 let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
 
                 let mut doc = segment_postings.doc();
@@ -637,13 +644,18 @@ impl IndexMerger {
     fn write_postings(
         &self,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_readers: FieldNormReaders,
     ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
         for (field, field_entry) in self.schema.fields() {
+            let fieldnorm_reader = fieldnorm_readers.get_field(field);
             if field_entry.is_indexed() {
-                if let Some(term_ordinal_mapping) =
-                    self.write_postings_for_field(field, field_entry.field_type(), serializer)?
-                {
+                if let Some(term_ordinal_mapping) = self.write_postings_for_field(
+                    field,
+                    field_entry.field_type(),
+                    serializer,
+                    fieldnorm_reader,
+                )? {
                     term_ordinal_mappings.insert(field, term_ordinal_mapping);
                 }
             }
@@ -672,7 +684,12 @@ impl SerializableSegment for IndexMerger {
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
             self.write_fieldnorms(fieldnorms_serializer)?;
         }
-        let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
+        let fieldnorm_data = serializer
+            .segment()
+            .open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
+        let term_ord_mappings =
+            self.write_postings(serializer.get_postings_serializer(), fieldnorm_readers)?;
         self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
@@ -682,15 +699,15 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
+    use crate::assert_nearly_equals;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
     use crate::query::AllQuery;
     use crate::query::BooleanQuery;
+    use crate::query::Scorer;
     use crate::query::TermQuery;
-    use crate::schema;
-    use crate::schema::Cardinality;
     use crate::schema::Document;
     use crate::schema::Facet;
     use crate::schema::IndexRecordOption;
@@ -698,9 +715,11 @@ mod tests {
     use crate::schema::Term;
     use crate::schema::TextFieldIndexing;
     use crate::schema::INDEXED;
+    use crate::schema::{Cardinality, TEXT};
     use crate::DocAddress;
     use crate::IndexWriter;
     use crate::Searcher;
+    use crate::{schema, DocSet, SegmentId};
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
     use futures::executor::block_on;
     use std::io::Cursor;
@@ -1521,6 +1540,73 @@ mod tests {
         // If a merging thread fails, we should end up with more
         // than one segment here
         assert_eq!(1, index.searchable_segments()?.len());
+        Ok(())
+    }
+
+    #[test]
+    fn test_merged_index_has_blockwand() -> crate::Result<()> {
+        let mut builder = schema::SchemaBuilder::new();
+        let text = builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(builder.build());
+        let mut writer = index.writer_with_num_threads(1, 3_000_000)?;
+        let happy_term = Term::from_field_text(text, "happy");
+        let term_query = TermQuery::new(happy_term, IndexRecordOption::WithFreqs);
+        for _ in 0..62 {
+            writer.add_document(doc!(text=>"hello happy tax payer"));
+        }
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let mut term_scorer = term_query
+            .specialized_weight(&searcher, true)
+            .specialized_scorer(searcher.segment_reader(0u32), 1.0)?;
+        assert_eq!(term_scorer.doc(), 0);
+        assert_nearly_equals!(term_scorer.block_max_score(), 0.0079681855);
+        assert_nearly_equals!(term_scorer.score(), 0.0079681855);
+        for _ in 0..81 {
+            writer.add_document(doc!(text=>"hello happy tax payer"));
+        }
+        writer.commit()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers().len(), 2);
+        for segment_reader in searcher.segment_readers() {
+            let mut term_scorer = term_query
+                .specialized_weight(&searcher, true)
+                .specialized_scorer(segment_reader, 1.0)?;
+            // the difference compared to before is instrinsic to the bm25 formula. no worries there.
+            for doc in segment_reader.doc_ids_alive() {
+                assert_eq!(term_scorer.doc(), doc);
+                assert_nearly_equals!(term_scorer.block_max_score(), 0.003478312);
+                assert_nearly_equals!(term_scorer.score(), 0.003478312);
+                term_scorer.advance();
+            }
+        }
+
+        let segment_ids: Vec<SegmentId> = searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        block_on(writer.merge(&segment_ids[..]))?;
+
+        reader.reload()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+
+        let segment_reader = searcher.segment_reader(0u32);
+        let mut term_scorer = term_query
+            .specialized_weight(&searcher, true)
+            .specialized_scorer(segment_reader, 1.0)?;
+        // the difference compared to before is instrinsic to the bm25 formula. no worries there.
+        for doc in segment_reader.doc_ids_alive() {
+            assert_eq!(term_scorer.doc(), doc);
+            assert_nearly_equals!(term_scorer.block_max_score(), 0.003478312);
+            assert_nearly_equals!(term_scorer.score(), 0.003478312);
+            term_scorer.advance();
+        }
+
         Ok(())
     }
 }

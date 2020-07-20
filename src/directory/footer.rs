@@ -94,12 +94,24 @@ impl Footer {
         match &self.versioned_footer {
             VersionedFooter::V1 {
                 crc32: _crc,
-                store_compression: compression,
+                store_compression,
             } => {
-                if &library_version.store_compression != compression {
+                if &library_version.store_compression != store_compression {
                     return Err(Incompatibility::CompressionMismatch {
                         library_compression_format: library_version.store_compression.to_string(),
-                        index_compression_format: compression.to_string(),
+                        index_compression_format: store_compression.to_string(),
+                    });
+                }
+                Ok(())
+            }
+            VersionedFooter::V2 {
+                crc32: _crc,
+                store_compression,
+            } => {
+                if &library_version.store_compression != store_compression {
+                    return Err(Incompatibility::CompressionMismatch {
+                        library_compression_format: library_version.store_compression.to_string(),
+                        index_compression_format: store_compression.to_string(),
                     });
                 }
                 Ok(())
@@ -120,24 +132,29 @@ pub enum VersionedFooter {
         crc32: CrcHashU32,
         store_compression: String,
     },
+    // Introduction of the Block WAND information.
+    V2 {
+        crc32: CrcHashU32,
+        store_compression: String,
+    },
 }
 
 impl BinarySerializable for VersionedFooter {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         let mut buf = Vec::new();
         match self {
-            VersionedFooter::V1 {
+            VersionedFooter::V2 {
                 crc32,
                 store_compression: compression,
             } => {
                 // Serializes a valid `VersionedFooter` or panics if the version is unknown
                 // [   version    |   crc_hash  | compression_mode ]
                 // [    0..4      |     4..8    |     variable     ]
-                BinarySerializable::serialize(&1u32, &mut buf)?;
+                BinarySerializable::serialize(&2u32, &mut buf)?;
                 BinarySerializable::serialize(crc32, &mut buf)?;
                 BinarySerializable::serialize(compression, &mut buf)?;
             }
-            VersionedFooter::UnknownVersion => {
+            VersionedFooter::V1 { .. } | VersionedFooter::UnknownVersion => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "Cannot serialize an unknown versioned footer ",
@@ -166,22 +183,30 @@ impl BinarySerializable for VersionedFooter {
         reader.read_exact(&mut buf[..])?;
         let mut cursor = &buf[..];
         let version = u32::deserialize(&mut cursor)?;
-        if version == 1 {
-            let crc32 = u32::deserialize(&mut cursor)?;
-            let compression = String::deserialize(&mut cursor)?;
-            Ok(VersionedFooter::V1 {
-                crc32,
-                store_compression: compression,
-            })
-        } else {
-            Ok(VersionedFooter::UnknownVersion)
+        if version != 1 && version != 2 {
+            return Ok(VersionedFooter::UnknownVersion);
         }
+        let crc32 = u32::deserialize(&mut cursor)?;
+        let store_compression = String::deserialize(&mut cursor)?;
+        Ok(if version == 1 {
+            VersionedFooter::V1 {
+                crc32,
+                store_compression,
+            }
+        } else {
+            assert_eq!(version, 2);
+            VersionedFooter::V2 {
+                crc32,
+                store_compression,
+            }
+        })
     }
 }
 
 impl VersionedFooter {
     pub fn crc(&self) -> Option<CrcHashU32> {
         match self {
+            VersionedFooter::V2 { crc32, .. } => Some(*crc32),
             VersionedFooter::V1 { crc32, .. } => Some(*crc32),
             VersionedFooter::UnknownVersion { .. } => None,
         }
@@ -219,7 +244,7 @@ impl<W: TerminatingWrite> Write for FooterProxy<W> {
 impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
         let crc32 = self.hasher.take().unwrap().finalize();
-        let footer = Footer::new(VersionedFooter::V1 {
+        let footer = Footer::new(VersionedFooter::V2 {
             crc32,
             store_compression: crate::store::COMPRESSION.to_string(),
         });
@@ -248,15 +273,11 @@ mod tests {
         assert!(footer_proxy.terminate().is_ok());
         assert_eq!(vec.len(), 167);
         let footer = Footer::deserialize(&mut &vec[..]).unwrap();
-        if let VersionedFooter::V1 {
-            crc32: _,
-            store_compression,
-        } = footer.versioned_footer
-        {
-            assert_eq!(store_compression, crate::store::COMPRESSION);
-        } else {
-            panic!("Versioned footer should be V1.");
-        }
+        assert!(matches!(
+           footer.versioned_footer,
+           VersionedFooter::V2 { store_compression, .. }
+           if store_compression == crate::store::COMPRESSION
+        ));
         assert_eq!(&footer.version, crate::version());
     }
 
@@ -264,7 +285,7 @@ mod tests {
     fn test_serialize_deserialize_footer() {
         let mut buffer = Vec::new();
         let crc32 = 123456u32;
-        let footer: Footer = Footer::new(VersionedFooter::V1 {
+        let footer: Footer = Footer::new(VersionedFooter::V2 {
             crc32,
             store_compression: "lz4".to_string(),
         });
@@ -276,7 +297,7 @@ mod tests {
     #[test]
     fn footer_length() {
         let crc32 = 1111111u32;
-        let versioned_footer = VersionedFooter::V1 {
+        let versioned_footer = VersionedFooter::V2 {
             crc32,
             store_compression: "lz4".to_string(),
         };
@@ -297,7 +318,7 @@ mod tests {
             // versionned footer length
             12 | 128,
             // index format version
-            1,
+            2,
             0,
             0,
             0,
@@ -316,7 +337,7 @@ mod tests {
         let versioned_footer = VersionedFooter::deserialize(&mut cursor).unwrap();
         assert!(cursor.is_empty());
         let expected_crc: u32 = LittleEndian::read_u32(&v_footer_bytes[5..9]) as CrcHashU32;
-        let expected_versioned_footer: VersionedFooter = VersionedFooter::V1 {
+        let expected_versioned_footer: VersionedFooter = VersionedFooter::V2 {
             crc32: expected_crc,
             store_compression: "lz4".to_string(),
         };

@@ -173,7 +173,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 1;
+const INDEX_FORMAT_VERSION: u32 = 2;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -245,11 +245,18 @@ pub type DocId = u32;
 /// with opstamp `n+1`.
 pub type Opstamp = u64;
 
-/// A f32 that represents the relevance of the document to the query
+/// A Score that represents the relevance of the document to the query
 ///
-/// This is modelled internally as a `f32`. The
-/// larger the number, the more relevant the document
-/// to the search
+/// This is modelled internally as a `f64`, because tantivy was compiled with the `scoref64`
+/// feature. The larger the number, the more relevant the document is to the search query.
+#[cfg(feature = "scoref64")]
+pub type Score = f64;
+
+/// A Score that represents the relevance of the document to the query
+///
+/// This is modelled internally as a `f32`. The larger the number, the more relevant
+/// the document to the search query.
+#[cfg(not(feature = "scoref64"))]
 pub type Score = f32;
 
 /// A `SegmentLocalId` identifies a segment.
@@ -282,7 +289,6 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 #[cfg(test)]
 mod tests {
-
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};

@@ -75,6 +75,10 @@ pub(crate) trait Recorder: Copy + 'static {
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
     ) -> io::Result<()>;
+    /// Returns the number of document containing this term.
+    ///
+    /// Returns `None` if not available.
+    fn term_doc_freq(&self) -> Option<u32>;
 }
 
 /// Only records the doc ids
@@ -113,10 +117,15 @@ impl Recorder for NothingRecorder {
     ) -> io::Result<()> {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
+        // TODO avoid reading twice.
         for doc in VInt32Reader::new(&buffer[..]) {
             serializer.write_doc(doc as u32, 0u32, &[][..])?;
         }
         Ok(())
+    }
+
+    fn term_doc_freq(&self) -> Option<u32> {
+        None
     }
 }
 
@@ -126,6 +135,7 @@ pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
+    term_doc_freq: u32,
 }
 
 impl Recorder for TermFrequencyRecorder {
@@ -134,6 +144,7 @@ impl Recorder for TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
             current_tf: 0u32,
+            term_doc_freq: 0u32,
         }
     }
 
@@ -142,6 +153,7 @@ impl Recorder for TermFrequencyRecorder {
     }
 
     fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
+        self.term_doc_freq += 1;
         self.current_doc = doc;
         let _ = write_u32_vint(doc, &mut self.stack.writer(heap));
     }
@@ -172,6 +184,10 @@ impl Recorder for TermFrequencyRecorder {
 
         Ok(())
     }
+
+    fn term_doc_freq(&self) -> Option<u32> {
+        Some(self.term_doc_freq)
+    }
 }
 
 /// Recorder encoding term frequencies as well as positions.
@@ -179,12 +195,14 @@ impl Recorder for TermFrequencyRecorder {
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
+    term_doc_freq: u32,
 }
 impl Recorder for TFAndPositionRecorder {
     fn new() -> Self {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
+            term_doc_freq: 0u32,
         }
     }
 
@@ -194,6 +212,7 @@ impl Recorder for TFAndPositionRecorder {
 
     fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
+        self.term_doc_freq += 1u32;
         let _ = write_u32_vint(doc, &mut self.stack.writer(heap));
     }
 
@@ -232,6 +251,10 @@ impl Recorder for TFAndPositionRecorder {
             serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions)?;
         }
         Ok(())
+    }
+
+    fn term_doc_freq(&self) -> Option<u32> {
+        Some(self.term_doc_freq)
     }
 }
 

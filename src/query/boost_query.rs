@@ -1,7 +1,7 @@
 use crate::fastfield::DeleteBitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
-use crate::{DocId, DocSet, Searcher, SegmentReader, Term};
+use crate::{DocId, DocSet, Score, Searcher, SegmentReader, Term};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -12,12 +12,12 @@ use std::fmt;
 /// factor.
 pub struct BoostQuery {
     query: Box<dyn Query>,
-    boost: f32,
+    boost: Score,
 }
 
 impl BoostQuery {
     /// Builds a boost query.
-    pub fn new(query: Box<dyn Query>, boost: f32) -> BoostQuery {
+    pub fn new(query: Box<dyn Query>, boost: Score) -> BoostQuery {
         BoostQuery { query, boost }
     }
 }
@@ -55,22 +55,22 @@ impl Query for BoostQuery {
 
 pub(crate) struct BoostWeight {
     weight: Box<dyn Weight>,
-    boost: f32,
+    boost: Score,
 }
 
 impl BoostWeight {
-    pub fn new(weight: Box<dyn Weight>, boost: f32) -> Self {
+    pub fn new(weight: Box<dyn Weight>, boost: Score) -> Self {
         BoostWeight { weight, boost }
     }
 }
 
 impl Weight for BoostWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         self.weight.scorer(reader, boost * self.boost)
     }
 
     fn explain(&self, reader: &SegmentReader, doc: u32) -> crate::Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
@@ -88,11 +88,11 @@ impl Weight for BoostWeight {
 
 pub(crate) struct BoostScorer<S: Scorer> {
     underlying: S,
-    boost: f32,
+    boost: Score,
 }
 
 impl<S: Scorer> BoostScorer<S> {
-    pub fn new(underlying: S, boost: f32) -> BoostScorer<S> {
+    pub fn new(underlying: S, boost: Score) -> BoostScorer<S> {
         BoostScorer { underlying, boost }
     }
 }
@@ -128,7 +128,7 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
 }
 
 impl<S: Scorer> Scorer for BoostScorer<S> {
-    fn score(&mut self) -> f32 {
+    fn score(&mut self) -> Score {
         self.underlying.score() * self.boost
     }
 }

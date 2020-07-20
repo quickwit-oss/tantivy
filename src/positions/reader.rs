@@ -78,6 +78,7 @@ impl Positions {
     }
 }
 
+#[derive(Clone)]
 pub struct PositionReader {
     skip_read: OwnedRead,
     position_read: OwnedRead,

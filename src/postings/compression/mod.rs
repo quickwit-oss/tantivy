@@ -1,5 +1,4 @@
 use crate::common::FixedSize;
-use crate::docset::TERMINATED;
 use bitpacking::{BitPacker, BitPacker4x};
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
@@ -53,8 +52,10 @@ impl BlockEncoder {
 /// We ensure that the OutputBuffer is align on 128 bits
 /// in order to run SSE2 linear search on it.
 #[repr(align(128))]
+#[derive(Clone)]
 pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
 
+#[derive(Clone)]
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
     output: AlignedBuffer,
@@ -107,11 +108,6 @@ impl BlockDecoder {
     pub fn output(&self, idx: usize) -> u32 {
         self.output.0[idx]
     }
-
-    pub fn clear(&mut self) {
-        self.output_len = 0;
-        self.output.0.iter_mut().for_each(|el| *el = TERMINATED);
-    }
 }
 
 pub trait VIntEncoder {
@@ -148,11 +144,14 @@ pub trait VIntDecoder {
     /// For instance, if delta encoded are `1, 3, 9`, and the
     /// `offset` is 5, then the output will be:
     /// `5 + 1 = 6, 6 + 3= 9, 9 + 9 = 18`
+    ///
+    /// The value given in `padding` will be used to fill the remaining `128 - num_els` values.
     fn uncompress_vint_sorted(
         &mut self,
         compressed_data: &[u8],
         offset: u32,
         num_els: usize,
+        padding: u32,
     ) -> usize;
 
     /// Uncompress an array of `u32s`, compressed using variable
@@ -160,7 +159,14 @@ pub trait VIntDecoder {
     ///
     /// The method takes a number of int to decompress, and returns
     /// the amount of bytes that were read to decompress them.
-    fn uncompress_vint_unsorted(&mut self, compressed_data: &[u8], num_els: usize) -> usize;
+    ///
+    /// The value given in `padding` will be used to fill the remaining `128 - num_els` values.
+    fn uncompress_vint_unsorted(
+        &mut self,
+        compressed_data: &[u8],
+        num_els: usize,
+        padding: u32,
+    ) -> usize;
 }
 
 impl VIntEncoder for BlockEncoder {
@@ -179,13 +185,21 @@ impl VIntDecoder for BlockDecoder {
         compressed_data: &[u8],
         offset: u32,
         num_els: usize,
+        padding: u32,
     ) -> usize {
         self.output_len = num_els;
+        self.output.0.iter_mut().for_each(|el| *el = padding);
         vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset)
     }
 
-    fn uncompress_vint_unsorted(&mut self, compressed_data: &[u8], num_els: usize) -> usize {
+    fn uncompress_vint_unsorted(
+        &mut self,
+        compressed_data: &[u8],
+        num_els: usize,
+        padding: u32,
+    ) -> usize {
         self.output_len = num_els;
+        self.output.0.iter_mut().for_each(|el| *el = padding);
         vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
     }
 }
@@ -194,6 +208,7 @@ impl VIntDecoder for BlockDecoder {
 pub mod tests {
 
     use super::*;
+    use crate::TERMINATED;
 
     #[test]
     fn test_encode_sorted_block() {
@@ -246,19 +261,6 @@ pub mod tests {
     }
 
     #[test]
-    fn test_clearing() {
-        let mut encoder = BlockEncoder::new();
-        let vals = (0u32..128u32).map(|i| i * 3).collect::<Vec<_>>();
-        let (num_bits, compressed) = encoder.compress_block_sorted(&vals[..], 0u32);
-        let mut decoder = BlockDecoder::default();
-        decoder.uncompress_block_sorted(compressed, 0u32, num_bits);
-        assert_eq!(decoder.output_len, 128);
-        assert_eq!(decoder.output_array(), &vals[..]);
-        decoder.clear();
-        assert!(decoder.output_array().is_empty());
-    }
-
-    #[test]
     fn test_encode_unsorted_block_with_junk() {
         let mut compressed: Vec<u8> = Vec::new();
         let n = 128;
@@ -285,18 +287,20 @@ pub mod tests {
     }
     #[test]
     fn test_encode_vint() {
-        {
-            let expected_length = 154;
-            let mut encoder = BlockEncoder::new();
-            let input: Vec<u32> = (0u32..123u32).map(|i| 4 + i * 7 / 2).into_iter().collect();
-            for offset in &[0u32, 1u32, 2u32] {
-                let encoded_data = encoder.compress_vint_sorted(&input, *offset);
-                assert!(encoded_data.len() <= expected_length);
-                let mut decoder = BlockDecoder::default();
-                let consumed_num_bytes =
-                    decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len());
-                assert_eq!(consumed_num_bytes, encoded_data.len());
-                assert_eq!(input, decoder.output_array());
+        const PADDING_VALUE: u32 = 234_234_345u32;
+        let expected_length = 154;
+        let mut encoder = BlockEncoder::new();
+        let input: Vec<u32> = (0u32..123u32).map(|i| 4 + i * 7 / 2).into_iter().collect();
+        for offset in &[0u32, 1u32, 2u32] {
+            let encoded_data = encoder.compress_vint_sorted(&input, *offset);
+            assert!(encoded_data.len() <= expected_length);
+            let mut decoder = BlockDecoder::default();
+            let consumed_num_bytes =
+                decoder.uncompress_vint_sorted(&encoded_data, *offset, input.len(), PADDING_VALUE);
+            assert_eq!(consumed_num_bytes, encoded_data.len());
+            assert_eq!(input, decoder.output_array());
+            for i in input.len()..COMPRESSION_BLOCK_SIZE {
+                assert_eq!(decoder.output(i), PADDING_VALUE);
             }
         }
     }

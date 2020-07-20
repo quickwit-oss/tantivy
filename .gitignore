@@ -1,4 +1,5 @@
 tantivy.iml
+proptest-regressions
 *.swp
 target
 target/debug

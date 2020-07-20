@@ -79,7 +79,7 @@ pub mod tests {
             .collect();
         let phrase_query = PhraseQuery::new(terms);
         let phrase_weight = phrase_query.phrase_weight(&searcher, false)?;
-        let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        let mut phrase_scorer = phrase_weight.scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
         Ok(())

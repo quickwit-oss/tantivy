@@ -9,7 +9,7 @@ use crate::Score;
 
 /// Query that matches all of the documents.
 ///
-/// All of the document get the score 1f32.
+/// All of the document get the score 1.0.
 #[derive(Clone, Debug)]
 pub struct AllQuery;
 
@@ -23,7 +23,7 @@ impl Query for AllQuery {
 pub struct AllWeight;
 
 impl Weight for AllWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let all_scorer = AllScorer {
             doc: 0u32,
             max_doc: reader.max_doc(),
@@ -35,7 +35,7 @@ impl Weight for AllWeight {
         if doc >= reader.max_doc() {
             return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("AllQuery", 1f32))
+        Ok(Explanation::new("AllQuery", 1.0))
     }
 }
 
@@ -66,7 +66,7 @@ impl DocSet for AllScorer {
 
 impl Scorer for AllScorer {
     fn score(&mut self) -> Score {
-        1f32
+        1.0
     }
 }
 
@@ -100,7 +100,7 @@ mod tests {
         let weight = AllQuery.weight(&searcher, false).unwrap();
         {
             let reader = searcher.segment_reader(0);
-            let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
+            let mut scorer = weight.scorer(reader, 1.0).unwrap();
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.advance(), 1u32);
             assert_eq!(scorer.doc(), 1u32);
@@ -108,7 +108,7 @@ mod tests {
         }
         {
             let reader = searcher.segment_reader(1);
-            let mut scorer = weight.scorer(reader, 1.0f32).unwrap();
+            let mut scorer = weight.scorer(reader, 1.0).unwrap();
             assert_eq!(scorer.doc(), 0u32);
             assert_eq!(scorer.advance(), TERMINATED);
         }
@@ -122,14 +122,14 @@ mod tests {
         let weight = AllQuery.weight(&searcher, false).unwrap();
         let reader = searcher.segment_reader(0);
         {
-            let mut scorer = weight.scorer(reader, 2.0f32).unwrap();
+            let mut scorer = weight.scorer(reader, 2.0).unwrap();
             assert_eq!(scorer.doc(), 0u32);
-            assert_eq!(scorer.score(), 2.0f32);
+            assert_eq!(scorer.score(), 2.0);
         }
         {
-            let mut scorer = weight.scorer(reader, 1.5f32).unwrap();
+            let mut scorer = weight.scorer(reader, 1.5).unwrap();
             assert_eq!(scorer.doc(), 0u32);
-            assert_eq!(scorer.score(), 1.5f32);
+            assert_eq!(scorer.score(), 1.5);
         }
     }
 }

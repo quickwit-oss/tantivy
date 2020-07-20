@@ -112,47 +112,47 @@ mod tests {
     fn test_reqopt_scorer() {
         let mut reqoptscorer: RequiredOptionalScorer<_, _, SumCombiner> =
             RequiredOptionalScorer::new(
-                ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15]), 1.0f32),
-                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15]), 1.0f32),
+                ConstScorer::new(VecDocSet::from(vec![1, 3, 7, 8, 9, 10, 13, 15]), 1.0),
+                ConstScorer::new(VecDocSet::from(vec![1, 2, 7, 11, 12, 15]), 1.0),
             );
         {
             assert_eq!(reqoptscorer.doc(), 1);
-            assert_eq!(reqoptscorer.score(), 2f32);
+            assert_eq!(reqoptscorer.score(), 2.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 3);
             assert_eq!(reqoptscorer.doc(), 3);
-            assert_eq!(reqoptscorer.score(), 1f32);
+            assert_eq!(reqoptscorer.score(), 1.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 7);
             assert_eq!(reqoptscorer.doc(), 7);
-            assert_eq!(reqoptscorer.score(), 2f32);
+            assert_eq!(reqoptscorer.score(), 2.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 8);
             assert_eq!(reqoptscorer.doc(), 8);
-            assert_eq!(reqoptscorer.score(), 1f32);
+            assert_eq!(reqoptscorer.score(), 1.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 9);
             assert_eq!(reqoptscorer.doc(), 9);
-            assert_eq!(reqoptscorer.score(), 1f32);
+            assert_eq!(reqoptscorer.score(), 1.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 10);
             assert_eq!(reqoptscorer.doc(), 10);
-            assert_eq!(reqoptscorer.score(), 1f32);
+            assert_eq!(reqoptscorer.score(), 1.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 13);
             assert_eq!(reqoptscorer.doc(), 13);
-            assert_eq!(reqoptscorer.score(), 1f32);
+            assert_eq!(reqoptscorer.score(), 1.0);
         }
         {
             assert_eq!(reqoptscorer.advance(), 15);
             assert_eq!(reqoptscorer.doc(), 15);
-            assert_eq!(reqoptscorer.score(), 2f32);
+            assert_eq!(reqoptscorer.score(), 2.0);
         }
         assert_eq!(reqoptscorer.advance(), TERMINATED);
     }

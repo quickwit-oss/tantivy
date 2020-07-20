@@ -19,13 +19,13 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
         let term_scorer = self.specialized_scorer(reader, boost)?;
         Ok(Box::new(term_scorer))
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.specialized_scorer(reader, 1.0f32)?;
+        let mut scorer = self.specialized_scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
@@ -34,7 +34,7 @@ impl Weight for TermWeight {
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
         if let Some(delete_bitset) = reader.delete_bitset() {
-            Ok(self.scorer(reader, 1.0f32)?.count(delete_bitset))
+            Ok(self.scorer(reader, 1.0)?.count(delete_bitset))
         } else {
             let field = self.term.field();
             Ok(reader
@@ -52,7 +52,7 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score),
     ) -> crate::Result<()> {
-        let mut scorer = self.specialized_scorer(reader, 1.0f32)?;
+        let mut scorer = self.specialized_scorer(reader, 1.0)?;
         for_each_scorer(&mut scorer, callback);
         Ok(())
     }
@@ -69,11 +69,11 @@ impl Weight for TermWeight {
     /// important optimization (e.g. BlockWAND for union).
     fn for_each_pruning(
         &self,
-        threshold: f32,
+        threshold: Score,
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         for_each_pruning_scorer(&mut scorer, threshold, callback);
         Ok(())
     }
@@ -92,7 +92,11 @@ impl TermWeight {
         }
     }
 
-    fn specialized_scorer(&self, reader: &SegmentReader, boost: f32) -> Result<TermScorer> {
+    pub(crate) fn specialized_scorer(
+        &self,
+        reader: &SegmentReader,
+        boost: Score,
+    ) -> Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);

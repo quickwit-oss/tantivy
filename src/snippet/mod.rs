@@ -2,8 +2,8 @@ use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
 use crate::tokenizer::{TextAnalyzer, Token};
-use crate::Document;
 use crate::Searcher;
+use crate::{Document, Score};
 use htmlescape::encode_minimal;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ impl HighlightSection {
 
 #[derive(Debug)]
 pub struct FragmentCandidate {
-    score: f32,
+    score: Score,
     start_offset: usize,
     stop_offset: usize,
     num_chars: usize,
@@ -58,7 +58,7 @@ impl FragmentCandidate {
     /// taking the token and terms, the token is added to the fragment.
     /// if the token is one of the terms, the score
     /// and highlighted fields are updated in the fragment.
-    fn try_add_token(&mut self, token: &Token, terms: &BTreeMap<String, f32>) {
+    fn try_add_token(&mut self, token: &Token, terms: &BTreeMap<String, Score>) {
         self.stop_offset = token.offset_to;
 
         if let Some(&score) = terms.get(&token.text.to_lowercase()) {
@@ -142,7 +142,7 @@ impl Snippet {
 fn search_fragments<'a>(
     tokenizer: &TextAnalyzer,
     text: &'a str,
-    terms: &BTreeMap<String, f32>,
+    terms: &BTreeMap<String, Score>,
     max_num_chars: usize,
 ) -> Vec<FragmentCandidate> {
     let mut token_stream = tokenizer.token_stream(text);
@@ -248,7 +248,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// # }
 /// ```
 pub struct SnippetGenerator {
-    terms_text: BTreeMap<String, f32>,
+    terms_text: BTreeMap<String, Score>,
     tokenizer: TextAnalyzer,
     field: Field,
     max_num_chars: usize,
@@ -263,12 +263,12 @@ impl SnippetGenerator {
     ) -> crate::Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
-        let terms_text: BTreeMap<String, f32> = terms
+        let terms_text: BTreeMap<String, Score> = terms
             .into_iter()
             .filter(|term| term.field() == field)
             .flat_map(|term| {
                 let doc_freq = searcher.doc_freq(&term);
-                let score = 1f32 / (1f32 + doc_freq as f32);
+                let score = 1.0 / (1.0 + doc_freq as Score);
                 if doc_freq > 0 {
                     Some((term.text().to_string(), score))
                 } else {
@@ -291,7 +291,7 @@ impl SnippetGenerator {
     }
 
     #[cfg(test)]
-    pub fn terms_text(&self) -> &BTreeMap<String, f32> {
+    pub fn terms_text(&self) -> &BTreeMap<String, Score> {
         &self.terms_text
     }
 
@@ -373,8 +373,8 @@ Survey in 2016, 2017, and 2018."#;
     fn test_snippet_scored_fragment() {
         {
             let terms = btreemap! {
-                String::from("rust") =>1.0f32,
-                String::from("language") => 0.9f32
+                String::from("rust") =>1.0,
+                String::from("language") => 0.9
             };
             let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 20);
             {
@@ -387,8 +387,8 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             let terms = btreemap! {
-                String::from("rust") =>0.9f32,
-                String::from("language") => 1.0f32
+                String::from("rust") =>0.9,
+                String::from("language") => 1.0
             };
             let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 20);
             //assert_eq!(fragments.len(), 7);
@@ -525,7 +525,7 @@ Survey in 2016, 2017, and 2018."#;
             let snippet_generator =
                 SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
-                &btreemap!("a".to_string() => 0.25f32),
+                &btreemap!("a".to_string() => 0.25),
                 snippet_generator.terms_text()
             );
         }
@@ -534,7 +534,7 @@ Survey in 2016, 2017, and 2018."#;
             let snippet_generator =
                 SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
-                &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
+                &btreemap!("a".to_string() => 0.25, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
             );
         }
@@ -543,7 +543,7 @@ Survey in 2016, 2017, and 2018."#;
             let snippet_generator =
                 SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
-                &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
+                &btreemap!("a".to_string() => 0.25, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
             );
         }
