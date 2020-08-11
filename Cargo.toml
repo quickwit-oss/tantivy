@@ -43,13 +43,13 @@ bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
 census = "0.4"
 fnv = "1.0.6"
 owned-read = "0.4"
-failure = "0.1"
 htmlescape = "0.3.1"
 fail = "0.4"
 murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1.0"
 rayon = "1"
+thiserror = "1.0.20"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"

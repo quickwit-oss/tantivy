@@ -18,53 +18,51 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
 use tantivy_query_grammar::{UserInputAST, UserInputBound, UserInputLeaf};
+use thiserror::Error;
 
 /// Possible error that may happen when parsing a query.
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum QueryParserError {
     /// Error in the query syntax
-    #[fail(display = "Syntax Error")]
+    #[error("Syntax Error")]
     SyntaxError,
     /// `FieldDoesNotExist(field_name: String)`
     /// The query references a field that is not in the schema
-    #[fail(display = "File does not exists: '{:?}'", _0)]
+    #[error("File does not exists: '{:?}'", _0)]
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64` or `i64`-field, but the value
     /// is neither.
-    #[fail(display = "Expected a valid integer: '{:?}'", _0)]
+    #[error("Expected a valid integer: '{:?}'", _0)]
     ExpectedInt(ParseIntError),
     /// The query contains a term for a `f64`-field, but the value
     /// is not a f64.
-    #[fail(display = "Invalid query: Only excluding terms given")]
+    #[error("Invalid query: Only excluding terms given")]
     ExpectedFloat(ParseFloatError),
     /// It is forbidden queries that are only "excluding". (e.g. -title:pop)
-    #[fail(display = "Invalid query: Only excluding terms given")]
+    #[error("Invalid query: Only excluding terms given")]
     AllButQueryForbidden,
     /// If no default field is declared, running a query without any
     /// field specified is forbbidden.
-    #[fail(display = "No default field declared and no field specified in query")]
+    #[error("No default field declared and no field specified in query")]
     NoDefaultFieldDeclared,
     /// The field searched for is not declared
     /// as indexed in the schema.
-    #[fail(display = "The field '{:?}' is not declared as indexed", _0)]
+    #[error("The field '{:?}' is not declared as indexed", _0)]
     FieldNotIndexed(String),
     /// A phrase query was requested for a field that does not
     /// have any positions indexed.
-    #[fail(display = "The field '{:?}' does not have positions indexed", _0)]
+    #[error("The field '{:?}' does not have positions indexed", _0)]
     FieldDoesNotHavePositionsIndexed(String),
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
-    #[fail(
-        display = "The tokenizer '{:?}' for the field '{:?}' is unknown",
-        _0, _1
-    )]
+    #[error("The tokenizer '{:?}' for the field '{:?}' is unknown", _0, _1)]
     UnknownTokenizer(String, String),
     /// The query contains a range query with a phrase as one of the bounds.
     /// Only terms can be used as bounds.
-    #[fail(display = "A range query cannot have a phrase as one of the bounds")]
+    #[error("A range query cannot have a phrase as one of the bounds")]
     RangeMustNotHavePhrase,
     /// The format for the date field is not RFC 3339 compliant.
-    #[fail(display = "The date field has an invalid format")]
+    #[error("The date field has an invalid format")]
     DateFormatError(chrono::ParseError),
 }
 

@@ -9,6 +9,7 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Map as JsonObject, Value as JsonValue};
 use std::fmt;
+use thiserror::Error;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -381,17 +382,17 @@ impl<'de> Deserialize<'de> for Schema {
 
 /// Error that may happen when deserializing
 /// a document from JSON.
-#[derive(Debug, Fail, PartialEq)]
+#[derive(Debug, Error, PartialEq)]
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
-    #[fail(display = "The provided string is not valid JSON")]
+    #[error("The provided string is not valid JSON")]
     NotJSON(String),
     /// One of the value node could not be parsed.
-    #[fail(display = "The field '{:?}' could not be parsed: {:?}", _0, _1)]
+    #[error("The field '{:?}' could not be parsed: {:?}", _0, _1)]
     ValueError(String, ValueParsingError),
     /// The json-document contains a field that is not declared in the schema.
-    #[fail(
-        display = "The document contains a field that is not declared in the schema: {:?}",
+    #[error(
+        "The document contains a field that is not declared in the schema: {:?}",
         _0
     )]
     NoSuchFieldInSchema(String),

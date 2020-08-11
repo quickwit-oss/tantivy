@@ -3,20 +3,19 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
+use thiserror::Error;
 
 /// Error while trying to acquire a directory lock.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum LockError {
     /// Failed to acquired a lock as it is already held by another
     /// client.
     /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
     /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
-    #[fail(
-        display = "Could not acquire lock as it is already held, possibly by a different process."
-    )]
+    #[error("Could not acquire lock as it is already held, possibly by a different process.")]
     LockBusy,
     /// Trying to acquire a lock failed with an `IOError`
-    #[fail(display = "Failed to acquire the lock due to an io:Error.")]
+    #[error("Failed to acquire the lock due to an io:Error.")]
     IOError(io::Error),
 }
 

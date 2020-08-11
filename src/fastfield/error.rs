@@ -1,11 +1,12 @@
 use crate::schema::FieldEntry;
 use std::result;
+use thiserror::Error;
 
 /// `FastFieldNotAvailableError` is returned when the
 /// user requested for a fast field reader, and the field was not
 /// defined in the schema as a fast field.
-#[derive(Debug, Fail)]
-#[fail(display = "Fast field not available: '{:?}'", field_name)]
+#[derive(Debug, Error)]
+#[error("Fast field not available: '{:?}'", field_name)]
 pub struct FastFieldNotAvailableError {
     field_name: String,
 }

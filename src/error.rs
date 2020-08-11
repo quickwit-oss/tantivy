@@ -10,6 +10,7 @@ use crate::schema;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
+use thiserror::Error;
 
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
@@ -44,43 +45,43 @@ impl fmt::Debug for DataCorruption {
 }
 
 /// The library's failure based error enum
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum TantivyError {
     /// Path does not exist.
-    #[fail(display = "Path does not exist: '{:?}'", _0)]
+    #[error("Path does not exist: '{:?}'", _0)]
     PathDoesNotExist(PathBuf),
     /// File already exists, this is a problem when we try to write into a new file.
-    #[fail(display = "File already exists: '{:?}'", _0)]
+    #[error("File already exists: '{:?}'", _0)]
     FileAlreadyExists(PathBuf),
     /// Index already exists in this directory
-    #[fail(display = "Index already exists")]
+    #[error("Index already exists")]
     IndexAlreadyExists,
     /// Failed to acquire file lock
-    #[fail(display = "Failed to acquire Lockfile: {:?}. {:?}", _0, _1)]
+    #[error("Failed to acquire Lockfile: {:?}. {:?}", _0, _1)]
     LockFailure(LockError, Option<String>),
     /// IO Error.
-    #[fail(display = "An IO error occurred: '{}'", _0)]
-    IOError(#[cause] IOError),
+    #[error("An IO error occurred: '{}'", _0)]
+    IOError(#[source] IOError),
     /// Data corruption.
-    #[fail(display = "{:?}", _0)]
+    #[error("{:?}", _0)]
     DataCorruption(DataCorruption),
     /// A thread holding the locked panicked and poisoned the lock.
-    #[fail(display = "A thread holding the locked panicked and poisoned the lock")]
+    #[error("A thread holding the lock panicked and poisoned the lock")]
     Poisoned,
     /// Invalid argument was passed by the user.
-    #[fail(display = "An invalid argument was passed: '{}'", _0)]
+    #[error("An invalid argument was passed: '{}'", _0)]
     InvalidArgument(String),
     /// An Error happened in one of the thread.
-    #[fail(display = "An error occurred in a thread: '{}'", _0)]
+    #[error("An error occurred in a thread: '{}'", _0)]
     ErrorInThread(String),
     /// An Error appeared related to the schema.
-    #[fail(display = "Schema error: '{}'", _0)]
+    #[error("Schema error: '{}'", _0)]
     SchemaError(String),
     /// System error. (e.g.: We failed spawning a new thread)
-    #[fail(display = "System error.'{}'", _0)]
+    #[error("System error.'{}'", _0)]
     SystemError(String),
     /// Index incompatible with current version of tantivy
-    #[fail(display = "{:?}", _0)]
+    #[error("{:?}", _0)]
     IncompatibleIndex(Incompatibility),
 }
 
