@@ -539,7 +539,7 @@ impl IndexWriter {
     fn recreate_document_channel(&mut self) -> OperationReceiver {
         let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        mem::replace(&mut self.operation_sender, document_sender);
+        let _ = mem::replace(&mut self.operation_sender, document_sender);
         mem::replace(&mut self.operation_receiver, document_receiver)
     }
 
@@ -575,7 +575,7 @@ impl IndexWriter {
         //
         // This will drop the document queue, and the thread
         // should terminate.
-        mem::replace(self, new_index_writer);
+        let _ = mem::replace(self, new_index_writer);
 
         // Drains the document receiver pipeline :
         // Workers don't need to index the pending documents.
