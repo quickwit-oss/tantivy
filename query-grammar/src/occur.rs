@@ -32,11 +32,11 @@ impl Occur {
     /// Compose two occur values.
     pub fn compose(left: Occur, right: Occur) -> Occur {
         match (left, right) {
-            (Occur::Should, _) => { right }
-            (Occur::Must, Occur::MustNot) => { Occur::MustNot }
-            (Occur::Must, _) => { Occur::Must }
-            (Occur::MustNot, Occur::MustNot) => { Occur::Must }
-            (Occur::MustNot, _) => { Occur::MustNot }
+            (Occur::Should, _) => right,
+            (Occur::Must, Occur::MustNot) => Occur::MustNot,
+            (Occur::Must, _) => Occur::Must,
+            (Occur::MustNot, Occur::MustNot) => Occur::Must,
+            (Occur::MustNot, _) => Occur::MustNot,
         }
     }
 }
@@ -55,11 +55,17 @@ mod test {
     fn test_Occur_compose() {
         assert_eq!(Occur::compose(Occur::Should, Occur::Should), Occur::Should);
         assert_eq!(Occur::compose(Occur::Should, Occur::Must), Occur::Must);
-        assert_eq!(Occur::compose(Occur::Should, Occur::MustNot), Occur::MustNot);
+        assert_eq!(
+            Occur::compose(Occur::Should, Occur::MustNot),
+            Occur::MustNot
+        );
         assert_eq!(Occur::compose(Occur::Must, Occur::Should), Occur::Must);
         assert_eq!(Occur::compose(Occur::Must, Occur::Must), Occur::Must);
         assert_eq!(Occur::compose(Occur::Must, Occur::MustNot), Occur::MustNot);
-        assert_eq!(Occur::compose(Occur::MustNot, Occur::Should), Occur::MustNot);
+        assert_eq!(
+            Occur::compose(Occur::MustNot, Occur::Should),
+            Occur::MustNot
+        );
         assert_eq!(Occur::compose(Occur::MustNot, Occur::Must), Occur::MustNot);
         assert_eq!(Occur::compose(Occur::MustNot, Occur::MustNot), Occur::Must);
     }
