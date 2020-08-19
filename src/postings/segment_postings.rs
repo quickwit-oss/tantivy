@@ -10,9 +10,10 @@ use crate::postings::BlockSearcher;
 use crate::postings::Postings;
 
 use crate::schema::IndexRecordOption;
-use crate::DocId;
+use crate::{DocId, TERMINATED};
 
 use crate::directory::ReadOnlySource;
+use crate::fastfield::DeleteBitSet;
 use crate::postings::BlockSegmentPostings;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
@@ -20,8 +21,9 @@ use crate::postings::BlockSegmentPostings;
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
+#[derive(Clone)]
 pub struct SegmentPostings {
-    block_cursor: BlockSegmentPostings,
+    pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_reader: Option<PositionReader>,
     block_searcher: BlockSearcher,
@@ -38,6 +40,31 @@ impl SegmentPostings {
         }
     }
 
+    /// Compute the number of non-deleted documents.
+    ///
+    /// This method will clone and scan through the posting lists.
+    /// (this is a rather expensive operation).
+    pub fn doc_freq_given_deletes(&self, delete_bitset: &DeleteBitSet) -> u32 {
+        let mut docset = self.clone();
+        let mut doc_freq = 0;
+        loop {
+            let doc = docset.doc();
+            if doc == TERMINATED {
+                return doc_freq;
+            }
+            if delete_bitset.is_alive(doc) {
+                doc_freq += 1u32;
+            }
+            docset.advance();
+        }
+    }
+
+    /// Returns the overall number of documents in the block postings.
+    /// It does not take in account whether documents are deleted or not.
+    pub fn doc_freq(&self) -> u32 {
+        self.block_cursor.doc_freq()
+    }
+
     /// Creates a segment postings object with the given documents
     /// and no frequency encoded.
     ///
@@ -49,7 +76,9 @@ impl SegmentPostings {
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut buffer = Vec::new();
         {
-            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false, false);
+            let mut postings_serializer =
+                PostingsSerializer::new(&mut buffer, 0.0, false, false, None);
+            postings_serializer.new_term(docs.len() as u32);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
             }
@@ -62,6 +91,51 @@ impl SegmentPostings {
             ReadOnlySource::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
+        );
+        SegmentPostings::from_block_postings(block_segment_postings, None)
+    }
+
+    /// Helper functions to create `SegmentPostings` for tests.
+    #[cfg(test)]
+    pub fn create_from_docs_and_tfs(
+        doc_and_tfs: &[(u32, u32)],
+        fieldnorms: Option<&[u32]>,
+    ) -> SegmentPostings {
+        use crate::fieldnorm::FieldNormReader;
+        use crate::Score;
+        let mut buffer: Vec<u8> = Vec::new();
+        let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
+        let average_field_norm = fieldnorms
+            .map(|fieldnorms| {
+                if fieldnorms.len() == 0 {
+                    return 0.0;
+                }
+                let total_num_tokens: u64 = fieldnorms
+                    .iter()
+                    .map(|&fieldnorm| fieldnorm as u64)
+                    .sum::<u64>();
+                total_num_tokens as Score / fieldnorms.len() as f32
+            })
+            .unwrap_or(0.0);
+        let mut postings_serializer = PostingsSerializer::new(
+            &mut buffer,
+            average_field_norm,
+            true,
+            false,
+            fieldnorm_reader,
+        );
+        postings_serializer.new_term(doc_and_tfs.len() as u32);
+        for &(doc, tf) in doc_and_tfs {
+            postings_serializer.write_doc(doc, tf);
+        }
+        postings_serializer
+            .close_term(doc_and_tfs.len() as u32)
+            .unwrap();
+        let block_segment_postings = BlockSegmentPostings::from_data(
+            doc_and_tfs.len() as u32,
+            ReadOnlySource::from(buffer),
+            IndexRecordOption::WithFreqs,
+            IndexRecordOption::WithFreqs,
         );
         SegmentPostings::from_block_postings(block_segment_postings, None)
     }
@@ -90,6 +164,7 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> DocId {
+        debug_assert!(self.block_cursor.block_is_loaded());
         if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
             self.cur = 0;
             self.block_cursor.advance();
@@ -141,7 +216,7 @@ impl DocSet for SegmentPostings {
 
 impl HasLen for SegmentPostings {
     fn len(&self) -> usize {
-        self.block_cursor.doc_freq()
+        self.block_cursor.doc_freq() as usize
     }
 }
 
@@ -196,6 +271,7 @@ mod tests {
     use crate::common::HasLen;
 
     use crate::docset::{DocSet, TERMINATED};
+    use crate::fastfield::DeleteBitSet;
     use crate::postings::postings::Postings;
 
     #[test]
@@ -217,5 +293,15 @@ mod tests {
     fn test_empty_postings_doc_term_freq_returns_0() {
         let postings = SegmentPostings::empty();
         assert_eq!(postings.term_freq(), 1);
+    }
+
+    #[test]
+    fn test_doc_freq() {
+        let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
+        assert_eq!(docs.doc_freq(), 3);
+        let delete_bitset = DeleteBitSet::for_test(&[2], 12);
+        assert_eq!(docs.doc_freq_given_deletes(&delete_bitset), 2);
+        let all_deleted = DeleteBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
+        assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

@@ -536,6 +536,7 @@ impl IndexWriter {
     /// when no documents are remaining.
     ///
     /// Returns the former segment_ready channel.
+    #[allow(unused_must_use)]
     fn recreate_document_channel(&mut self) -> OperationReceiver {
         let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -575,7 +576,7 @@ impl IndexWriter {
         //
         // This will drop the document queue, and the thread
         // should terminate.
-        mem::replace(self, new_index_writer);
+        *self = new_index_writer;
 
         // Drains the document receiver pipeline :
         // Workers don't need to index the pending documents.

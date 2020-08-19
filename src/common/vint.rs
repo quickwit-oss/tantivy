@@ -5,12 +5,12 @@ use std::io::Read;
 use std::io::Write;
 
 ///   Wrapper over a `u64` that serializes as a variable int.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct VInt(pub u64);
 
 const STOP_BIT: u8 = 128;
 
-pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
+pub fn serialize_vint_u32(val: u32, buf: &mut [u8; 8]) -> &[u8] {
     const START_2: u64 = 1 << 7;
     const START_3: u64 = 1 << 14;
     const START_4: u64 = 1 << 21;
@@ -29,7 +29,7 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
 
     let val = u64::from(val);
     const STOP_BIT: u64 = 128u64;
-    match val {
+    let (res, num_bytes) = match val {
         0..=STOP_1 => (val | STOP_BIT, 1),
         START_2..=STOP_2 => (
             (val & MASK_1) | ((val & MASK_2) << 1) | (STOP_BIT << (8)),
@@ -56,7 +56,9 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
                 | (STOP_BIT << (8 * 4)),
             5,
         ),
-    }
+    };
+    LittleEndian::write_u64(&mut buf[..], res);
+    &buf[0..num_bytes]
 }
 
 /// Returns the number of bytes covered by a
@@ -85,23 +87,26 @@ fn vint_len(data: &[u8]) -> usize {
 /// If the buffer does not start by a valid
 /// vint payload
 pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
-    let vlen = vint_len(*data);
+    let (result, vlen) = read_u32_vint_no_advance(*data);
+    *data = &data[vlen..];
+    result
+}
+
+pub fn read_u32_vint_no_advance(data: &[u8]) -> (u32, usize) {
+    let vlen = vint_len(data);
     let mut result = 0u32;
     let mut shift = 0u64;
     for &b in &data[..vlen] {
         result |= u32::from(b & 127u8) << shift;
         shift += 7;
     }
-    *data = &data[vlen..];
-    result
+    (result, vlen)
 }
-
 /// Write a `u32` as a vint payload.
 pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
-    let (val, num_bytes) = serialize_vint_u32(val);
-    let mut buffer = [0u8; 8];
-    LittleEndian::write_u64(&mut buffer, val);
-    writer.write_all(&buffer[..num_bytes])
+    let mut buf = [0u8; 8];
+    let data = serialize_vint_u32(val, &mut buf);
+    writer.write_all(&data)
 }
 
 impl VInt {
@@ -172,7 +177,6 @@ mod tests {
     use super::serialize_vint_u32;
     use super::VInt;
     use crate::common::BinarySerializable;
-    use byteorder::{ByteOrder, LittleEndian};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -208,12 +212,10 @@ mod tests {
 
     fn aux_test_serialize_vint_u32(val: u32) {
         let mut buffer = [0u8; 10];
-        let mut buffer2 = [0u8; 10];
+        let mut buffer2 = [0u8; 8];
         let len_vint = VInt(val as u64).serialize_into(&mut buffer);
-        let (vint, len) = serialize_vint_u32(val);
-        assert_eq!(len, len_vint, "len wrong for val {}", val);
-        LittleEndian::write_u64(&mut buffer2, vint);
-        assert_eq!(&buffer[..len], &buffer2[..len], "array wrong for {}", val);
+        let res2 = serialize_vint_u32(val, &mut buffer2);
+        assert_eq!(&buffer[..len_vint], res2, "array wrong for {}", val);
     }
 
     #[test]

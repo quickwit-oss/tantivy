@@ -3,7 +3,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::BM25Weight;
 use crate::query::{Intersection, Scorer};
-use crate::DocId;
+use crate::{DocId, Score};
 use std::cmp::Ordering;
 
 struct PostingsWithOffset<TPostings> {
@@ -257,7 +257,7 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
 }
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
-    fn score(&mut self) -> f32 {
+    fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
         self.similarity_weight

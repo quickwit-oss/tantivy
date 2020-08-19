@@ -55,7 +55,7 @@ where
             cursor: HORIZON_NUM_TINYBITSETS,
             offset: 0,
             doc: 0,
-            score: 0f32,
+            score: 0.0,
         };
         if union.refill() {
             union.advance();
@@ -274,7 +274,7 @@ mod tests {
                 vals.iter()
                     .cloned()
                     .map(VecDocSet::from)
-                    .map(|docset| ConstScorer::new(docset, 1.0f32))
+                    .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<ConstScorer<VecDocSet>>>(),
             )
         };
@@ -321,7 +321,7 @@ mod tests {
                     .iter()
                     .map(|docs| docs.clone())
                     .map(VecDocSet::from)
-                    .map(|docset| ConstScorer::new(docset, 1.0f32))
+                    .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
             ));
             res

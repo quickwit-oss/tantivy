@@ -87,7 +87,7 @@ impl UserInputBound {
 pub enum UserInputAST {
     Clause(Vec<(Option<Occur>, UserInputAST)>),
     Leaf(Box<UserInputLeaf>),
-    Boost(Box<UserInputAST>, f32),
+    Boost(Box<UserInputAST>, f64),
 }
 
 impl UserInputAST {

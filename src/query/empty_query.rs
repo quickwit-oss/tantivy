@@ -34,7 +34,7 @@ impl Query for EmptyQuery {
 /// It is useful for tests and handling edge cases.
 pub struct EmptyWeight;
 impl Weight for EmptyWeight {
-    fn scorer(&self, _reader: &SegmentReader, _boost: f32) -> crate::Result<Box<dyn Scorer>> {
+    fn scorer(&self, _reader: &SegmentReader, _boost: Score) -> crate::Result<Box<dyn Scorer>> {
         Ok(Box::new(EmptyScorer))
     }
 
@@ -64,7 +64,7 @@ impl DocSet for EmptyScorer {
 
 impl Scorer for EmptyScorer {
     fn score(&mut self) -> Score {
-        0f32
+        0.0
     }
 }
 

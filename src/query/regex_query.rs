@@ -129,7 +129,7 @@ mod test {
                 .unwrap();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
-            assert_nearly_equals!(1f32, score);
+            assert_nearly_equals!(1.0, score);
         }
         let top_docs = searcher
             .search(&query_matching_zero, &TopDocs::with_limit(2))

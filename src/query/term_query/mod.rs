@@ -15,8 +15,7 @@ mod tests {
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
-    use crate::Term;
-    use crate::{Index, TERMINATED};
+    use crate::{Index, Term, TERMINATED};
 
     #[test]
     pub fn test_term_query_no_freq() {
@@ -38,9 +37,9 @@ mod tests {
         );
         let term_weight = term_query.weight(&searcher, true).unwrap();
         let segment_reader = searcher.segment_reader(0);
-        let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32).unwrap();
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0).unwrap();
         assert_eq!(term_scorer.doc(), 0);
-        assert_eq!(term_scorer.score(), 0.28768212);
+        assert_nearly_equals!(term_scorer.score(), 0.28768212);
     }
 
     #[test]
@@ -65,7 +64,7 @@ mod tests {
         );
         let term_weight = term_query.weight(&searcher, true)?;
         let segment_reader = searcher.segment_reader(0);
-        let mut term_scorer = term_weight.scorer(segment_reader, 1.0f32)?;
+        let mut term_scorer = term_weight.scorer(segment_reader, 1.0)?;
         for i in 0u32..COMPRESSION_BLOCK_SIZE as u32 {
             assert_eq!(term_scorer.doc(), i);
             if i == COMPRESSION_BLOCK_SIZE as u32 - 1u32 {
@@ -162,7 +161,7 @@ mod tests {
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let searcher = index.reader()?.searcher();
         let term_weight = term_query.weight(&searcher, false)?;
-        let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0f32)?;
+        let mut term_scorer = term_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         term_scorer.seek(1u32);
         assert_eq!(term_scorer.doc(), 1u32);

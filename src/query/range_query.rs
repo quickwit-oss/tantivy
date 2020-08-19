@@ -9,8 +9,8 @@ use crate::query::{Query, Scorer, Weight};
 use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::DocId;
 use crate::Result;
+use crate::{DocId, Score};
 use std::collections::Bound;
 use std::ops::Range;
 
@@ -289,7 +289,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -316,11 +316,11 @@ impl Weight for RangeWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("RangeQuery", 1.0f32))
+        Ok(Explanation::new("RangeQuery", 1.0))
     }
 }
 

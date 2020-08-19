@@ -9,6 +9,8 @@ use std::io::Write;
 /// Write a delete `BitSet`
 ///
 /// where `delete_bitset` is the set of deleted `DocId`.
+/// Warning: this function does not call terminate. The caller is in charge of
+/// closing the writer properly.
 pub fn write_delete_bitset(
     delete_bitset: &BitSet,
     max_doc: u32,
@@ -42,6 +44,24 @@ pub struct DeleteBitSet {
 }
 
 impl DeleteBitSet {
+    #[cfg(test)]
+    pub(crate) fn for_test(docs: &[DocId], max_doc: u32) -> DeleteBitSet {
+        use crate::directory::{Directory, RAMDirectory, TerminatingWrite};
+        use std::path::Path;
+        assert!(docs.iter().all(|&doc| doc < max_doc));
+        let mut bitset = BitSet::with_max_value(max_doc);
+        for &doc in docs {
+            bitset.insert(doc);
+        }
+        let mut directory = RAMDirectory::create();
+        let path = Path::new("dummydeletebitset");
+        let mut wrt = directory.open_write(path).unwrap();
+        write_delete_bitset(&bitset, max_doc, &mut wrt).unwrap();
+        wrt.terminate().unwrap();
+        let source = directory.open_read(path).unwrap();
+        Self::open(source)
+    }
+
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
         let num_deleted: usize = data
@@ -83,42 +103,35 @@ impl HasLen for DeleteBitSet {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::directory::*;
-    use std::path::PathBuf;
+    use super::DeleteBitSet;
+    use crate::common::HasLen;
 
-    fn test_delete_bitset_helper(bitset: &BitSet, max_doc: u32) {
-        let test_path = PathBuf::from("test");
-        let mut directory = RAMDirectory::create();
-        {
-            let mut writer = directory.open_write(&*test_path).unwrap();
-            write_delete_bitset(bitset, max_doc, &mut writer).unwrap();
-            writer.terminate().unwrap();
+    #[test]
+    fn test_delete_bitset_empty() {
+        let delete_bitset = DeleteBitSet::for_test(&[], 10);
+        for doc in 0..10 {
+            assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
-        let source = directory.open_read(&test_path).unwrap();
-        let delete_bitset = DeleteBitSet::open(source);
-        for doc in 0..max_doc {
-            assert_eq!(bitset.contains(doc), delete_bitset.is_deleted(doc as DocId));
-        }
-        assert_eq!(delete_bitset.len(), bitset.len());
+        assert_eq!(delete_bitset.len(), 0);
     }
 
     #[test]
     fn test_delete_bitset() {
-        {
-            let mut bitset = BitSet::with_max_value(10);
-            bitset.insert(1);
-            bitset.insert(9);
-            test_delete_bitset_helper(&bitset, 10);
+        let delete_bitset = DeleteBitSet::for_test(&[1, 9], 10);
+        assert!(delete_bitset.is_alive(0));
+        assert!(delete_bitset.is_deleted(1));
+        assert!(delete_bitset.is_alive(2));
+        assert!(delete_bitset.is_alive(3));
+        assert!(delete_bitset.is_alive(4));
+        assert!(delete_bitset.is_alive(5));
+        assert!(delete_bitset.is_alive(6));
+        assert!(delete_bitset.is_alive(6));
+        assert!(delete_bitset.is_alive(7));
+        assert!(delete_bitset.is_alive(8));
+        assert!(delete_bitset.is_deleted(9));
+        for doc in 0..10 {
+            assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
-        {
-            let mut bitset = BitSet::with_max_value(8);
-            bitset.insert(1);
-            bitset.insert(2);
-            bitset.insert(3);
-            bitset.insert(5);
-            bitset.insert(7);
-            test_delete_bitset_helper(&bitset, 8);
-        }
+        assert_eq!(delete_bitset.len(), 2);
     }
 }

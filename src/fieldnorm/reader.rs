@@ -19,7 +19,7 @@ pub struct FieldNormReaders {
 
 impl FieldNormReaders {
     /// Creates a field norm reader.
-    pub fn new(source: ReadOnlySource) -> crate::Result<FieldNormReaders> {
+    pub fn open(source: ReadOnlySource) -> crate::Result<FieldNormReaders> {
         let data = CompositeFile::open(&source)?;
         Ok(FieldNormReaders {
             data: Arc::new(data),
@@ -103,11 +103,9 @@ impl FieldNormReader {
     pub fn fieldnorm_to_id(fieldnorm: u32) -> u8 {
         fieldnorm_to_id(fieldnorm)
     }
-}
 
-#[cfg(test)]
-impl From<&[u32]> for FieldNormReader {
-    fn from(field_norms: &[u32]) -> FieldNormReader {
+    #[cfg(test)]
+    pub fn for_test(field_norms: &[u32]) -> FieldNormReader {
         let field_norms_id = field_norms
             .iter()
             .cloned()
@@ -117,5 +115,22 @@ impl From<&[u32]> for FieldNormReader {
         FieldNormReader {
             data: field_norms_data,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fieldnorm::FieldNormReader;
+
+    #[test]
+    fn test_from_fieldnorms_array() {
+        let fieldnorms = &[1, 2, 3, 4, 1_000_000];
+        let fieldnorm_reader = FieldNormReader::for_test(fieldnorms);
+        assert_eq!(fieldnorm_reader.num_docs(), 5);
+        assert_eq!(fieldnorm_reader.fieldnorm(0), 1);
+        assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
+        assert_eq!(fieldnorm_reader.fieldnorm(2), 3);
+        assert_eq!(fieldnorm_reader.fieldnorm(3), 4);
+        assert_eq!(fieldnorm_reader.fieldnorm(4), 983_064);
     }
 }

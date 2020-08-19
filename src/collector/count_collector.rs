@@ -96,18 +96,18 @@ mod tests {
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1f32);
+            count_collector.collect(0u32, 1.0);
             assert_eq!(count_collector.harvest(), 1);
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1f32);
+            count_collector.collect(0u32, 1.0);
             assert_eq!(count_collector.harvest(), 1);
         }
         {
             let mut count_collector = SegmentCountCollector::default();
-            count_collector.collect(0u32, 1f32);
-            count_collector.collect(1u32, 1f32);
+            count_collector.collect(0u32, 1.0);
+            count_collector.collect(1u32, 1.0);
             assert_eq!(count_collector.harvest(), 2);
         }
     }

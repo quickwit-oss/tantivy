@@ -119,7 +119,6 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                     continue 'outer;
                 }
             }
-
             debug_assert_eq!(candidate, self.left.doc());
             debug_assert_eq!(candidate, self.right.doc());
             debug_assert!(self.others.iter().all(|docset| docset.doc() == candidate));

@@ -12,6 +12,7 @@ use crate::schema::{Facet, IndexRecordOption};
 use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
+use crate::Score;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
@@ -172,7 +173,7 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
-    boost: HashMap<Field, f32>,
+    boost: HashMap<Field, Score>,
 }
 
 fn all_negative(ast: &LogicalAST) -> bool {
@@ -228,7 +229,7 @@ impl QueryParser {
     /// If the query defines a query boost through the query language (e.g: `country:France^3.0`),
     /// the two boosts (the one defined in the query, and the one defined in the `QueryParser`)
     /// are multiplied together.
-    pub fn set_field_boost(&mut self, field: Field, boost: f32) {
+    pub fn set_field_boost(&mut self, field: Field, boost: Score) {
         self.boost.insert(field, boost);
     }
 
@@ -440,14 +441,14 @@ impl QueryParser {
             }
             UserInputAST::Boost(ast, boost) => {
                 let ast = self.compute_logical_ast_with_occur(*ast)?;
-                Ok(ast.boost(boost))
+                Ok(ast.boost(boost as Score))
             }
             UserInputAST::Leaf(leaf) => self.compute_logical_ast_from_leaf(*leaf),
         }
     }
 
-    fn field_boost(&self, field: Field) -> f32 {
-        self.boost.get(&field).cloned().unwrap_or(1.0f32)
+    fn field_boost(&self, field: Field) -> Score {
+        self.boost.get(&field).cloned().unwrap_or(1.0)
     }
 
     fn compute_logical_ast_from_leaf(
@@ -658,7 +659,7 @@ mod test {
         let mut query_parser = make_query_parser();
         let schema = make_schema();
         let text_field = schema.get_field("text").unwrap();
-        query_parser.set_field_boost(text_field, 2.0f32);
+        query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello").unwrap();
         assert_eq!(
             format!("{:?}", query),
@@ -671,7 +672,7 @@ mod test {
         let mut query_parser = make_query_parser();
         let schema = make_schema();
         let title_field = schema.get_field("title").unwrap();
-        query_parser.set_field_boost(title_field, 2.0f32);
+        query_parser.set_field_boost(title_field, 2.0);
         let query = query_parser.parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{:?}", query),
@@ -684,7 +685,7 @@ mod test {
         let mut query_parser = make_query_parser();
         let schema = make_schema();
         let text_field = schema.get_field("text").unwrap();
-        query_parser.set_field_boost(text_field, 2.0f32);
+        query_parser.set_field_boost(text_field, 2.0);
         let query = query_parser.parse_query("text:hello^2").unwrap();
         assert_eq!(
             format!("{:?}", query),

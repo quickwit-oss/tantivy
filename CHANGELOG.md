@@ -1,5 +1,12 @@
 Tantivy 0.13.0
 ======================
+Tantivy 0.13 introduce a change in the index format that will require
+you to reindex your index (BlockWAND information are added in the skiplist). 
+The index size increase is minor as this information is only added for
+full blocks.
+If you have a massive index for which reindexing is not an option, please contact me
+so that we can discuss possible solutions.
+
 - Bugfix in `FuzzyTermQuery` not matching terms by prefix when it should (@Peachball)
 - Relaxed constraints on the custom/tweak score functions. At the segment level, they can be mut, and they are not required to be Sync + Send.
 - `MMapDirectory::open` does not return a `Result` anymore.
@@ -17,6 +24,8 @@ while doc != TERMINATED {
 The change made it possible to greatly simplify a lot of the docset's code.
 - Misc internal optimization and introduction of the `Scorer::for_each_pruning` function. (@fulmicoton)
 - Added an offset option to the Top(.*)Collectors. (@robyoung)
+- Added Block WAND. Performance on TOP-K on term-unions should be greatly increased. (@fulmicoton, and special thanks 
+to the PISA team for answering all my questions!)
 
 Tantivy 0.12.0
 ======================

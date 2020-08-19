@@ -5,7 +5,7 @@ use std::sync::RwLock;
 use std::sync::Weak;
 
 /// Type alias for callbacks registered when watching files of a `Directory`.
-pub type WatchCallback = Box<dyn Fn() -> () + Sync + Send>;
+pub type WatchCallback = Box<dyn Fn() + Sync + Send>;
 
 /// Helper struct to implement the watch method in `Directory` implementations.
 ///
@@ -32,7 +32,7 @@ impl WatchHandle {
 }
 
 impl WatchCallbackList {
-    /// Suscribes a new callback and returns a handle that controls the lifetime of the callback.
+    /// Subscribes a new callback and returns a handle that controls the lifetime of the callback.
     pub fn subscribe(&self, watch_callback: WatchCallback) -> WatchHandle {
         let watch_callback_arc = Arc::new(watch_callback);
         let watch_callback_weak = Arc::downgrade(&watch_callback_arc);

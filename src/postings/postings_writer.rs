@@ -1,5 +1,6 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
+use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
     BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
 };
@@ -128,6 +129,7 @@ impl MultiFieldPostingsWriter {
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
+        fieldnorm_readers: FieldNormReaders,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
@@ -161,8 +163,12 @@ impl MultiFieldPostingsWriter {
             }
 
             let postings_writer = &self.per_field_postings_writers[field.field_id() as usize];
-            let mut field_serializer =
-                serializer.new_field(field, postings_writer.total_num_tokens())?;
+            let fieldnorm_reader = fieldnorm_readers.get_field(field);
+            let mut field_serializer = serializer.new_field(
+                field,
+                postings_writer.total_num_tokens(),
+                fieldnorm_reader,
+            )?;
             postings_writer.serialize(
                 &term_offsets[start..stop],
                 &mut field_serializer,
@@ -297,7 +303,8 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         let mut buffer_lender = BufferLender::default();
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = termdict_heap.read(addr);
-            serializer.new_term(&term_bytes[4..])?;
+            let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
+            serializer.new_term(&term_bytes[4..], term_doc_freq)?;
             recorder.serialize(&mut buffer_lender, serializer, heap)?;
             serializer.close_term()?;
         }

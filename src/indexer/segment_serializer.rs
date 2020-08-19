@@ -36,7 +36,6 @@ impl SegmentSerializer {
         })
     }
 
-    #[allow(dead_code)]
     pub fn segment(&self) -> &Segment {
         &self.segment
     }

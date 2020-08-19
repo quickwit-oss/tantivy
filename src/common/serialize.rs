@@ -89,6 +89,19 @@ impl FixedSize for u64 {
     const SIZE_IN_BYTES: usize = 8;
 }
 
+impl BinarySerializable for f32 {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_f32::<Endianness>(*self)
+    }
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
+        reader.read_f32::<Endianness>()
+    }
+}
+
+impl FixedSize for f32 {
+    const SIZE_IN_BYTES: usize = 4;
+}
+
 impl BinarySerializable for i64 {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_i64::<Endianness>(*self)

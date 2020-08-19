@@ -35,14 +35,14 @@ pub struct ConstScorer<TDocSet: DocSet> {
 
 impl<TDocSet: DocSet> ConstScorer<TDocSet> {
     /// Creates a new `ConstScorer`.
-    pub fn new(docset: TDocSet, score: f32) -> ConstScorer<TDocSet> {
+    pub fn new(docset: TDocSet, score: Score) -> ConstScorer<TDocSet> {
         ConstScorer { docset, score }
     }
 }
 
 impl<TDocSet: DocSet> From<TDocSet> for ConstScorer<TDocSet> {
     fn from(docset: TDocSet) -> Self {
-        ConstScorer::new(docset, 1.0f32)
+        ConstScorer::new(docset, 1.0)
     }
 }
 

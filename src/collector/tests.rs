@@ -206,7 +206,7 @@ impl Collector for BytesFastFieldTestCollector {
 impl SegmentCollector for BytesFastFieldSegmentCollector {
     type Fruit = Vec<u8>;
 
-    fn collect(&mut self, doc: u32, _score: f32) {
+    fn collect(&mut self, doc: u32, _score: Score) {
         let data = self.reader.get_bytes(doc);
         self.vals.extend(data);
     }
