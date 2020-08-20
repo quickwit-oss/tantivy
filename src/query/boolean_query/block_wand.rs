@@ -221,7 +221,6 @@ impl<'a> DerefMut for TermScorerWithMaxScore<'a> {
     }
 }
 
-#[cfg(debug_assertions)]
 fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
     if let Some(first) = it.next() {
         let mut prev = first;
