@@ -195,6 +195,46 @@ pub fn block_wand(
     }
 }
 
+pub fn block_wand_single_scorer(
+    mut scorer: TermScorer,
+    mut threshold: Score,
+    callback: &mut dyn FnMut(u32, Score) -> Score,
+) {
+    let mut doc = scorer.doc();
+    loop {
+        // We position the scorer on a block that can reach
+        // the threshold.
+        while scorer.block_max_score() < threshold {
+            let last_doc_in_block = scorer.last_doc_in_block();
+            if doc == TERMINATED {
+                return;
+            }
+            doc = last_doc_in_block + 1;
+            scorer.shallow_seek(doc);
+        }
+        // Seek will effectively load that block.
+        doc = scorer.seek(doc);
+        if doc == TERMINATED {
+            break;
+        }
+        loop {
+            let score = scorer.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+            if doc >= scorer.last_doc_in_block() {
+                break;
+            }
+            doc = scorer.advance();
+            if doc == TERMINATED {
+                return;
+            }
+        }
+        doc = doc + 1;
+        scorer.shallow_seek(doc);
+    }
+}
+
 struct TermScorerWithMaxScore<'a> {
     scorer: &'a mut TermScorer,
     max_score: Score,
@@ -245,6 +285,8 @@ mod tests {
     use std::collections::BinaryHeap;
     use std::iter;
 
+    use super::block_wand_single_scorer;
+
     struct Float(Score);
 
     impl Eq for Float {}
@@ -278,7 +320,8 @@ mod tests {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
         let mut limit: Score = 0.0;
-        super::block_wand(term_scorers, Score::MIN, &mut |doc, score| {
+
+        let callback = &mut |doc, score| {
             heap.push(Float(score));
             if heap.len() > n {
                 heap.pop().unwrap();
@@ -290,7 +333,13 @@ mod tests {
                 checkpoints.push((doc, score));
             }
             limit
-        });
+        };
+
+        if term_scorers.len() == 1 {
+            block_wand_single_scorer(term_scorers.clone().pop().unwrap(), Score::MIN, callback);
+        } else {
+            super::block_wand(term_scorers, Score::MIN, callback);
+        }
         checkpoints
     }
 
@@ -420,6 +469,14 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(500))]
         #[test]
         fn test_block_wand_two_term_scorers((posting_lists, fieldnorms) in gen_term_scorers(2)) {
+            test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(500))]
+        #[test]
+        fn test_block_wand_single_term_scorer((posting_lists, fieldnorms) in gen_term_scorers(1)) {
             test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);
         }
     }
