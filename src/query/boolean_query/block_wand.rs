@@ -4,19 +4,6 @@ use crate::{DocId, DocSet, Score, TERMINATED};
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
-    if let Some(first) = it.next() {
-        let mut prev = first;
-        for doc in it {
-            if doc < prev {
-                return false;
-            }
-            prev = doc;
-        }
-    }
-    true
-}
-
 /// Takes a term_scorers sorted by their current doc() and a threshold and returns
 /// Returns (pivot_len, pivot_ord) defined as follows:
 /// - `pivot_doc` lowest document that has a chance of exceeding (>) the threshold score.
@@ -55,37 +42,12 @@ fn find_pivot_doc(
     Some((before_pivot_len, pivot_len, pivot_doc))
 }
 
-struct TermScorerWithMaxScore<'a> {
-    scorer: &'a mut TermScorer,
-    max_score: Score,
-}
-
-impl<'a> From<&'a mut TermScorer> for TermScorerWithMaxScore<'a> {
-    fn from(scorer: &'a mut TermScorer) -> Self {
-        let max_score = scorer.max_score();
-        TermScorerWithMaxScore { scorer, max_score }
-    }
-}
-
-impl<'a> Deref for TermScorerWithMaxScore<'a> {
-    type Target = TermScorer;
-
-    fn deref(&self) -> &Self::Target {
-        self.scorer
-    }
-}
-
-impl<'a> DerefMut for TermScorerWithMaxScore<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.scorer
-    }
-}
-
 // Before and after calling this method, scorers need to be sorted by their `.doc()`.
 fn block_max_was_too_low_advance_one_scorer(
     scorers: &mut Vec<TermScorerWithMaxScore>,
     pivot_len: usize,
 ) {
+    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
     let mut scorer_to_seek = pivot_len - 1;
     let mut doc_to_seek_after = scorers[scorer_to_seek].doc();
     for scorer_ord in (0..pivot_len - 1).rev() {
@@ -102,6 +64,7 @@ fn block_max_was_too_low_advance_one_scorer(
     }
     scorers[scorer_to_seek].seek(doc_to_seek_after + 1);
     restore_ordering(scorers, scorer_to_seek);
+    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
 }
 
 // Given a list of term_scorers and a `ord` and assuming that `term_scorers[ord]` is sorted
@@ -177,64 +140,100 @@ pub fn block_wand(
         .map(TermScorerWithMaxScore::from)
         .collect();
     scorers.sort_by_key(|scorer| scorer.doc());
-    loop {
-        // At this point we need to ensure that the scorers are sorted!
+    // At this point we need to ensure that the scorers are sorted!
+    debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
+    while let Some((before_pivot_len, pivot_len, pivot_doc)) =
+        find_pivot_doc(&scorers[..], threshold)
+    {
         debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
-        if let Some((before_pivot_len, pivot_len, pivot_doc)) =
-            find_pivot_doc(&scorers[..], threshold)
-        {
-            debug_assert_ne!(pivot_doc, TERMINATED);
-            debug_assert!(before_pivot_len < pivot_len);
+        debug_assert_ne!(pivot_doc, TERMINATED);
+        debug_assert!(before_pivot_len < pivot_len);
 
-            let block_max_score_upperbound: Score = scorers[..pivot_len]
-                .iter_mut()
-                .map(|scorer| {
-                    scorer.shallow_seek(pivot_doc);
-                    scorer.block_max_score()
-                })
-                .sum();
+        let block_max_score_upperbound: Score = scorers[..pivot_len]
+            .iter_mut()
+            .map(|scorer| {
+                scorer.shallow_seek(pivot_doc);
+                scorer.block_max_score()
+            })
+            .sum();
 
-            // Beware after shallow advance, skip readers can be in advance compared to
-            // the segment posting lists.
-            //
-            // `block_segment_postings.load_block()` need to be called separately.
-            if block_max_score_upperbound <= threshold {
-                // Block max condition was not reached
-                // We could get away by simply advancing the scorers to DocId + 1 but it would
-                // be inefficient. The optimization requires proper explanation and was
-                // isolated in a different function.
-                block_max_was_too_low_advance_one_scorer(&mut scorers, pivot_len);
-                continue;
-            }
-
-            // Block max condition is observed.
-            //
-            // Let's try and advance all scorers before the pivot to the pivot.
-            if !align_scorers(&mut scorers, pivot_doc, before_pivot_len) {
-                // At least of the scorer does not contain the pivot.
-                //
-                // Let's stop scoring this pivot and go through the pivot selection again.
-                // Note that the current pivot is not necessarily a bad candidate and it
-                // may be picked again.
-                continue;
-            }
-
-            // At this point, all scorers are positioned on the doc.
-            let score = scorers[..pivot_len]
-                .iter_mut()
-                .map(|scorer| scorer.score())
-                .sum();
-            if score > threshold {
-                threshold = callback(pivot_doc, score);
-            }
-            // let's advance all of the scorers that are currently positioned on the pivot.
-            advance_all_scorers_on_pivot(&mut scorers, pivot_len);
-        } else {
-            return;
+        // Beware after shallow advance, skip readers can be in advance compared to
+        // the segment posting lists.
+        //
+        // `block_segment_postings.load_block()` need to be called separately.
+        if block_max_score_upperbound <= threshold {
+            // Block max condition was not reached
+            // We could get away by simply advancing the scorers to DocId + 1 but it would
+            // be inefficient. The optimization requires proper explanation and was
+            // isolated in a different function.
+            block_max_was_too_low_advance_one_scorer(&mut scorers, pivot_len);
+            continue;
         }
+
+        // Block max condition is observed.
+        //
+        // Let's try and advance all scorers before the pivot to the pivot.
+        if !align_scorers(&mut scorers, pivot_doc, before_pivot_len) {
+            // At least of the scorer does not contain the pivot.
+            //
+            // Let's stop scoring this pivot and go through the pivot selection again.
+            // Note that the current pivot is not necessarily a bad candidate and it
+            // may be picked again.
+            continue;
+        }
+
+        // At this point, all scorers are positioned on the doc.
+        let score = scorers[..pivot_len]
+            .iter_mut()
+            .map(|scorer| scorer.score())
+            .sum();
+        if score > threshold {
+            threshold = callback(pivot_doc, score);
+        }
+        // let's advance all of the scorers that are currently positioned on the pivot.
+        advance_all_scorers_on_pivot(&mut scorers, pivot_len);
     }
 }
 
+struct TermScorerWithMaxScore<'a> {
+    scorer: &'a mut TermScorer,
+    max_score: Score,
+}
+
+impl<'a> From<&'a mut TermScorer> for TermScorerWithMaxScore<'a> {
+    fn from(scorer: &'a mut TermScorer) -> Self {
+        let max_score = scorer.max_score();
+        TermScorerWithMaxScore { scorer, max_score }
+    }
+}
+
+impl<'a> Deref for TermScorerWithMaxScore<'a> {
+    type Target = TermScorer;
+
+    fn deref(&self) -> &Self::Target {
+        self.scorer
+    }
+}
+
+impl<'a> DerefMut for TermScorerWithMaxScore<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.scorer
+    }
+}
+
+#[cfg(debug_assertions)]
+fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
+    if let Some(first) = it.next() {
+        let mut prev = first;
+        for doc in it {
+            if doc < prev {
+                return false;
+            }
+            prev = doc;
+        }
+    }
+    true
+}
 #[cfg(test)]
 mod tests {
     use crate::query::score_combiner::SumCombiner;
@@ -248,17 +247,21 @@ mod tests {
     use std::iter;
 
     struct Float(Score);
+
     impl Eq for Float {}
+
     impl PartialEq for Float {
         fn eq(&self, other: &Self) -> bool {
             self.cmp(&other) == Ordering::Equal
         }
     }
+
     impl PartialOrd for Float {
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
             Some(self.cmp(other))
         }
     }
+
     impl Ord for Float {
         fn cmp(&self, other: &Self) -> Ordering {
             other.0.partial_cmp(&self.0).unwrap_or(Ordering::Equal)
