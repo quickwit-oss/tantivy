@@ -4,7 +4,7 @@ use crate::docset::DocSet;
 use crate::postings::SegmentPostings;
 use crate::query::bm25::BM25Weight;
 use crate::query::explanation::does_not_match;
-use crate::query::weight::{for_each_pruning_scorer, for_each_scorer};
+use crate::query::weight::for_each_scorer;
 use crate::query::Weight;
 use crate::query::{Explanation, Scorer};
 use crate::schema::IndexRecordOption;
@@ -73,8 +73,8 @@ impl Weight for TermWeight {
         reader: &SegmentReader,
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
-        let mut scorer = self.scorer(reader, 1.0)?;
-        for_each_pruning_scorer(&mut scorer, threshold, callback);
+        let scorer = self.specialized_scorer(reader, 1.0)?;
+        crate::query::boolean_query::block_wand(vec![scorer], threshold, callback);
         Ok(())
     }
 }
