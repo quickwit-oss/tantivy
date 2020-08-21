@@ -29,8 +29,9 @@ pub use self::segment_writer::SegmentWriter;
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;
 
+#[cfg(feature = "mmap")]
 #[cfg(test)]
-mod tests {
+mod tests_mmap {
     use crate::schema::{self, Schema};
     use crate::{Index, Term};
 
