@@ -1,3 +1,7 @@
+Tantivy 0.14.0
+=========================
+- Remove dependency to atomicwrites #833 .Implemented by @pmasurel upon suggestion and research from @asafigan). 
+
 Tantivy 0.13.0
 ======================
 Tantivy 0.13 introduce a change in the index format that will require

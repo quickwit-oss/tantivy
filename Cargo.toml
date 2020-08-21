@@ -1,6 +1,6 @@
 [package]
 name = "tantivy"
-version = "0.13.0"
+version = "0.14.0-dev"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
@@ -22,8 +22,7 @@ tantivy-fst = "0.3"
 memmap = {version = "0.7", optional=true}
 lz4 = {version="1.20", optional=true}
 snap = "1"
-atomicwrites = {version="0.2.2", optional=true}
-tempfile = "3.0"
+tempfile = {version="3.0", optional=true}
 log = "0.4"
 serde = {version="1.0", features=["derive"]}
 serde_json = "1.0"
@@ -75,7 +74,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap"]
-mmap = ["atomicwrites", "fs2", "memmap", "notify"]
+mmap = ["fs2", "tempfile", "memmap", "notify"]
 lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
