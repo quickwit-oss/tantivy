@@ -138,9 +138,11 @@ impl InnerIndexReader {
                 .collect::<crate::Result<_>>()?
         };
         let schema = self.index.schema();
-        let searchers = (0..self.num_searchers)
-            .map(|_| Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone()))
-            .collect();
+        let searchers = std::iter::repeat_with(|| {
+            Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone())
+        })
+        .take(self.num_searchers)
+        .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }

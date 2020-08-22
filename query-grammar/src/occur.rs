@@ -52,7 +52,7 @@ mod test {
     use crate::Occur;
 
     #[test]
-    fn test_Occur_compose() {
+    fn test_occur_compose() {
         assert_eq!(Occur::compose(Occur::Should, Occur::Should), Occur::Should);
         assert_eq!(Occur::compose(Occur::Should, Occur::Must), Occur::Must);
         assert_eq!(
