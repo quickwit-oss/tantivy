@@ -10,7 +10,6 @@ use crate::directory::DirectoryLock;
 use crate::directory::Lock;
 use crate::directory::ReadOnlySource;
 use crate::directory::WatchCallback;
-
 use crate::directory::WatchHandle;
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
@@ -19,17 +18,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
-use std::fs::OpenOptions;
-use std::fs::{self, File};
-use std::io::{self, Seek, SeekFrom, BufWriter, Read, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 
-use std::sync::Arc;
-
-use std::sync::RwLock;
-use std::sync::Weak;
-use tempfile;
+use crate::core::META_FILEPATH;
+use std::sync::{Arc, RwLock, Weak};
 use tempfile::TempDir;
 
 /// Create a default io error given a string.
@@ -176,7 +171,7 @@ impl MmapDirectoryInner {
         // The downside is that we might create a watch wrapper that is not useful.
         let need_initialization = self.watcher.read().unwrap().is_none();
         if need_initialization {
-            let watch_wrapper = PollWatcher::new(&self.root_path)?;
+            let watch_wrapper = PollWatcher::new(self.root_path.join(*META_FILEPATH));
             let mut watch_wlock = self.watcher.write().unwrap();
             // the watcher could have been initialized when we released the lock, and
             // we do not want to lose the watched files that were set.
@@ -565,14 +560,13 @@ mod tests {
     }
 
     #[test]
-    fn test_watch_wrapper() {
+    fn test_watch_wrapper() -> io::Result<()> {
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
-        let tmp_dir = tempfile::TempDir::new().unwrap();
-        let tmp_dirpath = tmp_dir.path().to_owned();
-        let tmp_file = tmp_dirpath.join(*META_FILEPATH);
-        fs::write(&tmp_file, b"").unwrap();
-        let mut watch_wrapper = PollWatcher::new(&tmp_dirpath).unwrap();
+        let tmp_dir = tempfile::TempDir::new()?;
+        let meta_filepath = tmp_dir.path().join(&*META_FILEPATH);
+        fs::write(&meta_filepath, b"")?;
+        let mut watch_wrapper = PollWatcher::new(meta_filepath.clone());
         let _handle = watch_wrapper.watch(Box::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         }));
@@ -581,10 +575,11 @@ mod tests {
             let _ = sender.send(());
         }));
         assert_eq!(counter.load(Ordering::SeqCst), 0);
-        fs::write(&tmp_file, b"whateverwilldo123").unwrap();
-        fs::write(&tmp_file, b"whateverwilldo").unwrap();
-        assert!(receiver.recv_timeout(Duration::from_millis(1_000)).is_ok());
+        fs::write(&meta_filepath, b"whateverwilldo123")?;
+        fs::write(&meta_filepath, b"whateverwilldo456")?;
+        assert!(receiver.recv_timeout(Duration::from_millis(2_000)).is_ok());
         assert!(counter.load(Ordering::SeqCst) >= 1);
+        Ok(())
     }
 
     #[test]

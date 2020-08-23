@@ -48,6 +48,7 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1.0"
 rayon = "1"
+sha2 = {version="0.9", optional = true}
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
@@ -73,7 +74,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap"]
-mmap = ["fs2", "tempfile", "memmap"]
+mmap = ["fs2", "tempfile", "memmap", "sha2"]
 lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.

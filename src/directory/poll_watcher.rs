@@ -1,67 +1,72 @@
-use crate::core::META_FILEPATH;
-use crate::directory::error::OpenDirectoryError;
 use crate::directory::{WatchCallback, WatchCallbackList, WatchHandle};
+use sha2::{digest, Digest, Sha256};
+use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, UNIX_EPOCH};
-use std::fs;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::time::Duration;
 
+type MetaContentDigest = digest::Output<Sha256>;
 
-const POLL_INTERVAL_MS: u64 = 10;
+const POLL_INTERVAL_MS: u64 = 500;
 
 pub struct PollWatcher {
     watcher_router: Arc<WatchCallbackList>,
 }
 
-#[derive(Hash)]
-struct State {
-    data: String,
+/// Returns a SHA-256 of the content of the given path.
+fn digest_file_content(path: &Path) -> io::Result<MetaContentDigest> {
+    let content = fs::read_to_string(path)?;
+    Ok(Sha256::digest(content.as_bytes()))
 }
 
-fn calculate_hash<T: Hash>(t: &T) -> u64 {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish()
+struct PollWatcherState {
+    digest: MetaContentDigest,
+    path: PathBuf,
+}
+
+impl PollWatcherState {
+    fn new(path: PathBuf) -> PollWatcherState {
+        let digest: MetaContentDigest =
+            digest_file_content(&path).unwrap_or_else(|_| MetaContentDigest::default());
+        PollWatcherState { digest, path }
+    }
+
+    fn update_detected(&mut self) -> io::Result<bool> {
+        let digest = digest_file_content(&self.path)?;
+        let has_changed = digest != self.digest;
+        self.digest = digest;
+        Ok(has_changed)
+    }
 }
 
 impl PollWatcher {
-    pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
+    pub fn new(meta_path: PathBuf) -> PollWatcher {
         let watcher_router: Arc<WatchCallbackList> = Default::default();
-        let watcher_router_clone = watcher_router.clone();
-        let meta_path = path.to_owned().join(*META_FILEPATH);
+        let watcher_router_weak = Arc::downgrade(&watcher_router);
+        let mut state = PollWatcherState::new(meta_path.clone());
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
             .spawn(move || {
-                let mut current_hash: u64 = Self::hash(&meta_path).unwrap_or(0);
-                let mut current_meta_time: u128 = Self::last_update(&meta_path).unwrap_or(0);
-                loop {
-                    let new_hash: u64 = Self::hash(&meta_path).unwrap_or(0);
-                    let new_meta_time: u128 = Self::last_update(&meta_path).unwrap_or(0);
-                    // println!("hash: {} {}\ntime: {} {}\n---", new_hash, current_hash, new_meta_time, current_meta_time);
-                    if (new_hash != current_hash) || (new_meta_time != current_meta_time) {
-                        // println!("update...");
-                        current_hash = new_hash;
-                        current_meta_time = new_meta_time;
-                        let _ = watcher_router_clone.broadcast();
-                    }
+                // The thread will exit once the PollWatcher is dropped, as the watcher router
+                // will no be upgraded.
+                while let Some(watcher_router) = watcher_router_weak.upgrade() {
                     thread::sleep(Duration::from_millis(POLL_INTERVAL_MS));
+                    match state.update_detected() {
+                        Ok(true) => {
+                            futures::executor::block_on(watcher_router.broadcast());
+                        }
+                        Ok(false) => {}
+                        Err(err) => error!(
+                            "Failed to check if the file {:?} was modified. {:?}",
+                            meta_path, err
+                        ),
+                    }
                 }
-            })?;
-        Ok(Self { watcher_router })
-    }
-
-    fn hash(path: &Path) -> Result<u64, io::Error> {
-        let data = fs::read_to_string(path)?;
-        Ok(calculate_hash(&State{data}))
-    }
-
-    fn last_update(path: &Path) -> Result<u128, io::Error> {
-        let meta = path.metadata()?.modified()?;
-        Ok(meta.duration_since(UNIX_EPOCH).unwrap().as_nanos())
+            })
+            .expect("Failed to spawn Polling thread");
+        PollWatcher { watcher_router }
     }
 
     pub fn watch(&mut self, watch_callback: WatchCallback) -> WatchHandle {
