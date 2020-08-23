@@ -12,3 +12,4 @@ cpp/simdcomp/bitpackingbenchmark
 *.bk
 .idea
 trace.dat
+cargo-timing*
