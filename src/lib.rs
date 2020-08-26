@@ -1012,4 +1012,12 @@ mod tests {
             DOC_COUNT as usize
         );
     }
+
+    #[test]
+    fn test_validate_checksum() {
+        let index_path = tempfile::tempdir().expect("dir");
+        let schema = Schema::builder().build();
+        let index = Index::create_in_dir(&index_path, schema).expect("index");
+        assert!(index.validate_checksum().unwrap().is_empty());
+    }
 }

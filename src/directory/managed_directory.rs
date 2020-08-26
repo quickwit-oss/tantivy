@@ -1,4 +1,4 @@
-use crate::core::MANAGED_FILEPATH;
+use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
 use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::DirectoryLock;
@@ -246,12 +246,14 @@ impl ManagedDirectory {
     /// List files for which checksum does not match content
     pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
         let mut hashset = HashSet::new();
-        let managed_paths = self
+        let mut managed_paths = self
             .meta_informations
             .read()
             .expect("Managed directory rlock poisoned in list damaged.")
             .managed_paths
             .clone();
+
+        managed_paths.remove(*META_FILEPATH);
 
         for path in managed_paths.into_iter() {
             if !self.validate_checksum(&path)? {
