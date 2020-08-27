@@ -539,7 +539,6 @@ mod tests {
             test_index_on_commit_reload_policy_aux(field, &write_index, &reader);
         }
     }
-
     fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
         let mut reader_index = reader.index();
         let (sender, receiver) = crossbeam::channel::unbounded();
@@ -550,12 +549,23 @@ mod tests {
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
         writer.commit().unwrap();
-        assert!(receiver.recv().is_ok());
-        assert_eq!(reader.searcher().num_docs(), 1);
+        // We need a loop here because it is possible for notify to send more than
+        // one modify event. It was observed on CI on MacOS.
+        loop {
+            assert!(receiver.recv().is_ok());
+            if reader.searcher().num_docs() == 1 {
+                break;
+            }
+        }
         writer.add_document(doc!(field=>2u64));
         writer.commit().unwrap();
-        assert!(receiver.recv().is_ok());
-        assert_eq!(reader.searcher().num_docs(), 2);
+        // ... Same as above
+        loop {
+            assert!(receiver.recv().is_ok());
+            if reader.searcher().num_docs() == 2 {
+                break;
+            }
+        }
     }
 
     // This test will not pass on windows, because windows
