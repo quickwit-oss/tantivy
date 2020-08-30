@@ -1,5 +1,5 @@
-use crate::schema::IntOptions;
 use crate::schema::TextOptions;
+use crate::schema::{is_valid_field_name, IntOptions};
 
 use crate::schema::FieldType;
 use serde::de::{self, MapAccess, Visitor};
@@ -24,6 +24,7 @@ impl FieldEntry {
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Str(text_options),
@@ -33,6 +34,7 @@ impl FieldEntry {
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::U64(field_type),
@@ -42,6 +44,7 @@ impl FieldEntry {
     /// Creates a new i64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::I64(field_type),
@@ -51,6 +54,7 @@ impl FieldEntry {
     /// Creates a new f64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_f64(field_name: String, field_type: IntOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::F64(field_type),
@@ -60,6 +64,7 @@ impl FieldEntry {
     /// Creates a new date field entry in the schema, given
     /// a name, and some options.
     pub fn new_date(field_name: String, field_type: IntOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Date(field_type),
@@ -68,6 +73,7 @@ impl FieldEntry {
 
     /// Creates a field entry for a facet.
     pub fn new_facet(field_name: String) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::HierarchicalFacet,
@@ -76,6 +82,7 @@ impl FieldEntry {
 
     /// Creates a field entry for a bytes field
     pub fn new_bytes(field_name: String) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Bytes,
@@ -267,6 +274,12 @@ mod tests {
     use super::*;
     use crate::schema::TEXT;
     use serde_json;
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_field_name_should_panic() {
+        FieldEntry::new_text("-hello".to_string(), TEXT);
+    }
 
     #[test]
     fn test_json_serialization() {
