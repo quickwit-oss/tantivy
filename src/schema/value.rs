@@ -183,6 +183,17 @@ impl Value {
             _ => panic!("This is not a date field."),
         }
     }
+
+    /// Returns the Bytes-value, provided the value is of the `Bytes` type.
+    ///
+    /// # Panics
+    /// If the value is not of type `Bytes`
+    pub fn bytes_value(&self) -> &Vec<u8> {
+        match *self {
+            Value::Bytes(ref value) => value,
+            _ => panic!("This is not a bytes field."),
+        }
+    }
 }
 
 impl From<String> for Value {

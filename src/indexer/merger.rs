@@ -222,7 +222,7 @@ impl IndexMerger {
                     // They can be implemented using what is done
                     // for facets in the future.
                 }
-                FieldType::Bytes => {
+                FieldType::Bytes(_) => {
                     self.write_bytes_fast_field(field, fast_field_serializer)?;
                 }
             }
@@ -691,6 +691,7 @@ mod tests {
     use crate::query::TermQuery;
     use crate::schema;
     use crate::schema::Cardinality;
+    use crate::schema::BytesOptions;
     use crate::schema::Document;
     use crate::schema::Facet;
     use crate::schema::IndexRecordOption;
@@ -719,7 +720,7 @@ mod tests {
         let date_field = schema_builder.add_date_field("date", INDEXED);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
-        let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
+        let bytes_score_field = schema_builder.add_bytes_field("score_bytes", BytesOptions::default());
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader().unwrap();
         let curr_time = chrono::Utc::now();
@@ -883,7 +884,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
-        let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
+        let bytes_score_field = schema_builder.add_bytes_field("score_bytes", BytesOptions::default());
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let reader = index.reader().unwrap();
