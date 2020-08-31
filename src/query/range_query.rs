@@ -9,8 +9,8 @@ use crate::query::{Query, Scorer, Weight};
 use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::DocId;
 use crate::Result;
+use crate::{DocId, Score};
 use std::collections::Bound;
 use std::ops::Range;
 
@@ -289,7 +289,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -316,11 +316,11 @@ impl Weight for RangeWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("RangeQuery", 1.0f32))
+        Ok(Explanation::new("RangeQuery", 1.0))
     }
 }
 
@@ -328,8 +328,9 @@ impl Weight for RangeWeight {
 mod tests {
 
     use super::RangeQuery;
-    use crate::collector::Count;
-    use crate::schema::{Document, Field, Schema, INDEXED};
+    use crate::collector::{Count, TopDocs};
+    use crate::query::QueryParser;
+    use crate::schema::{Document, Field, Schema, INDEXED, TEXT};
     use crate::Index;
     use std::collections::Bound;
 
@@ -475,5 +476,29 @@ mod tests {
             )),
             91
         );
+    }
+
+    #[test]
+    fn test_bug_reproduce_range_query() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("title", TEXT);
+        schema_builder.add_i64_field("year", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        let title = schema.get_field("title").unwrap();
+        let year = schema.get_field("year").unwrap();
+        index_writer.add_document(doc!(
+          title => "hemoglobin blood",
+          year => 1990 as i64
+        ));
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![title]);
+        let query = query_parser.parse_query("hemoglobin AND year:[1970 TO 1990]")?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
+        assert_eq!(top_docs.len(), 1);
+        Ok(())
     }
 }

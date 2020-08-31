@@ -61,21 +61,23 @@ impl DocSet for BitSetDocSet {
     }
 
     fn seek(&mut self, target: DocId) -> DocId {
+        if target >= self.docs.max_value() {
+            self.doc = TERMINATED;
+            return TERMINATED;
+        }
         let target_bucket = target / 64u32;
-
-        // Mask for all of the bits greater or equal
-        // to our target document.
         if target_bucket > self.cursor_bucket {
             self.go_to_bucket(target_bucket);
             let greater_filter: TinySet = TinySet::range_greater_or_equal(target);
             self.cursor_tinybitset = self.cursor_tinybitset.intersect(greater_filter);
-            self.advance();
+            self.advance()
+        } else {
+            let mut doc = self.doc();
+            while doc < target {
+                doc = self.advance();
+            }
+            doc
         }
-        let mut doc = self.doc();
-        while doc < target {
-            doc = self.advance();
-        }
-        doc
     }
 
     /// Returns the current document
@@ -112,6 +114,13 @@ mod tests {
         let bitset = BitSet::with_max_value(1000);
         let mut empty = BitSetDocSet::from(bitset);
         assert_eq!(empty.advance(), TERMINATED)
+    }
+
+    #[test]
+    fn test_seek_terminated() {
+        let bitset = BitSet::with_max_value(1000);
+        let mut empty = BitSetDocSet::from(bitset);
+        assert_eq!(empty.seek(TERMINATED), TERMINATED)
     }
 
     fn test_go_through_sequential(docs: &[DocId]) {

@@ -180,7 +180,7 @@ fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAS
     (optional(occur_symbol()), boosted_leaf())
 }
 
-fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f32> {
+fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f64> {
     (many1(digit()), optional((char('.'), many1(digit())))).map(
         |(int_part, decimal_part_opt): (String, Option<(char, String)>)| {
             let mut float_str = int_part;
@@ -188,18 +188,18 @@ fn positive_float_number<'a>() -> impl Parser<&'a str, Output = f32> {
                 float_str.push(chr);
                 float_str.push_str(&decimal_str);
             }
-            float_str.parse::<f32>().unwrap()
+            float_str.parse::<f64>().unwrap()
         },
     )
 }
 
-fn boost<'a>() -> impl Parser<&'a str, Output = f32> {
+fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
     (char('^'), positive_float_number()).map(|(_, boost)| boost)
 }
 
 fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
     (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
-        Some(boost) if (boost - 1.0).abs() > std::f32::EPSILON => {
+        Some(boost) if (boost - 1.0).abs() > std::f64::EPSILON => {
             UserInputAST::Boost(Box::new(leaf), boost)
         }
         _ => leaf,
@@ -282,11 +282,11 @@ mod test {
     use super::*;
     use combine::parser::Parser;
 
-    pub fn nearly_equals(a: f32, b: f32) -> bool {
+    pub fn nearly_equals(a: f64, b: f64) -> bool {
         (a - b).abs() < 0.0005 * (a + b).abs()
     }
 
-    fn assert_nearly_equals(expected: f32, val: f32) {
+    fn assert_nearly_equals(expected: f64, val: f64) {
         assert!(
             nearly_equals(val, expected),
             "Got {}, expected {}.",
@@ -303,7 +303,7 @@ mod test {
 
     #[test]
     fn test_positive_float_number() {
-        fn valid_parse(float_str: &str, expected_val: f32, expected_remaining: &str) {
+        fn valid_parse(float_str: &str, expected_val: f64, expected_remaining: &str) {
             let (val, remaining) = positive_float_number().parse(float_str).unwrap();
             assert_eq!(remaining, expected_remaining);
             assert_nearly_equals(val, expected_val);
@@ -311,9 +311,9 @@ mod test {
         fn error_parse(float_str: &str) {
             assert!(positive_float_number().parse(float_str).is_err());
         }
-        valid_parse("1.0", 1.0f32, "");
-        valid_parse("1", 1.0f32, "");
-        valid_parse("0.234234 aaa", 0.234234f32, " aaa");
+        valid_parse("1.0", 1.0, "");
+        valid_parse("1", 1.0, "");
+        valid_parse("0.234234 aaa", 0.234234f64, " aaa");
         error_parse(".3332");
         error_parse("1.");
         error_parse("-1.");

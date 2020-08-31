@@ -9,8 +9,8 @@ use crate::query::Weight;
 use crate::query::{EmptyScorer, Explanation};
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
-use crate::Result;
 use crate::{DocId, DocSet};
+use crate::{Result, Score};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -40,7 +40,7 @@ impl PhraseWeight {
     fn phrase_scorer(
         &self,
         reader: &SegmentReader,
-        boost: f32,
+        boost: Score,
     ) -> Result<Option<PhraseScorer<SegmentPostings>>> {
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let fieldnorm_reader = self.fieldnorm_reader(reader);
@@ -85,7 +85,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
@@ -94,7 +94,7 @@ impl Weight for PhraseWeight {
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let scorer_opt = self.phrase_scorer(reader, 1.0f32)?;
+        let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
         }
@@ -130,7 +130,7 @@ mod tests {
         ]);
         let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0f32)
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0)
             .unwrap()
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);

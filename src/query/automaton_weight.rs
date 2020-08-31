@@ -5,9 +5,9 @@ use crate::query::{BitSetDocSet, Explanation};
 use crate::query::{Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::DocId;
 use crate::Result;
 use crate::TantivyError;
+use crate::{DocId, Score};
 use std::sync::Arc;
 use tantivy_fst::Automaton;
 
@@ -40,7 +40,7 @@ impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
 {
-    fn scorer(&self, reader: &SegmentReader, boost: f32) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         let inverted_index = reader.inverted_index(self.field);
@@ -67,9 +67,9 @@ where
     }
 
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
-        let mut scorer = self.scorer(reader, 1.0f32)?;
+        let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) == doc {
-            Ok(Explanation::new("AutomatonScorer", 1.0f32))
+            Ok(Explanation::new("AutomatonScorer", 1.0))
         } else {
             Err(TantivyError::InvalidArgument(
                 "Document does not exist".to_string(),
@@ -144,13 +144,13 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let mut scorer = automaton_weight
-            .scorer(searcher.segment_reader(0u32), 1.0f32)
+            .scorer(searcher.segment_reader(0u32), 1.0)
             .unwrap();
         assert_eq!(scorer.doc(), 0u32);
-        assert_eq!(scorer.score(), 1.0f32);
+        assert_eq!(scorer.score(), 1.0);
         assert_eq!(scorer.advance(), 2u32);
         assert_eq!(scorer.doc(), 2u32);
-        assert_eq!(scorer.score(), 1.0f32);
+        assert_eq!(scorer.score(), 1.0);
         assert_eq!(scorer.advance(), TERMINATED);
     }
 
@@ -162,9 +162,9 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let mut scorer = automaton_weight
-            .scorer(searcher.segment_reader(0u32), 1.32f32)
+            .scorer(searcher.segment_reader(0u32), 1.32)
             .unwrap();
         assert_eq!(scorer.doc(), 0u32);
-        assert_eq!(scorer.score(), 1.32f32);
+        assert_eq!(scorer.score(), 1.32);
     }
 }

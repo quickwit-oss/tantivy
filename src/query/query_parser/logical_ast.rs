@@ -2,6 +2,7 @@ use crate::query::Occur;
 use crate::schema::Field;
 use crate::schema::Term;
 use crate::schema::Type;
+use crate::Score;
 use std::fmt;
 use std::ops::Bound;
 
@@ -21,12 +22,12 @@ pub enum LogicalLiteral {
 pub enum LogicalAST {
     Clause(Vec<(Occur, LogicalAST)>),
     Leaf(Box<LogicalLiteral>),
-    Boost(Box<LogicalAST>, f32),
+    Boost(Box<LogicalAST>, Score),
 }
 
 impl LogicalAST {
-    pub fn boost(self, boost: f32) -> LogicalAST {
-        if (boost - 1.0f32).abs() < std::f32::EPSILON {
+    pub fn boost(self, boost: Score) -> LogicalAST {
+        if (boost - 1.0).abs() < Score::EPSILON {
             self
         } else {
             LogicalAST::Boost(Box::new(self), boost)

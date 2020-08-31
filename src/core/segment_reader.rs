@@ -179,7 +179,7 @@ impl SegmentReader {
             Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
 
         let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
-        let fieldnorm_readers = FieldNormReaders::new(fieldnorm_data)?;
+        let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;

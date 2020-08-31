@@ -65,45 +65,42 @@ pub mod tests {
     use std::iter;
 
     #[test]
-    pub fn test_position_write() {
+    pub fn test_position_write() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut segment = index.new_segment();
-        let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
-        {
-            let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4).unwrap();
-            field_serializer.new_term("abc".as_bytes()).unwrap();
-            for doc_id in 0u32..120u32 {
-                let delta_positions = vec![1, 2, 3, 2];
-                field_serializer
-                    .write_doc(doc_id, 4, &delta_positions)
-                    .unwrap();
-            }
-            field_serializer.close_term().unwrap();
+        let mut posting_serializer = InvertedIndexSerializer::open(&mut segment)?;
+        let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4, None)?;
+        field_serializer.new_term("abc".as_bytes(), 12u32)?;
+        for doc_id in 0u32..120u32 {
+            let delta_positions = vec![1, 2, 3, 2];
+            field_serializer.write_doc(doc_id, 4, &delta_positions)?;
         }
-        posting_serializer.close().unwrap();
-        let read = segment.open_read(SegmentComponent::POSITIONS).unwrap();
+        field_serializer.close_term()?;
+        posting_serializer.close()?;
+        let read = segment.open_read(SegmentComponent::POSITIONS)?;
         assert!(read.len() <= 140);
+        Ok(())
     }
 
     #[test]
-    pub fn test_skip_positions() {
+    pub fn test_skip_positions() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field("title", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 30_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
         index_writer.add_document(doc!(title => r#"abc abc abc"#));
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         for _ in 0..1_000 {
             index_writer.add_document(doc!(title => r#"abc abc abc"#));
         }
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
-        index_writer.commit().unwrap();
+        index_writer.commit()?;
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
         let term = Term::from_field_text(title, "abc");
         let mut positions = Vec::new();
@@ -158,6 +155,7 @@ pub mod tests {
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
         }
+        Ok(())
     }
 
     #[test]

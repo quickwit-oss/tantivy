@@ -14,7 +14,7 @@ use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::{doc, Index, SegmentReader, TantivyError};
+use tantivy::{doc, Index, Score, SegmentReader, TantivyError};
 
 #[derive(Default)]
 struct Stats {
@@ -114,7 +114,7 @@ struct StatsSegmentCollector {
 impl SegmentCollector for StatsSegmentCollector {
     type Fruit = Option<Stats>;
 
-    fn collect(&mut self, doc: u32, _score: f32) {
+    fn collect(&mut self, doc: u32, _score: Score) {
         let value = self.fast_field_reader.get(doc) as f64;
         self.stats.count += 1;
         self.stats.sum += value;

@@ -52,8 +52,8 @@ use std::fmt;
 /// let query = query_parser.parse_query("diary").unwrap();
 /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2)).unwrap();
 ///
-/// assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
-/// assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
+/// assert_eq!(top_docs[0].1, DocAddress(0, 1));
+/// assert_eq!(top_docs[1].1, DocAddress(0, 3));
 /// ```
 pub struct TopDocs(TopCollector<Score>);
 
@@ -139,8 +139,8 @@ impl TopDocs {
     /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1)).unwrap();
     ///
     /// assert_eq!(top_docs.len(), 2);
-    /// assert_eq!(&top_docs[0], &(0.5204813, DocAddress(0, 4)));
-    /// assert_eq!(&top_docs[1], &(0.4793185, DocAddress(0, 3)));
+    /// assert_eq!(top_docs[0].1, DocAddress(0, 4));
+    /// assert_eq!(top_docs[1].1, DocAddress(0, 3));
     /// ```
     pub fn and_offset(self, offset: usize) -> TopDocs {
         TopDocs(self.0.and_offset(offset))
@@ -303,7 +303,7 @@ impl TopDocs {
     ///                 let popularity: u64 = popularity_reader.get(doc);
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
-    ///                 let popularity_boost_score = ((2u64 + popularity) as f32).log2();
+    ///                 let popularity_boost_score = ((2u64 + popularity) as Score).log2();
     ///                 popularity_boost_score * original_score
     ///             }
     ///           });
@@ -479,7 +479,7 @@ impl Collector for TopDocs {
         let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> = BinaryHeap::with_capacity(heap_len);
 
         if let Some(delete_bitset) = reader.delete_bitset() {
-            let mut threshold = f32::MIN;
+            let mut threshold = Score::MIN;
             weight.for_each_pruning(threshold, reader, &mut |doc, score| {
                 if delete_bitset.is_deleted(doc) {
                     return threshold;
@@ -491,16 +491,16 @@ impl Collector for TopDocs {
                 if heap.len() < heap_len {
                     heap.push(heap_item);
                     if heap.len() == heap_len {
-                        threshold = heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+                        threshold = heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
                     }
                     return threshold;
                 }
                 *heap.peek_mut().unwrap() = heap_item;
-                threshold = heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN);
+                threshold = heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
                 threshold
             })?;
         } else {
-            weight.for_each_pruning(f32::MIN, reader, &mut |doc, score| {
+            weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
                 let heap_item = ComparableDoc {
                     feature: score,
                     doc,
@@ -509,13 +509,13 @@ impl Collector for TopDocs {
                     heap.push(heap_item);
                     // TODO the threshold is suboptimal for heap.len == heap_len
                     if heap.len() == heap_len {
-                        return heap.peek().map(|el| el.feature).unwrap_or(f32::MIN);
+                        return heap.peek().map(|el| el.feature).unwrap_or(Score::MIN);
                     } else {
-                        return f32::MIN;
+                        return Score::MIN;
                     }
                 }
                 *heap.peek_mut().unwrap() = heap_item;
-                heap.peek().map(|el| el.feature).unwrap_or(std::f32::MIN)
+                heap.peek().map(|el| el.feature).unwrap_or(Score::MIN)
             })?;
         }
 
@@ -570,6 +570,13 @@ mod tests {
         index
     }
 
+    fn assert_results_equals(results: &[(Score, DocAddress)], expected: &[(Score, DocAddress)]) {
+        for (result, expected) in results.iter().zip(expected.iter()) {
+            assert_eq!(result.1, expected.1);
+            crate::assert_nearly_equals!(result.0, expected.0);
+        }
+    }
+
     #[test]
     fn test_top_collector_not_at_capacity() {
         let index = make_index();
@@ -582,13 +589,13 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(4))
             .unwrap();
-        assert_eq!(
-            score_docs,
-            vec![
+        assert_results_equals(
+            &score_docs,
+            &[
                 (0.81221175, DocAddress(0u32, 1)),
                 (0.5376842, DocAddress(0u32, 2)),
-                (0.48527452, DocAddress(0, 0))
-            ]
+                (0.48527452, DocAddress(0, 0)),
+            ],
         );
     }
 
@@ -604,7 +611,7 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(4).and_offset(2))
             .unwrap();
-        assert_eq!(score_docs, vec![(0.48527452, DocAddress(0, 0))]);
+        assert_results_equals(&score_docs[..], &[(0.48527452, DocAddress(0, 0))]);
     }
 
     #[test]
@@ -619,12 +626,12 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(2))
             .unwrap();
-        assert_eq!(
-            score_docs,
-            vec![
+        assert_results_equals(
+            &score_docs,
+            &[
                 (0.81221175, DocAddress(0u32, 1)),
                 (0.5376842, DocAddress(0u32, 2)),
-            ]
+            ],
         );
     }
 
@@ -640,12 +647,12 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(2).and_offset(1))
             .unwrap();
-        assert_eq!(
-            score_docs,
-            vec![
+        assert_results_equals(
+            &score_docs[..],
+            &[
                 (0.5376842, DocAddress(0u32, 2)),
-                (0.48527452, DocAddress(0, 0))
-            ]
+                (0.48527452, DocAddress(0, 0)),
+            ],
         );
     }
 
@@ -706,8 +713,8 @@ mod tests {
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
         assert_eq!(
-            top_docs,
-            vec![
+            &top_docs[..],
+            &[
                 (64, DocAddress(0, 1)),
                 (16, DocAddress(0, 2)),
                 (12, DocAddress(0, 0))
