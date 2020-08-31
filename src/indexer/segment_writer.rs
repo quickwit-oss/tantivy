@@ -237,8 +237,16 @@ impl SegmentWriter {
                         }
                     }
                 }
-                FieldType::Bytes => {
-                    // Do nothing. Bytes only supports fast fields.
+                FieldType::Bytes(ref option) => {
+                    if option.is_indexed() {
+                        for field_value in field_values {
+                            let term = Term::from_field_bytes(
+                                field_value.field(),
+                                field_value.value().bytes_value(),
+                            );
+                            self.multifield_postings.subscribe(doc_id, &term);
+                        }
+                    }
                 }
             }
         }

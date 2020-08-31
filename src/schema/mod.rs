@@ -114,6 +114,7 @@ mod field_value;
 mod field;
 mod index_record_option;
 mod int_options;
+mod bytes_options;
 mod named_field_document;
 mod text_options;
 mod value;
@@ -145,6 +146,7 @@ pub use self::text_options::TEXT;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;
+pub use self::bytes_options::BytesOptions;
 
 use once_cell::sync::Lazy;
 use regex::Regex;

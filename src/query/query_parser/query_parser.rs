@@ -357,9 +357,11 @@ impl QueryParser {
                 let facet = Facet::from_text(phrase);
                 Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
             }
-            FieldType::Bytes => {
-                let field_name = self.schema.get_field_name(field).to_string();
-                Err(QueryParserError::FieldNotIndexed(field_name))
+            FieldType::Bytes(_) => {
+                let term = Term::from_field_bytes(field, phrase.as_bytes());
+                Ok(vec![(0, term)])
+                // let field_name = self.schema.get_field_name(field).to_string();
+                // Err(QueryParserError::FieldNotIndexed(field_name))
             }
         }
     }

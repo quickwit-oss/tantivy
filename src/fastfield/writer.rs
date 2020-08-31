@@ -56,7 +56,7 @@ impl FastFieldsWriter {
                     let fast_field_writer = MultiValueIntFastFieldWriter::new(field, true);
                     multi_values_writers.push(fast_field_writer);
                 }
-                FieldType::Bytes => {
+                FieldType::Bytes(_) => {
                     let fast_field_writer = BytesFastFieldWriter::new(field);
                     bytes_value_writers.push(fast_field_writer);
                 }

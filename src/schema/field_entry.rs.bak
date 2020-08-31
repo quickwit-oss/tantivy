@@ -1,9 +1,8 @@
+use crate::schema::IntOptions;
 use crate::schema::TextOptions;
-use crate::schema::{is_valid_field_name, IntOptions};
 
-use crate::schema::bytes_options::BytesOptions;
 use crate::schema::FieldType;
-use serde::de::{self, MapAccess, Visitor};
+use serde::de::{self, MapAccess, Visitor, SeqAccess};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
@@ -25,7 +24,6 @@ impl FieldEntry {
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Str(text_options),
@@ -35,7 +33,6 @@ impl FieldEntry {
     /// Creates a new u64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_u64(field_name: String, field_type: IntOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::U64(field_type),
@@ -45,7 +42,6 @@ impl FieldEntry {
     /// Creates a new i64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_i64(field_name: String, field_type: IntOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::I64(field_type),
@@ -55,7 +51,6 @@ impl FieldEntry {
     /// Creates a new f64 field entry in the schema, given
     /// a name, and some options.
     pub fn new_f64(field_name: String, field_type: IntOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::F64(field_type),
@@ -65,7 +60,6 @@ impl FieldEntry {
     /// Creates a new date field entry in the schema, given
     /// a name, and some options.
     pub fn new_date(field_name: String, field_type: IntOptions) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Date(field_type),
@@ -74,7 +68,6 @@ impl FieldEntry {
 
     /// Creates a field entry for a facet.
     pub fn new_facet(field_name: String) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::HierarchicalFacet,
@@ -82,10 +75,10 @@ impl FieldEntry {
     }
 
     /// Creates a field entry for a bytes field
-    pub fn new_bytes(field_name: String, bytes_type: BytesOptions) -> FieldEntry {
+    pub fn new_bytes(field_name: String) -> FieldEntry {
         FieldEntry {
             name: field_name,
-            field_type: FieldType::Bytes(bytes_type),
+            field_type: FieldType::Bytes,
         }
     }
 
@@ -113,11 +106,10 @@ impl FieldEntry {
     }
 
     /// Returns true iff the field is a int (signed or unsigned) fast field
-    pub fn is_fast(&self) -> bool {
+    pub fn is_int_fast(&self) -> bool {
         match self.field_type {
             FieldType::U64(ref options)
             | FieldType::I64(ref options)
-            | FieldType::Date(ref options)
             | FieldType::F64(ref options) => options.is_fast(),
             _ => false,
         }
@@ -170,9 +162,8 @@ impl Serialize for FieldEntry {
             FieldType::HierarchicalFacet => {
                 s.serialize_field("type", "hierarchical_facet")?;
             }
-            FieldType::Bytes(ref options) => {
+            FieldType::Bytes => {
                 s.serialize_field("type", "bytes")?;
-                s.serialize_field("options", options)?;
             }
         }
 
@@ -204,6 +195,31 @@ impl<'de> Deserialize<'de> for FieldEntry {
                 formatter.write_str("struct FieldEntry")
             }
 
+            fn visit_seq<V>(self, mut seq: V) -> Result<FieldEntry, V::Error>
+                where
+                    V: SeqAccess<'de>,
+            {
+                let name = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let ty: &str = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let field_type = match ty {
+                    "text" => FieldType::Str(seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?),
+                    "u64" => FieldType::U64(seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?),
+                    "i64" => FieldType::I64(seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?),
+                    "f64" => FieldType::F64(seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?),
+                    "date" => FieldType::Date(seq.next_element()?.ok_or_else(|| de::Error::invalid_length(2, &self))?),
+                    "hierarchical_facet" => FieldType::HierarchicalFacet,
+                    "bytes" => FieldType::Bytes,
+                    _ => {
+                        let msg = format!("Unrecognised type {}", ty);
+                        return Err(de::Error::custom(msg));
+                    }
+                };
+
+                Ok(FieldEntry { name, field_type })
+            }
+
             fn visit_map<V>(self, mut map: V) -> Result<FieldEntry, V::Error>
             where
                 V: MapAccess<'de>,
@@ -228,7 +244,10 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "hierarchical_facet" => {
                                     field_type = Some(FieldType::HierarchicalFacet);
                                 }
-                                "text" | "u64" | "i64" | "f64" | "date" | "bytes" => {
+                                "bytes" => {
+                                    field_type = Some(FieldType::Bytes);
+                                }
+                                "text" | "u64" | "i64" | "f64" | "date" => {
                                     // These types require additional options to create a field_type
                                 }
                                 _ => panic!("unhandled type"),
@@ -247,7 +266,6 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
                                 "f64" => field_type = Some(FieldType::F64(map.next_value()?)),
                                 "date" => field_type = Some(FieldType::Date(map.next_value()?)),
-                                "bytes" => field_type = Some(FieldType::Bytes(map.next_value()?)),
                                 _ => {
                                     let msg = format!("Unrecognised type {}", ty);
                                     return Err(de::Error::custom(msg));
@@ -276,12 +294,6 @@ mod tests {
     use serde_json;
 
     #[test]
-    #[should_panic]
-    fn test_invalid_field_name_should_panic() {
-        FieldEntry::new_text("-hello".to_string(), TEXT);
-    }
-
-    #[test]
     fn test_json_serialization() {
         let field_value = FieldEntry::new_text(String::from("title"), TEXT);
 
@@ -308,5 +320,16 @@ mod tests {
             FieldType::Str(_) => assert!(true),
             _ => panic!("expected FieldType::Str"),
         }
+    }
+
+    #[test]
+    fn test_bincode_serialization() {
+        let field_value = FieldEntry::new_text(String::from("title"), TEXT);
+
+        let field_bytes = bincode::serialize(&field_value).unwrap();
+        let deserialize_value: FieldEntry = bincode::deserialize(field_bytes.as_slice()).unwrap();
+
+        assert_eq!(field_value.name, deserialize_value.name);
+        assert_eq!(field_value.field_type, deserialize_value.field_type);
     }
 }
