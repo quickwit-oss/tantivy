@@ -37,7 +37,7 @@ mod tests {
     }
 
     #[test]
-    fn test_search_bytes() {
+    fn test_indexed_bytes() {
         let mut schema_builder = Schema::builder();
         let options = BytesOptions::default()
             .set_indexed()
@@ -54,15 +54,24 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let docs = searcher.search(&AllQuery, &TopDocs::with_limit(10)).unwrap();
         for (_score, doc_address) in docs {
-            let retrieved_doc = searcher.doc(doc_address).unwrap();
-            for value in retrieved_doc.get_all(field) {
-                match value {
-                    Value::Bytes(string) => {
-                        let string_bytes = std::str::from_utf8(string).unwrap();
-                        println!("{}", string_bytes);
-                    }
-                    _ => {}
+            let retrieved_doc = searcher.doc(doc_address);
+            assert!(retrieved_doc.is_ok());
+            let retrieved_doc = retrieved_doc.unwrap();
+            let values = retrieved_doc.get_all(field);
+            assert_eq!(values.len(), 2);
+            match values.get(0).unwrap() {
+                Value::Bytes(string) => {
+                    let string_bytes = std::str::from_utf8(string).unwrap();
+                    assert_eq!(string_bytes, "tantivy");
                 }
+                _ => {}
+            }
+            match values.get(1).unwrap() {
+                Value::Bytes(string) => {
+                    let string_bytes = std::str::from_utf8(string).unwrap();
+                    assert_eq!(string_bytes, "lucene");
+                }
+                _ => {}
             }
         }
     }
