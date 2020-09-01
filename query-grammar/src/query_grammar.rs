@@ -9,8 +9,10 @@ use combine::{
 
 fn field<'a>() -> impl Parser<&'a str, Output = String> {
     (
-        letter(),
-        many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
+        (letter().or(char('_'))),
+        many(satisfy(|c: char| {
+            c.is_alphanumeric() || c == '_' || c == '-'
+        })),
     )
         .skip(char(':'))
         .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
@@ -279,6 +281,8 @@ pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
 #[cfg(test)]
 mod test {
 
+    type TestParseResult = Result<(), StringStreamError>;
+
     use super::*;
     use combine::parser::Parser;
 
@@ -296,9 +300,10 @@ mod test {
     }
 
     #[test]
-    fn test_occur_symbol() {
-        assert_eq!(super::occur_symbol().parse("-"), Ok((Occur::MustNot, "")));
-        assert_eq!(super::occur_symbol().parse("+"), Ok((Occur::Must, "")));
+    fn test_occur_symbol() -> TestParseResult {
+        assert_eq!(super::occur_symbol().parse("-")?, (Occur::MustNot, ""));
+        assert_eq!(super::occur_symbol().parse("+")?, (Occur::Must, ""));
+        Ok(())
     }
 
     #[test]
@@ -408,6 +413,25 @@ mod test {
         let ((occur, ast), _) = super::occur_leaf().parse("+abc").unwrap();
         assert_eq!(occur, Some(Occur::Must));
         assert_eq!(format!("{:?}", ast), "\"abc\"");
+    }
+
+    #[test]
+    fn test_field_name() -> TestParseResult {
+        assert_eq!(
+            super::field().parse("my-field-name:a")?,
+            ("my-field-name".to_string(), "a")
+        );
+        assert_eq!(
+            super::field().parse("my_field_name:a")?,
+            ("my_field_name".to_string(), "a")
+        );
+        assert!(super::field().parse(":a").is_err());
+        assert!(super::field().parse("-my_field:a").is_err());
+        assert_eq!(
+            super::field().parse("_my_field:a")?,
+            ("_my_field".to_string(), "a")
+        );
+        Ok(())
     }
 
     #[test]
