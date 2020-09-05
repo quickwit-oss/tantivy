@@ -490,7 +490,7 @@ impl Directory for MmapDirectory {
 
     fn atomic_write(&mut self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
-        let mut tempfile = tempfile::NamedTempFile::new()?;
+        let mut tempfile = tempfile::Builder::new().tempfile_in(&self.inner.root_path)?;
         tempfile.write_all(content)?;
         tempfile.flush()?;
         let full_path = self.resolve_path(path);
