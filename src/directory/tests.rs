@@ -215,7 +215,6 @@ fn test_watch(directory: &mut dyn Directory) {
         assert!(directory
             .atomic_write(Path::new("meta.json"), b"random_test_data_2")
             .is_ok());
-        assert_eq!(receiver.recv_timeout(Duration::from_millis(500)), Ok(i));
         assert!(i + 1 <= counter.load(SeqCst)); // notify can trigger more than once.
     }
     mem::drop(watch_handle);
