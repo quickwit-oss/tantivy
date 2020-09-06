@@ -74,9 +74,8 @@ impl Document {
     }
 
     /// Add a text field.
-    pub fn add_text(&mut self, field: Field, text: &str) {
-        let value = Value::Str(String::from(text));
-        self.add(FieldValue::new(field, value));
+    pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
+        self.add(FieldValue::new(field, Value::Str(text.to_string())));
     }
 
     /// Add a pre-tokenized text field.
@@ -110,8 +109,8 @@ impl Document {
     }
 
     /// Add a bytes field
-    pub fn add_bytes(&mut self, field: Field, value: Vec<u8>) {
-        self.add(FieldValue::new(field, Value::Bytes(value)))
+    pub fn add_bytes<T: Into<Vec<u8>>>(&mut self, field: Field, value: T) {
+        self.add(FieldValue::new(field, Value::Bytes(value.into())))
     }
 
     /// Add a field value
