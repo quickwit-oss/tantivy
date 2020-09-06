@@ -6,10 +6,9 @@ pub use self::writer::BytesFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{Schema, BytesOptions, Value};
-    use crate::{Index, Document};
-    use crate::query::AllQuery;
-    use crate::collector::TopDocs;
+    use crate::schema::{BytesOptions, Schema, Value};
+    use crate::{DocAddress, Index, Searcher};
+    use std::ops::Deref;
 
     #[test]
     fn test_bytes() {
@@ -36,43 +35,52 @@ mod tests {
         assert_eq!(bytes_reader.get_bytes(4), long.as_slice());
     }
 
-    #[test]
-    fn test_indexed_bytes() {
+    fn create_index_for_test(
+        byte_options: BytesOptions,
+    ) -> crate::Result<impl Deref<Target = Searcher>> {
         let mut schema_builder = Schema::builder();
-        let options = BytesOptions::default()
-            .set_indexed()
-            .set_stored();
-        let field = schema_builder.add_bytes_field("string_bytes", options);
+        let field = schema_builder.add_bytes_field("string_bytes", byte_options);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        let mut doc = Document::new();
-        doc.add_bytes(field, "tantivy".to_string().into_bytes());
-        doc.add_bytes(field, "lucene".to_string().into_bytes());
-        index_writer.add_document(doc);
-        assert!(index_writer.commit().is_ok());
-        let searcher = index.reader().unwrap().searcher();
-        let docs = searcher.search(&AllQuery, &TopDocs::with_limit(10)).unwrap();
-        for (_score, doc_address) in docs {
-            let retrieved_doc = searcher.doc(doc_address);
-            assert!(retrieved_doc.is_ok());
-            let retrieved_doc = retrieved_doc.unwrap();
-            let values = retrieved_doc.get_all(field);
-            assert_eq!(values.len(), 2);
-            match values.get(0).unwrap() {
-                Value::Bytes(string) => {
-                    let string_bytes = std::str::from_utf8(string).unwrap();
-                    assert_eq!(string_bytes, "tantivy");
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+                field => b"tantivy".as_ref(),
+                field => b"lucene".as_ref()
+        ));
+        index_writer.commit()?;
+        Ok(index.reader()?.searcher())
+    }
+
+    #[test]
+    fn test_stored_bytes() -> crate::Result<()> {
+        let searcher = create_index_for_test(BytesOptions::default().set_stored())?;
+        assert_eq!(searcher.num_docs(), 1);
+        let retrieved_doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let field = searcher.schema().get_field("string_bytes").unwrap();
+        let values = retrieved_doc.get_all(field);
+        assert_eq!(values.len(), 2);
+        let values_bytes: Vec<&[u8]> = values
+            .into_iter()
+            .flat_map(|value| {
+                if let Value::Bytes(bytes_value) = value {
+                    Some(&bytes_value[..])
+                } else {
+                    None
                 }
-                _ => {}
-            }
-            match values.get(1).unwrap() {
-                Value::Bytes(string) => {
-                    let string_bytes = std::str::from_utf8(string).unwrap();
-                    assert_eq!(string_bytes, "lucene");
-                }
-                _ => {}
-            }
-        }
+            })
+            .collect();
+        assert_eq!(values_bytes, &[&b"tantivy"[..], &b"lucene"[..]]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_non_stored_bytes() -> crate::Result<()> {
+        let searcher = create_index_for_test(BytesOptions::default())?;
+        assert_eq!(searcher.num_docs(), 1);
+        let retrieved_doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let field = searcher.schema().get_field("string_bytes").unwrap();
+        let values = retrieved_doc.get_all(field);
+        assert!(values.is_empty());
+        Ok(())
     }
 }
