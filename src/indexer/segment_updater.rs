@@ -555,7 +555,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         // writing the segment
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(MergeWheneverPossible));
 
         {
@@ -608,7 +608,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         // writing the segment
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
 
         {
             for _ in 0..100 {
@@ -679,7 +679,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         // writing the segment
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
 
         {
             for _ in 0..100 {

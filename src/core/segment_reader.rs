@@ -9,9 +9,9 @@ use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::schema::Field;
 use crate::schema::FieldType;
 use crate::schema::Schema;
+use crate::schema::{Field, IndexRecordOption};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
@@ -125,17 +125,15 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> FieldNormReader {
-        if let Some(fieldnorm_reader) = self.fieldnorm_readers.get_field(field) {
-            fieldnorm_reader
-        } else {
+    pub fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
+        self.fieldnorm_readers.get_field(field).ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
                 "Field norm not found for field {:?}. Was it market as indexed during indexing.",
                 field_name
             );
-            panic!(err_msg);
-        }
+            crate::TantivyError::SchemaError(err_msg)
+        })
     }
 
     /// Accessor to the segment's `StoreReader`.
@@ -212,6 +210,11 @@ impl SegmentReader {
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
+    ///
+    /// If the field is marked as index, a warn is logged and an empty `InvertedIndexReader`
+    /// is returned.
+    /// Similarly if the field is marked as indexed but no term has been indexed for the given
+    /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
     pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
@@ -226,21 +229,21 @@ impl SegmentReader {
         let record_option_opt = field_type.get_index_record_option();
 
         if record_option_opt.is_none() {
-            panic!("Field {:?} does not seem indexed.", field_entry.name());
+            warn!("Field {:?} does not seem indexed.", field_entry.name());
         }
-
-        let record_option = record_option_opt.unwrap();
 
         let postings_source_opt = self.postings_composite.open_read(field);
 
-        if postings_source_opt.is_none() {
+        if postings_source_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
             // As a result, no data is associated to the inverted index.
             //
             // Returns an empty inverted index.
-            return Arc::new(InvertedIndexReader::empty(field_type));
+            let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
+            return Arc::new(InvertedIndexReader::empty(record_option));
         }
 
+        let record_option = record_option_opt.unwrap();
         let postings_source = postings_source_opt.unwrap();
 
         let termdict_source = self.termdict_composite.open_read(field).expect(
@@ -339,7 +342,7 @@ mod test {
         let name = schema.get_field("name").unwrap();
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(name => "tantivy"));
             index_writer.add_document(doc!(name => "horse"));
             index_writer.add_document(doc!(name => "jockey"));

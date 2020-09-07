@@ -91,7 +91,7 @@ pub mod tests {
         let title = schema_builder.add_text_field("title", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(title => r#"abc abc abc"#));
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         for _ in 0..1_000 {
@@ -176,7 +176,7 @@ pub mod tests {
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
         let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         {
             index_writer.add_document(doc!(text_field=>exceeding_token_text));
@@ -205,7 +205,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_position_and_fieldnorm1() {
+    pub fn test_position_and_fieldnorm1() -> crate::Result<()> {
         let mut positions = Vec::new();
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -217,42 +217,38 @@ pub mod tests {
             let mut segment_writer =
                 SegmentWriter::for_segment(3_000_000, segment.clone(), &schema).unwrap();
             {
-                let mut doc = Document::default();
                 // checking that position works if the field has two values
-                doc.add_text(text_field, "a b a c a d a a.");
-                doc.add_text(text_field, "d d d d a");
                 let op = AddOperation {
                     opstamp: 0u64,
-                    document: doc,
+                    document: doc!(
+                       text_field => "a b a c a d a a.",
+                       text_field => "d d d d a"
+                    ),
                 };
-                segment_writer.add_document(op, &schema).unwrap();
+                segment_writer.add_document(op, &schema)?;
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "b a");
                 let op = AddOperation {
                     opstamp: 1u64,
-                    document: doc,
+                    document: doc!(text_field => "b a"),
                 };
                 segment_writer.add_document(op, &schema).unwrap();
             }
             for i in 2..1000 {
-                let mut doc = Document::default();
-                let mut text = iter::repeat("e ").take(i).collect::<String>();
+                let mut text: String = iter::repeat("e ").take(i).collect();
                 text.push_str(" a");
-                doc.add_text(text_field, &text);
                 let op = AddOperation {
                     opstamp: 2u64,
-                    document: doc,
+                    document: doc!(text_field => text),
                 };
                 segment_writer.add_document(op, &schema).unwrap();
             }
-            segment_writer.finalize().unwrap();
+            segment_writer.finalize()?;
         }
         {
-            let segment_reader = SegmentReader::open(&segment).unwrap();
+            let segment_reader = SegmentReader::open(&segment)?;
             {
-                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field);
+                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {
@@ -312,6 +308,7 @@ pub mod tests {
                 assert_eq!(postings_e.doc(), TERMINATED);
             }
         }
+        Ok(())
     }
 
     #[test]
@@ -322,7 +319,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(text_field => "g b b d c g c"));
             index_writer.add_document(doc!(text_field => "g a b b a d c g c"));
             assert!(index_writer.commit().is_ok());
@@ -354,7 +351,7 @@ pub mod tests {
 
             let index = Index::create_in_ram(schema);
             {
-                let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+                let mut index_writer = index.writer_for_tests().unwrap();
                 for i in 0u64..num_docs as u64 {
                     let doc = doc!(value_field => 2u64, value_field => i % 2u64);
                     index_writer.add_document(doc);
@@ -425,7 +422,7 @@ pub mod tests {
 
         // delete some of the documents
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
@@ -479,7 +476,7 @@ pub mod tests {
 
         // delete everything else
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }
@@ -522,7 +519,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         let posting_list_size = 1_000_000;
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
                 let mut doc = Document::default();
                 if rng.gen_bool(1f64 / 15f64) {

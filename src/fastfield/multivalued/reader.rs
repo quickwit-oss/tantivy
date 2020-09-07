@@ -74,7 +74,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index
-            .writer_with_num_threads(1, 30_000_000)
+            .writer_for_tests()
             .expect("Failed to create index writer.");
         index_writer.add_document(doc!(
             facet_field => Facet::from("/category/cat2"),

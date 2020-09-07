@@ -83,7 +83,7 @@ mod tests {
         let field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(field=>"aaa"));
         index_writer.add_document(doc!(field=>"bbb"));
         index_writer.commit().unwrap();

@@ -3,7 +3,6 @@ use crate::directory::ReadOnlySource;
 use crate::positions::PositionReader;
 use crate::postings::TermInfo;
 use crate::postings::{BlockSegmentPostings, SegmentPostings};
-use crate::schema::FieldType;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::termdict::TermDictionary;
@@ -54,10 +53,7 @@ impl InvertedIndexReader {
 
     /// Creates an empty `InvertedIndexReader` object, which
     /// contains no terms at all.
-    pub fn empty(field_type: &FieldType) -> InvertedIndexReader {
-        let record_option = field_type
-            .get_index_record_option()
-            .unwrap_or(IndexRecordOption::Basic);
+    pub fn empty(record_option: IndexRecordOption) -> InvertedIndexReader {
         InvertedIndexReader {
             termdict: TermDictionary::empty(),
             postings_source: ReadOnlySource::empty(),

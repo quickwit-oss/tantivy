@@ -9,7 +9,6 @@ use crate::query::{Query, Scorer, Weight};
 use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::Result;
 use crate::{DocId, Score};
 use std::collections::Bound;
 use std::ops::Range;
@@ -42,13 +41,13 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// use tantivy::query::RangeQuery;
 /// use tantivy::schema::{Schema, INDEXED};
 /// use tantivy::{doc, Index};
-/// # fn test() -> tantivy::Result<()> {
+/// # fn test() -> crate::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let year_field = schema_builder.add_u64_field("year", INDEXED);
 /// let schema = schema_builder.build();
 ///
 /// let index = Index::create_in_ram(schema);
-/// let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
+/// let mut index_writer = index.writer_for_tests()?;
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
@@ -246,7 +245,11 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<dyn Weight>> {
+    fn weight(
+        &self,
+        searcher: &Searcher,
+        _scoring_enabled: bool,
+    ) -> crate::Result<Box<dyn Weight>> {
         let schema = searcher.schema();
         let value_type = schema.get_field_entry(self.field).field_type().value_type();
         if value_type != self.value_type {
@@ -289,7 +292,7 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
@@ -315,7 +318,7 @@ impl Weight for RangeWeight {
         Ok(Box::new(ConstScorer::new(doc_bitset, boost)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
@@ -342,7 +345,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             for year in 1950u64..2017u64 {
                 let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
                 for _ in 0..num_docs_within_year {
@@ -485,7 +488,7 @@ mod tests {
         schema_builder.add_i64_field("year", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
-        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         let title = schema.get_field("title").unwrap();
         let year = schema.get_field("year").unwrap();
         index_writer.add_document(doc!(

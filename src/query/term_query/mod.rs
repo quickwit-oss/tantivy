@@ -25,7 +25,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             let doc = doc!(text_field => "a");
             index_writer.add_document(doc);
             assert!(index_writer.commit().is_ok());
@@ -50,7 +50,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+            let mut index_writer = index.writer_for_tests()?;
             for _ in 0..COMPRESSION_BLOCK_SIZE {
                 let doc = doc!(text_field => "a");
                 index_writer.add_document(doc);
@@ -86,7 +86,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(
                 left_field => "left1 left2 left2 left2f2 left2f2 left3 abcde abcde abcde abcde abcde abcde abcde abcde abcde abcewde abcde abcde",
                 right_field => "right1 right2",
@@ -136,7 +136,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 5_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a b"));
         index_writer.add_document(doc!(text_field=>"a c"));
         index_writer.delete_term(Term::from_field_text(text_field, "b"));
@@ -153,7 +153,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field=>"a"));
         index_writer.add_document(doc!(text_field=>"a"));
         index_writer.commit()?;

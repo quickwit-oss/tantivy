@@ -8,7 +8,6 @@ use crate::query::weight::for_each_scorer;
 use crate::query::Weight;
 use crate::query::{Explanation, Scorer};
 use crate::schema::IndexRecordOption;
-use crate::Result;
 use crate::Term;
 use crate::{DocId, Score};
 
@@ -19,12 +18,12 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let term_scorer = self.specialized_scorer(reader, boost)?;
         Ok(Box::new(term_scorer))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.specialized_scorer(reader, 1.0)?;
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
@@ -32,7 +31,7 @@ impl Weight for TermWeight {
         Ok(scorer.explain())
     }
 
-    fn count(&self, reader: &SegmentReader) -> Result<u32> {
+    fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
         if let Some(delete_bitset) = reader.delete_bitset() {
             Ok(self.scorer(reader, 1.0)?.count(delete_bitset))
         } else {
@@ -96,10 +95,10 @@ impl TermWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> Result<TermScorer> {
+    ) -> crate::Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
-        let fieldnorm_reader = reader.get_fieldnorms_reader(field);
+        let fieldnorm_reader = reader.get_fieldnorms_reader(field)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
             inverted_index.read_postings(&self.term, self.index_record_option);
