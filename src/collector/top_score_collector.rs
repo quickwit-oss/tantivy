@@ -38,7 +38,7 @@ use std::fmt;
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer_for_tests().unwrap();
+/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
 /// index_writer.add_document(doc!(title => "The Name of the Wind"));
 /// index_writer.add_document(doc!(title => "The Diary of Muadib"));
 /// index_writer.add_document(doc!(title => "A Dairy Cow"));
@@ -123,7 +123,7 @@ impl TopDocs {
     /// let schema = schema_builder.build();
     /// let index = Index::create_in_ram(schema);
     ///
-    /// let mut index_writer = index.writer_for_tests().unwrap();
+    /// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
     /// index_writer.add_document(doc!(title => "The Name of the Wind"));
     /// index_writer.add_document(doc!(title => "The Diary of Muadib"));
     /// index_writer.add_document(doc!(title => "A Dairy Cow"));
@@ -163,7 +163,7 @@ impl TopDocs {
     /// #   let schema = schema_builder.build();
     /// #  
     /// #   let index = Index::create_in_ram(schema);
-    /// #   let mut index_writer = index.writer_for_tests()?;
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64));
     /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
     /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
@@ -264,7 +264,7 @@ impl TopDocs {
     /// fn create_index() -> tantivy::Result<Index> {
     ///   let schema = create_schema();
     ///   let index = Index::create_in_ram(schema);
-    ///   let mut index_writer = index.writer_for_tests()?;
+    ///   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     ///   let product_name = index.schema().get_field("product_name").unwrap();
     ///   let popularity: Field = index.schema().get_field("popularity").unwrap();
     ///   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64));
@@ -371,7 +371,7 @@ impl TopDocs {
     /// # fn main() -> tantivy::Result<()> {
     /// #   let schema = create_schema();
     /// #   let index = Index::create_in_ram(schema);
-    /// #   let mut index_writer = index.writer_for_tests()?;
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     /// #   let product_name = index.schema().get_field("product_name").unwrap();
     /// #   
     /// let popularity: Field = index.schema().get_field("popularity").unwrap();
@@ -561,7 +561,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"Hello happy tax payer."));
             index_writer.add_document(doc!(text_field=>"Droopy says hello happy tax payer"));
             index_writer.add_document(doc!(text_field=>"I like Droopy"));
@@ -821,7 +821,7 @@ mod tests {
     ) -> (Index, Box<dyn Query>) {
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
         doc_adder(&mut index_writer);
         index_writer.commit().unwrap();
         let query_parser = QueryParser::for_index(&index, vec![query_field]);

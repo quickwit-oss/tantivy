@@ -41,13 +41,13 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// use tantivy::query::RangeQuery;
 /// use tantivy::schema::{Schema, INDEXED};
 /// use tantivy::{doc, Index};
-/// # fn test() -> crate::Result<()> {
+/// # fn test() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let year_field = schema_builder.add_u64_field("year", INDEXED);
 /// let schema = schema_builder.build();
 ///
 /// let index = Index::create_in_ram(schema);
-/// let mut index_writer = index.writer_for_tests()?;
+/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
