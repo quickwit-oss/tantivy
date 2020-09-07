@@ -25,14 +25,14 @@ use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
+fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
     let mut count: [usize; 256] = [0; 256];
     for reader in readers {
         if reader.has_deletes() {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
-            let fieldnorms_reader = reader.get_fieldnorms_reader(field);
+            let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
             for doc in reader.doc_ids_alive() {
                 let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
                 count[fieldnorm_id as usize] += 1;
@@ -41,7 +41,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             total_tokens += reader.inverted_index(field).total_num_tokens();
         }
     }
-    total_tokens
+    Ok(total_tokens
         + count
             .iter()
             .cloned()
@@ -49,7 +49,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             .map(|(fieldnorm_ord, count)| {
                 count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
             })
-            .sum::<u64>()
+            .sum::<u64>())
 }
 
 pub struct IndexMerger {
@@ -175,7 +175,7 @@ impl IndexMerger {
         for field in fields {
             fieldnorms_data.clear();
             for reader in &self.readers {
-                let fieldnorms_reader = reader.get_fieldnorms_reader(field);
+                let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
                 for doc_id in reader.doc_ids_alive() {
                     let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
                     fieldnorms_data.push(fieldnorm_id);
@@ -541,7 +541,7 @@ impl IndexMerger {
         // The total number of tokens will only be exact when there has been no deletes.
         //
         // Otherwise, we approximate by removing deleted documents proportionally.
-        let total_num_tokens: u64 = compute_total_num_tokens(&self.readers, indexed_field);
+        let total_num_tokens: u64 = compute_total_num_tokens(&self.readers, indexed_field)?;
 
         // Create the total list of doc ids
         // by stacking the doc ids from the different segment.

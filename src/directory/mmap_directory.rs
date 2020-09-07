@@ -34,7 +34,6 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
-use tempfile;
 use tempfile::TempDir;
 
 /// Create a default io error given a string.

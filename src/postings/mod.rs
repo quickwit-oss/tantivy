@@ -205,7 +205,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_position_and_fieldnorm1() {
+    pub fn test_position_and_fieldnorm1() -> crate::Result<()> {
         let mut positions = Vec::new();
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -217,42 +217,38 @@ pub mod tests {
             let mut segment_writer =
                 SegmentWriter::for_segment(3_000_000, segment.clone(), &schema).unwrap();
             {
-                let mut doc = Document::default();
                 // checking that position works if the field has two values
-                doc.add_text(text_field, "a b a c a d a a.");
-                doc.add_text(text_field, "d d d d a");
                 let op = AddOperation {
                     opstamp: 0u64,
-                    document: doc,
+                    document: doc!(
+                       text_field => "a b a c a d a a.",
+                       text_field => "d d d d a"
+                    ),
                 };
-                segment_writer.add_document(op, &schema).unwrap();
+                segment_writer.add_document(op, &schema)?;
             }
             {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "b a");
                 let op = AddOperation {
                     opstamp: 1u64,
-                    document: doc,
+                    document: doc!(text_field => "b a"),
                 };
                 segment_writer.add_document(op, &schema).unwrap();
             }
             for i in 2..1000 {
-                let mut doc = Document::default();
-                let mut text = iter::repeat("e ").take(i).collect::<String>();
+                let mut text: String = iter::repeat("e ").take(i).collect();
                 text.push_str(" a");
-                doc.add_text(text_field, &text);
                 let op = AddOperation {
                     opstamp: 2u64,
-                    document: doc,
+                    document: doc!(text_field => text),
                 };
                 segment_writer.add_document(op, &schema).unwrap();
             }
-            segment_writer.finalize().unwrap();
+            segment_writer.finalize()?;
         }
         {
-            let segment_reader = SegmentReader::open(&segment).unwrap();
+            let segment_reader = SegmentReader::open(&segment)?;
             {
-                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field);
+                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {
@@ -312,6 +308,7 @@ pub mod tests {
                 assert_eq!(postings_e.doc(), TERMINATED);
             }
         }
+        Ok(())
     }
 
     #[test]

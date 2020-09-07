@@ -150,7 +150,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 /// Regular expression representing the restriction on a valid field names.
-pub const FIELD_NAME_PATTERN: &'static str = r#"^[_a-zA-Z][_\-a-zA-Z0-9]*$"#;
+pub const FIELD_NAME_PATTERN: &str = r#"^[_a-zA-Z][_\-a-zA-Z0-9]*$"#;
 
 /// Validator for a potential `field_name`.
 /// Returns true iff the name can be use for a field name.

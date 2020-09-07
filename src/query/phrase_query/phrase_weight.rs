@@ -9,8 +9,8 @@ use crate::query::Weight;
 use crate::query::{EmptyScorer, Explanation};
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
+use crate::Score;
 use crate::{DocId, DocSet};
-use crate::{Result, Score};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -32,7 +32,7 @@ impl PhraseWeight {
         }
     }
 
-    fn fieldnorm_reader(&self, reader: &SegmentReader) -> FieldNormReader {
+    fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
         let field = self.phrase_terms[0].1.field();
         reader.get_fieldnorms_reader(field)
     }
@@ -41,9 +41,9 @@ impl PhraseWeight {
         &self,
         reader: &SegmentReader,
         boost: Score,
-    ) -> Result<Option<PhraseScorer<SegmentPostings>>> {
+    ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
         let similarity_weight = self.similarity_weight.boost_by(boost);
-        let fieldnorm_reader = self.fieldnorm_reader(reader);
+        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
@@ -85,7 +85,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         if let Some(scorer) = self.phrase_scorer(reader, boost)? {
             Ok(Box::new(scorer))
         } else {
@@ -93,7 +93,7 @@ impl Weight for PhraseWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let scorer_opt = self.phrase_scorer(reader, 1.0)?;
         if scorer_opt.is_none() {
             return Err(does_not_match(doc));
@@ -102,7 +102,7 @@ impl Weight for PhraseWeight {
         if scorer.seek(doc) != doc {
             return Err(does_not_match(doc));
         }
-        let fieldnorm_reader = self.fieldnorm_reader(reader);
+        let fieldnorm_reader = self.fieldnorm_reader(reader)?;
         let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
         let phrase_count = scorer.phrase_count();
         let mut explanation = Explanation::new("Phrase Scorer", scorer.score());

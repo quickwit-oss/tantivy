@@ -221,6 +221,12 @@ impl<'a> From<&'a str> for Value {
     }
 }
 
+impl<'a> From<&'a [u8]> for Value {
+    fn from(bytes: &'a [u8]) -> Value {
+        Value::Bytes(bytes.to_vec())
+    }
+}
+
 impl<'a> From<Facet> for Value {
     fn from(facet: Facet) -> Value {
         Value::Facet(facet)

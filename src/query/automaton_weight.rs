@@ -5,7 +5,6 @@ use crate::query::{BitSetDocSet, Explanation};
 use crate::query::{Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
-use crate::Result;
 use crate::TantivyError;
 use crate::{DocId, Score};
 use std::sync::Arc;
@@ -40,7 +39,7 @@ impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
 {
-    fn scorer(&self, reader: &SegmentReader, boost: Score) -> Result<Box<dyn Scorer>> {
+    fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         let inverted_index = reader.inverted_index(self.field);
@@ -66,7 +65,7 @@ where
         Ok(Box::new(const_scorer))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> crate::Result<Explanation> {
         let mut scorer = self.scorer(reader, 1.0)?;
         if scorer.seek(doc) == doc {
             Ok(Explanation::new("AutomatonScorer", 1.0))

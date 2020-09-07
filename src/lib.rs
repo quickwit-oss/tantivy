@@ -419,64 +419,46 @@ mod tests {
     }
 
     #[test]
-    fn test_fieldnorm_no_docs_with_field() {
+    fn test_fieldnorm_no_docs_with_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+        index_writer.add_document(doc!(text_field=>"a b c"));
+        index_writer.commit()?;
+        let index_reader = index.reader()?;
+        let searcher = index_reader.searcher();
+        let reader = searcher.segment_reader(0);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc);
-            }
-            index_writer.commit().unwrap();
+            let fieldnorm_reader = reader.get_fieldnorms_reader(text_field)?;
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 3);
         }
         {
-            let index_reader = index.reader().unwrap();
-            let searcher = index_reader.searcher();
-            let reader = searcher.segment_reader(0);
-            {
-                let fieldnorm_reader = reader.get_fieldnorms_reader(text_field);
-                assert_eq!(fieldnorm_reader.fieldnorm(0), 3);
-            }
-            {
-                let fieldnorm_reader = reader.get_fieldnorms_reader(title_field);
-                assert_eq!(fieldnorm_reader.fieldnorm_id(0), 0);
-            }
+            let fieldnorm_reader = reader.get_fieldnorms_reader(title_field)?;
+            assert_eq!(fieldnorm_reader.fieldnorm_id(0), 0);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_fieldnorm() {
+    fn test_fieldnorm() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!();
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            index_writer.commit().unwrap();
-        }
-        {
-            let reader = index.reader().unwrap();
-            let searcher = reader.searcher();
-            let segment_reader: &SegmentReader = searcher.segment_reader(0);
-            let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field);
-            assert_eq!(fieldnorms_reader.fieldnorm(0), 3);
-            assert_eq!(fieldnorms_reader.fieldnorm(1), 0);
-            assert_eq!(fieldnorms_reader.fieldnorm(2), 2);
-        }
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+        index_writer.add_document(doc!(text_field=>"a b c"));
+        index_writer.add_document(doc!());
+        index_writer.add_document(doc!(text_field=>"a b"));
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let segment_reader: &SegmentReader = searcher.segment_reader(0);
+        let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field)?;
+        assert_eq!(fieldnorms_reader.fieldnorm(0), 3);
+        assert_eq!(fieldnorms_reader.fieldnorm(1), 0);
+        assert_eq!(fieldnorms_reader.fieldnorm(2), 2);
+        Ok(())
     }
 
     fn advance_undeleted(docset: &mut dyn DocSet, reader: &SegmentReader) -> bool {
