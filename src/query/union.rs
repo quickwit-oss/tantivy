@@ -398,9 +398,9 @@ mod bench {
 
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::{ConstScorer, Union, VecDocSet};
-    use crate::tests;
     use crate::DocId;
     use crate::DocSet;
+    use crate::{tests, TERMINATED};
     use test::Bencher;
 
     #[bench]
@@ -414,10 +414,12 @@ mod bench {
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
-                    .map(ConstScorer::new)
+                    .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
             );
-            while v.advance() {}
+            while v.doc() != TERMINATED {
+                v.advance();
+            }
         });
     }
     #[bench]
@@ -432,10 +434,12 @@ mod bench {
                 union_docset
                     .iter()
                     .map(|doc_ids| VecDocSet::from(doc_ids.clone()))
-                    .map(ConstScorer::new)
+                    .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),
             );
-            while v.advance() {}
+            while v.doc() != TERMINATED {
+                v.advance();
+            }
         });
     }
 }

@@ -727,7 +727,7 @@ mod bench {
             let mut s = 0u32;
             while segment_postings.doc() != TERMINATED {
                 s += (segment_postings.doc() & n) % 1024;
-                segment_postings.advance()
+                segment_postings.advance();
             }
             s
         });

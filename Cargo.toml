@@ -79,7 +79,6 @@ lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
-scoref64 = [] # scores are f64 instead of f32. was introduced to debug blockwand.
 
 [workspace]
 members = ["query-grammar"]

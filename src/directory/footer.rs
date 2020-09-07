@@ -271,7 +271,11 @@ mod tests {
         let mut vec = Vec::new();
         let footer_proxy = FooterProxy::new(&mut vec);
         assert!(footer_proxy.terminate().is_ok());
-        assert_eq!(vec.len(), 167);
+        if crate::store::COMPRESSION == "lz4" {
+            assert_eq!(vec.len(), 158);
+        } else {
+            assert_eq!(vec.len(), 167);
+        }
         let footer = Footer::deserialize(&mut &vec[..]).unwrap();
         assert!(matches!(
            footer.versioned_footer,

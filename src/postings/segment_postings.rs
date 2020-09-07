@@ -114,7 +114,7 @@ impl SegmentPostings {
                     .iter()
                     .map(|&fieldnorm| fieldnorm as u64)
                     .sum::<u64>();
-                total_num_tokens as Score / fieldnorms.len() as f32
+                total_num_tokens as Score / fieldnorms.len() as Score
             })
             .unwrap_or(0.0);
         let mut postings_serializer = PostingsSerializer::new(

@@ -310,6 +310,7 @@ pub mod tests {
 mod bench {
 
     use super::*;
+    use crate::TERMINATED;
     use rand::rngs::StdRng;
     use rand::Rng;
     use rand::SeedableRng;
@@ -340,7 +341,7 @@ mod bench {
         let mut encoder = BlockEncoder::new();
         let data = generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
         let (num_bits, compressed) = encoder.compress_block_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         b.iter(|| {
             decoder.uncompress_block_sorted(compressed, 0u32, num_bits);
         });
@@ -375,9 +376,9 @@ mod bench {
         let mut encoder = BlockEncoder::new();
         let data = generate_array(NUM_INTS_BENCH_VINT, 0.001);
         let compressed = encoder.compress_vint_sorted(&data, 0u32);
-        let mut decoder = BlockDecoder::new();
+        let mut decoder = BlockDecoder::default();
         b.iter(|| {
-            decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
+            decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT, TERMINATED);
         });
     }
 }
