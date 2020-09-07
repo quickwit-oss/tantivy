@@ -221,7 +221,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// #    let text_field = schema_builder.add_text_field("text", TEXT);
 /// #    let schema = schema_builder.build();
 /// #    let index = Index::create_in_ram(schema);
-/// #    let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+/// #    let mut index_writer = index.writer_for_tests()?;
 /// #    let doc = doc!(text_field => r#"Comme je descendais des Fleuves impassibles,
 /// #   Je ne me sentis plus guidé par les haleurs :
 /// #  Des Peaux-Rouges criards les avaient pris pour cibles,
@@ -506,7 +506,7 @@ Survey in 2016, 2017, and 2018."#;
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(text_field => "a"));
             index_writer.add_document(doc!(text_field => "a"));
             index_writer.add_document(doc!(text_field => "a b"));
@@ -562,7 +562,7 @@ Survey in 2016, 2017, and 2018."#;
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             {
                 let doc = doc ! (text_field => TEST_TEXT);
                 index_writer.add_document(doc);

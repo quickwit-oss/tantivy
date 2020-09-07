@@ -300,6 +300,15 @@ impl Index {
         )
     }
 
+    /// Helper to create an index writer for tests.
+    ///
+    /// That index writer only simply has a single thread and a heap of 5 MB.
+    /// Using a single thread gives us a deterministic allocation of DocId.
+    #[cfg(test)]
+    pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
+        self.writer_with_num_threads(1, 10_000_000)
+    }
+
     /// Creates a multithreaded writer
     ///
     /// Tantivy will automatically define the number of threads to use.
@@ -502,7 +511,7 @@ mod tests {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
             let mut index = Index::create_from_tempdir(schema).unwrap();
-            let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut writer = index.writer_for_tests().unwrap();
             writer.commit().unwrap();
             let reader = index
                 .reader_builder()
@@ -545,7 +554,7 @@ mod tests {
         let _watch_handle = reader_index.directory_mut().watch(Box::new(move || {
             let _ = sender.send(());
         }));
-        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut writer = index.writer_for_tests().unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
         writer.commit().unwrap();

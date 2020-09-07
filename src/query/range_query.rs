@@ -47,7 +47,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// let schema = schema_builder.build();
 ///
 /// let index = Index::create_in_ram(schema);
-/// let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
+/// let mut index_writer = index.writer_for_tests()?;
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
@@ -345,7 +345,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 6_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             for year in 1950u64..2017u64 {
                 let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
                 for _ in 0..num_docs_within_year {
@@ -488,7 +488,7 @@ mod tests {
         schema_builder.add_i64_field("year", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
-        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         let title = schema.get_field("title").unwrap();
         let year = schema.get_field("year").unwrap();
         index_writer.add_document(doc!(

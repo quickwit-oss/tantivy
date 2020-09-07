@@ -91,7 +91,7 @@ pub mod tests {
         let title = schema_builder.add_text_field("title", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(title => r#"abc abc abc"#));
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         for _ in 0..1_000 {
@@ -176,7 +176,7 @@ pub mod tests {
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
         let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         {
             index_writer.add_document(doc!(text_field=>exceeding_token_text));
@@ -319,7 +319,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(text_field => "g b b d c g c"));
             index_writer.add_document(doc!(text_field => "g a b b a d c g c"));
             assert!(index_writer.commit().is_ok());
@@ -351,7 +351,7 @@ pub mod tests {
 
             let index = Index::create_in_ram(schema);
             {
-                let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+                let mut index_writer = index.writer_for_tests().unwrap();
                 for i in 0u64..num_docs as u64 {
                     let doc = doc!(value_field => 2u64, value_field => i % 2u64);
                     index_writer.add_document(doc);
@@ -422,7 +422,7 @@ pub mod tests {
 
         // delete some of the documents
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
@@ -476,7 +476,7 @@ pub mod tests {
 
         // delete everything else
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }
@@ -519,7 +519,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema);
         let posting_list_size = 1_000_000;
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             for _ in 0..posting_list_size {
                 let mut doc = Document::default();
                 if rng.gen_bool(1f64 / 15f64) {

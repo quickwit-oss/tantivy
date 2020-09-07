@@ -144,7 +144,7 @@ mod tests {
     fn test_boost_query_explain() {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(Document::new());
         assert!(index_writer.commit().is_ok());
         let reader = index.reader().unwrap();

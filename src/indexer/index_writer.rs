@@ -800,7 +800,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let index_writer = index.writer_for_tests().unwrap();
         let operations = vec![
             UserOperation::Add(doc!(text_field=>"a")),
             UserOperation::Add(doc!(text_field=>"b")),
@@ -815,7 +815,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
 
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(text_field => "hello1"));
         index_writer.add_document(doc!(text_field => "hello2"));
         assert!(index_writer.commit().is_ok());
@@ -864,7 +864,7 @@ mod tests {
             .reload_policy(ReloadPolicy::Manual)
             .try_into()
             .unwrap();
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
         let operations = vec![
@@ -926,8 +926,8 @@ mod tests {
     fn test_lockfile_already_exists_error_msg() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        match index.writer_with_num_threads(1, 3_000_000) {
+        let _index_writer = index.writer_for_tests().unwrap();
+        match index.writer_for_tests() {
             Err(err) => {
                 let err_msg = err.to_string();
                 assert!(err_msg.contains("already an `IndexWriter`"));
@@ -1261,7 +1261,7 @@ mod tests {
         let idfield = schema_builder.add_text_field("id", STRING);
         schema_builder.add_text_field("optfield", STRING);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(idfield=>"myid"));
         let commit = index_writer.commit();
         assert!(commit.is_ok());

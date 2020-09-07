@@ -209,7 +209,12 @@ impl SegmentReader {
     ///
     /// The field reader is in charge of iterating through the
     /// term dictionary associated to a specific field,
-    /// and opening the posting list associated to a)ny term.
+    /// and opening the posting list associated to any term.
+    ///
+    /// If the field is marked as index, a warn is logged and an empty `InvertedIndexReader`
+    /// is returned.
+    /// Similarly if the field is marked as indexed but no term has been indexed for the given
+    /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
     pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
@@ -337,7 +342,7 @@ mod test {
         let name = schema.get_field("name").unwrap();
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(name => "tantivy"));
             index_writer.add_document(doc!(name => "horse"));
             index_writer.add_document(doc!(name => "jockey"));

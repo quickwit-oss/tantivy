@@ -259,7 +259,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             index_writer.add_document(doc!(text=>"abc"));
             index_writer.add_document(doc!(text=>"abc abc abc"));
             index_writer.add_document(doc!(text=>"abc abc"));

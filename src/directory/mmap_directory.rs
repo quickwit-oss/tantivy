@@ -654,7 +654,7 @@ mod tests {
         {
             let index = Index::create(mmap_directory.clone(), schema).unwrap();
 
-            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();
             log_merge_policy.set_min_merge_size(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));

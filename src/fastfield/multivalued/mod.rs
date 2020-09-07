@@ -25,7 +25,7 @@ mod tests {
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(field=>1u64, field=>3u64));
         index_writer.add_document(doc!());
         index_writer.add_document(doc!(field=>4u64));
@@ -64,7 +64,7 @@ mod tests {
             schema_builder.add_i64_field("time_stamp_i", IntOptions::default().set_stored());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         let first_time_stamp = chrono::Utc::now();
         index_writer.add_document(
             doc!(date_field=>first_time_stamp, date_field=>first_time_stamp, time_i=>1i64),
@@ -186,7 +186,7 @@ mod tests {
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(field=> 1i64, field => 3i64));
         index_writer.add_document(doc!());
         index_writer.add_document(doc!(field=> -4i64));
@@ -221,7 +221,7 @@ mod tests {
         let field = schema_builder.add_facet_field("facetfield");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let mut index_writer = index.writer_for_tests().unwrap();
         for i in 0..100_000 {
             index_writer.add_document(doc!(field=> Facet::from(format!("/lang/{}", i).as_str())));
         }
