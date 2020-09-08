@@ -4,7 +4,6 @@ use super::Field;
 use crate::common;
 use crate::schema::Facet;
 use crate::DateTime;
-use byteorder::{BigEndian, ByteOrder};
 use std::str;
 
 /// Size (in bytes) of the buffer of a int field.
@@ -19,6 +18,10 @@ where
     B: AsRef<[u8]>;
 
 impl Term {
+    pub(crate) fn new() -> Term {
+        Term(Vec::with_capacity(100))
+    }
+
     /// Builds a term given a field, and a i64-value
     ///
     /// Assuming the term has a field id of 1, and a i64 value of 3234,
@@ -93,6 +96,12 @@ impl Term {
         term
     }
 
+    pub(crate) fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
+        let mut term = Term::for_field(field);
+        term.set_bytes(bytes);
+        term
+    }
+
     /// Creates a new Term for a given field.
     pub(crate) fn for_field(field: Field) -> Term {
         let mut term = Term(Vec::with_capacity(100));
@@ -100,12 +109,10 @@ impl Term {
         term
     }
 
-    /// Returns the field.
-    pub fn set_field(&mut self, field: Field) {
-        if self.0.len() < 4 {
-            self.0.resize(4, 0u8);
-        }
-        BigEndian::write_u32(&mut self.0[0..4], field.field_id());
+    pub(crate) fn set_field(&mut self, field: Field) {
+        self.0.clear();
+        self.0
+            .extend_from_slice(&field.field_id().to_be_bytes()[..]);
     }
 
     /// Sets a u64 value in the term.
@@ -116,7 +123,7 @@ impl Term {
     /// the natural order of the values.
     pub fn set_u64(&mut self, val: u64) {
         self.0.resize(INT_TERM_LEN, 0u8);
-        BigEndian::write_u64(&mut self.0[4..], val);
+        self.0[4..12].copy_from_slice(val.to_be_bytes().as_ref());
     }
 
     /// Sets a `i64` value in the term.
@@ -132,12 +139,6 @@ impl Term {
     fn set_bytes(&mut self, bytes: &[u8]) {
         self.0.resize(4, 0u8);
         self.0.extend(bytes);
-    }
-
-    pub(crate) fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
-        let mut term = Term::for_field(field);
-        term.set_bytes(bytes);
-        term
     }
 
     /// Set the texts only, keeping the field untouched.
@@ -157,7 +158,9 @@ where
 
     /// Returns the field.
     pub fn field(&self) -> Field {
-        Field::from_field_id(BigEndian::read_u32(&self.0.as_ref()[..4]))
+        let mut field_id_bytes = [0u8; 4];
+        field_id_bytes.copy_from_slice(&self.0.as_ref()[..4]);
+        Field::from_field_id(u32::from_be_bytes(field_id_bytes))
     }
 
     /// Returns the `u64` value stored in a term.
@@ -166,7 +169,9 @@ where
     /// ... or returns an invalid value
     /// if the term is not a `u64` field.
     pub fn get_u64(&self) -> u64 {
-        BigEndian::read_u64(&self.0.as_ref()[4..])
+        let mut field_id_bytes = [0u8; 8];
+        field_id_bytes.copy_from_slice(self.value_bytes());
+        u64::from_be_bytes(field_id_bytes)
     }
 
     /// Returns the `i64` value stored in a term.
@@ -175,7 +180,7 @@ where
     /// ... or returns an invalid value
     /// if the term is not a `i64` field.
     pub fn get_i64(&self) -> i64 {
-        common::u64_to_i64(BigEndian::read_u64(&self.0.as_ref()[4..]))
+        common::u64_to_i64(self.get_u64())
     }
 
     /// Returns the `f64` value stored in a term.
@@ -184,7 +189,7 @@ where
     /// ... or returns an invalid value
     /// if the term is not a `f64` field.
     pub fn get_f64(&self) -> f64 {
-        common::u64_to_f64(BigEndian::read_u64(&self.0.as_ref()[4..]))
+        common::u64_to_f64(self.get_u64())
     }
 
     /// Returns the text associated with the term.
