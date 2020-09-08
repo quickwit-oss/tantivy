@@ -105,6 +105,7 @@ impl MultiFieldPostingsWriter {
         doc: DocId,
         field: Field,
         token_stream: &mut dyn TokenStream,
+        term_buffer: &mut Term,
     ) -> u32 {
         let postings_writer =
             self.per_field_postings_writers[field.field_id() as usize].deref_mut();
@@ -114,6 +115,7 @@ impl MultiFieldPostingsWriter {
             field,
             token_stream,
             &mut self.heap,
+            term_buffer,
         )
     }
 
@@ -220,13 +222,20 @@ pub trait PostingsWriter {
         field: Field,
         token_stream: &mut dyn TokenStream,
         heap: &mut MemoryArena,
+        term_buffer: &mut Term,
     ) -> u32 {
-        let mut term = Term::for_field(field);
+        term_buffer.set_field(field);
         let mut sink = |token: &Token| {
             // We skip all tokens with a len greater than u16.
             if token.text.len() <= MAX_TOKEN_LEN {
-                term.set_text(token.text.as_str());
-                self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+                term_buffer.set_text(token.text.as_str());
+                self.subscribe(
+                    term_index,
+                    doc_id,
+                    token.position as u32,
+                    &term_buffer,
+                    heap,
+                );
             } else {
                 info!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
