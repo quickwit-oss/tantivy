@@ -245,6 +245,10 @@ pub type DocId = u32;
 /// with opstamp `n+1`.
 pub type Opstamp = u64;
 
+/// A Score that represents the relevance of the document to the query
+///
+/// This is modelled internally as a `f32`. The larger the number, the more relevant
+/// the document to the search query.
 pub type Score = f32;
 
 /// A `SegmentLocalId` identifies a segment.
