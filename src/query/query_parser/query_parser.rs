@@ -34,6 +34,10 @@ pub enum QueryParserError {
     /// is neither.
     #[error("Expected a valid integer: '{0:?}'")]
     ExpectedInt(ParseIntError),
+    /// The query contains a term for a bytes field, but the value is not valid
+    /// base64.
+    #[error("Expected base64: '{0:?}'")]
+    ExpectedBase64(base64::DecodeError),
     /// The query contains a term for a `f64`-field, but the value
     /// is not a f64.
     #[error("Invalid query: Only excluding terms given")]
@@ -358,10 +362,9 @@ impl QueryParser {
                 Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
             }
             FieldType::Bytes(_) => {
-                let term = Term::from_field_bytes(field, phrase.as_bytes());
+                let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
+                let term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![(0, term)])
-                // let field_name = self.schema.get_field_name(field).to_string();
-                // Err(QueryParserError::FieldNotIndexed(field_name))
             }
         }
     }
@@ -603,6 +606,8 @@ mod test {
         schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_f64_field("float", INDEXED);
         schema_builder.add_facet_field("facet");
+        schema_builder.add_bytes_field("bytes", INDEXED);
+        schema_builder.add_bytes_field("bytes_not_indexed", STORED);
         schema_builder.build()
     }
 
@@ -788,6 +793,37 @@ mod test {
             ),
             false,
         );
+    }
+
+    #[test]
+    fn test_parse_bytes() {
+        test_parse_query_to_logical_ast_helper(
+            "bytes:YnVidQ==",
+            "Term(field=12,bytes=[98, 117, 98, 117])",
+            false,
+        );
+    }
+
+    #[test]
+    fn test_parse_bytes_not_indexed() {
+        let error = parse_query_to_logical_ast("bytes_not_indexed:aaa", false).unwrap_err();
+        assert!(matches!(error, QueryParserError::FieldNotIndexed(_)));
+    }
+
+    #[test]
+    fn test_parse_bytes_phrase() {
+        test_parse_query_to_logical_ast_helper(
+            "bytes:\"YnVidQ==\"",
+            "Term(field=12,bytes=[98, 117, 98, 117])",
+            false,
+        );
+    }
+
+    #[test]
+    fn test_parse_bytes_invalid_base64() {
+        let base64_err: QueryParserError =
+            parse_query_to_logical_ast("bytes:aa", false).unwrap_err();
+        assert!(matches!(base64_err, QueryParserError::ExpectedBase64(_)));
     }
 
     #[test]

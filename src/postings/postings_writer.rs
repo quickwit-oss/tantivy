@@ -38,12 +38,8 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::I64(_)
         | FieldType::F64(_)
         | FieldType::Date(_)
+        | FieldType::Bytes(_)
         | FieldType::HierarchicalFacet => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
-        FieldType::Bytes(_) => {
-            // FieldType::Bytes cannot actually be indexed.
-            // TODO fix during the indexer refactoring described in #276
-            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
-        }
     }
 }
 

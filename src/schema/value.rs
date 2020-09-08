@@ -125,73 +125,76 @@ impl Value {
     /// Returns the text value, provided the value is of the `Str` type.
     /// (Returns None if the value is not of the `Str` type).
     pub fn text(&self) -> Option<&str> {
-        match *self {
-            Value::Str(ref text) => Some(text),
-            _ => None,
+        if let Value::Str(text) = self {
+            Some(text)
+        } else {
+            None
         }
     }
 
     /// Returns the tokenized text, provided the value is of the `PreTokStr` type.
-    /// (Returns None if the value is not of the `PreTokStr` type).
+    ///
+    /// Returns None if the value is not of the `PreTokStr` type.
     pub fn tokenized_text(&self) -> Option<&PreTokenizedString> {
-        match *self {
-            Value::PreTokStr(ref tok_text) => Some(tok_text),
-            _ => None,
+        if let Value::PreTokStr(tokenized_text) = self {
+            Some(tokenized_text)
+        } else {
+            None
         }
     }
 
     /// Returns the u64-value, provided the value is of the `U64` type.
     ///
-    /// # Panics
-    /// If the value is not of type `U64`
-    pub fn u64_value(&self) -> u64 {
-        match *self {
-            Value::U64(ref value) => *value,
-            _ => panic!("This is not a u64 field."),
+    /// Returns None if the value is not of the `U64` type.
+    pub fn u64_value(&self) -> Option<u64> {
+        if let Value::U64(val) = self {
+            Some(*val)
+        } else {
+            None
         }
     }
 
     /// Returns the i64-value, provided the value is of the `I64` type.
     ///
-    /// # Panics
-    /// If the value is not of type `I64`
-    pub fn i64_value(&self) -> i64 {
-        match *self {
-            Value::I64(ref value) => *value,
-            _ => panic!("This is not a i64 field."),
+    /// Return None if the value is not of type `I64`.
+    pub fn i64_value(&self) -> Option<i64> {
+        if let Value::I64(val) = self {
+            Some(*val)
+        } else {
+            None
         }
     }
 
     /// Returns the f64-value, provided the value is of the `F64` type.
     ///
-    /// # Panics
-    /// If the value is not of type `F64`
-    pub fn f64_value(&self) -> f64 {
-        match *self {
-            Value::F64(ref value) => *value,
-            _ => panic!("This is not a f64 field."),
+    /// Return None if the value is not of type `F64`.
+    pub fn f64_value(&self) -> Option<f64> {
+        if let Value::F64(value) = self {
+            Some(*value)
+        } else {
+            None
         }
     }
 
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
-    /// # Panics
-    /// If the value is not of type `Date`
-    pub fn date_value(&self) -> &DateTime {
-        match *self {
-            Value::Date(ref value) => value,
-            _ => panic!("This is not a date field."),
+    /// Returns None if the value is not of type `Date`.
+    pub fn date_value(&self) -> Option<&DateTime> {
+        if let Value::Date(date) = self {
+            Some(date)
+        } else {
+            None
         }
     }
 
     /// Returns the Bytes-value, provided the value is of the `Bytes` type.
     ///
-    /// # Panics
-    /// If the value is not of type `Bytes`
-    pub fn bytes_value(&self) -> &Vec<u8> {
-        match *self {
-            Value::Bytes(ref value) => value,
-            _ => panic!("This is not a bytes field."),
+    /// Returns None if the value is not of type `Bytes`.
+    pub fn bytes_value(&self) -> Option<&[u8]> {
+        if let Value::Bytes(bytes) = self {
+            Some(bytes)
+        } else {
+            None
         }
     }
 }

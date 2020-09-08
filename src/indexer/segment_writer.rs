@@ -16,7 +16,6 @@ use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
-use std::io;
 
 /// Computes the initial size of the hash table.
 ///
@@ -117,7 +116,11 @@ impl SegmentWriter {
     /// Indexes a new document
     ///
     /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(&mut self, add_operation: AddOperation, schema: &Schema) -> io::Result<()> {
+    pub fn add_document(
+        &mut self,
+        add_operation: AddOperation,
+        schema: &Schema,
+    ) -> crate::Result<()> {
         let doc_id = self.max_doc;
         let mut doc = add_operation.document;
         self.doc_opstamps.push(add_operation.opstamp);
@@ -125,13 +128,20 @@ impl SegmentWriter {
         self.fast_field_writers.add_document(&doc);
 
         for (field, field_values) in doc.get_sorted_field_values() {
-            let field_options = schema.get_field_entry(field);
-            if !field_options.is_indexed() {
+            let field_entry = schema.get_field_entry(field);
+            let make_schema_error = || {
+                crate::TantivyError::SchemaError(format!(
+                    "Expected a {:?} for field {:?}",
+                    field_entry.field_type().value_type(),
+                    field_entry.name()
+                ))
+            };
+            if !field_entry.is_indexed() {
                 continue;
             }
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
-            match *field_options.field_type() {
+            match *field_entry.field_type() {
                 FieldType::HierarchicalFacet => {
                     term_buffer.set_field(field);
                     let facets =
@@ -143,14 +153,16 @@ impl SegmentWriter {
                                     panic!("Expected hierarchical facet");
                                 }
                             });
-                    for fake_str in facets {
+                    for facet_str in facets {
                         let mut unordered_term_id_opt = None;
-                        FacetTokenizer.token_stream(fake_str).process(&mut |token| {
-                            term_buffer.set_text(&token.text);
-                            let unordered_term_id =
-                                multifield_postings.subscribe(doc_id, &term_buffer);
-                            unordered_term_id_opt = Some(unordered_term_id);
-                        });
+                        FacetTokenizer
+                            .token_stream(facet_str)
+                            .process(&mut |token| {
+                                term_buffer.set_text(&token.text);
+                                let unordered_term_id =
+                                    multifield_postings.subscribe(doc_id, &term_buffer);
+                                unordered_term_id_opt = Some(unordered_term_id);
+                            });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
                                 .get_multivalue_writer(field)
@@ -205,7 +217,11 @@ impl SegmentWriter {
                     if int_option.is_indexed() {
                         for field_value in field_values {
                             term_buffer.set_field(field_value.field());
-                            term_buffer.set_u64(field_value.value().u64_value());
+                            let u64_val = field_value
+                                .value()
+                                .u64_value()
+                                .ok_or_else(make_schema_error)?;
+                            term_buffer.set_u64(u64_val);
                             multifield_postings.subscribe(doc_id, &term_buffer);
                         }
                     }
@@ -214,7 +230,11 @@ impl SegmentWriter {
                     if int_option.is_indexed() {
                         for field_value in field_values {
                             term_buffer.set_field(field_value.field());
-                            term_buffer.set_i64(field_value.value().date_value().timestamp());
+                            let date_val = field_value
+                                .value()
+                                .date_value()
+                                .ok_or_else(make_schema_error)?;
+                            term_buffer.set_i64(date_val.timestamp());
                             multifield_postings.subscribe(doc_id, &term_buffer);
                         }
                     }
@@ -223,7 +243,11 @@ impl SegmentWriter {
                     if int_option.is_indexed() {
                         for field_value in field_values {
                             term_buffer.set_field(field_value.field());
-                            term_buffer.set_i64(field_value.value().i64_value());
+                            let i64_val = field_value
+                                .value()
+                                .i64_value()
+                                .ok_or_else(make_schema_error)?;
+                            term_buffer.set_i64(i64_val);
                             multifield_postings.subscribe(doc_id, &term_buffer);
                         }
                     }
@@ -232,7 +256,11 @@ impl SegmentWriter {
                     if int_option.is_indexed() {
                         for field_value in field_values {
                             term_buffer.set_field(field_value.field());
-                            term_buffer.set_f64(field_value.value().f64_value());
+                            let f64_val = field_value
+                                .value()
+                                .f64_value()
+                                .ok_or_else(make_schema_error)?;
+                            term_buffer.set_f64(f64_val);
                             multifield_postings.subscribe(doc_id, &term_buffer);
                         }
                     }
@@ -240,11 +268,13 @@ impl SegmentWriter {
                 FieldType::Bytes(ref option) => {
                     if option.is_indexed() {
                         for field_value in field_values {
-                            let term = Term::from_field_bytes(
-                                field_value.field(),
-                                field_value.value().bytes_value(),
-                            );
-                            self.multifield_postings.subscribe(doc_id, &term);
+                            term_buffer.set_field(field_value.field());
+                            let bytes = field_value
+                                .value()
+                                .bytes_value()
+                                .ok_or_else(make_schema_error)?;
+                            term_buffer.set_bytes(bytes);
+                            self.multifield_postings.subscribe(doc_id, &term_buffer);
                         }
                     }
                 }

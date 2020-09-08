@@ -302,7 +302,6 @@ impl SnippetGenerator {
     pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
         let text: String = doc
             .get_all(self.field)
-            .into_iter()
             .flat_map(Value::text)
             .collect::<Vec<&str>>()
             .join(" ");

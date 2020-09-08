@@ -1,5 +1,4 @@
-use base64::decode;
-
+use crate::schema::bytes_options::BytesOptions;
 use crate::schema::Facet;
 use crate::schema::IndexRecordOption;
 use crate::schema::TextFieldIndexing;
@@ -8,7 +7,6 @@ use crate::schema::{IntOptions, TextOptions};
 use crate::tokenizer::PreTokenizedString;
 use chrono::{FixedOffset, Utc};
 use serde_json::Value as JsonValue;
-use crate::schema::bytes_options::BytesOptions;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -120,7 +118,7 @@ impl FieldType {
                 } else {
                     None
                 }
-            },
+            }
         }
     }
 
@@ -147,7 +145,7 @@ impl FieldType {
                     ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
                 ),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
-                FieldType::Bytes(_) => decode(field_text).map(Value::Bytes).map_err(|_| {
+                FieldType::Bytes(_) => base64::decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64(format!(
                         "Expected base64 string, got {:?}",
                         field_text
@@ -224,7 +222,6 @@ mod tests {
     use crate::schema::TextOptions;
     use crate::schema::Value;
     use crate::schema::{Schema, INDEXED};
-    use crate::schema::bytes_options::BytesOptions;
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, Document};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -256,18 +253,18 @@ mod tests {
 
     #[test]
     fn test_bytes_value_from_json() {
-        let result = FieldType::Bytes(BytesOptions::default())
+        let result = FieldType::Bytes(Default::default())
             .value_from_json(&json!("dGhpcyBpcyBhIHRlc3Q="))
             .unwrap();
         assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
 
-        let result = FieldType::Bytes(BytesOptions::default()).value_from_json(&json!(521));
+        let result = FieldType::Bytes(Default::default()).value_from_json(&json!(521));
         match result {
             Err(ValueParsingError::TypeError(_)) => {}
             _ => panic!("Expected parse failure for wrong type"),
         }
 
-        let result = FieldType::Bytes(BytesOptions::default()).value_from_json(&json!("-"));
+        let result = FieldType::Bytes(Default::default()).value_from_json(&json!("-"));
         match result {
             Err(ValueParsingError::InvalidBase64(_)) => {}
             _ => panic!("Expected parse failure for invalid base64"),

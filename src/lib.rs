@@ -842,11 +842,11 @@ mod tests {
                             text_field => "some other value",
                             other_text_field => "short");
         assert_eq!(document.len(), 3);
-        let values = document.get_all(text_field);
+        let values: Vec<&Value> = document.get_all(text_field).collect();
         assert_eq!(values.len(), 2);
         assert_eq!(values[0].text(), Some("tantivy"));
         assert_eq!(values[1].text(), Some("some other value"));
-        let values = document.get_all(other_text_field);
+        let values: Vec<&Value> = document.get_all(other_text_field).collect();
         assert_eq!(values.len(), 1);
         assert_eq!(values[0].text(), Some("short"));
     }

@@ -49,16 +49,10 @@ impl BytesFastFieldWriter {
     /// matching field values present in the document.
     pub fn add_document(&mut self, doc: &Document) {
         self.next_doc();
-        for field_value in doc.field_values() {
-            if field_value.field() == self.field {
-                if let Value::Bytes(ref bytes) = *field_value.value() {
-                    self.vals.extend_from_slice(bytes);
-                } else {
-                    panic!(
-                        "Bytes field contained non-Bytes Value!. Field {:?} = {:?}",
-                        self.field, field_value
-                    );
-                }
+        for field_value in doc.get_all(self.field) {
+            if let Value::Bytes(ref bytes) = field_value {
+                self.vals.extend_from_slice(bytes);
+                return;
             }
         }
     }
@@ -76,21 +70,18 @@ impl BytesFastFieldWriter {
 
     /// Serializes the fast field values by pushing them to the `FastFieldSerializer`.
     pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
-        {
-            // writing the offset index
-            let mut doc_index_serializer =
-                serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
-            for &offset in &self.doc_index {
-                doc_index_serializer.add_val(offset)?;
-            }
-            doc_index_serializer.add_val(self.vals.len() as u64)?;
-            doc_index_serializer.close_field()?;
+        // writing the offset index
+        let mut doc_index_serializer =
+            serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
+        for &offset in &self.doc_index {
+            doc_index_serializer.add_val(offset)?;
         }
-        {
-            // writing the values themselves
-            let mut value_serializer = serializer.new_bytes_fast_field_with_idx(self.field, 1)?;
-            value_serializer.write_all(&self.vals)?;
-        }
+        doc_index_serializer.add_val(self.vals.len() as u64)?;
+        doc_index_serializer.close_field()?;
+        // writing the values themselves
+        serializer
+            .new_bytes_fast_field_with_idx(self.field, 1)?
+            .write_all(&self.vals)?;
         Ok(())
     }
 }

@@ -185,12 +185,15 @@ impl Collector for BytesFastFieldTestCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<BytesFastFieldSegmentCollector> {
+        let reader = segment_reader
+            .fast_fields()
+            .bytes(self.field)
+            .ok_or_else(|| {
+                crate::TantivyError::InvalidArgument("Field is not a bytes fast field.".to_string())
+            })?;
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
-            reader: segment_reader
-                .fast_fields()
-                .bytes(self.field)
-                .expect("Field is not a bytes fast field."),
+            reader,
         })
     }
 

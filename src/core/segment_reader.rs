@@ -129,7 +129,7 @@ impl SegmentReader {
         self.fieldnorm_readers.get_field(field).ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
-                "Field norm not found for field {:?}. Was it market as indexed during indexing.",
+                "Field norm not found for field {:?}. Was it marked as indexed during indexing?",
                 field_name
             );
             crate::TantivyError::SchemaError(err_msg)

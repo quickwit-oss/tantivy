@@ -117,10 +117,10 @@ impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
 
     fn bitor(self, other: T) -> TextOptions {
         let other = other.into();
-        let mut res = TextOptions::default();
-        res.indexing = self.indexing.or(other.indexing);
-        res.stored = self.stored | other.stored;
-        res
+        TextOptions {
+            indexing: self.indexing.or(other.indexing),
+            stored: self.stored | other.stored,
+        }
     }
 }
 
