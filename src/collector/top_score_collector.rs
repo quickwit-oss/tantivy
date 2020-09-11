@@ -324,7 +324,7 @@ impl TopDocs {
     where
         TScore: 'static + Send + Sync + Clone + PartialOrd,
         TScoreSegmentTweaker: ScoreSegmentTweaker<TScore> + 'static,
-        TScoreTweaker: ScoreTweaker<TScore, Child = TScoreSegmentTweaker>,
+        TScoreTweaker: ScoreTweaker<TScore, Child = TScoreSegmentTweaker> + Send + Sync,
     {
         TweakedScoreTopCollector::new(score_tweaker, self.0.into_tscore())
     }
@@ -438,7 +438,7 @@ impl TopDocs {
     where
         TScore: 'static + Send + Sync + Clone + PartialOrd,
         TCustomSegmentScorer: CustomSegmentScorer<TScore> + 'static,
-        TCustomScorer: CustomScorer<TScore, Child = TCustomSegmentScorer>,
+        TCustomScorer: CustomScorer<TScore, Child = TCustomSegmentScorer> + Send + Sync,
     {
         CustomScoreTopCollector::new(custom_score, self.0.into_tscore())
     }

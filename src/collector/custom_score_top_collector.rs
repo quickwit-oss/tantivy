@@ -46,7 +46,7 @@ pub trait CustomScorer<TScore>: Sync {
 
 impl<TCustomScorer, TScore> Collector for CustomScoreTopCollector<TCustomScorer, TScore>
 where
-    TCustomScorer: CustomScorer<TScore>,
+    TCustomScorer: CustomScorer<TScore> + Send + Sync,
     TScore: 'static + PartialOrd + Clone + Send + Sync,
 {
     type Fruit = Vec<(TScore, DocAddress)>;

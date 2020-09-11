@@ -133,7 +133,7 @@ impl<T> Fruit for T where T: Send + downcast_rs::Downcast {}
 /// The collection logic itself is in the `SegmentCollector`.
 ///
 /// Segments are not guaranteed to be visited in any specific order.
-pub trait Collector: Sync {
+pub trait Collector: Sync + Send {
     /// `Fruit` is the type for the result of our collection.
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;

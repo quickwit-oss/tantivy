@@ -49,7 +49,7 @@ pub trait ScoreTweaker<TScore>: Sync {
 
 impl<TScoreTweaker, TScore> Collector for TweakedScoreTopCollector<TScoreTweaker, TScore>
 where
-    TScoreTweaker: ScoreTweaker<TScore>,
+    TScoreTweaker: ScoreTweaker<TScore> + Send + Sync,
     TScore: 'static + PartialOrd + Clone + Send + Sync,
 {
     type Fruit = Vec<(TScore, DocAddress)>;
