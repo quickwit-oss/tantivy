@@ -40,7 +40,7 @@ use std::fmt;
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, `Weight` and `Scorer`.
-pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
+pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     /// Create the weight associated to a query.
     ///
     /// If scoring is not required, setting `scoring_enabled` to `false`
