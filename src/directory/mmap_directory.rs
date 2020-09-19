@@ -1,4 +1,5 @@
 use crate::core::META_FILEPATH;
+use atomicwrites;
 use crate::directory::error::LockError;
 use crate::directory::error::{
     DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
@@ -490,11 +491,9 @@ impl Directory for MmapDirectory {
 
     fn atomic_write(&mut self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
-        let mut tempfile = tempfile::Builder::new().tempfile_in(&self.inner.root_path)?;
-        tempfile.write_all(content)?;
-        tempfile.flush()?;
         let full_path = self.resolve_path(path);
-        tempfile.into_temp_path().persist(full_path)?;
+        let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
+        meta_file.write(|f| f.write_all(content))?;
         Ok(())
     }
 
