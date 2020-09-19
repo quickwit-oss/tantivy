@@ -1,3 +1,9 @@
+Tantivy 0.13.1
+======================
+Made `Query` and `Collector` `Send + Sync`.
+Updated misc dependency versions.
+
+
 Tantivy 0.13.0
 ======================
 Tantivy 0.13 introduce a change in the index format that will require
