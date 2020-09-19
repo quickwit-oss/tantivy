@@ -26,12 +26,14 @@ pub enum SegmentComponent {
     STORE,
     /// Bitset describing which document of the segment is deleted.
     DELETE,
+
+    FIELDSTATS,
 }
 
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 9] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,
             SegmentComponent::POSITIONSSKIP,
@@ -40,6 +42,7 @@ impl SegmentComponent {
             SegmentComponent::TERMS,
             SegmentComponent::STORE,
             SegmentComponent::DELETE,
+            SegmentComponent::FIELDSTATS,
         ];
         SEGMENT_COMPONENTS.iter()
     }

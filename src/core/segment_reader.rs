@@ -1,4 +1,4 @@
-use crate::common::CompositeFile;
+use crate::{common::CompositeFile, postings::FieldStats};
 use crate::common::HasLen;
 use crate::core::InvertedIndexReader;
 use crate::core::Segment;
@@ -49,6 +49,7 @@ pub struct SegmentReader {
     positions_idx_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
+    field_stats: FieldStats,
 
     store_source: ReadOnlySource,
     delete_bitset_opt: Option<DeleteBitSet>,
@@ -179,6 +180,9 @@ impl SegmentReader {
         let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
+        let field_stats_data = segment.open_read(SegmentComponent::FIELDSTATS)?;
+        let field_stats = FieldStats::from_source(field_stats_data.as_slice())?;
+
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;
             Some(DeleteBitSet::open(delete_data))
@@ -194,6 +198,7 @@ impl SegmentReader {
             postings_composite,
             fast_fields_readers: fast_field_readers,
             fieldnorm_readers,
+            field_stats,
             segment_id: segment.id(),
             store_source,
             delete_bitset_opt,
@@ -260,11 +265,15 @@ impl SegmentReader {
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
+        let total_num_tokens = self.field_stats.get(field)
+            .map(|field_stat| field_stat.num_tokens())
+            .unwrap_or(0u64);
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::from_source(&termdict_source),
             postings_source,
             positions_source,
             positions_idx_source,
+            total_num_tokens,
             record_option,
         ));
 

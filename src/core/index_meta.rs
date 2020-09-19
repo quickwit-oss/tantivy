@@ -116,6 +116,7 @@ impl SegmentMeta {
             SegmentComponent::FASTFIELDS => ".fast".to_string(),
             SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
             SegmentComponent::DELETE => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::FIELDSTATS => ".fieldstats".to_string(),
         });
         PathBuf::from(path)
     }

@@ -1,5 +1,5 @@
-use super::TermInfo;
-use crate::common::{BinarySerializable, VInt};
+use super::{TermInfo, FieldStats, FieldStat};
+use crate::{common::{BinarySerializable, VInt}, directory::TerminatingWrite};
 use crate::common::{CompositeWrite, CountingWriter};
 use crate::core::Segment;
 use crate::directory::WritePtr;
@@ -51,6 +51,8 @@ pub struct InvertedIndexSerializer {
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
     positionsidx_write: CompositeWrite<WritePtr>,
+    field_stats: FieldStats,
+    field_stats_write: WritePtr,
     schema: Schema,
 }
 
@@ -61,6 +63,7 @@ impl InvertedIndexSerializer {
         postings_write: CompositeWrite<WritePtr>,
         positions_write: CompositeWrite<WritePtr>,
         positionsidx_write: CompositeWrite<WritePtr>,
+        field_stats_write: WritePtr,
         schema: Schema,
     ) -> crate::Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
@@ -68,18 +71,21 @@ impl InvertedIndexSerializer {
             postings_write,
             positions_write,
             positionsidx_write,
+            field_stats: FieldStats::default(),
+            field_stats_write,
             schema,
         })
     }
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
+        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS, FIELDSTATS};
         InvertedIndexSerializer::create(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
+            segment.open_write(FIELDSTATS)?,
             segment.schema(),
         )
     }
@@ -94,6 +100,7 @@ impl InvertedIndexSerializer {
         total_num_tokens: u64,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'_>> {
+        self.field_stats.insert(field, FieldStat::new(total_num_tokens));
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
@@ -112,7 +119,9 @@ impl InvertedIndexSerializer {
     }
 
     /// Closes the serializer.
-    pub fn close(self) -> io::Result<()> {
+    pub fn close(mut self) -> io::Result<()> {
+        self.field_stats.serialize(self.field_stats_write.get_mut())?;
+        self.field_stats_write.terminate()?;
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
@@ -142,7 +151,6 @@ impl<'a> FieldSerializer<'a> {
         positionsidx_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
-        total_num_tokens.serialize(postings_write)?;
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {

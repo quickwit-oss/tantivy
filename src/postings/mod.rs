@@ -13,7 +13,9 @@ mod serializer;
 mod skip;
 mod stacker;
 mod term_info;
+mod field_stats;
 
+pub(crate) use self::field_stats::{FieldStats, FieldStat};
 pub(crate) use self::block_search::BlockSearcher;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;

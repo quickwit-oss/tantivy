@@ -25,6 +25,8 @@ pub enum ComponentSpaceUsage {
     Store(StoreSpaceUsage),
     /// Some sort of raw byte count
     Basic(ByteCount),
+    ///
+    Unimplemented,
 }
 
 /// Represents combined space usage of an entire searcher and its component segments.
@@ -119,7 +121,7 @@ impl SegmentSpaceUsage {
     /// Clones the underlying data.
     /// Use the components directly if this is somehow in performance critical code.
     pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
-        use self::ComponentSpaceUsage::*;
+        use self::ComponentSpaceUsage::{PerField, Basic, Store, Unimplemented};
         use crate::SegmentComponent::*;
         match component {
             POSTINGS => PerField(self.postings().clone()),
@@ -130,6 +132,7 @@ impl SegmentSpaceUsage {
             TERMS => PerField(self.termdict().clone()),
             STORE => Store(self.store().clone()),
             DELETE => Basic(self.deletes()),
+            FIELDSTATS => Unimplemented 
         }
     }
 
