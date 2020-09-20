@@ -86,7 +86,7 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         block_postings: &mut BlockSegmentPostings,
     ) {
-        let offset = term_info.postings_offset as usize;
+        let offset = term_info.postings_start_offset as usize;
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
         block_postings.reset(term_info.doc_freq, postings_slice);
@@ -114,8 +114,10 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
     ) -> BlockSegmentPostings {
-        let offset = term_info.postings_offset as usize;
-        let postings_data = self.postings_source.slice_from(offset);
+        let postings_data = self.postings_source.slice(
+            term_info.postings_start_offset as usize,
+            term_info.postings_end_offset as usize,
+        );
         BlockSegmentPostings::from_data(
             term_info.doc_freq,
             postings_data,

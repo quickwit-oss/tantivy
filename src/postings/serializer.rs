@@ -1,5 +1,4 @@
-use super::{TermInfo, FieldStats, FieldStat};
-use crate::{common::{BinarySerializable, VInt}, directory::TerminatingWrite};
+use super::{FieldStat, FieldStats, TermInfo};
 use crate::common::{CompositeWrite, CountingWriter};
 use crate::core::Segment;
 use crate::directory::WritePtr;
@@ -11,6 +10,10 @@ use crate::query::BM25Weight;
 use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
+use crate::{
+    common::{BinarySerializable, VInt},
+    directory::TerminatingWrite,
+};
 use crate::{DocId, Score};
 use std::cmp::Ordering;
 use std::io::{self, Write};
@@ -79,7 +82,7 @@ impl InvertedIndexSerializer {
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS, FIELDSTATS};
+        use crate::SegmentComponent::{FIELDSTATS, POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
         InvertedIndexSerializer::create(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
@@ -100,7 +103,8 @@ impl InvertedIndexSerializer {
         total_num_tokens: u64,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'_>> {
-        self.field_stats.insert(field, FieldStat::new(total_num_tokens));
+        self.field_stats
+            .insert(field, FieldStat::new(total_num_tokens));
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
@@ -120,7 +124,8 @@ impl InvertedIndexSerializer {
 
     /// Closes the serializer.
     pub fn close(mut self) -> io::Result<()> {
-        self.field_stats.serialize(self.field_stats_write.get_mut())?;
+        self.field_stats
+            .serialize(self.field_stats_write.get_mut())?;
         self.field_stats_write.terminate()?;
         self.terms_write.close()?;
         self.postings_write.close()?;
@@ -198,7 +203,8 @@ impl<'a> FieldSerializer<'a> {
             .unwrap_or(0u64);
         TermInfo {
             doc_freq: 0,
-            postings_offset: self.postings_serializer.addr(),
+            postings_start_offset: self.postings_serializer.addr(),
+            postings_end_offset: 0u64,
             positions_idx,
         }
     }
@@ -252,10 +258,12 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.term_dictionary_builder
-                .insert_value(&self.current_term_info)?;
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
+            let end_offset = self.postings_serializer.addr();
+            self.current_term_info.postings_end_offset = end_offset;
+            self.term_dictionary_builder
+                .insert_value(&self.current_term_info)?;
             self.term_open = false;
         }
         Ok(())

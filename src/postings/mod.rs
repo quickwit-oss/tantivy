@@ -5,6 +5,7 @@ Postings module (also called inverted index)
 mod block_search;
 mod block_segment_postings;
 pub(crate) mod compression;
+mod field_stats;
 mod postings;
 mod postings_writer;
 mod recorder;
@@ -13,10 +14,9 @@ mod serializer;
 mod skip;
 mod stacker;
 mod term_info;
-mod field_stats;
 
-pub(crate) use self::field_stats::{FieldStats, FieldStat};
 pub(crate) use self::block_search::BlockSearcher;
+pub(crate) use self::field_stats::{FieldStat, FieldStats};
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};

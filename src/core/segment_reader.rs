@@ -1,4 +1,3 @@
-use crate::{common::CompositeFile, postings::FieldStats};
 use crate::common::HasLen;
 use crate::core::InvertedIndexReader;
 use crate::core::Segment;
@@ -16,6 +15,7 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
+use crate::{common::CompositeFile, postings::FieldStats};
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -265,7 +265,9 @@ impl SegmentReader {
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
-        let total_num_tokens = self.field_stats.get(field)
+        let total_num_tokens = self
+            .field_stats
+            .get(field)
             .map(|field_stat| field_stat.num_tokens())
             .unwrap_or(0u64);
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(

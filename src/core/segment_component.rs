@@ -24,6 +24,7 @@ pub enum SegmentComponent {
     /// Accessing a document from the store is relatively slow, as it
     /// requires to decompress the entire block it belongs to.
     STORE,
+
     /// Bitset describing which document of the segment is deleted.
     DELETE,
 
