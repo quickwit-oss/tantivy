@@ -15,18 +15,14 @@ mod stacker;
 mod term_info;
 
 pub(crate) use self::block_search::BlockSearcher;
-
-pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
-pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
-
-pub use self::postings::Postings;
-pub(crate) use self::skip::{BlockInfo, SkipReader};
-pub use self::term_info::TermInfo;
-
 pub use self::block_segment_postings::BlockSegmentPostings;
+pub use self::postings::Postings;
+pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::segment_postings::SegmentPostings;
-
+pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
+pub(crate) use self::skip::{BlockInfo, SkipReader};
 pub(crate) use self::stacker::compute_table_size;
+pub use self::term_info::TermInfo;
 
 pub(crate) type UnorderedTermId = u64;
 

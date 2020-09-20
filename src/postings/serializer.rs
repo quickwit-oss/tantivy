@@ -184,7 +184,8 @@ impl<'a> FieldSerializer<'a> {
             .unwrap_or(0u64);
         TermInfo {
             doc_freq: 0,
-            postings_offset: self.postings_serializer.addr(),
+            postings_start_offset: self.postings_serializer.addr(),
+            postings_end_offset: 0u64,
             positions_idx,
         }
     }
@@ -238,10 +239,12 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.term_dictionary_builder
-                .insert_value(&self.current_term_info)?;
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
+            let end_offset = self.postings_serializer.addr();
+            self.current_term_info.postings_end_offset = end_offset;
+            self.term_dictionary_builder
+                .insert_value(&self.current_term_info)?;
             self.term_open = false;
         }
         Ok(())
