@@ -39,6 +39,9 @@ mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
+#[cfg(all(feature = "lz4", feature = "brotli"))]
+compile_error!("feature `lz4` or `brotli` shouldn't be enabled both.");
+
 #[cfg(feature = "lz4")]
 mod compression_lz4;
 #[cfg(feature = "lz4")]
@@ -46,11 +49,18 @@ pub use self::compression_lz4::COMPRESSION;
 #[cfg(feature = "lz4")]
 use self::compression_lz4::{compress, decompress};
 
-#[cfg(not(feature = "lz4"))]
+#[cfg(feature = "brotli")]
+mod compression_brotli;
+#[cfg(feature = "brotli")]
+pub use self::compression_brotli::COMPRESSION;
+#[cfg(feature = "brotli")]
+use self::compression_brotli::{compress, decompress};
+
+#[cfg(not(any(feature = "lz4", feature = "brotli")))]
 mod compression_snap;
-#[cfg(not(feature = "lz4"))]
+#[cfg(not(any(feature = "lz4", feature = "brotli")))]
 pub use self::compression_snap::COMPRESSION;
-#[cfg(not(feature = "lz4"))]
+#[cfg(not(any(feature = "lz4", feature = "brotli")))]
 use self::compression_snap::{compress, decompress};
 
 #[cfg(test)]
