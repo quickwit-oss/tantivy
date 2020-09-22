@@ -5,7 +5,7 @@ A field needs to be marked as stored in the schema in
 order to be handled in the `Store`.
 
 Internally, documents (or rather their stored fields) are serialized to a buffer.
-When the buffer exceeds 16K, the buffer is compressed using `LZ4`
+When the buffer exceeds 16K, the buffer is compressed using `brotli`, `LZ4` or `snappy`
 and the resulting block is written to disk.
 
 One can then request for a specific `DocId`.
