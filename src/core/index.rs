@@ -57,7 +57,9 @@ pub struct Index {
 }
 
 impl Index {
-    /// Examines the director to see if it contains an index
+    /// Examines the directory to see if it contains an index.
+    ///
+    /// Effectively, it only checks for the presence of the `meta.json` file.
     pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
         dir.exists(&META_FILEPATH)
     }
@@ -140,7 +142,9 @@ impl Index {
         Index::create(mmap_directory, schema)
     }
 
-    /// Creates a new index given an implementation of the trait `Directory`
+    /// Creates a new index given an implementation of the trait `Directory`.
+    ///
+    /// If a directory previously existed, it will be erased.
     pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(dir)?;
         Index::from_directory(directory, schema)

@@ -2,11 +2,13 @@
 
 use std::io;
 
-use crate::directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use crate::directory::error::{Incompatibility, LockError};
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::query;
-use crate::schema;
+use crate::{
+    directory::error::{OpenDirectoryError, OpenReadError, OpenWriteError},
+    schema,
+};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
@@ -46,12 +48,15 @@ impl fmt::Debug for DataCorruption {
 /// The library's error enum
 #[derive(Debug, Error)]
 pub enum TantivyError {
-    /// Path does not exist.
-    #[error("Path does not exist: '{0:?}'")]
-    PathDoesNotExist(PathBuf),
-    /// File already exists, this is a problem when we try to write into a new file.
-    #[error("File already exists: '{0:?}'")]
-    FileAlreadyExists(PathBuf),
+    /// Failed to open the directory.
+    #[error("Failed to open the directory: '{0:?}'")]
+    OpenDirectoryError(#[from] OpenDirectoryError),
+    /// Failed to open a file for read.
+    #[error("Failed to open file for read: '{0:?}'")]
+    OpenReadError(#[from] OpenReadError),
+    /// Failed to open a file for write.
+    #[error("Failed to open file for write: '{0:?}'")]
+    OpenWriteError(#[from] OpenWriteError),
     /// Index already exists in this directory
     #[error("Index already exists")]
     IndexAlreadyExists,
@@ -60,9 +65,9 @@ pub enum TantivyError {
     LockFailure(LockError, Option<String>),
     /// IO Error.
     #[error("An IO error occurred: '{0}'")]
-    IOError(#[source] IOError),
+    IOError(#[from] io::Error),
     /// Data corruption.
-    #[error("{0:?}")]
+    #[error("Data corrupted: '{0:?}'")]
     DataCorruption(DataCorruption),
     /// A thread holding the locked panicked and poisoned the lock.
     #[error("A thread holding the locked panicked and poisoned the lock")]
@@ -89,28 +94,14 @@ impl From<DataCorruption> for TantivyError {
         TantivyError::DataCorruption(data_corruption)
     }
 }
-
 impl From<FastFieldNotAvailableError> for TantivyError {
     fn from(fastfield_error: FastFieldNotAvailableError) -> TantivyError {
         TantivyError::SchemaError(format!("{}", fastfield_error))
     }
 }
-
 impl From<LockError> for TantivyError {
     fn from(lock_error: LockError) -> TantivyError {
         TantivyError::LockFailure(lock_error, None)
-    }
-}
-
-impl From<IOError> for TantivyError {
-    fn from(io_error: IOError) -> TantivyError {
-        TantivyError::IOError(io_error)
-    }
-}
-
-impl From<io::Error> for TantivyError {
-    fn from(io_error: io::Error) -> TantivyError {
-        TantivyError::IOError(io_error.into())
     }
 }
 
@@ -126,46 +117,9 @@ impl<Guard> From<PoisonError<Guard>> for TantivyError {
     }
 }
 
-impl From<OpenReadError> for TantivyError {
-    fn from(error: OpenReadError) -> TantivyError {
-        match error {
-            OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
-            OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
-            OpenReadError::IncompatibleIndex(incompatibility) => {
-                TantivyError::IncompatibleIndex(incompatibility)
-            }
-        }
-    }
-}
-
 impl From<schema::DocParsingError> for TantivyError {
     fn from(error: schema::DocParsingError) -> TantivyError {
         TantivyError::InvalidArgument(format!("Failed to parse document {:?}", error))
-    }
-}
-
-impl From<OpenWriteError> for TantivyError {
-    fn from(error: OpenWriteError) -> TantivyError {
-        match error {
-            OpenWriteError::FileAlreadyExists(filepath) => {
-                TantivyError::FileAlreadyExists(filepath)
-            }
-            OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
-        }
-    }
-}
-
-impl From<OpenDirectoryError> for TantivyError {
-    fn from(error: OpenDirectoryError) -> TantivyError {
-        match error {
-            OpenDirectoryError::DoesNotExist(directory_path) => {
-                TantivyError::PathDoesNotExist(directory_path)
-            }
-            OpenDirectoryError::NotADirectory(directory_path) => {
-                TantivyError::InvalidArgument(format!("{:?} is not a directory", directory_path))
-            }
-            OpenDirectoryError::IoError(err) => TantivyError::IOError(IOError::from(err)),
-        }
     }
 }
 

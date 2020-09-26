@@ -1,5 +1,4 @@
 use crate::Version;
-use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
@@ -18,141 +17,44 @@ pub enum LockError {
     IOError(io::Error),
 }
 
-/// General IO error with an optional path to the offending file.
-#[derive(Debug)]
-pub struct IOError {
-    path: Option<PathBuf>,
-    err: io::Error,
-}
-
-impl Into<io::Error> for IOError {
-    fn into(self) -> io::Error {
-        self.err
-    }
-}
-
-impl fmt::Display for IOError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.path {
-            Some(ref path) => write!(f, "io error occurred on path '{:?}': '{}'", path, self.err),
-            None => write!(f, "io error occurred: '{}'", self.err),
-        }
-    }
-}
-
-impl StdError for IOError {
-    fn description(&self) -> &str {
-        "io error occurred"
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        Some(&self.err)
-    }
-}
-
-impl IOError {
-    pub(crate) fn with_path(path: PathBuf, err: io::Error) -> Self {
-        IOError {
-            path: Some(path),
-            err,
-        }
-    }
-}
-
-impl From<io::Error> for IOError {
-    fn from(err: io::Error) -> IOError {
-        IOError { path: None, err }
-    }
-}
-
 /// Error that may occur when opening a directory
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum OpenDirectoryError {
     /// The underlying directory does not exists.
+    #[error("Directory does not exist: '{0}'.")]
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
+    #[error("Path exists but is not a directory: '{0}'.")]
     NotADirectory(PathBuf),
+    /// Failed to create a temp directory.
+    #[error("Failed to create a temporary directory: '{0}'.")]
+    FailedToCreateTempDir(io::Error),
     /// IoError
-    IoError(io::Error),
-}
-
-impl From<io::Error> for OpenDirectoryError {
-    fn from(io_err: io::Error) -> Self {
-        OpenDirectoryError::IoError(io_err)
-    }
-}
-
-impl fmt::Display for OpenDirectoryError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            OpenDirectoryError::DoesNotExist(ref path) => {
-                write!(f, "the underlying directory '{:?}' does not exist", path)
-            }
-            OpenDirectoryError::NotADirectory(ref path) => {
-                write!(f, "the path '{:?}' exists but is not a directory", path)
-            }
-            OpenDirectoryError::IoError(ref err) => write!(
-                f,
-                "IOError while trying to open/create the directory. {:?}",
-                err
-            ),
-        }
-    }
-}
-
-impl StdError for OpenDirectoryError {
-    fn description(&self) -> &str {
-        "error occurred while opening a directory"
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        None
-    }
+    #[error("IOError '{io_error:?}' while create directory in: '{directory_path:?}'.")]
+    IoError {
+        /// underlying io Error.
+        io_error: io::Error,
+        /// directory we tried to open.
+        directory_path: PathBuf,
+    },
 }
 
 /// Error that may occur when starting to write in a file
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum OpenWriteError {
     /// Our directory is WORM, writing an existing file is forbidden.
     /// Checkout the `Directory` documentation.
+    #[error("File already exists: '{0}'")]
     FileAlreadyExists(PathBuf),
     /// Any kind of IO error that happens when
     /// writing in the underlying IO device.
-    IOError(IOError),
-}
-
-impl From<IOError> for OpenWriteError {
-    fn from(err: IOError) -> OpenWriteError {
-        OpenWriteError::IOError(err)
-    }
-}
-
-impl fmt::Display for OpenWriteError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            OpenWriteError::FileAlreadyExists(ref path) => {
-                write!(f, "the file '{:?}' already exists", path)
-            }
-            OpenWriteError::IOError(ref err) => write!(
-                f,
-                "an io error occurred while opening a file for writing: '{}'",
-                err
-            ),
-        }
-    }
-}
-
-impl StdError for OpenWriteError {
-    fn description(&self) -> &str {
-        "error occurred while opening a file for writing"
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        match *self {
-            OpenWriteError::FileAlreadyExists(_) => None,
-            OpenWriteError::IOError(ref err) => Some(err),
-        }
-    }
+    #[error("IOError '{io_error:?}' while opening file for write: '{filepath}'.")]
+    IOError {
+        /// The underlying `io::Error`.
+        io_error: io::Error,
+        /// File path of the file that tantivy failed to open for write.
+        filepath: PathBuf,
+    },
 }
 
 /// Type of index incompatibility between the library and the index found on disk
@@ -215,85 +117,45 @@ impl fmt::Debug for Incompatibility {
 }
 
 /// Error that may occur when accessing a file read
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum OpenReadError {
     /// The file does not exists.
+    #[error("Files does not exists: {0:?}")]
     FileDoesNotExist(PathBuf),
-    /// Any kind of IO error that happens when
-    /// interacting with the underlying IO device.
-    IOError(IOError),
-    /// This library doesn't support the index version found on disk
+    /// Any kind of io::Error.
+    #[error(
+        "IOError: '{io_error:?}' happened while opening the following file for Read: {filepath}."
+    )]
+    IOError {
+        /// The underlying `io::Error`.
+        io_error: io::Error,
+        /// File path of the file that tantivy failed to open for read.
+        filepath: PathBuf,
+    },
+    /// This library does not support the index version found in file footer.
+    #[error("Index version unsupported: {0:?}")]
     IncompatibleIndex(Incompatibility),
 }
 
-impl From<IOError> for OpenReadError {
-    fn from(err: IOError) -> OpenReadError {
-        OpenReadError::IOError(err)
-    }
-}
-
-impl fmt::Display for OpenReadError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            OpenReadError::FileDoesNotExist(ref path) => {
-                write!(f, "the file '{:?}' does not exist", path)
-            }
-            OpenReadError::IOError(ref err) => write!(
-                f,
-                "an io error occurred while opening a file for reading: '{}'",
-                err
-            ),
-            OpenReadError::IncompatibleIndex(ref footer) => {
-                write!(f, "Incompatible index format: {:?}", footer)
-            }
-        }
-    }
-}
-
 /// Error that may occur when trying to delete a file
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum DeleteError {
     /// The file does not exists.
+    #[error("File does not exists: '{0}'.")]
     FileDoesNotExist(PathBuf),
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
-    IOError(IOError),
-}
-
-impl From<IOError> for DeleteError {
-    fn from(err: IOError) -> DeleteError {
-        DeleteError::IOError(err)
-    }
+    #[error("The following IO error happened while deleting file '{filepath}': '{io_error:?}'.")]
+    IOError {
+        /// The underlying `io::Error`.
+        io_error: io::Error,
+        /// File path of the file that tantivy failed to delete.
+        filepath: PathBuf,
+    },
 }
 
 impl From<Incompatibility> for OpenReadError {
     fn from(incompatibility: Incompatibility) -> Self {
         OpenReadError::IncompatibleIndex(incompatibility)
-    }
-}
-
-impl fmt::Display for DeleteError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            DeleteError::FileDoesNotExist(ref path) => {
-                write!(f, "the file '{:?}' does not exist", path)
-            }
-            DeleteError::IOError(ref err) => {
-                write!(f, "an io error occurred while deleting a file: '{}'", err)
-            }
-        }
-    }
-}
-
-impl StdError for DeleteError {
-    fn description(&self) -> &str {
-        "error occurred while deleting a file"
-    }
-
-    fn cause(&self) -> Option<&dyn StdError> {
-        match *self {
-            DeleteError::FileDoesNotExist(_) => None,
-            DeleteError::IOError(ref err) => Some(err),
-        }
     }
 }
