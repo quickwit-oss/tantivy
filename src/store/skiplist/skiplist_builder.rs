@@ -68,19 +68,17 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
     }
 
     pub fn insert(&mut self, key: u64, dest: &T) -> io::Result<()> {
-        let mut layer_id = 0;
         let mut skip_pointer = self.data_layer.insert(key, dest)?;
-        loop {
-            skip_pointer = match skip_pointer {
-                Some((skip_doc_id, skip_offset)) => self
+        for layer_id in 0.. {
+            if let Some((skip_doc_id, skip_offset)) = skip_pointer {
+                skip_pointer = self
                     .get_skip_layer(layer_id)
-                    .insert(skip_doc_id, &skip_offset)?,
-                None => {
-                    return Ok(());
-                }
-            };
-            layer_id += 1;
+                    .insert(skip_doc_id, &skip_offset)?;
+            } else {
+                break;
+            }
         }
+        Ok(())
     }
 
     pub fn write<W: Write>(self, output: &mut W) -> io::Result<()> {
