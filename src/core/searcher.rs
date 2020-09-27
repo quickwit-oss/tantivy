@@ -143,6 +143,7 @@ impl Searcher {
                 collector.collect_segment(weight.as_ref(), segment_ord as u32, segment_reader)
             },
             segment_readers.iter().enumerate(),
+            self.index.logger().clone(),
         )?;
         collector.merge_fruits(fruits)
     }

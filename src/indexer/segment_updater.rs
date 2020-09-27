@@ -23,9 +23,9 @@ use futures::channel::oneshot;
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use futures::future::Future;
 use futures::future::TryFutureExt;
+use slog::{debug, error, info, warn};
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
-use std::io::Write;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -65,12 +65,11 @@ pub fn save_new_metas(schema: Schema, directory: &mut dyn Directory) -> crate::R
 ///
 /// This method is not part of tantivy's public API
 fn save_metas(metas: &IndexMeta, directory: &mut dyn Directory) -> crate::Result<()> {
-    info!("save metas");
-    let mut buffer = serde_json::to_vec_pretty(metas)?;
+    let mut meta_json = serde_json::to_string_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
-    writeln!(&mut buffer)?;
-    directory.atomic_write(&META_FILEPATH, &buffer[..])?;
-    debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
+    meta_json.push_str("\n");
+    debug!(directory.logger(), "save meta"; "content"=>&meta_json);
+    directory.atomic_write(&META_FILEPATH, meta_json.as_bytes())?;
     Ok(())
 }
 
@@ -97,7 +96,6 @@ impl Deref for SegmentUpdater {
 async fn garbage_collect_files(
     segment_updater: SegmentUpdater,
 ) -> crate::Result<GarbageCollectionResult> {
-    info!("Running garbage collection");
     let mut index = segment_updater.index.clone();
     index
         .directory_mut()
@@ -107,14 +105,12 @@ async fn garbage_collect_files(
 /// Merges a list of segments the list of segment givens in the `segment_entries`.
 /// This function happens in the calling thread and is computationally expensive.
 fn merge(
+    merged_segment: Segment,
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
     target_opstamp: Opstamp,
 ) -> crate::Result<SegmentEntry> {
-    // first we need to apply deletes to our segment.
-    let merged_segment = index.new_segment();
-
-    // First we apply all of the delet to the merged segment, up to the target opstamp.
+    // First we apply all of the delete to the merged segment, up to the target opstamp.
     for segment_entry in &mut segment_entries {
         let segment = index.segment(segment_entry.meta().clone());
         advance_deletes(segment, segment_entry, target_opstamp)?;
@@ -167,7 +163,8 @@ impl SegmentUpdater {
         delete_cursor: &DeleteCursor,
     ) -> crate::Result<SegmentUpdater> {
         let segments = index.searchable_segment_metas()?;
-        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
+        let segment_manager =
+            SegmentManager::from_segments(segments, delete_cursor, index.logger().clone());
         let pool = ThreadPoolBuilder::new()
             .name_prefix("segment_updater")
             .pool_size(1)
@@ -387,7 +384,18 @@ impl SegmentUpdater {
             .segment_manager
             .start_merge(merge_operation.segment_ids())?;
 
-        info!("Starting merge  - {:?}", merge_operation.segment_ids());
+        let segment_ids_str: String = merge_operation
+            .segment_ids()
+            .iter()
+            .map(|segment_id| segment_id.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+
+        let merged_segment = self.index.new_segment();
+        let logger = self.index.logger().new(slog::o!("segments"=>segment_ids_str, "merged-segment"=>merged_segment.id().to_string()));
+
+        let num_merges: usize = self.merge_operations.list().len();
+        slog::info!(&logger, "merge"; "stage"=>"start", "num-merges" => num_merges);
 
         let (merging_future_send, merging_future_recv) =
             oneshot::channel::<crate::Result<SegmentMeta>>();
@@ -398,22 +406,20 @@ impl SegmentUpdater {
             // as well as which segment is currently in merge and therefore should not be
             // candidate for another merge.
             match merge(
+                merged_segment,
                 &segment_updater.index,
                 segment_entries,
                 merge_operation.target_opstamp(),
             ) {
                 Ok(after_merge_segment_entry) => {
+                    info!(&logger, "merge"; "stage" => "end");
                     let segment_meta = segment_updater
                         .end_merge(merge_operation, after_merge_segment_entry)
                         .await;
                     let _send_result = merging_future_send.send(segment_meta);
                 }
                 Err(e) => {
-                    warn!(
-                        "Merge of {:?} was cancelled: {:?}",
-                        merge_operation.segment_ids().to_vec(),
-                        e
-                    );
+                    error!(&logger, "merge"; "stage" => "fail", "cause"=>e.to_string());
                     // ... cancel merge
                     if cfg!(test) {
                         panic!("Merge failed.");
@@ -454,11 +460,12 @@ impl SegmentUpdater {
             .collect::<Vec<_>>();
         merge_candidates.extend(committed_merge_candidates.into_iter());
 
+        let logger = self.index.logger();
         for merge_operation in merge_candidates {
             if let Err(err) = self.start_merge(merge_operation) {
                 warn!(
-                    "Starting the merge failed for the following reason. This is not fatal. {}",
-                    err
+                    logger,
+                    "merge-start-fail (not fatal, not necessarily a problem)"; "reason" => format!("{}", err),
                 );
             }
         }
@@ -471,8 +478,11 @@ impl SegmentUpdater {
     ) -> impl Future<Output = crate::Result<SegmentMeta>> {
         let segment_updater = self.clone();
         let after_merge_segment_meta = after_merge_segment_entry.meta().clone();
+        let logger = self.index.logger().new(
+            slog::o!("segment"=>after_merge_segment_meta.id().to_string(),
+            "delete-opstamp"=>after_merge_segment_meta.delete_opstamp()),
+        );
         let end_merge_future = self.schedule_future(async move {
-            info!("End merge {:?}", after_merge_segment_entry.meta());
             {
                 let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                 if let Some(delete_operation) = delete_cursor.get() {
@@ -486,6 +496,7 @@ impl SegmentUpdater {
                             committed_opstamp,
                         ) {
                             error!(
+                                logger,
                                 "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
                                 merge_operation.segment_ids(),
                                 e

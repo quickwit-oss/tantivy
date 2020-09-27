@@ -21,6 +21,12 @@ use std::sync::atomic;
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SegmentId(Uuid);
 
+impl ToString for SegmentId {
+    fn to_string(&self) -> String {
+        self.short_uuid_string()
+    }
+}
+
 #[cfg(test)]
 static AUTO_INC_COUNTER: Lazy<atomic::AtomicUsize> = Lazy::new(|| atomic::AtomicUsize::default());
 

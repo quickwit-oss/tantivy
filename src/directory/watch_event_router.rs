@@ -1,5 +1,6 @@
 use futures::channel::oneshot;
 use futures::{Future, TryFutureExt};
+use slog::{error, Logger};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
@@ -11,9 +12,9 @@ pub type WatchCallback = Box<dyn Fn() + Sync + Send>;
 ///
 /// It registers callbacks (See `.subscribe(...)`) and
 /// calls them upon calls to `.broadcast(...)`.
-#[derive(Default)]
-pub struct WatchCallbackList {
+pub(crate) struct WatchCallbackList {
     router: RwLock<Vec<Weak<WatchCallback>>>,
+    logger: Logger,
 }
 
 /// Controls how long a directory should watch for a file change.
@@ -32,6 +33,13 @@ impl WatchHandle {
 }
 
 impl WatchCallbackList {
+    pub fn with_logger(logger: Logger) -> Self {
+        WatchCallbackList {
+            logger,
+            router: Default::default(),
+        }
+    }
+
     /// Subscribes a new callback and returns a handle that controls the lifetime of the callback.
     pub fn subscribe(&self, watch_callback: WatchCallback) -> WatchHandle {
         let watch_callback_arc = Arc::new(watch_callback);
@@ -74,8 +82,8 @@ impl WatchCallbackList {
             });
         if let Err(err) = spawn_res {
             error!(
-                "Failed to spawn thread to call watch callbacks. Cause: {:?}",
-                err
+                self.logger,
+                "Failed to spawn thread to call watch callbacks. Cause: {:?}", err
             );
         }
         result
@@ -86,13 +94,18 @@ impl WatchCallbackList {
 mod tests {
     use crate::directory::WatchCallbackList;
     use futures::executor::block_on;
+    use slog::{o, Discard, Logger};
     use std::mem;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
+    fn default_watch_callback_list() -> WatchCallbackList {
+        WatchCallbackList::with_logger(Logger::root(Discard, o!()))
+    }
+
     #[test]
     fn test_watch_event_router_simple() {
-        let watch_event_router = WatchCallbackList::default();
+        let watch_event_router = default_watch_callback_list();
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
         let inc_callback = Box::new(move || {
@@ -119,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_watch_event_router_multiple_callback_same_key() {
-        let watch_event_router = WatchCallbackList::default();
+        let watch_event_router = default_watch_callback_list();
         let counter: Arc<AtomicUsize> = Default::default();
         let inc_callback = |inc: usize| {
             let counter_clone = counter.clone();
@@ -148,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_watch_event_router_multiple_callback_different_key() {
-        let watch_event_router = WatchCallbackList::default();
+        let watch_event_router = default_watch_callback_list();
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
         let inc_callback = Box::new(move || {

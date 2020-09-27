@@ -11,9 +11,9 @@ use crate::error::DataCorruption;
 use crate::Directory;
 
 use crc32fast::Hasher;
+use slog::{debug, error, info};
 use std::collections::HashSet;
 use std::io;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::RwLockWriteGuard;
@@ -56,9 +56,9 @@ fn save_managed_paths(
     directory: &mut dyn Directory,
     wlock: &RwLockWriteGuard<'_, MetaInformation>,
 ) -> io::Result<()> {
-    let mut w = serde_json::to_vec(&wlock.managed_paths)?;
-    writeln!(&mut w)?;
-    directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
+    let mut managed_json = serde_json::to_string_pretty(&wlock.managed_paths)?;
+    managed_json.push_str("\n");
+    directory.atomic_write(&MANAGED_FILEPATH, managed_json.as_bytes())?;
     Ok(())
 }
 
@@ -118,7 +118,7 @@ impl ManagedDirectory {
         &mut self,
         get_living_files: L,
     ) -> crate::Result<GarbageCollectionResult> {
-        info!("Garbage collect");
+        info!(self.directory.logger(), "gc"; "stage"=>"start");
         let mut files_to_delete = vec![];
 
         // It is crucial to get the living files after acquiring the
@@ -153,7 +153,7 @@ impl ManagedDirectory {
                     }
                 }
                 Err(err) => {
-                    error!("Failed to acquire lock for GC");
+                    error!(self.logger(), "Failed to acquire lock for GC");
                     return Err(crate::TantivyError::from(err));
                 }
             }
@@ -165,7 +165,7 @@ impl ManagedDirectory {
         for file_to_delete in files_to_delete {
             match self.delete(&file_to_delete) {
                 Ok(_) => {
-                    info!("Deleted {:?}", file_to_delete);
+                    debug!(self.logger(), "deleted-success"; "file"=>format!("{:?}", file_to_delete));
                     deleted_files.push(file_to_delete);
                 }
                 Err(file_error) => {
@@ -178,7 +178,7 @@ impl ManagedDirectory {
                             if !cfg!(target_os = "windows") {
                                 // On windows, delete is expected to fail if the file
                                 // is mmapped.
-                                error!("Failed to delete {:?}", file_to_delete);
+                                error!(self.logger(), "delete-file-fail"; "path"=>file_to_delete.to_str().unwrap_or("<invalid-utf8>"));
                             }
                         }
                     }
@@ -199,6 +199,10 @@ impl ManagedDirectory {
             }
             save_managed_paths(self.directory.as_mut(), &meta_informations_wlock)?;
         }
+
+        info!(self.directory.logger(), "gc"; "stage"=>"end", 
+                "num-sucess-file-deletes"=>deleted_files.len(), 
+                "num-failed-file-deletes"=>failed_to_delete_files.len());
 
         Ok(GarbageCollectionResult {
             deleted_files,
@@ -274,6 +278,7 @@ impl ManagedDirectory {
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+        slog::debug!(self.logger(), "open-read"; "path" => path.to_str().unwrap_or("<invalid-utf8>"));
         let read_only_source = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(read_only_source).map_err(|io_error| {
             OpenReadError::IOError {
@@ -286,6 +291,7 @@ impl Directory for ManagedDirectory {
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
+        slog::debug!(self.logger(), "open-write"; "path" => path.to_str().unwrap_or("<invalid-utf8>"));
         self.register_file_as_managed(path)
             .map_err(|io_error| OpenWriteError::IOError {
                 io_error,
@@ -300,9 +306,11 @@ impl Directory for ManagedDirectory {
         ))))
     }
 
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+    fn atomic_write(&mut self, path: &Path, content: &[u8]) -> io::Result<()> {
+        let content_str = std::str::from_utf8(content).unwrap_or("<content-not-utf-8>");
+        slog::debug!(self.logger(), "Atomic write"; "path" => format!("{:?}", path), "content_length"=>content_str);
         self.register_file_as_managed(path)?;
-        self.directory.atomic_write(path, data)
+        self.directory.atomic_write(path, content)
     }
 
     fn atomic_read(&self, path: &Path) -> result::Result<Vec<u8>, OpenReadError> {
@@ -323,6 +331,10 @@ impl Directory for ManagedDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.directory.watch(watch_callback)
+    }
+
+    fn logger(&self) -> &slog::Logger {
+        self.directory.logger()
     }
 }
 

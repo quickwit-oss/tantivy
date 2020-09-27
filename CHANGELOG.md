@@ -1,7 +1,8 @@
 Tantivy 0.14.0
 =========================
-- Remove dependency to atomicwrites #833 .Implemented by @pmasurel upon suggestion and research from @asafigan). 
+- Remove dependency to atomicwrites #833. Implemented by @pmasurel upon suggestion and research from @asafigan). 
 - Migrated tantivy error from the now deprecated `failure` crate to `thiserror` #760. (@hirevo)
+- Switched to structure logging (via the `slog` crate). (@pmasurel)
 
 Tantivy 0.13.1
 ===================

@@ -1,5 +1,6 @@
 use crossbeam::channel;
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use slog::{error, Logger};
 
 /// Search executor whether search request are single thread or multithread.
 ///
@@ -43,6 +44,7 @@ impl Executor {
         &self,
         f: F,
         args: AIterator,
+        logger: Logger,
     ) -> crate::Result<Vec<R>> {
         match self {
             Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
@@ -57,7 +59,7 @@ impl Executor {
                                 let (idx, arg) = arg_with_idx;
                                 let fruit = f(arg);
                                 if let Err(err) = fruit_sender.send((idx, fruit)) {
-                                    error!("Failed to send search task. It probably means all search threads have panicked. {:?}", err);
+                                    error!(logger, "Failed to send search task. It probably means all search threads have panicked. {:?}", err);
                                 }
                             });
                         }
@@ -87,17 +89,21 @@ impl Executor {
 #[cfg(test)]
 mod tests {
 
+    use slog::{o, Discard, Logger};
+
     use super::Executor;
 
     #[test]
     #[should_panic(expected = "panic should propagate")]
     fn test_panic_propagates_single_thread() {
+        let logger = Logger::root(Discard, o!());
         let _result: Vec<usize> = Executor::single_thread()
             .map(
                 |_| {
                     panic!("panic should propagate");
                 },
                 vec![0].into_iter(),
+                logger,
             )
             .unwrap();
     }
@@ -105,6 +111,7 @@ mod tests {
     #[test]
     #[should_panic] //< unfortunately the panic message is not propagated
     fn test_panic_propagates_multi_thread() {
+        let logger = Logger::root(Discard, o!());
         let _result: Vec<usize> = Executor::multi_thread(1, "search-test")
             .unwrap()
             .map(
@@ -112,14 +119,16 @@ mod tests {
                     panic!("panic should propagate");
                 },
                 vec![0].into_iter(),
+                logger,
             )
             .unwrap();
     }
 
     #[test]
     fn test_map_singlethread() {
+        let logger = Logger::root(Discard, o!());
         let result: Vec<usize> = Executor::single_thread()
-            .map(|i| Ok(i * 2), 0..1_000)
+            .map(|i| Ok(i * 2), 0..1_000, logger)
             .unwrap();
         assert_eq!(result.len(), 1_000);
         for i in 0..1_000 {
@@ -129,9 +138,10 @@ mod tests {
 
     #[test]
     fn test_map_multithread() {
+        let logger = Logger::root(Discard, o!());
         let result: Vec<usize> = Executor::multi_thread(3, "search-test")
             .unwrap()
-            .map(|i| Ok(i * 2), 0..10)
+            .map(|i| Ok(i * 2), 0..10, logger)
             .unwrap();
         assert_eq!(result.len(), 10);
         for i in 0..10 {

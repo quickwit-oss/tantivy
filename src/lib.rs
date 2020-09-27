@@ -102,9 +102,6 @@
 extern crate serde_json;
 
 #[macro_use]
-extern crate log;
-
-#[macro_use]
 extern crate thiserror;
 
 #[cfg(all(test, feature = "unstable"))]
@@ -148,6 +145,7 @@ pub mod schema;
 pub mod space_usage;
 pub mod store;
 pub mod termdict;
+pub use slog;
 
 mod reader;
 

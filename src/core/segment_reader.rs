@@ -17,6 +17,7 @@ use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
 use fail::fail_point;
+use slog::{warn, Logger};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -53,6 +54,7 @@ pub struct SegmentReader {
     store_source: ReadOnlySource,
     delete_bitset_opt: Option<DeleteBitSet>,
     schema: Schema,
+    logger: Logger,
 }
 
 impl SegmentReader {
@@ -200,6 +202,7 @@ impl SegmentReader {
             positions_composite,
             positions_idx_composite,
             schema,
+            logger: segment.index().logger().clone(),
         })
     }
 
@@ -229,7 +232,11 @@ impl SegmentReader {
         let record_option_opt = field_type.get_index_record_option();
 
         if record_option_opt.is_none() {
-            warn!("Field {:?} does not seem indexed.", field_entry.name());
+            warn!(
+                self.logger,
+                "Field {:?} does not seem indexed.",
+                field_entry.name()
+            );
         }
 
         let postings_source_opt = self.postings_composite.open_read(field);

@@ -5,6 +5,8 @@ use crate::directory::WatchCallbackList;
 use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fail::fail_point;
+use slog::{o, Drain, Logger};
+use slog_stdlog::StdLog;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
@@ -66,7 +68,7 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        let mut fs = self.shared_directory.fs.write().unwrap();
+        let mut fs = self.shared_directory.fs.inner_directory.write().unwrap();
         fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
     }
@@ -78,13 +80,19 @@ impl TerminatingWrite for VecWriter {
     }
 }
 
-#[derive(Default)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, ReadOnlySource>,
     watch_router: WatchCallbackList,
 }
 
 impl InnerDirectory {
+    fn with_logger(logger: Logger) -> Self {
+        InnerDirectory {
+            fs: Default::default(),
+            watch_router: WatchCallbackList::with_logger(logger.clone()),
+        }
+    }
+
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
         let data = ReadOnlySource::new(Vec::from(data));
         self.fs.insert(path, data).is_some()
@@ -117,10 +125,22 @@ impl InnerDirectory {
     }
 }
 
+impl Default for RAMDirectory {
+    fn default() -> RAMDirectory {
+        let logger = Logger::root(StdLog.fuse(), o!());
+        Self::with_logger(logger)
+    }
+}
+
 impl fmt::Debug for RAMDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "RAMDirectory")
     }
+}
+
+struct Inner {
+    inner_directory: RwLock<InnerDirectory>,
+    logger: Logger,
 }
 
 /// A Directory storing everything in anonymous memory.
@@ -128,9 +148,9 @@ impl fmt::Debug for RAMDirectory {
 /// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
 ///
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RAMDirectory {
-    fs: Arc<RwLock<InnerDirectory>>,
+    fs: Arc<Inner>,
 }
 
 impl RAMDirectory {
@@ -139,10 +159,21 @@ impl RAMDirectory {
         Self::default()
     }
 
+    /// Create a `RAMDirectory` with a custom logger.
+    pub fn with_logger(logger: Logger) -> RAMDirectory {
+        let inner_directory = InnerDirectory::with_logger(logger.clone()).into();
+        RAMDirectory {
+            fs: Arc::new(Inner {
+                inner_directory,
+                logger,
+            }),
+        }
+    }
+
     /// Returns the sum of the size of the different files
     /// in the RAMDirectory.
     pub fn total_mem_usage(&self) -> usize {
-        self.fs.read().unwrap().total_mem_usage()
+        self.fs.inner_directory.read().unwrap().total_mem_usage()
     }
 
     /// Write a copy of all of the files saved in the RAMDirectory in the target `Directory`.
@@ -152,7 +183,7 @@ impl RAMDirectory {
     ///
     /// If an error is encounterred, files may be persisted partially.
     pub fn persist(&self, dest: &mut dyn Directory) -> crate::Result<()> {
-        let wlock = self.fs.write().unwrap();
+        let wlock = self.fs.inner_directory.write().unwrap();
         for (path, source) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
             dest_wrt.write_all(source.as_slice())?;
@@ -164,7 +195,7 @@ impl RAMDirectory {
 
 impl Directory for RAMDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.fs.read().unwrap().open_read(path)
+        self.fs.inner_directory.read().unwrap().open_read(path)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
@@ -174,15 +205,15 @@ impl Directory for RAMDirectory {
                 filepath: path.to_path_buf(),
             })
         });
-        self.fs.write().unwrap().delete(path)
+        self.fs.inner_directory.write().unwrap().delete(path)
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.fs.read().unwrap().exists(path)
+        self.fs.inner_directory.read().unwrap().exists(path)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        let mut fs = self.fs.write().unwrap();
+        let mut fs = self.fs.inner_directory.write().unwrap();
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         let exists = fs.write(path_buf.clone(), &[]);
@@ -206,19 +237,38 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
 
         // Reserve the path to prevent calls to .write() to succeed.
-        self.fs.write().unwrap().write(path_buf.clone(), &[]);
+        self.fs
+            .inner_directory
+            .write()
+            .unwrap()
+            .write(path_buf.clone(), &[]);
 
         let mut vec_writer = VecWriter::new(path_buf, self.clone());
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         if path == Path::new(&*META_FILEPATH) {
-            let _ = self.fs.write().unwrap().watch_router.broadcast();
+            let _ = self
+                .fs
+                .inner_directory
+                .write()
+                .unwrap()
+                .watch_router
+                .broadcast();
         }
         Ok(())
     }
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
-        Ok(self.fs.write().unwrap().watch(watch_callback))
+        Ok(self
+            .fs
+            .inner_directory
+            .write()
+            .unwrap()
+            .watch(watch_callback))
+    }
+
+    fn logger(&self) -> &Logger {
+        &self.fs.logger
     }
 }
 

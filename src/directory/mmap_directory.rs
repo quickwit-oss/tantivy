@@ -17,6 +17,8 @@ use notify::RawEvent;
 use notify::RecursiveMode;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
+use slog::{debug, o, Drain, Logger};
+use slog_stdlog::StdLog;
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
@@ -33,11 +35,6 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempfile::TempDir;
-
-/// Create a default io error given a string.
-pub(crate) fn make_io_err(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
-}
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
@@ -149,7 +146,7 @@ struct WatcherWrapper {
 }
 
 impl WatcherWrapper {
-    pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
+    pub(crate) fn new(path: &Path, logger: Logger) -> Result<Self, OpenDirectoryError> {
         let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
         // We need to initialize the
         let watcher = notify::raw_watcher(tx)
@@ -163,7 +160,8 @@ impl WatcherWrapper {
                     panic!("Unknown error while starting watching directory {:?}", path);
                 }
             })?;
-        let watcher_router: Arc<WatchCallbackList> = Default::default();
+        let watcher_router: Arc<WatchCallbackList> =
+            Arc::new(WatchCallbackList::with_logger(logger));
         let watcher_router_clone = watcher_router.clone();
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
@@ -226,15 +224,21 @@ struct MmapDirectoryInner {
     mmap_cache: RwLock<MmapCache>,
     _temp_directory: Option<TempDir>,
     watcher: RwLock<Option<WatcherWrapper>>,
+    logger: Logger,
 }
 
 impl MmapDirectoryInner {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectoryInner {
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+        logger: Logger,
+    ) -> MmapDirectoryInner {
         MmapDirectoryInner {
             root_path,
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
             watcher: RwLock::new(None),
+            logger,
         }
     }
 
@@ -246,7 +250,7 @@ impl MmapDirectoryInner {
         // The downside is that we might create a watch wrapper that is not useful.
         let need_initialization = self.watcher.read().unwrap().is_none();
         if need_initialization {
-            let watch_wrapper = WatcherWrapper::new(&self.root_path)?;
+            let watch_wrapper = WatcherWrapper::new(&self.root_path, self.logger.clone())?;
             let mut watch_wlock = self.watcher.write().unwrap();
             // the watcher could have been initialized when we released the lock, and
             // we do not want to lose the watched files that were set.
@@ -269,8 +273,8 @@ impl fmt::Debug for MmapDirectory {
 }
 
 impl MmapDirectory {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> MmapDirectory {
-        let inner = MmapDirectoryInner::new(root_path, temp_directory);
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>, logger: Logger) -> MmapDirectory {
+        let inner = MmapDirectoryInner::new(root_path, temp_directory, logger);
         MmapDirectory {
             inner: Arc::new(inner),
         }
@@ -282,17 +286,18 @@ impl MmapDirectory {
     /// For your unit tests, prefer the RAMDirectory.
     pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
         let tempdir = TempDir::new().map_err(OpenDirectoryError::FailedToCreateTempDir)?;
-        Ok(MmapDirectory::new(
-            tempdir.path().to_path_buf(),
-            Some(tempdir),
-        ))
+        let logger = Logger::root(StdLog.fuse(), o!());
+        Ok(MmapDirectory::new(tempdir.path().to_owned(), Some(tempdir), logger))
     }
 
     /// Opens a MmapDirectory in a directory.
     ///
     /// Returns an error if the `directory_path` does not
     /// exist or if it is not a directory.
-    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
+    pub fn open_with_logger<P: AsRef<Path>>(
+        directory_path: P,
+        logger: Logger,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
             Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
@@ -303,8 +308,18 @@ impl MmapDirectory {
                 directory_path,
             )))
         } else {
-            Ok(MmapDirectory::new(PathBuf::from(directory_path), None))
+            Ok(MmapDirectory::new(
+                PathBuf::from(directory_path),
+                None,
+                logger,
+            ))
         }
+    }
+
+    /// Creates an `MmapDirectory` at the given path.
+    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
+        let logger = Logger::root(StdLog.fuse(), o!());
+        Self::open_with_logger(directory_path, logger)
     }
 
     /// Joins a relative_path to the directory `root_path`
@@ -366,11 +381,12 @@ impl MmapDirectory {
 struct ReleaseLockFile {
     _file: File,
     path: PathBuf,
+    logger: Logger,
 }
 
 impl Drop for ReleaseLockFile {
     fn drop(&mut self) {
-        debug!("Releasing lock {:?}", self.path);
+        debug!(self.logger, "Releasing lock {:?}", self.path);
     }
 }
 
@@ -409,17 +425,16 @@ impl TerminatingWrite for SafeFileWriter {
 
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
-
         let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquired write lock \
                  on mmap cache while reading {:?}",
                 path
             );
+            let io_error = io::Error::new(io::ErrorKind::Other, msg);
             OpenReadError::IOError {
-                io_error: make_io_err(msg),
+                io_error,
                 filepath: path.to_owned(),
             }
         })?;
@@ -457,9 +472,7 @@ impl Directory for MmapDirectory {
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
-        debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
-
         let open_res = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -519,7 +532,6 @@ impl Directory for MmapDirectory {
     }
 
     fn atomic_write(&mut self, path: &Path, content: &[u8]) -> io::Result<()> {
-        debug!("Atomic Write {:?}", path);
         let mut tempfile = tempfile::Builder::new().tempfile_in(&self.inner.root_path)?;
         tempfile.write_all(content)?;
         tempfile.flush()?;
@@ -541,15 +553,21 @@ impl Directory for MmapDirectory {
         } else {
             file.try_lock_exclusive().map_err(|_| LockError::LockBusy)?
         }
+        let logger = self.inner.logger.clone();
         // dropping the file handle will release the lock.
         Ok(DirectoryLock::from(Box::new(ReleaseLockFile {
             path: lock.filepath.clone(),
             _file: file,
+            logger,
         })))
     }
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.inner.watch(watch_callback)
+    }
+
+    fn logger(&self) -> &Logger {
+        &self.inner.logger
     }
 }
 
@@ -660,7 +678,8 @@ mod tests {
         let counter_clone = counter.clone();
         let tmp_dir = tempfile::TempDir::new().unwrap();
         let tmp_dirpath = tmp_dir.path().to_owned();
-        let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath).unwrap();
+        let logger = Logger::root(slog::Discard, o!());
+        let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath, logger).unwrap();
         let tmp_file = tmp_dirpath.join(*META_FILEPATH);
         let _handle = watch_wrapper.watch(Box::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);

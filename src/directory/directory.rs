@@ -1,3 +1,5 @@
+use slog::{error, Logger};
+
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
@@ -64,7 +66,10 @@ impl<T: Send + Sync + 'static> From<Box<T>> for DirectoryLock {
 impl Drop for DirectoryLockGuard {
     fn drop(&mut self) {
         if let Err(e) = self.directory.delete(&*self.path) {
-            error!("Failed to remove the lock file. {:?}", e);
+            error!(
+                self.directory.logger(),
+                "Failed to remove the lock file. {:?}", e
+            );
         }
     }
 }
@@ -209,6 +214,9 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// `OnCommit` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents the
     /// `OnCommit` `ReloadPolicy` to work properly.
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle>;
+
+    /// Returns the `slog::Logger` configured for the `Directory`.
+    fn logger(&self) -> &Logger;
 }
 
 /// DirectoryClone

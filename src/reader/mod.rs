@@ -1,5 +1,7 @@
 mod pool;
 
+use slog::error;
+
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use crate::core::Segment;
@@ -62,6 +64,7 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     pub fn try_into(self) -> crate::Result<IndexReader> {
+        let logger = self.index.logger().clone();
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
@@ -80,8 +83,8 @@ impl IndexReaderBuilder {
                 let callback = move || {
                     if let Err(err) = inner_reader_arc_clone.reload() {
                         error!(
-                            "Error while loading searcher after commit was detected. {:?}",
-                            err
+                            logger,
+                            "Error while loading searcher after commit was detected. {:?}", err
                         );
                     }
                 };

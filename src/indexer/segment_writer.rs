@@ -1,5 +1,4 @@
 use super::operation::AddOperation;
-use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
@@ -15,6 +14,7 @@ use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
+use crate::{core::Segment, tokenizer::MAX_TOKEN_LEN};
 use crate::{DocId, SegmentComponent};
 use std::io;
 
@@ -146,6 +146,9 @@ impl SegmentWriter {
                     for fake_str in facets {
                         let mut unordered_term_id_opt = None;
                         FacetTokenizer.token_stream(fake_str).process(&mut |token| {
+                            if token.text.len() > MAX_TOKEN_LEN {
+                                return;
+                            }
                             term_buffer.set_text(&token.text);
                             let unordered_term_id =
                                 multifield_postings.subscribe(doc_id, &term_buffer);

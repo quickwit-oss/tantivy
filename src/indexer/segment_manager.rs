@@ -1,3 +1,5 @@
+use slog::{warn, Logger};
+
 use super::segment_register::SegmentRegister;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
@@ -42,9 +44,9 @@ impl SegmentRegisters {
 ///
 /// It guarantees the atomicity of the
 /// changes (merges especially)
-#[derive(Default)]
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
+    logger: Logger,
 }
 
 impl Debug for SegmentManager {
@@ -77,12 +79,14 @@ impl SegmentManager {
     pub fn from_segments(
         segment_metas: Vec<SegmentMeta>,
         delete_cursor: &DeleteCursor,
+        logger: Logger,
     ) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),
             }),
+            logger,
         }
     }
 
@@ -186,7 +190,7 @@ impl SegmentManager {
         let segments_status = registers_lock
             .segments_status(before_merge_segment_ids)
             .ok_or_else(|| {
-                warn!("couldn't find segment in SegmentManager");
+                warn!(self.logger, "couldn't find segment in SegmentManager");
                 crate::TantivyError::InvalidArgument(
                     "The segments that were merged could not be found in the SegmentManager. \
                      This is not necessarily a bug, and can happen after a rollback for instance."

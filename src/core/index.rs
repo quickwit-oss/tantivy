@@ -21,6 +21,7 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
+use slog::Logger;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::fmt;
@@ -57,6 +58,11 @@ pub struct Index {
 }
 
 impl Index {
+
+    pub(crate) fn logger(&self) -> &Logger {
+        self.directory.logger()
+    }
+
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
@@ -147,13 +153,13 @@ impl Index {
     /// If a directory previously existed, it will be erased.
     pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(dir)?;
-        Index::from_directory(directory, schema)
+        Index::new_from_directory(directory, schema)
     }
 
     /// Create a new index from a directory.
     ///
     /// This will overwrite existing meta.json
-    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
+    fn new_from_directory(mut directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
         save_new_metas(schema.clone(), directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
         Index::create_from_metas(directory, &metas, SegmentMetaInventory::default())
@@ -244,6 +250,8 @@ impl Index {
 
     /// Open the index using the provided directory
     pub fn open<D: Directory>(directory: D) -> crate::Result<Index> {
+        let logger: &Logger = directory.logger();
+        slog::info!(logger, "index-open"; "directory" => format!("{:?}", directory));
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;

@@ -27,6 +27,7 @@ use crate::Opstamp;
 use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
+use slog::{error, info, Logger};
 use smallvec::smallvec;
 use smallvec::SmallVec;
 use std::mem;
@@ -195,20 +196,21 @@ fn index_documents(
     grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
+    logger: &Logger,
 ) -> crate::Result<bool> {
     let schema = segment.schema();
 
+    info!(logger, "segment-index"; "stage"=>"start");
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
+    let mut buffer_limit_reached = false;
     for document_group in grouped_document_iterator {
         for doc in document_group {
             segment_writer.add_document(doc, &schema)?;
         }
         let mem_usage = segment_writer.mem_usage();
         if mem_usage >= memory_budget - MARGIN_IN_BYTES {
-            info!(
-                "Buffer limit reached, flushing segment with maxdoc={}.",
-                segment_writer.max_doc()
-            );
+            buffer_limit_reached = true;
+
             break;
         }
     }
@@ -228,6 +230,14 @@ fn index_documents(
     let segment_with_max_doc = segment.with_max_doc(max_doc);
 
     let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
+    info!(
+        logger,
+        "segment-index";
+        "stage" => "serialize",
+        "cause" => if buffer_limit_reached { "buffer-limit" } else { "commit" },
+        "maxdoc" => max_doc,
+        "last_docstamp" => last_docstamp
+    );
 
     let delete_bitset_opt = apply_deletes(
         &segment_with_max_doc,
@@ -241,7 +251,18 @@ fn index_documents(
         delete_cursor,
         delete_bitset_opt,
     );
+
+    info!(
+        logger,
+        "segment-index";
+        "stage" => "publish",
+    );
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
+    info!(
+        logger,
+        "segment-index";
+        "stage" => "end",
+    );
     Ok(true)
 }
 
@@ -344,6 +365,10 @@ impl IndexWriter {
         Ok(index_writer)
     }
 
+    pub(crate) fn logger(&self) -> &Logger {
+        self.index.logger()
+    }
+
     fn drop_sender(&mut self) {
         let (sender, _receiver) = channel::bounded(1);
         self.operation_sender = sender;
@@ -352,6 +377,8 @@ impl IndexWriter {
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
+        info!(self.logger(), "wait-merge-threads"; "stage"=>"start");
+
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
         self.drop_sender();
@@ -372,9 +399,9 @@ impl IndexWriter {
             .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
 
         if let Err(ref e) = result {
-            error!("Some merging thread failed {:?}", e);
+            error!(self.logger(), "some merge thread failed"; "cause"=>e.to_string());
         }
-
+        info!(self.logger(), "wait-merge-threads"; "stage"=>"stop");
         result
     }
 
@@ -434,12 +461,16 @@ impl IndexWriter {
                         return Ok(());
                     }
                     let segment = index.new_segment();
+                    let segment_id = segment.id();
                     index_documents(
                         mem_budget,
                         segment,
                         &mut document_iterator,
                         &mut segment_updater,
                         delete_cursor.clone(),
+                        &index
+                            .logger()
+                            .new(slog::o!("segment"=>segment_id.to_string())),
                     )?;
                 }
             })?;
@@ -553,7 +584,10 @@ impl IndexWriter {
     ///
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> crate::Result<Opstamp> {
-        info!("Rolling back to opstamp {}", self.committed_opstamp);
+        info!(
+            self.logger(),
+            "Rolling back to opstamp {}", self.committed_opstamp
+        );
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
@@ -610,6 +644,8 @@ impl IndexWriter {
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
     pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+        let logger = self.logger().clone();
+
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -620,7 +656,10 @@ impl IndexWriter {
         //
         // This will move uncommitted segments to the state of
         // committed segments.
-        info!("Preparing commit");
+
+        let commit_opstamp = self.stamper.stamp();
+
+        info!(logger, "prepare-commit"; "opstamp" => commit_opstamp);
 
         // this will drop the current document channel
         // and recreate a new one.
@@ -636,9 +675,8 @@ impl IndexWriter {
             self.add_indexing_worker()?;
         }
 
-        let commit_opstamp = self.stamper.stamp();
         let prepared_commit = PreparedCommit::new(self, commit_opstamp);
-        info!("Prepared commit {}", commit_opstamp);
+        info!(logger, "Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
 

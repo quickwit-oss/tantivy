@@ -1,6 +1,7 @@
 use super::IndexWriter;
 use crate::Opstamp;
 use futures::executor::block_on;
+use slog::info;
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {
@@ -31,7 +32,7 @@ impl<'a> PreparedCommit<'a> {
     }
 
     pub fn commit(self) -> crate::Result<Opstamp> {
-        info!("committing {}", self.opstamp);
+        info!(self.index_writer.logger(), "committing {}", self.opstamp);
         let _ = block_on(
             self.index_writer
                 .segment_updater()

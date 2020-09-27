@@ -227,23 +227,17 @@ pub trait PostingsWriter {
         term_buffer.set_field(field);
         let mut sink = |token: &Token| {
             // We skip all tokens with a len greater than u16.
-            if token.text.len() <= MAX_TOKEN_LEN {
-                term_buffer.set_text(token.text.as_str());
-                self.subscribe(
-                    term_index,
-                    doc_id,
-                    token.position as u32,
-                    &term_buffer,
-                    heap,
-                );
-            } else {
-                info!(
-                    "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
-                     MAX_TOKEN_LEN in the documentation for more information.",
-                    token.text.len(),
-                    MAX_TOKEN_LEN
-                );
+            if token.text.len() > MAX_TOKEN_LEN {
+                return;
             }
+            term_buffer.set_text(token.text.as_str());
+            self.subscribe(
+                term_index,
+                doc_id,
+                token.position as u32,
+                &term_buffer,
+                heap,
+            );
         };
         token_stream.process(&mut sink)
     }
