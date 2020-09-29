@@ -139,7 +139,7 @@ pub trait Collector: Sync + Send {
     type Fruit: Fruit;
 
     /// Type of the `SegmentCollector` associated to this collector.
-    type Child: SegmentCollector<Fruit = Self::Fruit>;
+    type Child: SegmentCollector;
 
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
@@ -154,7 +154,10 @@ pub trait Collector: Sync + Send {
 
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit>;
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit>;
 
     /// Created a segment collector and
     fn collect_segment(
@@ -224,11 +227,11 @@ where
 
     fn merge_fruits(
         &self,
-        children: Vec<(Left::Fruit, Right::Fruit)>,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
     ) -> crate::Result<(Left::Fruit, Right::Fruit)> {
         let mut left_fruits = vec![];
         let mut right_fruits = vec![];
-        for (left_fruit, right_fruit) in children {
+        for (left_fruit, right_fruit) in segment_fruits {
             left_fruits.push(left_fruit);
             right_fruits.push(right_fruit);
         }
@@ -282,7 +285,10 @@ where
         self.0.requires_scoring() || self.1.requires_scoring() || self.2.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+    fn merge_fruits(
+        &self,
+        children: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
         let mut one_fruits = vec![];
         let mut two_fruits = vec![];
         let mut three_fruits = vec![];
@@ -349,7 +355,10 @@ where
             || self.3.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+    fn merge_fruits(
+        &self,
+        children: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
         let mut one_fruits = vec![];
         let mut two_fruits = vec![];
         let mut three_fruits = vec![];
