@@ -1,5 +1,4 @@
 use super::Collector;
-use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
 use crate::collector::top_collector::TopSegmentCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
@@ -14,6 +13,9 @@ use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
+use crate::{
+    collector::custom_score_top_collector::CustomScoreTopCollector, fastfield::FastValue, DateTime,
+};
 use std::collections::BinaryHeap;
 use std::fmt;
 
@@ -67,13 +69,13 @@ impl fmt::Debug for TopDocs {
     }
 }
 
-struct ScorerByFastFieldReader {
-    ff_reader: FastFieldReader<u64>,
+struct ScorerByFastFieldReader<Item: FastValue> {
+    ff_reader: FastFieldReader<Item>,
 }
 
-impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
-    fn score(&mut self, doc: DocId) -> u64 {
-        self.ff_reader.get_u64(u64::from(doc))
+impl<Item: FastValue + 'static> CustomSegmentScorer<Item> for ScorerByFastFieldReader<Item> {
+    fn score(&mut self, doc: DocId) -> Item {
+        self.ff_reader.get(doc)
     }
 }
 
@@ -82,7 +84,7 @@ struct ScorerByField {
 }
 
 impl CustomScorer<u64> for ScorerByField {
-    type Child = ScorerByFastFieldReader;
+    type Child = ScorerByFastFieldReader<u64>;
 
     fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
         let ff_reader = segment_reader
@@ -90,7 +92,41 @@ impl CustomScorer<u64> for ScorerByField {
             .u64(self.field)
             .ok_or_else(|| {
                 crate::TantivyError::SchemaError(format!(
-                    "Field requested ({:?}) is not a i64/u64 fast field.",
+                    "Field requested ({:?}) is not a u64 fast field.",
+                    self.field
+                ))
+            })?;
+        Ok(ScorerByFastFieldReader { ff_reader })
+    }
+}
+
+impl CustomScorer<i64> for ScorerByField {
+    type Child = ScorerByFastFieldReader<i64>;
+
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+        let ff_reader = segment_reader
+            .fast_fields()
+            .i64(self.field)
+            .ok_or_else(|| {
+                crate::TantivyError::SchemaError(format!(
+                    "Field requested ({:?}) is not a i64 fast field.",
+                    self.field
+                ))
+            })?;
+        Ok(ScorerByFastFieldReader { ff_reader })
+    }
+}
+
+impl CustomScorer<crate::DateTime> for ScorerByField {
+    type Child = ScorerByFastFieldReader<crate::DateTime>;
+
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
+        let ff_reader = segment_reader
+            .fast_fields()
+            .date(self.field)
+            .ok_or_else(|| {
+                crate::TantivyError::SchemaError(format!(
+                    "Field requested ({:?}) is not a DateTime fast field.",
                     self.field
                 ))
             })?;
@@ -222,6 +258,19 @@ impl TopDocs {
         self.custom_score(ScorerByField { field })
     }
 
+    pub fn order_by_i64_field(
+        self,
+        field: Field,
+    ) -> impl Collector<Fruit = Vec<(i64, DocAddress)>> {
+        self.custom_score(ScorerByField { field })
+    }
+
+    pub fn order_by_datetime_field(
+        self,
+        field: Field,
+    ) -> impl Collector<Fruit = Vec<(DateTime, DocAddress)>> {
+        self.custom_score(ScorerByField { field })
+    }
     /// Ranks the documents using a custom score.
     ///
     /// This method offers a convenient way to tweak or replace
@@ -723,6 +772,67 @@ mod tests {
     }
 
     #[test]
+    fn test_top_field_collector_datetime() -> crate::Result<()> {
+        use std::str::FromStr;
+        let mut schema_builder = Schema::builder();
+        let name = schema_builder.add_text_field("name", TEXT);
+        let birthday = schema_builder.add_date_field("birthday", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        let pr_birthday = crate::DateTime::from_str("1898-04-09T00:00:00+00:00")?;
+        index_writer.add_document(doc!(
+            name => "Paul Robeson",
+            birthday => pr_birthday
+        ));
+        let mr_birthday = crate::DateTime::from_str("1947-11-08T00:00:00+00:00")?;
+        index_writer.add_document(doc!(
+            name => "Minnie Riperton",
+            birthday => mr_birthday
+        ));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let top_collector = TopDocs::with_limit(3).order_by_datetime_field(birthday);
+        let top_docs: Vec<(crate::DateTime, DocAddress)> =
+            searcher.search(&AllQuery, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[
+                (mr_birthday, DocAddress(0, 1)),
+                (pr_birthday, DocAddress(0, 0)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_top_field_collector_i64() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT);
+        let altitude = schema_builder.add_i64_field("altitude", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+                city => "georgetown",
+                altitude =>  -1i64,
+        ));
+        index_writer.add_document(doc!(
+            city => "tokyo",
+            altitude =>  40i64,
+        ));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let top_collector = TopDocs::with_limit(3).order_by_i64_field(altitude);
+        let top_docs: Vec<(i64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[(40i64, DocAddress(0, 1)), (-1i64, DocAddress(0, 0)),]
+        );
+        Ok(())
+    }
+
+    #[test]
     #[should_panic]
     fn test_field_does_not_exist() {
         let mut schema_builder = Schema::builder();
@@ -760,10 +870,7 @@ mod tests {
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let err = top_collector.for_segment(0, segment);
         if let Err(crate::TantivyError::SchemaError(msg)) = err {
-            assert_eq!(
-                msg,
-                "Field requested (Field(1)) is not a i64/u64 fast field."
-            );
+            assert_eq!(msg, "Field requested (Field(1)) is not a u64 fast field.");
         } else {
             assert!(false);
         }
