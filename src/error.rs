@@ -117,6 +117,12 @@ impl<Guard> From<PoisonError<Guard>> for TantivyError {
     }
 }
 
+impl From<chrono::ParseError> for TantivyError {
+    fn from(err: chrono::ParseError) -> TantivyError {
+        TantivyError::InvalidArgument(err.to_string())
+    }
+}
+
 impl From<schema::DocParsingError> for TantivyError {
     fn from(error: schema::DocParsingError) -> TantivyError {
         TantivyError::InvalidArgument(format!("Failed to parse document {:?}", error))

@@ -1,6 +1,4 @@
 use super::Collector;
-use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
-use crate::collector::top_collector::TopSegmentCollector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
@@ -14,8 +12,71 @@ use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use std::collections::BinaryHeap;
+use crate::{collector::custom_score_top_collector::CustomScoreTopCollector, fastfield::FastValue};
+use crate::{collector::top_collector::TopSegmentCollector, TantivyError};
 use std::fmt;
+use std::{collections::BinaryHeap, marker::PhantomData};
+
+struct FastFieldConvertCollector<
+    TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
+    TFastValue: FastValue,
+> {
+    pub collector: TCollector,
+    pub field: Field,
+    pub fast_value: std::marker::PhantomData<TFastValue>,
+}
+
+impl<TCollector, TFastValue> Collector for FastFieldConvertCollector<TCollector, TFastValue>
+where
+    TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
+    TFastValue: FastValue + 'static,
+{
+    type Fruit = Vec<(TFastValue, DocAddress)>;
+
+    type Child = TCollector::Child;
+
+    fn for_segment(
+        &self,
+        segment_local_id: crate::SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        let schema = segment.schema();
+        let field_entry = schema.get_field_entry(self.field);
+        if !field_entry.is_fast() {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is not a fast field.",
+                field_entry.name()
+            )));
+        }
+        let schema_type = TFastValue::to_type();
+        let requested_type = field_entry.field_type().value_type();
+        if schema_type != requested_type {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is of type {:?}!={:?}",
+                field_entry.name(),
+                schema_type,
+                requested_type
+            )));
+        }
+        self.collector.for_segment(segment_local_id, segment)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.collector.requires_scoring()
+    }
+
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
+        let raw_result = self.collector.merge_fruits(segment_fruits)?;
+        let transformed_result = raw_result
+            .into_iter()
+            .map(|(score, doc_address)| (TFastValue::from_u64(score), doc_address))
+            .collect::<Vec<_>>();
+        Ok(transformed_result)
+    }
+}
 
 /// The `TopDocs` collector keeps track of the top `K` documents
 /// sorted by their score.
@@ -73,7 +134,7 @@ struct ScorerByFastFieldReader {
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
     fn score(&mut self, doc: DocId) -> u64 {
-        self.ff_reader.get_u64(u64::from(doc))
+        self.ff_reader.get(doc)
     }
 }
 
@@ -87,10 +148,10 @@ impl CustomScorer<u64> for ScorerByField {
     fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
         let ff_reader = segment_reader
             .fast_fields()
-            .u64(self.field)
+            .u64_lenient(self.field)
             .ok_or_else(|| {
                 crate::TantivyError::SchemaError(format!(
-                    "Field requested ({:?}) is not a i64/u64 fast field.",
+                    "Field requested ({:?}) is not a fast field.",
                     self.field
                 ))
             })?;
@@ -111,6 +172,8 @@ impl TopDocs {
     ///
     /// This is equivalent to `OFFSET` in MySQL or PostgreSQL and `start` in
     /// Lucene's TopDocsCollector.
+    ///
+    /// # Example
     ///
     /// ```rust
     /// use tantivy::collector::TopDocs;
@@ -148,6 +211,14 @@ impl TopDocs {
 
     /// Set top-K to rank documents by a given fast field.
     ///
+    /// If the field is not a fast or does not exist, this method returns successfully (it is not aware of any schema).
+    /// An error will be returned at the moment of search.
+    ///
+    /// If the field is a FAST field but not a u64 field, search will return successfully but it will return
+    /// returns a monotonic u64-representation (ie. the order is still correct) of the requested field type.
+    ///
+    /// # Example
+    ///
     /// ```rust
     /// # use tantivy::schema::{Schema, FAST, TEXT};
     /// # use tantivy::{doc, Index, DocAddress};
@@ -169,7 +240,7 @@ impl TopDocs {
     /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
     /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
     /// #   assert!(index_writer.commit().is_ok());
-    /// #   let reader = index.reader().unwrap();
+    /// #   let reader = index.reader()?;
     /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
     /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
     /// #   assert_eq!(top_docs,
@@ -177,25 +248,20 @@ impl TopDocs {
     /// #                 (80u64, DocAddress(0u32, 3))]);
     /// #   Ok(())
     /// # }
-    ///
-    ///
     /// /// Searches the document matching the given query, and
     /// /// collects the top 10 documents, order by the u64-`field`
     /// /// given in argument.
-    /// ///
-    /// /// `field` is required to be a FAST field.
     /// fn docs_sorted_by_rating(searcher: &Searcher,
     ///                          query: &dyn Query,
-    ///                          sort_by_field: Field)
+    ///                          rating_field: Field)
     ///     -> tantivy::Result<Vec<(u64, DocAddress)>> {
     ///
     ///     // This is where we build our topdocs collector
     ///     //
-    ///     // Note the generics parameter that needs to match the
-    ///     // type `sort_by_field`.
-    ///     let top_docs_by_rating = TopDocs
+    ///     // Note the `rating_field` needs to be a FAST field here.
+    ///     let top_books_by_rating = TopDocs
     ///                 ::with_limit(10)
-    ///                  .order_by_u64_field(sort_by_field);
+    ///                  .order_by_u64_field(rating_field);
     ///     
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `u64` in the pair is the value of our fast field for
@@ -205,21 +271,105 @@ impl TopDocs {
     ///     // length of 10, or less if not enough documents matched the
     ///     // query.
     ///     let resulting_docs: Vec<(u64, DocAddress)> =
-    ///          searcher.search(query, &top_docs_by_rating)?;
+    ///          searcher.search(query, &top_books_by_rating)?;
     ///     
     ///     Ok(resulting_docs)
     /// }
     /// ```
     ///
-    /// # Panics
-    ///
-    /// May panic if the field requested is not a fast field.
-    ///
+    /// # See also
+    ///  
+    /// To confortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
+    /// [.order_by_fast_field(...)](#method.order_by_fast_field) method.
     pub fn order_by_u64_field(
         self,
         field: Field,
     ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
-        self.custom_score(ScorerByField { field })
+        CustomScoreTopCollector::new(ScorerByField { field }, self.0.into_tscore())
+    }
+
+    /// Set top-K to rank documents by a given fast field.
+    ///
+    /// If the field is not a fast field, or its field type does not match the generic type, this method does not panic,  
+    /// but an explicit error will be returned at the moment of collection.
+    ///
+    /// Note that this method is a generic. The requested fast field type will be often
+    /// inferred in your code by the rust compiler.
+    ///
+    /// Implementation-wise, for performance reason, tantivy will manipulate the u64 representation of your fast
+    /// field until the last moment.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use tantivy::schema::{Schema, FAST, TEXT};
+    /// # use tantivy::{doc, Index, DocAddress};
+    /// # use tantivy::query::{Query, AllQuery};
+    /// use tantivy::Searcher;
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::schema::Field;
+    ///
+    /// # fn main() -> tantivy::Result<()> {
+    /// #   let mut schema_builder = Schema::builder();
+    /// #   let title = schema_builder.add_text_field("company", TEXT);
+    /// #   let rating = schema_builder.add_i64_field("revenue", FAST);
+    /// #   let schema = schema_builder.build();
+    /// #  
+    /// #   let index = Index::create_in_ram(schema);
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+    /// #   index_writer.add_document(doc!(title => "MadCow Inc.", rating => 92_000_000i64));
+    /// #   index_writer.add_document(doc!(title => "Zozo Cow KKK", rating => 119_000_000i64));
+    /// #   index_writer.add_document(doc!(title => "Declining Cow", rating => -63_000_000i64));
+    /// #   assert!(index_writer.commit().is_ok());
+    /// #   let reader = index.reader()?;
+    /// #   let top_docs = docs_sorted_by_revenue(&reader.searcher(), &AllQuery, rating)?;
+    /// #   assert_eq!(top_docs,
+    /// #            vec![(119_000_000i64, DocAddress(0, 1)),
+    /// #                 (92_000_000i64, DocAddress(0, 0))]);
+    /// #   Ok(())
+    /// # }
+    /// /// Searches the document matching the given query, and
+    /// /// collects the top 10 documents, order by the u64-`field`
+    /// /// given in argument.
+    /// fn docs_sorted_by_revenue(searcher: &Searcher,
+    ///                          query: &dyn Query,
+    ///                          revenue_field: Field)
+    ///     -> tantivy::Result<Vec<(i64, DocAddress)>> {
+    ///
+    ///     // This is where we build our topdocs collector
+    ///     //
+    ///     // Note the generics parameter that needs to match the
+    ///     // type `sort_by_field`. revenue_field here is a FAST i64 field.
+    ///     let top_company_by_revenue = TopDocs
+    ///                 ::with_limit(2)
+    ///                  .order_by_fast_field(revenue_field);
+    ///     
+    ///     // ... and here are our documents. Note this is a simple vec.
+    ///     // The `i64` in the pair is the value of our fast field for
+    ///     // each documents.
+    ///     //
+    ///     // The vec is sorted decreasingly by `sort_by_field`, and has a
+    ///     // length of 10, or less if not enough documents matched the
+    ///     // query.
+    ///     let resulting_docs: Vec<(i64, DocAddress)> =
+    ///          searcher.search(query, &top_company_by_revenue)?;
+    ///     
+    ///     Ok(resulting_docs)
+    /// }
+    /// ```
+    pub fn order_by_fast_field<TFastValue>(
+        self,
+        fast_field: Field,
+    ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
+    where
+        TFastValue: FastValue + 'static,
+    {
+        let u64_collector = self.order_by_u64_field(fast_field);
+        FastFieldConvertCollector {
+            collector: u64_collector,
+            field: fast_field,
+            fast_value: PhantomData,
+        }
     }
 
     /// Ranks the documents using a custom score.
@@ -723,6 +873,94 @@ mod tests {
     }
 
     #[test]
+    fn test_top_field_collector_datetime() -> crate::Result<()> {
+        use std::str::FromStr;
+        let mut schema_builder = Schema::builder();
+        let name = schema_builder.add_text_field("name", TEXT);
+        let birthday = schema_builder.add_date_field("birthday", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        let pr_birthday = crate::DateTime::from_str("1898-04-09T00:00:00+00:00")?;
+        index_writer.add_document(doc!(
+            name => "Paul Robeson",
+            birthday => pr_birthday
+        ));
+        let mr_birthday = crate::DateTime::from_str("1947-11-08T00:00:00+00:00")?;
+        index_writer.add_document(doc!(
+            name => "Minnie Riperton",
+            birthday => mr_birthday
+        ));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field(birthday);
+        let top_docs: Vec<(crate::DateTime, DocAddress)> =
+            searcher.search(&AllQuery, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[
+                (mr_birthday, DocAddress(0, 1)),
+                (pr_birthday, DocAddress(0, 0)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_top_field_collector_i64() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT);
+        let altitude = schema_builder.add_i64_field("altitude", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+                city => "georgetown",
+                altitude =>  -1i64,
+        ));
+        index_writer.add_document(doc!(
+            city => "tokyo",
+            altitude =>  40i64,
+        ));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field(altitude);
+        let top_docs: Vec<(i64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[(40i64, DocAddress(0, 1)), (-1i64, DocAddress(0, 0)),]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_top_field_collector_f64() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let city = schema_builder.add_text_field("city", TEXT);
+        let altitude = schema_builder.add_f64_field("altitude", FAST);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(
+                city => "georgetown",
+                altitude =>  -1.0f64,
+        ));
+        index_writer.add_document(doc!(
+            city => "tokyo",
+            altitude =>  40f64,
+        ));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let top_collector = TopDocs::with_limit(3).order_by_fast_field(altitude);
+        let top_docs: Vec<(f64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
+        assert_eq!(
+            &top_docs[..],
+            &[(40f64, DocAddress(0, 1)), (-1.0f64, DocAddress(0, 0)),]
+        );
+        Ok(())
+    }
+
+    #[test]
     #[should_panic]
     fn test_field_does_not_exist() {
         let mut schema_builder = Schema::builder();
@@ -744,29 +982,41 @@ mod tests {
     }
 
     #[test]
-    fn test_field_not_fast_field() {
+    fn test_field_not_fast_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, STORED);
         let schema = schema_builder.build();
-        let (index, _) = index("beer", title, schema, |index_writer| {
-            index_writer.add_document(doc!(
-                title => "bottle of beer",
-                size => 12u64,
-            ));
-        });
-        let searcher = index.reader().unwrap().searcher();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(size=>1u64));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
-        let err = top_collector.for_segment(0, segment);
-        if let Err(crate::TantivyError::SchemaError(msg)) = err {
-            assert_eq!(
-                msg,
-                "Field requested (Field(1)) is not a i64/u64 fast field."
-            );
-        } else {
-            assert!(false);
-        }
+        let err = top_collector.for_segment(0, segment).err().unwrap();
+        assert!(
+            matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field requested (Field(0)) is not a fast field.")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_field_wrong_type() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let size = schema_builder.add_u64_field(SIZE, STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(size=>1u64));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let segment = searcher.segment_reader(0);
+        let top_collector = TopDocs::with_limit(4).order_by_fast_field::<i64>(size);
+        let err = top_collector.for_segment(0, segment).err().unwrap();
+        assert!(
+            matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field \"size\" is not a fast field.")
+        );
+        Ok(())
     }
 
     #[test]
@@ -820,7 +1070,6 @@ mod tests {
         mut doc_adder: impl FnMut(&mut IndexWriter) -> (),
     ) -> (Index, Box<dyn Query>) {
         let index = Index::create_in_ram(schema);
-
         let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
         doc_adder(&mut index_writer);
         index_writer.commit().unwrap();

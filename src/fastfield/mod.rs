@@ -33,11 +33,14 @@ pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::chrono::{NaiveDateTime, Utc};
 use crate::common;
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
 use crate::schema::Value;
+use crate::{
+    chrono::{NaiveDateTime, Utc},
+    schema::Type,
+};
 
 mod bytes;
 mod delete;
@@ -76,6 +79,9 @@ pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd {
     fn make_zero() -> Self {
         Self::from_u64(0i64.to_u64())
     }
+
+    /// Returns the `schema::Type` for this FastValue.
+    fn to_type() -> Type;
 }
 
 impl FastValue for u64 {
@@ -98,6 +104,10 @@ impl FastValue for u64 {
     fn as_u64(&self) -> u64 {
         *self
     }
+
+    fn to_type() -> Type {
+        Type::U64
+    }
 }
 
 impl FastValue for i64 {
@@ -118,6 +128,10 @@ impl FastValue for i64 {
 
     fn as_u64(&self) -> u64 {
         *self as u64
+    }
+
+    fn to_type() -> Type {
+        Type::I64
     }
 }
 
@@ -140,6 +154,10 @@ impl FastValue for f64 {
     fn as_u64(&self) -> u64 {
         self.to_bits()
     }
+
+    fn to_type() -> Type {
+        Type::F64
+    }
 }
 
 impl FastValue for crate::DateTime {
@@ -161,6 +179,10 @@ impl FastValue for crate::DateTime {
 
     fn as_u64(&self) -> u64 {
         self.timestamp().as_u64()
+    }
+
+    fn to_type() -> Type {
+        Type::Date
     }
 }
 
