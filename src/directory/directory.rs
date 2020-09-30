@@ -80,7 +80,7 @@ fn try_acquire_lock(
 ) -> Result<DirectoryLock, TryAcquireLockError> {
     let mut write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
-        OpenWriteError::IOError(io_error) => TryAcquireLockError::IOError(io_error.into()),
+        OpenWriteError::IOError { io_error, .. } => TryAcquireLockError::IOError(io_error),
     })?;
     write.flush().map_err(TryAcquireLockError::IOError)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {

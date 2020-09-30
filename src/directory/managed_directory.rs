@@ -1,5 +1,5 @@
 use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
-use crate::directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
+use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::DirectoryLock;
 use crate::directory::GarbageCollectionResult;
@@ -86,7 +86,12 @@ impl ManagedDirectory {
                 directory: Box::new(directory),
                 meta_informations: Arc::default(),
             }),
-            Err(OpenReadError::IOError(e)) => Err(From::from(e)),
+            Err(OpenReadError::IOError { io_error, filepath }) => {
+                Err(crate::TantivyError::OpenReadError(OpenReadError::IOError {
+                    io_error,
+                    filepath,
+                }))
+            }
             Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
                 // For the moment, this should never happen  `meta.json`
                 // do not have any footer and cannot detect incompatibility.
@@ -168,7 +173,7 @@ impl ManagedDirectory {
                         DeleteError::FileDoesNotExist(_) => {
                             deleted_files.push(file_to_delete.clone());
                         }
-                        DeleteError::IOError(_) => {
+                        DeleteError::IOError { .. } => {
                             failed_to_delete_files.push(file_to_delete.clone());
                             if !cfg!(target_os = "windows") {
                                 // On windows, delete is expected to fail if the file
@@ -231,8 +236,11 @@ impl ManagedDirectory {
     /// Verify checksum of a managed file
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
-        let (footer, data) = Footer::extract_footer(reader)
-            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        let (footer, data) =
+            Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IOError {
+                io_error,
+                filepath: path.to_path_buf(),
+            })?;
         let mut hasher = Hasher::new();
         hasher.update(data.as_slice());
         let crc = hasher.finalize();
@@ -245,7 +253,6 @@ impl ManagedDirectory {
 
     /// List files for which checksum does not match content
     pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
-        let mut hashset = HashSet::new();
         let mut managed_paths = self
             .meta_informations
             .read()
@@ -255,27 +262,35 @@ impl ManagedDirectory {
 
         managed_paths.remove(*META_FILEPATH);
 
-        for path in managed_paths.into_iter() {
+        let mut damaged_files = HashSet::new();
+        for path in managed_paths {
             if !self.validate_checksum(&path)? {
-                hashset.insert(path);
+                damaged_files.insert(path);
             }
         }
-        Ok(hashset)
+        Ok(damaged_files)
     }
 }
 
 impl Directory for ManagedDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
         let read_only_source = self.directory.open_read(path)?;
-        let (footer, reader) = Footer::extract_footer(read_only_source)
-            .map_err(|err| IOError::with_path(path.to_path_buf(), err))?;
+        let (footer, reader) = Footer::extract_footer(read_only_source).map_err(|io_error| {
+            OpenReadError::IOError {
+                io_error,
+                filepath: path.to_path_buf(),
+            }
+        })?;
         footer.is_compatible()?;
         Ok(reader)
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
-            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+            .map_err(|io_error| OpenWriteError::IOError {
+                io_error,
+                filepath: path.to_path_buf(),
+            })?;
         Ok(io::BufWriter::new(Box::new(FooterProxy::new(
             self.directory
                 .open_write(path)?

@@ -1,8 +1,6 @@
 use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
-use crate::directory::error::{
-    DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError,
-};
+use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use crate::directory::read_only_source::BoxedData;
 use crate::directory::AntiCallToken;
 use crate::directory::Directory;
@@ -48,13 +46,17 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
         if e.kind() == io::ErrorKind::NotFound {
             OpenReadError::FileDoesNotExist(full_path.to_owned())
         } else {
-            OpenReadError::IOError(IOError::with_path(full_path.to_owned(), e))
+            OpenReadError::IOError {
+                io_error: e,
+                filepath: full_path.to_owned(),
+            }
         }
     })?;
 
-    let meta_data = file
-        .metadata()
-        .map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
+    let meta_data = file.metadata().map_err(|e| OpenReadError::IOError {
+        io_error: e,
+        filepath: full_path.to_owned(),
+    })?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
         // to mmap the file, so we return None
@@ -64,7 +66,10 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
     unsafe {
         memmap::Mmap::map(&file)
             .map(Some)
-            .map_err(|e| From::from(IOError::with_path(full_path.to_owned(), e)))
+            .map_err(|e| OpenReadError::IOError {
+                io_error: e,
+                filepath: full_path.to_owned(),
+            })
     }
 }
 
@@ -183,6 +188,10 @@ impl WatcherWrapper {
                         }
                     }
                 }
+            })
+            .map_err(|io_error| OpenDirectoryError::IoError {
+                io_error,
+                directory_path: path.to_path_buf(),
             })?;
         Ok(WatcherWrapper {
             _watcher: Mutex::new(watcher),
@@ -272,9 +281,11 @@ impl MmapDirectory {
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RAMDirectory.
     pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
-        let tempdir = TempDir::new().map_err(OpenDirectoryError::IoError)?;
-        let tempdir_path = PathBuf::from(tempdir.path());
-        Ok(MmapDirectory::new(tempdir_path, Some(tempdir)))
+        let tempdir = TempDir::new().map_err(OpenDirectoryError::FailedToCreateTempDir)?;
+        Ok(MmapDirectory::new(
+            tempdir.path().to_path_buf(),
+            Some(tempdir),
+        ))
     }
 
     /// Opens a MmapDirectory in a directory.
@@ -407,7 +418,10 @@ impl Directory for MmapDirectory {
                  on mmap cache while reading {:?}",
                 path
             );
-            IOError::with_path(path.to_owned(), make_io_err(msg))
+            OpenReadError::IOError {
+                io_error: make_io_err(msg),
+                filepath: path.to_owned(),
+            }
         })?;
         Ok(mmap_cache
             .get_mmap(&full_path)?
@@ -420,14 +434,18 @@ impl Directory for MmapDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         let full_path = self.resolve_path(path);
         match fs::remove_file(&full_path) {
-            Ok(_) => self
-                .sync_directory()
-                .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
+            Ok(_) => self.sync_directory().map_err(|e| DeleteError::IOError {
+                io_error: e,
+                filepath: path.to_path_buf(),
+            }),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
                     Err(DeleteError::FileDoesNotExist(path.to_owned()))
                 } else {
-                    Err(IOError::with_path(path.to_owned(), e).into())
+                    Err(DeleteError::IOError {
+                        io_error: e,
+                        filepath: path.to_path_buf(),
+                    })
                 }
             }
         }
@@ -451,18 +469,25 @@ impl Directory for MmapDirectory {
             if err.kind() == io::ErrorKind::AlreadyExists {
                 OpenWriteError::FileAlreadyExists(path.to_owned())
             } else {
-                IOError::with_path(path.to_owned(), err).into()
+                OpenWriteError::IOError {
+                    io_error: err,
+                    filepath: path.to_owned(),
+                }
             }
         })?;
 
         // making sure the file is created.
-        file.flush()
-            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        file.flush().map_err(|io_error| OpenWriteError::IOError {
+            io_error,
+            filepath: path.to_owned(),
+        })?;
 
         // Apparetntly, on some filesystem syncing the parent
         // directory is required.
-        self.sync_directory()
-            .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+        self.sync_directory().map_err(|e| OpenWriteError::IOError {
+            io_error: e,
+            filepath: path.to_owned(),
+        })?;
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -474,14 +499,20 @@ impl Directory for MmapDirectory {
         match File::open(&full_path) {
             Ok(mut file) => {
                 file.read_to_end(&mut buffer)
-                    .map_err(|e| IOError::with_path(path.to_owned(), e))?;
+                    .map_err(|io_error| OpenReadError::IOError {
+                        io_error,
+                        filepath: path.to_owned(),
+                    })?;
                 Ok(buffer)
             }
-            Err(e) => {
-                if e.kind() == io::ErrorKind::NotFound {
+            Err(io_error) => {
+                if io_error.kind() == io::ErrorKind::NotFound {
                     Err(OpenReadError::FileDoesNotExist(path.to_owned()))
                 } else {
-                    Err(IOError::with_path(path.to_owned(), e).into())
+                    Err(OpenReadError::IOError {
+                        io_error,
+                        filepath: path.to_owned(),
+                    })
                 }
             }
         }
