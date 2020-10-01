@@ -56,7 +56,7 @@ fn main() -> tantivy::Result<()> {
         );
         let top_docs_by_custom_score =
             TopDocs::with_limit(2).tweak_score(move |segment_reader: &SegmentReader| {
-                let mut ingredient_reader = segment_reader.facet_reader(ingredient).unwrap();
+                let ingredient_reader = segment_reader.facet_reader(ingredient).unwrap();
                 let facet_dict = ingredient_reader.facet_dict();
 
                 let query_ords: HashSet<u64> = facets

@@ -112,8 +112,10 @@ impl SegmentReader {
             return None;
         }
         let term_ords_reader = self.fast_fields().u64s(field)?;
-        let termdict_source = self.termdict_composite.open_read(field)?;
-        let termdict = TermDictionary::from_source(&termdict_source);
+        let termdict = self.termdict_composite
+            .open_read(field)
+            .map(|source| TermDictionary::from_source(&source))
+            .unwrap_or_else(TermDictionary::empty);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Some(facet_reader)
     }
