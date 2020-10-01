@@ -1,3 +1,8 @@
+Tantivy 0.13.2
+===================
+Bugfix. Acquiring a facet reader on a segment that does not contain any 
+doc with this facet returns `None`. (#896)
+
 Tantivy 0.13.1
 ======================
 Made `Query` and `Collector` `Send + Sync`.

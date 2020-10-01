@@ -151,7 +151,7 @@ impl SegmentWriter {
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
                                 .get_multivalue_writer(field)
-                                .expect("multified writer for facet missing")
+                                .expect("writer for facet missing")
                                 .add_val(unordered_term_id);
                         }
                     }

@@ -126,6 +126,7 @@ impl FastFieldsWriter {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;
         }
+        
         for field_writer in &self.multi_values_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field))?;
