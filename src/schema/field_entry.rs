@@ -1,6 +1,7 @@
 use crate::schema::TextOptions;
 use crate::schema::{is_valid_field_name, IntOptions};
 
+use crate::schema::bytes_options::BytesOptions;
 use crate::schema::FieldType;
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
@@ -81,11 +82,10 @@ impl FieldEntry {
     }
 
     /// Creates a field entry for a bytes field
-    pub fn new_bytes(field_name: String) -> FieldEntry {
-        assert!(is_valid_field_name(&field_name));
+    pub fn new_bytes(field_name: String, bytes_type: BytesOptions) -> FieldEntry {
         FieldEntry {
             name: field_name,
-            field_type: FieldType::Bytes,
+            field_type: FieldType::Bytes(bytes_type),
         }
     }
 
@@ -108,7 +108,7 @@ impl FieldEntry {
             | FieldType::F64(ref options)
             | FieldType::Date(ref options) => options.is_indexed(),
             FieldType::HierarchicalFacet => true,
-            FieldType::Bytes => false,
+            FieldType::Bytes(ref options) => options.is_indexed(),
         }
     }
 
@@ -133,7 +133,7 @@ impl FieldEntry {
             FieldType::Str(ref options) => options.is_stored(),
             // TODO make stored hierarchical facet optional
             FieldType::HierarchicalFacet => true,
-            FieldType::Bytes => false,
+            FieldType::Bytes(ref options) => options.is_stored(),
         }
     }
 }
@@ -170,8 +170,9 @@ impl Serialize for FieldEntry {
             FieldType::HierarchicalFacet => {
                 s.serialize_field("type", "hierarchical_facet")?;
             }
-            FieldType::Bytes => {
+            FieldType::Bytes(ref options) => {
                 s.serialize_field("type", "bytes")?;
+                s.serialize_field("options", options)?;
             }
         }
 
@@ -227,10 +228,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "hierarchical_facet" => {
                                     field_type = Some(FieldType::HierarchicalFacet);
                                 }
-                                "bytes" => {
-                                    field_type = Some(FieldType::Bytes);
-                                }
-                                "text" | "u64" | "i64" | "f64" | "date" => {
+                                "text" | "u64" | "i64" | "f64" | "date" | "bytes" => {
                                     // These types require additional options to create a field_type
                                 }
                                 _ => panic!("unhandled type"),
@@ -249,6 +247,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
                                 "f64" => field_type = Some(FieldType::F64(map.next_value()?)),
                                 "date" => field_type = Some(FieldType::Date(map.next_value()?)),
+                                "bytes" => field_type = Some(FieldType::Bytes(map.next_value()?)),
                                 _ => {
                                     let msg = format!("Unrecognised type {}", ty);
                                     return Err(de::Error::custom(msg));

@@ -161,20 +161,16 @@ impl Document {
     }
 
     /// Returns all of the `FieldValue`s associated the given field
-    pub fn get_all(&self, field: Field) -> Vec<&Value> {
+    pub fn get_all(&self, field: Field) -> impl Iterator<Item = &Value> {
         self.field_values
             .iter()
-            .filter(|field_value| field_value.field() == field)
+            .filter(move |field_value| field_value.field() == field)
             .map(FieldValue::value)
-            .collect()
     }
 
     /// Returns the first `FieldValue` associated the given field
     pub fn get_first(&self, field: Field) -> Option<&Value> {
-        self.field_values
-            .iter()
-            .find(|field_value| field_value.field() == field)
-            .map(FieldValue::value)
+        self.get_all(field).next()
     }
 
     /// Prepares Document for being stored in the document store

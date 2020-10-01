@@ -112,7 +112,7 @@ impl Term {
     pub(crate) fn set_field(&mut self, field: Field) {
         self.0.clear();
         self.0
-            .extend_from_slice(&field.field_id().to_be_bytes()[..]);
+            .extend_from_slice(field.field_id().to_be_bytes().as_ref());
     }
 
     /// Sets a u64 value in the term.
@@ -123,7 +123,7 @@ impl Term {
     /// the natural order of the values.
     pub fn set_u64(&mut self, val: u64) {
         self.0.resize(INT_TERM_LEN, 0u8);
-        self.0[4..12].copy_from_slice(val.to_be_bytes().as_ref());
+        self.set_bytes(val.to_be_bytes().as_ref());
     }
 
     /// Sets a `i64` value in the term.
@@ -136,7 +136,8 @@ impl Term {
         self.set_u64(common::f64_to_u64(val));
     }
 
-    fn set_bytes(&mut self, bytes: &[u8]) {
+    /// Sets the value of a `Bytes` field.
+    pub fn set_bytes(&mut self, bytes: &[u8]) {
         self.0.resize(4, 0u8);
         self.0.extend(bytes);
     }

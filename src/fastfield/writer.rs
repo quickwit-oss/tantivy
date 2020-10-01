@@ -33,7 +33,7 @@ impl FastFieldsWriter {
         let mut bytes_value_writers = Vec::new();
 
         for (field, field_entry) in schema.fields() {
-            match *field_entry.field_type() {
+            match field_entry.field_type() {
                 FieldType::I64(ref int_options)
                 | FieldType::U64(ref int_options)
                 | FieldType::F64(ref int_options)
@@ -56,9 +56,11 @@ impl FastFieldsWriter {
                     let fast_field_writer = MultiValueIntFastFieldWriter::new(field, true);
                     multi_values_writers.push(fast_field_writer);
                 }
-                FieldType::Bytes => {
-                    let fast_field_writer = BytesFastFieldWriter::new(field);
-                    bytes_value_writers.push(fast_field_writer);
+                FieldType::Bytes(bytes_option) => {
+                    if bytes_option.is_fast() {
+                        let fast_field_writer = BytesFastFieldWriter::new(field);
+                        bytes_value_writers.push(fast_field_writer);
+                    }
                 }
                 _ => {}
             }

@@ -1,5 +1,4 @@
-use base64::decode;
-
+use crate::schema::bytes_options::BytesOptions;
 use crate::schema::Facet;
 use crate::schema::IndexRecordOption;
 use crate::schema::TextFieldIndexing;
@@ -63,7 +62,7 @@ pub enum FieldType {
     /// Hierachical Facet
     HierarchicalFacet,
     /// Bytes (one per document)
-    Bytes,
+    Bytes(BytesOptions),
 }
 
 impl FieldType {
@@ -76,7 +75,7 @@ impl FieldType {
             FieldType::F64(_) => Type::F64,
             FieldType::Date(_) => Type::Date,
             FieldType::HierarchicalFacet => Type::HierarchicalFacet,
-            FieldType::Bytes => Type::Bytes,
+            FieldType::Bytes(_) => Type::Bytes,
         }
     }
 
@@ -89,7 +88,7 @@ impl FieldType {
             | FieldType::F64(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::HierarchicalFacet => true,
-            FieldType::Bytes => false,
+            FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
         }
     }
 
@@ -113,7 +112,13 @@ impl FieldType {
                 }
             }
             FieldType::HierarchicalFacet => Some(IndexRecordOption::Basic),
-            FieldType::Bytes => None,
+            FieldType::Bytes(ref bytes_options) => {
+                if bytes_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -140,7 +145,7 @@ impl FieldType {
                     ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
                 ),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
-                FieldType::Bytes => decode(field_text).map(Value::Bytes).map_err(|_| {
+                FieldType::Bytes(_) => base64::decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64(format!(
                         "Expected base64 string, got {:?}",
                         field_text
@@ -172,7 +177,7 @@ impl FieldType {
                         Err(ValueParsingError::OverflowError(msg))
                     }
                 }
-                FieldType::Str(_) | FieldType::HierarchicalFacet | FieldType::Bytes => {
+                FieldType::Str(_) | FieldType::HierarchicalFacet | FieldType::Bytes(_) => {
                     let msg = format!("Expected a string, got {:?}", json);
                     Err(ValueParsingError::TypeError(msg))
                 }
@@ -248,18 +253,18 @@ mod tests {
 
     #[test]
     fn test_bytes_value_from_json() {
-        let result = FieldType::Bytes
+        let result = FieldType::Bytes(Default::default())
             .value_from_json(&json!("dGhpcyBpcyBhIHRlc3Q="))
             .unwrap();
         assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
 
-        let result = FieldType::Bytes.value_from_json(&json!(521));
+        let result = FieldType::Bytes(Default::default()).value_from_json(&json!(521));
         match result {
             Err(ValueParsingError::TypeError(_)) => {}
             _ => panic!("Expected parse failure for wrong type"),
         }
 
-        let result = FieldType::Bytes.value_from_json(&json!("-"));
+        let result = FieldType::Bytes(Default::default()).value_from_json(&json!("-"));
         match result {
             Err(ValueParsingError::InvalidBase64(_)) => {}
             _ => panic!("Expected parse failure for invalid base64"),

@@ -14,7 +14,7 @@ pub enum Cardinality {
     MultiValues,
 }
 
-/// Define how an int field should be handled by tantivy.
+/// Define how an u64, i64, of f64 field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntOptions {
     indexed: bool,
@@ -39,7 +39,7 @@ impl IntOptions {
         self.fast.is_some()
     }
 
-    /// Set the u64 options as stored.
+    /// Set the field as stored.
     ///
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
@@ -48,7 +48,7 @@ impl IntOptions {
         self
     }
 
-    /// Set the u64 options as indexed.
+    /// Set the field as indexed.
     ///
     /// Setting an integer as indexed will generate
     /// a posting list for each value taken by the integer.
@@ -57,7 +57,7 @@ impl IntOptions {
         self
     }
 
-    /// Set the u64 options as a single-valued fast field.
+    /// Set the field as a single-valued fast field.
     ///
     /// Fast fields are designed for random access.
     /// Access time are similar to a random lookup in an array.
@@ -127,12 +127,12 @@ impl<T: Into<IntOptions>> BitOr<T> for IntOptions {
     type Output = IntOptions;
 
     fn bitor(self, other: T) -> IntOptions {
-        let mut res = IntOptions::default();
         let other = other.into();
-        res.indexed = self.indexed | other.indexed;
-        res.stored = self.stored | other.stored;
-        res.fast = self.fast.or(other.fast);
-        res
+        IntOptions {
+            indexed: self.indexed | other.indexed,
+            stored: self.stored | other.stored,
+            fast: self.fast.or(other.fast),
+        }
     }
 }
 

@@ -131,8 +131,7 @@ impl From<schema::DocParsingError> for TantivyError {
 
 impl From<serde_json::Error> for TantivyError {
     fn from(error: serde_json::Error) -> TantivyError {
-        let io_err = io::Error::from(error);
-        TantivyError::IOError(io_err.into())
+        TantivyError::IOError(error.into())
     }
 }
 

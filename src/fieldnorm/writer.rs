@@ -4,7 +4,7 @@ use super::fieldnorm_to_id;
 use super::FieldNormsSerializer;
 use crate::schema::Field;
 use crate::schema::Schema;
-use std::io;
+use std::{io, iter};
 
 /// The `FieldNormsWriter` is in charge of tracking the fieldnorm byte
 /// of each document for each field with field norms.
@@ -44,7 +44,9 @@ impl FieldNormsWriter {
             .unwrap_or(0);
         FieldNormsWriter {
             fields,
-            fieldnorms_buffer: (0..max_field).map(|_| Vec::new()).collect::<Vec<_>>(),
+            fieldnorms_buffer: iter::repeat_with(Vec::new)
+                .take(max_field)
+                .collect::<Vec<_>>(),
         }
     }
 

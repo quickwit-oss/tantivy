@@ -100,6 +100,7 @@ mod tests {
                         .get_first(date_field)
                         .expect("cannot find value")
                         .date_value()
+                        .unwrap()
                         .timestamp(),
                     first_time_stamp.timestamp()
                 );
@@ -108,7 +109,7 @@ mod tests {
                         .get_first(time_i)
                         .expect("cannot find value")
                         .i64_value(),
-                    1i64
+                    Some(1i64)
                 );
             }
         }
@@ -131,6 +132,7 @@ mod tests {
                         .get_first(date_field)
                         .expect("cannot find value")
                         .date_value()
+                        .unwrap()
                         .timestamp(),
                     two_secs_ahead.timestamp()
                 );
@@ -139,7 +141,7 @@ mod tests {
                         .get_first(time_i)
                         .expect("cannot find value")
                         .i64_value(),
-                    3i64
+                    Some(3i64)
                 );
             }
         }
@@ -197,22 +199,14 @@ mod tests {
         let segment_reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
         let multi_value_reader = segment_reader.fast_fields().i64s(field).unwrap();
-        {
-            multi_value_reader.get_vals(2, &mut vals);
-            assert_eq!(&vals, &[-4i64]);
-        }
-        {
-            multi_value_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[1i64, 3i64]);
-        }
-        {
-            multi_value_reader.get_vals(1, &mut vals);
-            assert!(vals.is_empty());
-        }
-        {
-            multi_value_reader.get_vals(3, &mut vals);
-            assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
-        }
+        multi_value_reader.get_vals(2, &mut vals);
+        assert_eq!(&vals, &[-4i64]);
+        multi_value_reader.get_vals(0, &mut vals);
+        assert_eq!(&vals, &[1i64, 3i64]);
+        multi_value_reader.get_vals(1, &mut vals);
+        assert!(vals.is_empty());
+        multi_value_reader.get_vals(3, &mut vals);
+        assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
     }
     #[test]
     #[ignore]

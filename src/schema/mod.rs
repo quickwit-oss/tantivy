@@ -111,6 +111,7 @@ mod field_entry;
 mod field_type;
 mod field_value;
 
+mod bytes_options;
 mod field;
 mod index_record_option;
 mod int_options;
@@ -142,6 +143,7 @@ pub use self::text_options::TextOptions;
 pub use self::text_options::STRING;
 pub use self::text_options::TEXT;
 
+pub use self::bytes_options::BytesOptions;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;

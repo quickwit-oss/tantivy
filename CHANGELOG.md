@@ -2,6 +2,7 @@ Tantivy 0.14.0
 =========================
 - Remove dependency to atomicwrites #833 .Implemented by @pmasurel upon suggestion and research from @asafigan). 
 - Migrated tantivy error from the now deprecated `failure` crate to `thiserror` #760. (@hirevo)
+- API Change. Accessing the typed value off a `Schema::Value` now returns an Option instead of panicking if the type does not match. 
 
 Tantivy 0.13.1
 ===================

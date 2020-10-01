@@ -38,12 +38,8 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::I64(_)
         | FieldType::F64(_)
         | FieldType::Date(_)
+        | FieldType::Bytes(_)
         | FieldType::HierarchicalFacet => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
-        FieldType::Bytes => {
-            // FieldType::Bytes cannot actually be indexed.
-            // TODO fix during the indexer refactoring described in #276
-            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
-        }
     }
 }
 
@@ -161,7 +157,7 @@ impl MultiFieldPostingsWriter {
                     unordered_term_mappings.insert(field, mapping);
                 }
                 FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
-                FieldType::Bytes => {}
+                FieldType::Bytes(_) => {}
             }
 
             let postings_writer = &self.per_field_postings_writers[field.field_id() as usize];

@@ -68,7 +68,10 @@ impl FastFieldReaders {
         };
         for (field, field_entry) in schema.fields() {
             let field_type = field_entry.field_type();
-            if field_type == &FieldType::Bytes {
+            if let FieldType::Bytes(bytes_option) = field_type {
+                if !bytes_option.is_fast() {
+                    continue;
+                }
                 let idx_reader = fast_fields_composite
                     .open_read_with_idx(field, 0)
                     .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
