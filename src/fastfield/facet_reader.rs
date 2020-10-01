@@ -80,8 +80,11 @@ impl FacetReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Document, schema::{Facet, SchemaBuilder}};
     use crate::Index;
+    use crate::{
+        schema::{Facet, SchemaBuilder},
+        Document,
+    };
 
     #[test]
     fn test_facet_not_populated_for_all_docs() -> crate::Result<()> {
@@ -89,12 +92,15 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
         index_writer.add_document(Document::default());
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let facet_reader = searcher.segment_reader(0u32).facet_reader(facet_field).unwrap();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert_eq!(&facet_ords, &[2u64]);
@@ -108,12 +114,15 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(Document::default());
         index_writer.add_document(Document::default());
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let facet_reader = searcher.segment_reader(0u32).facet_reader(facet_field).unwrap();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert!(facet_ords.is_empty());

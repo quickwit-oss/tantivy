@@ -112,7 +112,8 @@ impl SegmentReader {
             return None;
         }
         let term_ords_reader = self.fast_fields().u64s(field)?;
-        let termdict = self.termdict_composite
+        let termdict = self
+            .termdict_composite
             .open_read(field)
             .map(|source| TermDictionary::from_source(&source))
             .unwrap_or_else(TermDictionary::empty);
