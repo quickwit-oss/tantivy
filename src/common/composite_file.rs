@@ -1,14 +1,15 @@
 use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
 use crate::common::VInt;
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Field;
 use crate::space_usage::FieldUsage;
 use crate::space_usage::PerFieldSpaceUsage;
 use std::collections::HashMap;
-use std::io::Write;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
+
+use super::HasLen;
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
@@ -103,25 +104,26 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 /// for each field.
 #[derive(Clone)]
 pub struct CompositeFile {
-    data: ReadOnlySource,
+    data: FileSlice,
     offsets_index: HashMap<FileAddr, (usize, usize)>,
 }
 
 impl CompositeFile {
     /// Opens a composite file stored in a given
-    /// `ReadOnlySource`.
-    pub fn open(data: &ReadOnlySource) -> io::Result<CompositeFile> {
+    /// `FileSlice`.
+    pub fn open(data: &FileSlice) -> io::Result<CompositeFile> {
         let end = data.len();
-        let footer_len_data = data.slice_from(end - 4);
+        let footer_len_data = data.slice_from(end - 4).read_bytes()?;
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
         let footer_start = end - 4 - footer_len;
-        let footer_data = data.slice(footer_start, footer_start + footer_len);
+        let footer_data = data
+            .slice(footer_start, footer_start + footer_len)
+            .read_bytes()?;
         let mut footer_buffer = footer_data.as_slice();
         let num_fields = VInt::deserialize(&mut footer_buffer)?.0 as usize;
 
         let mut file_addrs = vec![];
         let mut offsets = vec![];
-
         let mut field_index = HashMap::new();
 
         let mut offset = 0;
@@ -150,19 +152,19 @@ impl CompositeFile {
     pub fn empty() -> CompositeFile {
         CompositeFile {
             offsets_index: HashMap::new(),
-            data: ReadOnlySource::empty(),
+            data: FileSlice::empty(),
         }
     }
 
-    /// Returns the `ReadOnlySource` associated
+    /// Returns the `FileSlice` associated
     /// to a given `Field` and stored in a `CompositeFile`.
-    pub fn open_read(&self, field: Field) -> Option<ReadOnlySource> {
+    pub fn open_read(&self, field: Field) -> Option<FileSlice> {
         self.open_read_with_idx(field, 0)
     }
 
-    /// Returns the `ReadOnlySource` associated
+    /// Returns the `FileSlice` associated
     /// to a given `Field` and stored in a `CompositeFile`.
-    pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<ReadOnlySource> {
+    pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<FileSlice> {
         self.offsets_index
             .get(&FileAddr { field, idx })
             .map(|&(from, to)| self.data.slice(from, to))
@@ -192,46 +194,44 @@ mod test {
     use std::path::Path;
 
     #[test]
-    fn test_composite_file() {
+    fn test_composite_file() -> crate::Result<()> {
         let path = Path::new("test_path");
         let mut directory = RAMDirectory::create();
         {
             let w = directory.open_write(path).unwrap();
             let mut composite_write = CompositeWrite::wrap(w);
-            {
-                let mut write_0 = composite_write.for_field(Field::from_field_id(0u32));
-                VInt(32431123u64).serialize(&mut write_0).unwrap();
-                write_0.flush().unwrap();
-            }
-
-            {
-                let mut write_4 = composite_write.for_field(Field::from_field_id(4u32));
-                VInt(2).serialize(&mut write_4).unwrap();
-                write_4.flush().unwrap();
-            }
-            composite_write.close().unwrap();
+            let mut write_0 = composite_write.for_field(Field::from_field_id(0u32));
+            VInt(32431123u64).serialize(&mut write_0)?;
+            write_0.flush()?;
+            let mut write_4 = composite_write.for_field(Field::from_field_id(4u32));
+            VInt(2).serialize(&mut write_4)?;
+            write_4.flush()?;
+            composite_write.close()?;
         }
         {
-            let r = directory.open_read(path).unwrap();
-            let composite_file = CompositeFile::open(&r).unwrap();
+            let r = directory.open_read(path)?;
+            let composite_file = CompositeFile::open(&r)?;
             {
                 let file0 = composite_file
                     .open_read(Field::from_field_id(0u32))
-                    .unwrap();
+                    .unwrap()
+                    .read_bytes()?;
                 let mut file0_buf = file0.as_slice();
-                let payload_0 = VInt::deserialize(&mut file0_buf).unwrap().0;
+                let payload_0 = VInt::deserialize(&mut file0_buf)?.0;
                 assert_eq!(file0_buf.len(), 0);
                 assert_eq!(payload_0, 32431123u64);
             }
             {
                 let file4 = composite_file
                     .open_read(Field::from_field_id(4u32))
-                    .unwrap();
+                    .unwrap()
+                    .read_bytes()?;
                 let mut file4_buf = file4.as_slice();
-                let payload_4 = VInt::deserialize(&mut file4_buf).unwrap().0;
+                let payload_4 = VInt::deserialize(&mut file4_buf)?.0;
                 assert_eq!(file4_buf.len(), 0);
                 assert_eq!(payload_4, 2u64);
             }
         }
+        Ok(())
     }
 }

@@ -263,19 +263,17 @@ impl SnippetGenerator {
     ) -> crate::Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
-        let terms_text: BTreeMap<String, Score> = terms
-            .into_iter()
-            .filter(|term| term.field() == field)
-            .flat_map(|term| {
-                let doc_freq = searcher.doc_freq(&term);
+        let mut terms_text: BTreeMap<String, Score> = Default::default();
+        for term in terms {
+            if term.field() != field {
+                continue;
+            }
+            let doc_freq = searcher.doc_freq(&term)?;
+            if doc_freq > 0 {
                 let score = 1.0 / (1.0 + doc_freq as Score);
-                if doc_freq > 0 {
-                    Some((term.text().to_string(), score))
-                } else {
-                    None
-                }
-            })
-            .collect();
+                terms_text.insert(term.text().to_string(), score);
+            }
+        }
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
         Ok(SnippetGenerator {
             terms_text,

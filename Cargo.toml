@@ -33,7 +33,6 @@ notify = {version="4", optional=true}
 uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.7"
 futures = {version = "0.3",  features=["thread-pool"] }
-owning_ref = "0.4"
 tantivy-query-grammar = { version="0.14.0-dev", path="./query-grammar" }
 stable_deref_trait = "1"
 rust-stemmers = "1"
@@ -41,7 +40,6 @@ downcast-rs = "1"
 bitpacking = {version="0.8", default-features = false, features=["bitpacker4x"]}
 census = "0.4"
 fnv = "1"
-owned-read = "0.4"
 thiserror = "1.0"
 htmlescape = "0.3"
 fail = "0.4"

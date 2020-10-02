@@ -72,44 +72,48 @@ impl FastFieldReaders {
                 if !bytes_option.is_fast() {
                     continue;
                 }
-                let idx_reader = fast_fields_composite
+                let fast_field_idx_file = fast_fields_composite
                     .open_read_with_idx(field, 0)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                    .map(FastFieldReader::open)?;
+                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
+                let idx_reader = FastFieldReader::open(fast_field_idx_file)?;
                 let data = fast_fields_composite
                     .open_read_with_idx(field, 1)
                     .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
+                let bytes_fast_field_reader = BytesFastFieldReader::open(idx_reader, data)?;
                 fast_field_readers
                     .fast_bytes
-                    .insert(field, BytesFastFieldReader::open(idx_reader, data));
+                    .insert(field, bytes_fast_field_reader);
             } else if let Some((fast_type, cardinality)) = type_and_cardinality(field_type) {
                 match cardinality {
                     Cardinality::SingleValue => {
                         if let Some(fast_field_data) = fast_fields_composite.open_read(field) {
                             match fast_type {
                                 FastType::U64 => {
-                                    let fast_field_reader = FastFieldReader::open(fast_field_data);
+                                    let fast_field_reader = FastFieldReader::open(fast_field_data)?;
                                     fast_field_readers
                                         .fast_field_u64
                                         .insert(field, fast_field_reader);
                                 }
                                 FastType::I64 => {
-                                    fast_field_readers.fast_field_i64.insert(
-                                        field,
-                                        FastFieldReader::open(fast_field_data.clone()),
-                                    );
+                                    let fast_field_reader =
+                                        FastFieldReader::open(fast_field_data.clone())?;
+                                    fast_field_readers
+                                        .fast_field_i64
+                                        .insert(field, fast_field_reader);
                                 }
                                 FastType::F64 => {
-                                    fast_field_readers.fast_field_f64.insert(
-                                        field,
-                                        FastFieldReader::open(fast_field_data.clone()),
-                                    );
+                                    let fast_field_reader =
+                                        FastFieldReader::open(fast_field_data.clone())?;
+                                    fast_field_readers
+                                        .fast_field_f64
+                                        .insert(field, fast_field_reader);
                                 }
                                 FastType::Date => {
-                                    fast_field_readers.fast_field_date.insert(
-                                        field,
-                                        FastFieldReader::open(fast_field_data.clone()),
-                                    );
+                                    let fast_field_reader =
+                                        FastFieldReader::open(fast_field_data.clone())?;
+                                    fast_field_readers
+                                        .fast_field_date
+                                        .insert(field, fast_field_reader);
                                 }
                             }
                         } else {
@@ -120,10 +124,10 @@ impl FastFieldReaders {
                         let idx_opt = fast_fields_composite.open_read_with_idx(field, 0);
                         let data_opt = fast_fields_composite.open_read_with_idx(field, 1);
                         if let (Some(fast_field_idx), Some(fast_field_data)) = (idx_opt, data_opt) {
-                            let idx_reader = FastFieldReader::open(fast_field_idx);
+                            let idx_reader = FastFieldReader::open(fast_field_idx)?;
                             match fast_type {
                                 FastType::I64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data);
+                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
                                     let multivalued_int_fast_field =
                                         MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
                                     fast_field_readers
@@ -131,7 +135,7 @@ impl FastFieldReaders {
                                         .insert(field, multivalued_int_fast_field);
                                 }
                                 FastType::U64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data);
+                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
                                     let multivalued_int_fast_field =
                                         MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
                                     fast_field_readers
@@ -139,7 +143,7 @@ impl FastFieldReaders {
                                         .insert(field, multivalued_int_fast_field);
                                 }
                                 FastType::F64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data);
+                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
                                     let multivalued_int_fast_field =
                                         MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
                                     fast_field_readers
@@ -147,7 +151,7 @@ impl FastFieldReaders {
                                         .insert(field, multivalued_int_fast_field);
                                 }
                                 FastType::Date => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data);
+                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
                                     let multivalued_int_fast_field =
                                         MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
                                     fast_field_readers

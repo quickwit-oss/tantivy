@@ -3,13 +3,12 @@ use crate::common::bitpacker::BitUnpacker;
 use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
 use crate::directory::{Directory, RAMDirectory, WritePtr};
 use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
-use owning_ref::OwningRef;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -20,34 +19,27 @@ use std::path::Path;
 /// fast field is required.
 #[derive(Clone)]
 pub struct FastFieldReader<Item: FastValue> {
-    bit_unpacker: BitUnpacker<OwningRef<ReadOnlySource, [u8]>>,
+    bit_unpacker: BitUnpacker,
     min_value_u64: u64,
     max_value_u64: u64,
     _phantom: PhantomData<Item>,
 }
 
 impl<Item: FastValue> FastFieldReader<Item> {
-    /// Opens a fast field given a source.
-    pub fn open(data: ReadOnlySource) -> Self {
-        let min_value: u64;
-        let amplitude: u64;
-        {
-            let mut cursor = data.as_slice();
-            min_value =
-                u64::deserialize(&mut cursor).expect("Failed to read the min_value of fast field.");
-            amplitude =
-                u64::deserialize(&mut cursor).expect("Failed to read the amplitude of fast field.");
-        }
+    /// Opens a fast field given a file.
+    pub fn open(file: FileSlice) -> crate::Result<Self> {
+        let mut bytes = file.read_bytes()?;
+        let min_value = u64::deserialize(&mut bytes)?;
+        let amplitude = u64::deserialize(&mut bytes)?;
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
-        let owning_ref = OwningRef::new(data).map(|data| &data[16..]);
-        let bit_unpacker = BitUnpacker::new(owning_ref, num_bits);
-        FastFieldReader {
+        let bit_unpacker = BitUnpacker::new(bytes, num_bits);
+        Ok(FastFieldReader {
             min_value_u64: min_value,
             max_value_u64: max_value,
             bit_unpacker,
             _phantom: PhantomData,
-        }
+        })
     }
 
     pub(crate) fn into_u64_reader(self) -> FastFieldReader<u64> {
@@ -157,12 +149,11 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
             serializer.close().unwrap();
         }
 
-        let source = directory.open_read(path).expect("Failed to open the file");
-        let composite_file =
-            CompositeFile::open(&source).expect("Failed to read the composite file");
-        let field_source = composite_file
+        let file = directory.open_read(path).expect("Failed to open the file");
+        let composite_file = CompositeFile::open(&file).expect("Failed to read the composite file");
+        let field_file = composite_file
             .open_read(field)
             .expect("File component not found");
-        FastFieldReader::open(field_source)
+        FastFieldReader::open(field_file).unwrap()
     }
 }

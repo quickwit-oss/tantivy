@@ -1,6 +1,5 @@
-use owning_ref::OwningRef;
-
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
+use crate::directory::OwnedBytes;
 use crate::fastfield::FastFieldReader;
 use crate::DocId;
 
@@ -17,16 +16,16 @@ use crate::DocId;
 #[derive(Clone)]
 pub struct BytesFastFieldReader {
     idx_reader: FastFieldReader<u64>,
-    values: OwningRef<ReadOnlySource, [u8]>,
+    values: OwnedBytes,
 }
 
 impl BytesFastFieldReader {
     pub(crate) fn open(
         idx_reader: FastFieldReader<u64>,
-        values_source: ReadOnlySource,
-    ) -> BytesFastFieldReader {
-        let values = OwningRef::new(values_source).map(|source| &source[..]);
-        BytesFastFieldReader { idx_reader, values }
+        values_file: FileSlice,
+    ) -> crate::Result<BytesFastFieldReader> {
+        let values = values_file.read_bytes()?;
+        Ok(BytesFastFieldReader { idx_reader, values })
     }
 
     fn range(&self, doc: DocId) -> (usize, usize) {
@@ -38,7 +37,7 @@ impl BytesFastFieldReader {
     /// Returns the bytes associated to the given `doc`
     pub fn get_bytes(&self, doc: DocId) -> &[u8] {
         let (start, stop) = self.range(doc);
-        &self.values[start..stop]
+        &self.values.as_slice()[start..stop]
     }
 
     /// Returns the overall number of bytes in this bytes fast field.

@@ -87,21 +87,31 @@ impl TermQuery {
     /// While `.weight(...)` returns a boxed trait object,
     /// this method return a specific implementation.
     /// This is useful for optimization purpose.
-    pub fn specialized_weight(&self, searcher: &Searcher, scoring_enabled: bool) -> TermWeight {
+    pub fn specialized_weight(
+        &self,
+        searcher: &Searcher,
+        scoring_enabled: bool,
+    ) -> crate::Result<TermWeight> {
         let term = self.term.clone();
-        let bm25_weight = BM25Weight::for_terms(searcher, &[term]);
+        let bm25_weight = BM25Weight::for_terms(searcher, &[term])?;
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {
             IndexRecordOption::Basic
         };
-        TermWeight::new(self.term.clone(), index_record_option, bm25_weight)
+        Ok(TermWeight::new(
+            self.term.clone(),
+            index_record_option,
+            bm25_weight,
+        ))
     }
 }
 
 impl Query for TermQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> crate::Result<Box<dyn Weight>> {
-        Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
+        Ok(Box::new(
+            self.specialized_weight(searcher, scoring_enabled)?,
+        ))
     }
     fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
         term_set.insert(self.term.clone());

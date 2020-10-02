@@ -1,5 +1,8 @@
+use std::io;
+
 use crate::common::{BinarySerializable, VInt};
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
+use crate::directory::OwnedBytes;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{
     AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
@@ -34,7 +37,7 @@ pub struct BlockSegmentPostings {
 
     doc_freq: u32,
 
-    data: ReadOnlySource,
+    data: OwnedBytes,
     pub(crate) skip_reader: SkipReader,
 }
 
@@ -72,37 +75,34 @@ fn decode_vint_block(
 
 fn split_into_skips_and_postings(
     doc_freq: u32,
-    data: ReadOnlySource,
-) -> (Option<ReadOnlySource>, ReadOnlySource) {
+    mut bytes: OwnedBytes,
+) -> (Option<OwnedBytes>, OwnedBytes) {
     if doc_freq < COMPRESSION_BLOCK_SIZE as u32 {
-        return (None, data);
+        return (None, bytes);
     }
-    let mut data_byte_arr = data.as_slice();
-    let skip_len = VInt::deserialize(&mut data_byte_arr)
-        .expect("Data corrupted")
-        .0 as usize;
-    let vint_len = data.len() - data_byte_arr.len();
-    let (skip_data, postings_data) = data.slice_from(vint_len).split(skip_len);
+    let skip_len = VInt::deserialize(&mut bytes).expect("Data corrupted").0 as usize;
+    let (skip_data, postings_data) = bytes.split(skip_len);
     (Some(skip_data), postings_data)
 }
 
 impl BlockSegmentPostings {
-    pub(crate) fn from_data(
+    pub(crate) fn open(
         doc_freq: u32,
-        data: ReadOnlySource,
+        data: FileSlice,
         record_option: IndexRecordOption,
         requested_option: IndexRecordOption,
-    ) -> BlockSegmentPostings {
+    ) -> io::Result<BlockSegmentPostings> {
         let freq_reading_option = match (record_option, requested_option) {
             (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
             (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
+        let (skip_data_opt, postings_data) =
+            split_into_skips_and_postings(doc_freq, data.read_bytes()?);
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
-            None => SkipReader::new(ReadOnlySource::empty(), doc_freq, record_option),
+            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
         };
 
         let mut block_segment_postings = BlockSegmentPostings {
@@ -116,7 +116,7 @@ impl BlockSegmentPostings {
             skip_reader,
         };
         block_segment_postings.load_block();
-        block_segment_postings
+        Ok(block_segment_postings)
     }
 
     /// Returns the block_max_score for the current block.
@@ -172,15 +172,15 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: ReadOnlySource) {
+    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
-        self.data = ReadOnlySource::new(postings_data);
+        self.data = postings_data;
         self.block_max_score_cache = None;
         self.loaded_offset = std::usize::MAX;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
-            self.skip_reader.reset(ReadOnlySource::empty(), doc_freq);
+            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
         }
         self.doc_freq = doc_freq;
         self.load_block();
@@ -344,8 +344,8 @@ impl BlockSegmentPostings {
             freq_reading_option: FreqReadingOption::NoFreq,
             block_max_score_cache: None,
             doc_freq: 0,
-            data: ReadOnlySource::new(vec![]),
-            skip_reader: SkipReader::new(ReadOnlySource::new(vec![]), 0, IndexRecordOption::Basic),
+            data: OwnedBytes::empty(),
+            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
         }
     }
 }
@@ -467,10 +467,12 @@ mod tests {
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
-        let inverted_index = segment_reader.inverted_index(int_field);
+        let inverted_index = segment_reader.inverted_index(int_field).unwrap();
         let term = Term::from_field_u64(int_field, 0u64);
         let term_info = inverted_index.get_term_info(&term).unwrap();
-        inverted_index.read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)
+        inverted_index
+            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)
+            .unwrap()
     }
 
     #[test]
@@ -491,37 +493,38 @@ mod tests {
     }
 
     #[test]
-    fn test_reset_block_segment_postings() {
+    fn test_reset_block_segment_postings() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         // create two postings list, one containg even number,
         // the other containing odd numbers.
         for i in 0..6 {
             let doc = doc!(int_field=> (i % 2) as u64);
             index_writer.add_document(doc);
         }
-        index_writer.commit().unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
 
         let mut block_segments;
         {
             let term = Term::from_field_u64(int_field, 0u64);
-            let inverted_index = segment_reader.inverted_index(int_field);
+            let inverted_index = segment_reader.inverted_index(int_field)?;
             let term_info = inverted_index.get_term_info(&term).unwrap();
             block_segments = inverted_index
-                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic);
+                .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
         }
         assert_eq!(block_segments.docs(), &[0, 2, 4]);
         {
             let term = Term::from_field_u64(int_field, 1u64);
-            let inverted_index = segment_reader.inverted_index(int_field);
+            let inverted_index = segment_reader.inverted_index(int_field)?;
             let term_info = inverted_index.get_term_info(&term).unwrap();
-            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments);
+            inverted_index.reset_block_postings_from_terminfo(&term_info, &mut block_segments)?;
         }
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
+        Ok(())
     }
 }

@@ -7,7 +7,6 @@ use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use crate::TantivyError;
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
@@ -266,10 +265,7 @@ impl Collector for FacetCollector {
         _: SegmentLocalId,
         reader: &SegmentReader,
     ) -> crate::Result<FacetSegmentCollector> {
-        let field_name = reader.schema().get_field_name(self.field);
-        let facet_reader = reader.facet_reader(self.field).ok_or_else(|| {
-            TantivyError::SchemaError(format!("Field {:?} is not a facet field.", field_name))
-        })?;
+        let facet_reader = reader.facet_reader(self.field)?;
 
         let mut collapse_mapping = Vec::new();
         let mut counts = Vec::new();

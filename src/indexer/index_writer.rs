@@ -108,9 +108,9 @@ fn compute_deleted_bitset(
         // Limit doc helps identify the first document
         // that may be affected by the delete operation.
         let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
-        let inverted_index = segment_reader.inverted_index(delete_op.term.field());
+        let inverted_index = segment_reader.inverted_index(delete_op.term.field())?;
         if let Some(mut docset) =
-            inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)
+            inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)?
         {
             let mut deleted_doc = docset.doc();
             while deleted_doc != TERMINATED {
@@ -979,7 +979,7 @@ mod tests {
         let num_docs_containing = |s: &str| {
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term)
+            searcher.doc_freq(&term).unwrap()
         };
 
         {
@@ -1015,7 +1015,7 @@ mod tests {
             .unwrap();
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
-            reader.searcher().doc_freq(&term_a)
+            reader.searcher().doc_freq(&term_a).unwrap()
         };
         {
             // writing the segment
@@ -1110,6 +1110,7 @@ mod tests {
                 .unwrap()
                 .searcher()
                 .doc_freq(&term_a)
+                .unwrap()
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
@@ -1129,7 +1130,7 @@ mod tests {
             reader.reload().unwrap();
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term)
+            searcher.doc_freq(&term).unwrap()
         };
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
 
@@ -1180,7 +1181,15 @@ mod tests {
 
         // working with an empty index == no documents
         let term_b = Term::from_field_text(text_field, "b");
-        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_b), 0);
+        assert_eq!(
+            index
+                .reader()
+                .unwrap()
+                .searcher()
+                .doc_freq(&term_b)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -1200,7 +1209,15 @@ mod tests {
 
         let term_a = Term::from_field_text(text_field, "a");
         // expect the document with that term to be in the index
-        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 1);
+        assert_eq!(
+            index
+                .reader()
+                .unwrap()
+                .searcher()
+                .doc_freq(&term_a)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]
@@ -1226,7 +1243,15 @@ mod tests {
         // Find original docs in the index
         let term_a = Term::from_field_text(text_field, "a");
         // expect the document with that term to be in the index
-        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 1);
+        assert_eq!(
+            index
+                .reader()
+                .unwrap()
+                .searcher()
+                .doc_freq(&term_a)
+                .unwrap(),
+            1
+        );
     }
 
     #[test]

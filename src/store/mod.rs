@@ -103,19 +103,18 @@ pub mod tests {
     }
 
     #[test]
-    fn test_store() {
+    fn test_store() -> crate::Result<()> {
         let path = Path::new("store");
         let mut directory = RAMDirectory::create();
-        let store_file = directory.open_write(path).unwrap();
-        let schema = write_lorem_ipsum_store(store_file, 1_000);
+        let store_wrt = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(store_wrt, 1_000);
         let field_title = schema.get_field("title").unwrap();
-        let store_source = directory.open_read(path).unwrap();
-        let store = StoreReader::from_source(store_source);
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file)?;
         for i in 0..1_000 {
             assert_eq!(
                 *store
-                    .get(i)
-                    .unwrap()
+                    .get(i)?
                     .get_first(field_title)
                     .unwrap()
                     .text()
@@ -123,6 +122,7 @@ pub mod tests {
                 format!("Doc {}", i)
             );
         }
+        Ok(())
     }
 }
 
@@ -152,8 +152,8 @@ mod bench {
         let mut directory = RAMDirectory::create();
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
-        let store_source = directory.open_read(path).unwrap();
-        let store = StoreReader::from_source(store_source);
+        let store_file = directory.open_read(path).unwrap();
+        let store = StoreReader::open(store_file).unwrap();
         b.iter(|| {
             store.get(12).unwrap();
         });

@@ -45,7 +45,7 @@ fn main() -> tantivy::Result<()> {
         // Inverted index stands for the combination of
         // - the term dictionary
         // - the inverted lists associated to each terms and their positions
-        let inverted_index = segment_reader.inverted_index(title);
+        let inverted_index = segment_reader.inverted_index(title)?;
 
         // A `Term` is a text token associated with a field.
         // Let's go through all docs containing the term `title:the` and access their position
@@ -58,7 +58,7 @@ fn main() -> tantivy::Result<()> {
         // If you don't need all this information, you may get better performance by decompressing less
         // information.
         if let Some(mut segment_postings) =
-            inverted_index.read_postings(&term_the, IndexRecordOption::WithFreqsAndPositions)
+            inverted_index.read_postings(&term_the, IndexRecordOption::WithFreqsAndPositions)?
         {
             // this buffer will be used to request for positions
             let mut positions: Vec<u32> = Vec::with_capacity(100);
@@ -106,7 +106,7 @@ fn main() -> tantivy::Result<()> {
         // Inverted index stands for the combination of
         // - the term dictionary
         // - the inverted lists associated to each terms and their positions
-        let inverted_index = segment_reader.inverted_index(title);
+        let inverted_index = segment_reader.inverted_index(title)?;
 
         // This segment posting object is like a cursor over the documents matching the term.
         // The `IndexRecordOption` arguments tells tantivy we will be interested in both term frequencies
@@ -115,7 +115,7 @@ fn main() -> tantivy::Result<()> {
         // If you don't need all this information, you may get better performance by decompressing less
         // information.
         if let Some(mut block_segment_postings) =
-            inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic)
+            inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic)?
         {
             loop {
                 let docs = block_segment_postings.docs();

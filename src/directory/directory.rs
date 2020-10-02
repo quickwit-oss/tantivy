@@ -3,7 +3,7 @@ use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::WatchCallback;
 use crate::directory::WatchHandle;
-use crate::directory::{ReadOnlySource, WritePtr};
+use crate::directory::{FileSlice, WritePtr};
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -11,7 +11,6 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::path::Path;
 use std::path::PathBuf;
-use std::result;
 use std::thread;
 use std::time::Duration;
 
@@ -117,19 +116,19 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// change.
     ///
     /// Specifically, subsequent writes or flushes should
-    /// have no effect on the returned `ReadOnlySource` object.
+    /// have no effect on the returned `FileSlice` object.
     ///
     /// You should only use this to read files create with [Directory::open_write].
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError>;
+    fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError>;
 
     /// Removes a file
     ///
     /// Removing a file will not affect an eventual
-    /// existing ReadOnlySource pointing to it.
+    /// existing FileSlice pointing to it.
     ///
     /// Removing a nonexistent file, yields a
     /// `DeleteError::DoesNotExist`.
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError>;
+    fn delete(&self, path: &Path) -> Result<(), DeleteError>;
 
     /// Returns true iff the file exists
     fn exists(&self, path: &Path) -> bool;
@@ -139,7 +138,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// Right after this call, the file should be created
     /// and any subsequent call to `open_read` for the
-    /// same path should return a `ReadOnlySource`.
+    /// same path should return a `FileSlice`.
     ///
     /// Write operations may be aggressively buffered.
     /// The client of this trait is responsible for calling flush

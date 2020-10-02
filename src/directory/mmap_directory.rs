@@ -1,12 +1,12 @@
 use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
-use crate::directory::read_only_source::BoxedData;
 use crate::directory::AntiCallToken;
+use crate::directory::BoxedData;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
+use crate::directory::FileSlice;
 use crate::directory::Lock;
-use crate::directory::ReadOnlySource;
 use crate::directory::WatchCallback;
 use crate::directory::WatchCallbackList;
 use crate::directory::WatchHandle;
@@ -42,21 +42,17 @@ pub(crate) fn make_io_err(msg: String) -> io::Error {
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
 fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
-    let file = File::open(full_path).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            OpenReadError::FileDoesNotExist(full_path.to_owned())
+    let file = File::open(full_path).map_err(|io_err| {
+        if io_err.kind() == io::ErrorKind::NotFound {
+            OpenReadError::FileDoesNotExist(full_path.to_path_buf())
         } else {
-            OpenReadError::IOError {
-                io_error: e,
-                filepath: full_path.to_owned(),
-            }
+            OpenReadError::wrap_io_error(io_err, full_path.to_path_buf())
         }
     })?;
 
-    let meta_data = file.metadata().map_err(|e| OpenReadError::IOError {
-        io_error: e,
-        filepath: full_path.to_owned(),
-    })?;
+    let meta_data = file
+        .metadata()
+        .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_owned()))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
         // to mmap the file, so we return None
@@ -66,10 +62,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
     unsafe {
         memmap::Mmap::map(&file)
             .map(Some)
-            .map_err(|e| OpenReadError::IOError {
-                io_error: e,
-                filepath: full_path.to_owned(),
-            })
+            .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_path_buf()))
     }
 }
 
@@ -408,7 +401,7 @@ impl TerminatingWrite for SafeFileWriter {
 }
 
 impl Directory for MmapDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+    fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -418,15 +411,13 @@ impl Directory for MmapDirectory {
                  on mmap cache while reading {:?}",
                 path
             );
-            OpenReadError::IOError {
-                io_error: make_io_err(msg),
-                filepath: path.to_owned(),
-            }
+            let io_err = make_io_err(msg);
+            OpenReadError::wrap_io_error(io_err, path.to_path_buf())
         })?;
         Ok(mmap_cache
             .get_mmap(&full_path)?
-            .map(ReadOnlySource::from)
-            .unwrap_or_else(ReadOnlySource::empty))
+            .map(FileSlice::from)
+            .unwrap_or_else(FileSlice::empty))
     }
 
     /// Any entry associated to the path in the mmap will be
@@ -465,29 +456,22 @@ impl Directory for MmapDirectory {
             .create_new(true)
             .open(full_path);
 
-        let mut file = open_res.map_err(|err| {
-            if err.kind() == io::ErrorKind::AlreadyExists {
-                OpenWriteError::FileAlreadyExists(path.to_owned())
+        let mut file = open_res.map_err(|io_err| {
+            if io_err.kind() == io::ErrorKind::AlreadyExists {
+                OpenWriteError::FileAlreadyExists(path.to_path_buf())
             } else {
-                OpenWriteError::IOError {
-                    io_error: err,
-                    filepath: path.to_owned(),
-                }
+                OpenWriteError::wrap_io_error(io_err, path.to_path_buf())
             }
         })?;
 
         // making sure the file is created.
-        file.flush().map_err(|io_error| OpenWriteError::IOError {
-            io_error,
-            filepath: path.to_owned(),
-        })?;
+        file.flush()
+            .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
 
         // Apparetntly, on some filesystem syncing the parent
         // directory is required.
-        self.sync_directory().map_err(|e| OpenWriteError::IOError {
-            io_error: e,
-            filepath: path.to_owned(),
-        })?;
+        self.sync_directory()
+            .map_err(|io_err| OpenWriteError::wrap_io_error(io_err, path.to_path_buf()))?;
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -498,21 +482,16 @@ impl Directory for MmapDirectory {
         let mut buffer = Vec::new();
         match File::open(&full_path) {
             Ok(mut file) => {
-                file.read_to_end(&mut buffer)
-                    .map_err(|io_error| OpenReadError::IOError {
-                        io_error,
-                        filepath: path.to_owned(),
-                    })?;
+                file.read_to_end(&mut buffer).map_err(|io_error| {
+                    OpenReadError::wrap_io_error(io_error, path.to_path_buf())
+                })?;
                 Ok(buffer)
             }
             Err(io_error) => {
                 if io_error.kind() == io::ErrorKind::NotFound {
                     Err(OpenReadError::FileDoesNotExist(path.to_owned()))
                 } else {
-                    Err(OpenReadError::IOError {
-                        io_error,
-                        filepath: path.to_owned(),
-                    })
+                    Err(OpenReadError::wrap_io_error(io_error, path.to_path_buf()))
                 }
             }
         }
@@ -560,10 +539,10 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
-    use crate::indexer::LogMergePolicy;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
     use crate::ReloadPolicy;
+    use crate::{common::HasLen, indexer::LogMergePolicy};
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

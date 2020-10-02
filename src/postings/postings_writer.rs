@@ -161,7 +161,7 @@ impl MultiFieldPostingsWriter {
             }
 
             let postings_writer = &self.per_field_postings_writers[field.field_id() as usize];
-            let fieldnorm_reader = fieldnorm_readers.get_field(field);
+            let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             let mut field_serializer = serializer.new_field(
                 field,
                 postings_writer.total_num_tokens(),

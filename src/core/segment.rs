@@ -4,7 +4,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
 use crate::directory::Directory;
-use crate::directory::{ReadOnlySource, WritePtr};
+use crate::directory::{FileSlice, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
@@ -78,10 +78,9 @@ impl Segment {
     }
 
     /// Open one of the component file for a *regular* read.
-    pub fn open_read(&self, component: SegmentComponent) -> Result<ReadOnlySource, OpenReadError> {
+    pub fn open_read(&self, component: SegmentComponent) -> Result<FileSlice, OpenReadError> {
         let path = self.relative_path(component);
-        let source = self.index.directory().open_read(&path)?;
-        Ok(source)
+        self.index.directory().open_read(&path)
     }
 
     /// Open one of the component file for *regular* write.

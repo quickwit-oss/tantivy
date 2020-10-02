@@ -52,7 +52,7 @@ impl BM25Weight {
         }
     }
 
-    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> BM25Weight {
+    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> crate::Result<BM25Weight> {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
@@ -66,25 +66,27 @@ impl BM25Weight {
         let mut total_num_tokens = 0u64;
         let mut total_num_docs = 0u64;
         for segment_reader in searcher.segment_readers() {
-            let inverted_index = segment_reader.inverted_index(field);
+            let inverted_index = segment_reader.inverted_index(field)?;
             total_num_tokens += inverted_index.total_num_tokens();
             total_num_docs += u64::from(segment_reader.max_doc());
         }
         let average_fieldnorm = total_num_tokens as Score / total_num_docs as Score;
 
         if terms.len() == 1 {
-            let term_doc_freq = searcher.doc_freq(&terms[0]);
-            BM25Weight::for_one_term(term_doc_freq, total_num_docs, average_fieldnorm)
+            let term_doc_freq = searcher.doc_freq(&terms[0])?;
+            Ok(BM25Weight::for_one_term(
+                term_doc_freq,
+                total_num_docs,
+                average_fieldnorm,
+            ))
         } else {
-            let idf = terms
-                .iter()
-                .map(|term| {
-                    let term_doc_freq = searcher.doc_freq(term);
-                    idf(term_doc_freq, total_num_docs)
-                })
-                .sum::<Score>();
-            let idf_explain = Explanation::new("idf", idf);
-            BM25Weight::new(idf_explain, average_fieldnorm)
+            let mut idf_sum: Score = 0.0;
+            for term in terms {
+                let term_doc_freq = searcher.doc_freq(term)?;
+                idf_sum += idf(term_doc_freq, total_num_docs);
+            }
+            let idf_explain = Explanation::new("idf", idf_sum);
+            Ok(BM25Weight::new(idf_explain, average_fieldnorm))
         }
     }
 

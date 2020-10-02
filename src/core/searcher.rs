@@ -11,8 +11,8 @@ use crate::store::StoreReader;
 use crate::termdict::TermMerger;
 use crate::DocAddress;
 use crate::Index;
-use std::fmt;
 use std::sync::Arc;
+use std::{fmt, io};
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -32,17 +32,17 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
-    ) -> Searcher {
-        let store_readers = segment_readers
+    ) -> io::Result<Searcher> {
+        let store_readers: Vec<StoreReader> = segment_readers
             .iter()
             .map(SegmentReader::get_store_reader)
-            .collect();
-        Searcher {
+            .collect::<io::Result<Vec<_>>>()?;
+        Ok(Searcher {
             schema,
             index,
             segment_readers,
             store_readers,
-        }
+        })
     }
 
     /// Returns the `Index` associated to the `Searcher`
@@ -75,13 +75,14 @@ impl Searcher {
 
     /// Return the overall number of documents containing
     /// the given term.
-    pub fn doc_freq(&self, term: &Term) -> u64 {
-        self.segment_readers
-            .iter()
-            .map(|segment_reader| {
-                u64::from(segment_reader.inverted_index(term.field()).doc_freq(term))
-            })
-            .sum::<u64>()
+    pub fn doc_freq(&self, term: &Term) -> crate::Result<u64> {
+        let mut total_doc_freq = 0;
+        for segment_reader in &self.segment_readers {
+            let inverted_index = segment_reader.inverted_index(term.field())?;
+            let doc_freq = inverted_index.doc_freq(term)?;
+            total_doc_freq += u64::from(doc_freq);
+        }
+        Ok(total_doc_freq)
     }
 
     /// Return the list of segment readers
@@ -148,22 +149,22 @@ impl Searcher {
     }
 
     /// Return the field searcher associated to a `Field`.
-    pub fn field(&self, field: Field) -> FieldSearcher {
-        let inv_index_readers = self
+    pub fn field(&self, field: Field) -> crate::Result<FieldSearcher> {
+        let inv_index_readers: Vec<Arc<InvertedIndexReader>> = self
             .segment_readers
             .iter()
             .map(|segment_reader| segment_reader.inverted_index(field))
-            .collect::<Vec<_>>();
-        FieldSearcher::new(inv_index_readers)
+            .collect::<crate::Result<Vec<_>>>()?;
+        Ok(FieldSearcher::new(inv_index_readers))
     }
 
     /// Summarize total space usage of this searcher.
-    pub fn space_usage(&self) -> SearcherSpaceUsage {
+    pub fn space_usage(&self) -> io::Result<SearcherSpaceUsage> {
         let mut space_usage = SearcherSpaceUsage::new();
-        for segment_reader in self.segment_readers.iter() {
-            space_usage.add_segment(segment_reader.space_usage());
+        for segment_reader in &self.segment_readers {
+            space_usage.add_segment(segment_reader.space_usage()?);
         }
-        space_usage
+        Ok(space_usage)
     }
 }
 

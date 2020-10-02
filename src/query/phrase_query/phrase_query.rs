@@ -95,7 +95,7 @@ impl PhraseQuery {
             )));
         }
         let terms = self.phrase_terms();
-        let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+        let bm25_weight = BM25Weight::for_terms(searcher, &terms)?;
         Ok(PhraseWeight::new(
             self.phrase_terms.clone(),
             bm25_weight,

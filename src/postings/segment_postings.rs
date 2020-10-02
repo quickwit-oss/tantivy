@@ -12,7 +12,7 @@ use crate::postings::Postings;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, TERMINATED};
 
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
 use crate::fastfield::DeleteBitSet;
 use crate::postings::BlockSegmentPostings;
 
@@ -86,12 +86,13 @@ impl SegmentPostings {
                 .close_term(docs.len() as u32)
                 .expect("In memory Serialization should never fail.");
         }
-        let block_segment_postings = BlockSegmentPostings::from_data(
+        let block_segment_postings = BlockSegmentPostings::open(
             docs.len() as u32,
-            ReadOnlySource::from(buffer),
+            FileSlice::new(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
-        );
+        )
+        .unwrap();
         SegmentPostings::from_block_postings(block_segment_postings, None)
     }
 
@@ -131,12 +132,13 @@ impl SegmentPostings {
         postings_serializer
             .close_term(doc_and_tfs.len() as u32)
             .unwrap();
-        let block_segment_postings = BlockSegmentPostings::from_data(
+        let block_segment_postings = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
-            ReadOnlySource::from(buffer),
+            FileSlice::new(buffer),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
-        );
+        )
+        .unwrap();
         SegmentPostings::from_block_postings(block_segment_postings, None)
     }
 
@@ -204,7 +206,7 @@ impl DocSet for SegmentPostings {
     }
 
     /// Return the current document's `DocId`.
-    #[inline]
+    #[inline(always)]
     fn doc(&self) -> DocId {
         self.block_cursor.doc(self.cur)
     }

@@ -5,7 +5,7 @@ use crate::directory::DirectoryLock;
 use crate::directory::GarbageCollectionResult;
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
-use crate::directory::{ReadOnlySource, WritePtr};
+use crate::directory::{FileSlice, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
 use crate::Directory;
@@ -86,12 +86,7 @@ impl ManagedDirectory {
                 directory: Box::new(directory),
                 meta_informations: Arc::default(),
             }),
-            Err(OpenReadError::IOError { io_error, filepath }) => {
-                Err(crate::TantivyError::OpenReadError(OpenReadError::IOError {
-                    io_error,
-                    filepath,
-                }))
-            }
+            io_err @ Err(OpenReadError::IOError { .. }) => Err(io_err.err().unwrap().into()),
             Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
                 // For the moment, this should never happen  `meta.json`
                 // do not have any footer and cannot detect incompatibility.
@@ -241,8 +236,14 @@ impl ManagedDirectory {
                 io_error,
                 filepath: path.to_path_buf(),
             })?;
+        let bytes = data
+            .read_bytes()
+            .map_err(|io_error| OpenReadError::IOError {
+                filepath: path.to_path_buf(),
+                io_error,
+            })?;
         let mut hasher = Hasher::new();
-        hasher.update(data.as_slice());
+        hasher.update(bytes.as_slice());
         let crc = hasher.finalize();
         Ok(footer
             .versioned_footer
@@ -273,24 +274,17 @@ impl ManagedDirectory {
 }
 
 impl Directory for ManagedDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        let read_only_source = self.directory.open_read(path)?;
-        let (footer, reader) = Footer::extract_footer(read_only_source).map_err(|io_error| {
-            OpenReadError::IOError {
-                io_error,
-                filepath: path.to_path_buf(),
-            }
-        })?;
+    fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
+        let file_slice = self.directory.open_read(path)?;
+        let (footer, reader) = Footer::extract_footer(file_slice)
+            .map_err(|io_error| OpenReadError::wrap_io_error(io_error, path.to_path_buf()))?;
         footer.is_compatible()?;
         Ok(reader)
     }
 
     fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
-            .map_err(|io_error| OpenWriteError::IOError {
-                io_error,
-                filepath: path.to_path_buf(),
-            })?;
+            .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
         Ok(io::BufWriter::new(Box::new(FooterProxy::new(
             self.directory
                 .open_write(path)?
@@ -414,39 +408,37 @@ mod tests_mmap_specific {
     }
 
     #[test]
-    fn test_checksum() {
+    fn test_checksum() -> crate::Result<()> {
         let test_path1: &'static Path = Path::new("some_path_for_test");
         let test_path2: &'static Path = Path::new("other_test_path");
 
         let tempdir = TempDir::new().unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
 
-        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-        let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-        let mut write = managed_directory.open_write(test_path1).unwrap();
-        write.write_all(&[0u8, 1u8]).unwrap();
-        write.terminate().unwrap();
+        let mmap_directory = MmapDirectory::open(&tempdir_path)?;
+        let mut managed_directory = ManagedDirectory::wrap(mmap_directory)?;
+        let mut write = managed_directory.open_write(test_path1)?;
+        write.write_all(&[0u8, 1u8])?;
+        write.terminate()?;
 
-        let mut write = managed_directory.open_write(test_path2).unwrap();
-        write.write_all(&[3u8, 4u8, 5u8]).unwrap();
-        write.terminate().unwrap();
+        let mut write = managed_directory.open_write(test_path2)?;
+        write.write_all(&[3u8, 4u8, 5u8])?;
+        write.terminate()?;
 
-        let read_source = managed_directory.open_read(test_path2).unwrap();
-        assert_eq!(read_source.as_slice(), &[3u8, 4u8, 5u8]);
+        let read_file = managed_directory.open_read(test_path2)?.read_bytes()?;
+        assert_eq!(read_file.as_slice(), &[3u8, 4u8, 5u8]);
         assert!(managed_directory.list_damaged().unwrap().is_empty());
 
         let mut corrupted_path = tempdir_path.clone();
         corrupted_path.push(test_path2);
-        let mut file = OpenOptions::new()
-            .write(true)
-            .open(&corrupted_path)
-            .unwrap();
-        file.write_all(&[255u8]).unwrap();
-        file.flush().unwrap();
+        let mut file = OpenOptions::new().write(true).open(&corrupted_path)?;
+        file.write_all(&[255u8])?;
+        file.flush()?;
         drop(file);
 
-        let damaged = managed_directory.list_damaged().unwrap();
+        let damaged = managed_directory.list_damaged()?;
         assert_eq!(damaged.len(), 1);
         assert!(damaged.contains(test_path2));
+        Ok(())
     }
 }
