@@ -48,18 +48,18 @@ impl StoreReader {
         self.data.as_slice()
     }
 
-    fn compressed_block(&self, addr: usize) -> &[u8] {
+    fn compressed_block(&self, addr: usize) -> (usize, &[u8]) {
         let total_buffer = self.data.as_slice();
         let mut buffer = &total_buffer[addr..];
         let block_len = u32::deserialize(&mut buffer).expect("") as usize;
-        &buffer[..block_len]
+        (std::mem::size_of::<u32>() + block_len, &buffer[..block_len])
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {
         if block_offset != *self.current_block_offset.borrow() {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
-            let compressed_block = self.compressed_block(block_offset);
+            let (_, compressed_block) = self.compressed_block(block_offset);
             decompress(compressed_block, &mut current_block_mut)?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
@@ -90,6 +90,70 @@ impl StoreReader {
     /// Summarize total space usage of this store reader.
     pub fn space_usage(&self) -> StoreSpaceUsage {
         StoreSpaceUsage::new(self.data.len(), self.offset_index_source.len())
+    }
+}
+
+pub struct StoreReaderIterator<'a> {
+    block_offset: usize,
+    document_offset: usize,
+    store_reader: &'a StoreReader,
+    uncompressed_block: Vec<u8>,
+}
+
+impl<'a> StoreReaderIterator<'a> {
+    pub fn has_more_documents(&self) -> bool {
+        self.document_offset < self.uncompressed_block.len()
+    }
+
+    pub fn has_more_blocks(&self) -> bool {
+        self.block_offset < self.store_reader.block_data().len()
+    }
+
+    fn read_block(&mut self) -> crate::Result<()> {
+        let (block_size, compressed_block) = self.store_reader.compressed_block(self.block_offset);
+
+        self.uncompressed_block.clear();
+        decompress(&compressed_block, &mut self.uncompressed_block)?;
+
+        self.block_offset += block_size;
+        self.document_offset = 0;
+        Ok(())
+    }
+}
+
+impl<'a> IntoIterator for &'a StoreReader {
+    type Item = Document;
+    type IntoIter = StoreReaderIterator<'a>;
+
+    /// Iterates over all stored documents.
+    ///
+    /// This method is cheaper than multiple consequent callings of `.get(doc_id)`
+    /// Use it if you need to read all stored documents in the segment
+    fn into_iter(self) -> Self::IntoIter {
+        StoreReaderIterator {
+            block_offset: 0,
+            document_offset: 0,
+            store_reader: &self,
+            uncompressed_block: Vec::new(),
+        }
+    }
+}
+
+impl<'a> Iterator for StoreReaderIterator<'a> {
+    type Item = Document;
+
+    fn next(&mut self) -> Option<Document> {
+        if !self.has_more_documents() {
+            if !self.has_more_blocks() {
+                return None;
+            }
+            self.read_block().unwrap();
+        }
+        let mut cursor = io::Cursor::new(&self.uncompressed_block[self.document_offset..]);
+        VInt::deserialize(&mut cursor).unwrap().val() as usize;
+        let doc = Document::deserialize(&mut cursor).unwrap();
+        self.document_offset += cursor.position() as usize;
+        Some(doc)
     }
 }
 
