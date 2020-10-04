@@ -221,8 +221,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
                             if ty.is_some() {
                                 return Err(de::Error::duplicate_field("type"));
                             }
-                            let type_string = map.next_value()?;
-                            match type_string {
+                            let type_string = map.next_value::<String>()?;
+                            match type_string.as_str() {
                                 "hierarchical_facet" => {
                                     field_type = Some(FieldType::HierarchicalFacet);
                                 }
@@ -242,7 +242,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                            specified before `options`";
                                 return Err(de::Error::custom(msg));
                             }
-                            Some(ty) => match ty {
+                            Some(ref ty) => match ty.as_str() {
                                 "text" => field_type = Some(FieldType::Str(map.next_value()?)),
                                 "u64" => field_type = Some(FieldType::U64(map.next_value()?)),
                                 "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
@@ -308,5 +308,18 @@ mod tests {
             FieldType::Str(_) => assert!(true),
             _ => panic!("expected FieldType::Str"),
         }
+    }
+    #[test]
+    fn test_yaml_deserialization() {
+        let schema_content = r#"
+name: text
+type: text
+options:
+  indexing:
+    record: position
+    tokenizer: default
+  stored: true
+"#;
+        serde_yaml::from_str::<FieldEntry>(schema_content).unwrap();
     }
 }
