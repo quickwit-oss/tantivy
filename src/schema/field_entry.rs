@@ -309,17 +309,4 @@ mod tests {
             _ => panic!("expected FieldType::Str"),
         }
     }
-    #[test]
-    fn test_yaml_deserialization() {
-        let schema_content = r#"
-name: text
-type: text
-options:
-  indexing:
-    record: position
-    tokenizer: default
-  stored: true
-"#;
-        serde_yaml::from_str::<FieldEntry>(schema_content).unwrap();
-    }
 }
