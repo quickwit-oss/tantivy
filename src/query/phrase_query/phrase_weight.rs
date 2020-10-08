@@ -48,8 +48,8 @@ impl PhraseWeight {
             let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
-                    .inverted_index(term.field())
-                    .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
+                    .inverted_index(term.field())?
+                    .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
                 {
                     term_postings_list.push((offset, postings));
                 } else {
@@ -66,8 +66,8 @@ impl PhraseWeight {
             let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
-                    .inverted_index(term.field())
-                    .read_postings_no_deletes(&term, IndexRecordOption::WithFreqsAndPositions)
+                    .inverted_index(term.field())?
+                    .read_postings_no_deletes(&term, IndexRecordOption::WithFreqsAndPositions)?
                 {
                     term_postings_list.push((offset, postings));
                 } else {

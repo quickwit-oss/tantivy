@@ -1,9 +1,8 @@
-use crate::common::{BinarySerializable, CountingWriter, FixedSize, VInt};
+use crate::common::{BinarySerializable, CountingWriter, FixedSize, HasLen, VInt};
 use crate::directory::error::Incompatibility;
-use crate::directory::read_only_source::ReadOnlySource;
+use crate::directory::FileSlice;
 use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::Version;
-use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use crc32fast::Hasher;
 use std::io;
 use std::io::Write;
@@ -64,26 +63,26 @@ impl Footer {
         let mut counting_write = CountingWriter::wrap(&mut write);
         self.serialize(&mut counting_write)?;
         let written_len = counting_write.written_bytes();
-        write.write_u32::<LittleEndian>(written_len as u32)?;
+        (written_len as u32).serialize(write)?;
         Ok(())
     }
 
-    pub fn extract_footer(source: ReadOnlySource) -> Result<(Footer, ReadOnlySource), io::Error> {
-        if source.len() < 4 {
+    pub fn extract_footer(file: FileSlice) -> io::Result<(Footer, FileSlice)> {
+        if file.len() < 4 {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 format!(
                     "File corrupted. The file is smaller than 4 bytes (len={}).",
-                    source.len()
+                    file.len()
                 ),
             ));
         }
-        let (body_footer, footer_len_bytes) = source.split_from_end(u32::SIZE_IN_BYTES);
-        let footer_len = LittleEndian::read_u32(footer_len_bytes.as_slice()) as usize;
-        let body_len = body_footer.len() - footer_len;
-        let (body, footer_data) = body_footer.split(body_len);
-        let mut cursor = footer_data.as_slice();
-        let footer = Footer::deserialize(&mut cursor)?;
+        let (body_footer, footer_len_file) = file.split_from_end(u32::SIZE_IN_BYTES);
+        let mut footer_len_bytes = footer_len_file.read_bytes()?;
+        let footer_len = u32::deserialize(&mut footer_len_bytes)? as usize;
+        let (body, footer) = body_footer.split_from_end(footer_len);
+        let mut footer_bytes = footer.read_bytes()?;
+        let footer = Footer::deserialize(&mut footer_bytes)?;
         Ok((footer, body))
     }
 

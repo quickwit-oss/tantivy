@@ -152,7 +152,7 @@ impl<B> Term<B>
 where
     B: AsRef<[u8]>,
 {
-    /// Wraps a source of data
+    /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {
         Term(data)
     }

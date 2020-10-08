@@ -296,13 +296,13 @@ impl Weight for RangeWeight {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
 
-        let inverted_index = reader.inverted_index(self.field);
+        let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_range = self.term_range(term_dict);
         while term_range.advance() {
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
+                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
             loop {
                 let docs = block_segment_postings.docs();
                 if docs.is_empty() {

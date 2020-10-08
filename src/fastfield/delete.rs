@@ -1,5 +1,6 @@
 use crate::common::{BitSet, HasLen};
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
+use crate::directory::OwnedBytes;
 use crate::directory::WritePtr;
 use crate::space_usage::ByteCount;
 use crate::DocId;
@@ -39,7 +40,7 @@ pub fn write_delete_bitset(
 /// Set of deleted `DocId`s.
 #[derive(Clone)]
 pub struct DeleteBitSet {
-    data: ReadOnlySource,
+    data: OwnedBytes,
     len: usize,
 }
 
@@ -58,21 +59,22 @@ impl DeleteBitSet {
         let mut wrt = directory.open_write(path).unwrap();
         write_delete_bitset(&bitset, max_doc, &mut wrt).unwrap();
         wrt.terminate().unwrap();
-        let source = directory.open_read(path).unwrap();
-        Self::open(source)
+        let file = directory.open_read(path).unwrap();
+        Self::open(file).unwrap()
     }
 
-    /// Opens a delete bitset given its data source.
-    pub fn open(data: ReadOnlySource) -> DeleteBitSet {
-        let num_deleted: usize = data
+    /// Opens a delete bitset given its file.
+    pub fn open(file: FileSlice) -> crate::Result<DeleteBitSet> {
+        let bytes = file.read_bytes()?;
+        let num_deleted: usize = bytes
             .as_slice()
             .iter()
             .map(|b| b.count_ones() as usize)
             .sum();
-        DeleteBitSet {
-            data,
+        Ok(DeleteBitSet {
+            data: bytes,
             len: num_deleted,
-        }
+        })
     }
 
     /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
@@ -84,7 +86,7 @@ impl DeleteBitSet {
     #[inline(always)]
     pub fn is_deleted(&self, doc: DocId) -> bool {
         let byte_offset = doc / 8u32;
-        let b: u8 = (*self.data)[byte_offset as usize];
+        let b: u8 = self.data.as_slice()[byte_offset as usize];
         let shift = (doc & 7u32) as u8;
         b & (1u8 << shift) != 0
     }

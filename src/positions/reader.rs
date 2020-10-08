@@ -1,8 +1,13 @@
+use std::io;
+
 use crate::common::{BinarySerializable, FixedSize};
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
+use crate::directory::OwnedBytes;
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::positions::LONG_SKIP_INTERVAL;
 use crate::positions::LONG_SKIP_IN_BLOCKS;
+use bitpacking::{BitPacker, BitPacker4x};
+
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
 ///
@@ -23,28 +28,28 @@ use crate::positions::LONG_SKIP_IN_BLOCKS;
 /// A given block obviously takes `(128 x  num_bit_for_the_block / num_bits_in_a_byte)`,
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
-use bitpacking::{BitPacker, BitPacker4x};
-use owned_read::OwnedRead;
 
 struct Positions {
     bit_packer: BitPacker4x,
-    skip_source: ReadOnlySource,
-    position_source: ReadOnlySource,
-    long_skip_source: ReadOnlySource,
+    skip_file: FileSlice,
+    position_file: FileSlice,
+    long_skip_data: OwnedBytes,
 }
 
 impl Positions {
-    pub fn new(position_source: ReadOnlySource, skip_source: ReadOnlySource) -> Positions {
-        let (body, footer) = skip_source.split_from_end(u32::SIZE_IN_BYTES);
-        let num_long_skips = u32::deserialize(&mut footer.as_slice()).expect("Index corrupted");
-        let (skip_source, long_skip_source) =
+    pub fn new(position_file: FileSlice, skip_file: FileSlice) -> io::Result<Positions> {
+        let (body, footer) = skip_file.split_from_end(u32::SIZE_IN_BYTES);
+        let footer_data = footer.read_bytes()?;
+        let num_long_skips = u32::deserialize(&mut footer_data.as_slice())?;
+        let (skip_file, long_skip_file) =
             body.split_from_end(u64::SIZE_IN_BYTES * (num_long_skips as usize));
-        Positions {
+        let long_skip_data = long_skip_file.read_bytes()?;
+        Ok(Positions {
             bit_packer: BitPacker4x::new(),
-            skip_source,
-            long_skip_source,
-            position_source,
-        }
+            skip_file,
+            long_skip_data,
+            position_file,
+        })
     }
 
     /// Returns the offset of the block associated to the given `long_skip_id`.
@@ -54,19 +59,23 @@ impl Positions {
         if long_skip_id == 0 {
             return 0;
         }
-        let long_skip_slice = self.long_skip_source.as_slice();
+        let long_skip_slice = self.long_skip_data.as_slice();
         let mut long_skip_blocks: &[u8] = &long_skip_slice[(long_skip_id - 1) * 8..][..8];
         u64::deserialize(&mut long_skip_blocks).expect("Index corrupted")
     }
 
-    fn reader(&self, offset: u64) -> PositionReader {
+    fn reader(&self, offset: u64) -> io::Result<PositionReader> {
         let long_skip_id = (offset / LONG_SKIP_INTERVAL) as usize;
         let offset_num_bytes: u64 = self.long_skip(long_skip_id);
-        let mut position_read = OwnedRead::new(self.position_source.clone());
-        position_read.advance(offset_num_bytes as usize);
-        let mut skip_read = OwnedRead::new(self.skip_source.clone());
-        skip_read.advance(long_skip_id * LONG_SKIP_IN_BLOCKS);
-        PositionReader {
+        let position_read = self
+            .position_file
+            .slice_from(offset_num_bytes as usize)
+            .read_bytes()?;
+        let skip_read = self
+            .skip_file
+            .slice_from(long_skip_id * LONG_SKIP_IN_BLOCKS)
+            .read_bytes()?;
+        Ok(PositionReader {
             bit_packer: self.bit_packer,
             skip_read,
             position_read,
@@ -74,14 +83,14 @@ impl Positions {
             block_offset: std::i64::MAX as u64,
             anchor_offset: (long_skip_id as u64) * LONG_SKIP_INTERVAL,
             abs_offset: offset,
-        }
+        })
     }
 }
 
 #[derive(Clone)]
 pub struct PositionReader {
-    skip_read: OwnedRead,
-    position_read: OwnedRead,
+    skip_read: OwnedBytes,
+    position_read: OwnedBytes,
     bit_packer: BitPacker4x,
     buffer: Box<[u32; COMPRESSION_BLOCK_SIZE]>,
 
@@ -93,11 +102,12 @@ pub struct PositionReader {
 
 impl PositionReader {
     pub fn new(
-        position_source: ReadOnlySource,
-        skip_source: ReadOnlySource,
+        position_file: FileSlice,
+        skip_file: FileSlice,
         offset: u64,
-    ) -> PositionReader {
-        Positions::new(position_source, skip_source).reader(offset)
+    ) -> io::Result<PositionReader> {
+        let positions = Positions::new(position_file, skip_file)?;
+        positions.reader(offset)
     }
 
     fn advance_num_blocks(&mut self, num_blocks: usize) {
@@ -131,7 +141,7 @@ impl PositionReader {
             self.advance_num_blocks(num_blocks_to_skip);
             self.anchor_offset = offset - (offset % COMPRESSION_BLOCK_SIZE as u64);
             self.block_offset = self.anchor_offset;
-            let num_bits = self.skip_read.get(0);
+            let num_bits = self.skip_read.as_slice()[0];
             self.bit_packer
                 .decompress(self.position_read.as_ref(), self.buffer.as_mut(), num_bits);
         } else {
@@ -141,7 +151,7 @@ impl PositionReader {
             self.anchor_offset = self.block_offset;
         }
 
-        let mut num_bits = self.skip_read.get(0);
+        let mut num_bits = self.skip_read.as_slice()[0];
         let mut position_data = self.position_read.as_ref();
 
         for i in 1.. {
@@ -155,7 +165,7 @@ impl PositionReader {
             output = &mut output[remaining_in_block..];
             offset += remaining_in_block as u64;
             position_data = &position_data[(num_bits as usize * COMPRESSION_BLOCK_SIZE / 8)..];
-            num_bits = self.skip_read.get(i);
+            num_bits = self.skip_read.as_slice()[i];
             self.bit_packer
                 .decompress(position_data, self.buffer.as_mut(), num_bits);
             self.block_offset += COMPRESSION_BLOCK_SIZE as u64;

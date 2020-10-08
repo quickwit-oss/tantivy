@@ -75,7 +75,8 @@ impl StoreWriter {
         let start_offset = self.writer.written_bytes() as u64;
 
         // just bulk write all of the block of the given reader.
-        self.writer.write_all(store_reader.block_data())?;
+        self.writer
+            .write_all(store_reader.block_data()?.as_slice())?;
 
         // concatenate the index of the `store_reader`, after translating
         // its start doc id and its start file offset.

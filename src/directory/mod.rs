@@ -9,10 +9,11 @@ mod mmap_directory;
 
 mod directory;
 mod directory_lock;
+mod file_slice;
 mod footer;
 mod managed_directory;
+mod owned_bytes;
 mod ram_directory;
-mod read_only_source;
 mod watch_event_router;
 
 /// Errors specific to the directory module.
@@ -21,8 +22,10 @@ pub mod error;
 pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
+pub(crate) use self::file_slice::BoxedData;
+pub use self::file_slice::FileSlice;
+pub use self::owned_bytes::OwnedBytes;
 pub use self::ram_directory::RAMDirectory;
-pub use self::read_only_source::ReadOnlySource;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;

@@ -1,9 +1,9 @@
-use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
-use crate::directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
+use crate::directory::{Directory, FileSlice, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
+use crate::{common::HasLen, core::META_FILEPATH};
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -80,17 +80,17 @@ impl TerminatingWrite for VecWriter {
 
 #[derive(Default)]
 struct InnerDirectory {
-    fs: HashMap<PathBuf, ReadOnlySource>,
+    fs: HashMap<PathBuf, FileSlice>,
     watch_router: WatchCallbackList,
 }
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = ReadOnlySource::new(Vec::from(data));
+        let data = FileSlice::new(Vec::from(data));
         self.fs.insert(path, data).is_some()
     }
 
-    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
+    fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError> {
         self.fs
             .get(path)
             .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
@@ -153,9 +153,9 @@ impl RAMDirectory {
     /// If an error is encounterred, files may be persisted partially.
     pub fn persist(&self, dest: &mut dyn Directory) -> crate::Result<()> {
         let wlock = self.fs.write().unwrap();
-        for (path, source) in wlock.fs.iter() {
+        for (path, file) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
-            dest_wrt.write_all(source.as_slice())?;
+            dest_wrt.write_all(file.read_bytes()?.as_slice())?;
             dest_wrt.terminate()?;
         }
         Ok(())
@@ -163,7 +163,7 @@ impl RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
+    fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         self.fs.read().unwrap().open_read(path)
     }
 
@@ -195,7 +195,14 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        Ok(self.open_read(path)?.as_slice().to_owned())
+        let bytes =
+            self.open_read(path)?
+                .read_bytes()
+                .map_err(|io_error| OpenReadError::IOError {
+                    io_error,
+                    filepath: path.to_path_buf(),
+                })?;
+        Ok(bytes.as_slice().to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {

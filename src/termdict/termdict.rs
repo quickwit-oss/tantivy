@@ -1,8 +1,8 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
-use crate::common::BinarySerializable;
-use crate::common::CountingWriter;
-use crate::directory::ReadOnlySource;
+use crate::common::{BinarySerializable, CountingWriter};
+use crate::directory::{FileSlice, OwnedBytes};
+use crate::error::DataCorruption;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use once_cell::sync::Lazy;
@@ -86,17 +86,19 @@ where
     }
 }
 
-fn open_fst_index(source: ReadOnlySource) -> tantivy_fst::Map<ReadOnlySource> {
-    let fst = Fst::new(source).expect("FST data is corrupted");
-    tantivy_fst::Map::from(fst)
+fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<OwnedBytes>> {
+    let bytes = fst_file.read_bytes()?;
+    let fst = Fst::new(bytes)
+        .map_err(|err| DataCorruption::comment_only(format!("Fst data is corrupted: {:?}", err)))?;
+    Ok(tantivy_fst::Map::from(fst))
 }
 
-static EMPTY_DATA_SOURCE: Lazy<ReadOnlySource> = Lazy::new(|| {
+static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
     let term_dictionary_data: Vec<u8> = TermDictionaryBuilder::create(Vec::<u8>::new())
         .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
         .finish()
         .expect("Writing in a Vec<u8> should never fail");
-    ReadOnlySource::from(term_dictionary_data)
+    FileSlice::new(term_dictionary_data)
 });
 
 /// The term dictionary contains all of the terms in
@@ -106,31 +108,28 @@ static EMPTY_DATA_SOURCE: Lazy<ReadOnlySource> = Lazy::new(|| {
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
 pub struct TermDictionary {
-    fst_index: tantivy_fst::Map<ReadOnlySource>,
+    fst_index: tantivy_fst::Map<OwnedBytes>,
     term_info_store: TermInfoStore,
 }
 
 impl TermDictionary {
-    /// Opens a `TermDictionary` given a data source.
-    pub fn from_source(source: &ReadOnlySource) -> Self {
-        let total_len = source.len();
-        let length_offset = total_len - 8;
-        let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
-        let footer_size = u64::deserialize(&mut split_len_buffer)
-            .expect("Deserializing 8 bytes should always work") as usize;
-        let split_len = length_offset - footer_size;
-        let fst_source = source.slice(0, split_len);
-        let values_source = source.slice(split_len, length_offset);
-        let fst_index = open_fst_index(fst_source);
-        TermDictionary {
+    /// Opens a `TermDictionary`.
+    pub fn open(file: FileSlice) -> crate::Result<Self> {
+        let (main_slice, footer_len_slice) = file.split_from_end(8);
+        let mut footer_len_bytes = footer_len_slice.read_bytes()?;
+        let footer_size = u64::deserialize(&mut footer_len_bytes)?;
+        let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
+        let fst_index = open_fst_index(fst_file_slice)?;
+        let term_info_store = TermInfoStore::open(values_file_slice)?;
+        Ok(TermDictionary {
             fst_index,
-            term_info_store: TermInfoStore::open(&values_source),
-        }
+            term_info_store,
+        })
     }
 
     /// Creates an empty term dictionary which contains no terms.
     pub fn empty() -> Self {
-        TermDictionary::from_source(&*EMPTY_DATA_SOURCE)
+        TermDictionary::open(EMPTY_TERM_DICT_FILE.clone()).unwrap()
     }
 
     /// Returns the number of terms in the dictionary.

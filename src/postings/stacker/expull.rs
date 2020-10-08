@@ -206,8 +206,8 @@ mod tests {
     fn test_stack_long() {
         let mut heap = MemoryArena::new();
         let mut stack = ExpUnrolledLinkedList::new();
-        let source: Vec<u32> = (0..100).collect();
-        for &el in &source {
+        let data: Vec<u32> = (0..100).collect();
+        for &el in &data {
             assert!(stack
                 .writer(&mut heap)
                 .write_u32::<LittleEndian>(el)
@@ -221,7 +221,7 @@ mod tests {
             result.push(LittleEndian::read_u32(&remaining[..4]));
             remaining = &remaining[4..];
         }
-        assert_eq!(&result[..], &source[..]);
+        assert_eq!(&result[..], &data[..]);
     }
 
     #[test]

@@ -38,7 +38,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
                 count[fieldnorm_id as usize] += 1;
             }
         } else {
-            total_tokens += reader.inverted_index(field).total_num_tokens();
+            total_tokens += reader.inverted_index(field)?.total_num_tokens();
         }
     }
     Ok(total_tokens
@@ -510,7 +510,7 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
-            .collect();
+            .collect::<crate::Result<Vec<_>>>()?;
 
         for field_reader in &field_readers {
             let terms = field_reader.terms();
@@ -583,8 +583,8 @@ impl IndexMerger {
                 let term_info = heap_item.streamer.value();
                 let segment_reader = &self.readers[heap_item.segment_ord];
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
-                let segment_postings =
-                    inverted_index.read_postings_from_terminfo(term_info, segment_postings_option);
+                let segment_postings = inverted_index
+                    .read_postings_from_terminfo(term_info, segment_postings_option)?;
                 let delete_bitset_opt = segment_reader.delete_bitset();
                 let doc_freq = if let Some(delete_bitset) = delete_bitset_opt {
                     segment_postings.doc_freq_given_deletes(delete_bitset)
@@ -653,7 +653,7 @@ impl IndexMerger {
     ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
         for (field, field_entry) in self.schema.fields() {
-            let fieldnorm_reader = fieldnorm_readers.get_field(field);
+            let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             if field_entry.is_indexed() {
                 if let Some(term_ordinal_mapping) = self.write_postings_for_field(
                     field,
@@ -670,7 +670,7 @@ impl IndexMerger {
 
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> crate::Result<()> {
         for reader in &self.readers {
-            let store_reader = reader.get_store_reader();
+            let store_reader = reader.get_store_reader()?;
             if reader.num_deleted_docs() > 0 {
                 for doc_id in reader.doc_ids_alive() {
                     let doc = store_reader.get(doc_id)?;
@@ -1533,7 +1533,7 @@ mod tests {
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut term_scorer = term_query
-            .specialized_weight(&searcher, true)
+            .specialized_weight(&searcher, true)?
             .specialized_scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(term_scorer.doc(), 0);
         assert_nearly_equals!(term_scorer.block_max_score(), 0.0079681855);
@@ -1548,7 +1548,7 @@ mod tests {
         assert_eq!(searcher.segment_readers().len(), 2);
         for segment_reader in searcher.segment_readers() {
             let mut term_scorer = term_query
-                .specialized_weight(&searcher, true)
+                .specialized_weight(&searcher, true)?
                 .specialized_scorer(segment_reader, 1.0)?;
             // the difference compared to before is instrinsic to the bm25 formula. no worries there.
             for doc in segment_reader.doc_ids_alive() {
@@ -1572,7 +1572,7 @@ mod tests {
 
         let segment_reader = searcher.segment_reader(0u32);
         let mut term_scorer = term_query
-            .specialized_weight(&searcher, true)
+            .specialized_weight(&searcher, true)?
             .specialized_scorer(segment_reader, 1.0)?;
         // the difference compared to before is instrinsic to the bm25 formula. no worries there.
         for doc in segment_reader.doc_ids_alive() {

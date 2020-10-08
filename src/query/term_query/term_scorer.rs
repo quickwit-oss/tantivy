@@ -253,7 +253,7 @@ mod tests {
     }
 
     fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) -> crate::Result<()> {
-        let term_weight = term_query.specialized_weight(&searcher, true);
+        let term_weight = term_query.specialized_weight(&searcher, true)?;
         for reader in searcher.segment_readers() {
             let mut block_max_scores = vec![];
             let mut block_max_scores_b = vec![];

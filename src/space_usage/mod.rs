@@ -307,7 +307,7 @@ mod test {
         let index = Index::create_in_ram(schema.clone());
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage();
+        let searcher_space_usage = searcher.space_usage().unwrap();
         assert_eq!(0, searcher_space_usage.total());
     }
 
@@ -346,7 +346,7 @@ mod test {
 
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage();
+        let searcher_space_usage = searcher.space_usage().unwrap();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -386,7 +386,7 @@ mod test {
 
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage();
+        let searcher_space_usage = searcher.space_usage().unwrap();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -425,7 +425,7 @@ mod test {
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage();
+        let searcher_space_usage = searcher.space_usage().unwrap();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -446,49 +446,47 @@ mod test {
     }
 
     #[test]
-    fn test_deletes() {
+    fn test_deletes() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             index_writer.add_document(doc!(name => 1u64));
             index_writer.add_document(doc!(name => 2u64));
             index_writer.add_document(doc!(name => 3u64));
             index_writer.add_document(doc!(name => 4u64));
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
 
         {
-            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            let mut index_writer2 = index.writer(50_000_000)?;
             index_writer2.delete_term(Term::from_field_u64(name, 2u64));
             index_writer2.delete_term(Term::from_field_u64(name, 3u64));
-
             // ok, now we should have a deleted doc
-            index_writer2.commit().unwrap();
+            index_writer2.commit()?;
         }
 
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage();
+        let searcher_space_usage = searcher.space_usage()?;
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
-        let segment = &searcher_space_usage.segments()[0];
-        assert!(segment.total() > 0);
+        let segment_space_usage = &searcher_space_usage.segments()[0];
+        assert!(segment_space_usage.total() > 0);
 
-        assert_eq!(2, segment.num_docs());
+        assert_eq!(2, segment_space_usage.num_docs());
 
-        expect_single_field(segment.termdict(), &name, 1, 512);
-        expect_single_field(segment.postings(), &name, 1, 512);
-        assert_eq!(0, segment.positions().total());
-        assert_eq!(0, segment.positions_skip_idx().total());
-        assert_eq!(0, segment.fast_fields().total());
-        expect_single_field(segment.fieldnorms(), &name, 1, 512);
-        // TODO: understand why the following fails
-        //        assert_eq!(0, segment.store().total());
-        assert!(segment.deletes() > 0);
+        expect_single_field(segment_space_usage.termdict(), &name, 1, 512);
+        expect_single_field(segment_space_usage.postings(), &name, 1, 512);
+        assert_eq!(0, segment_space_usage.positions().total());
+        assert_eq!(0, segment_space_usage.positions_skip_idx().total());
+        assert_eq!(0, segment_space_usage.fast_fields().total());
+        expect_single_field(segment_space_usage.fieldnorms(), &name, 1, 512);
+        assert!(segment_space_usage.deletes() > 0);
+        Ok(())
     }
 }

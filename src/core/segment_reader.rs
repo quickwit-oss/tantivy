@@ -1,10 +1,9 @@
-use crate::common::CompositeFile;
 use crate::common::HasLen;
 use crate::core::InvertedIndexReader;
 use crate::core::Segment;
 use crate::core::SegmentComponent;
 use crate::core::SegmentId;
-use crate::directory::ReadOnlySource;
+use crate::directory::FileSlice;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
@@ -16,11 +15,12 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
+use crate::{common::CompositeFile, error::DataCorruption};
 use fail::fail_point;
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::{collections::HashMap, io};
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -50,7 +50,7 @@ pub struct SegmentReader {
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
 
-    store_source: ReadOnlySource,
+    store_file: FileSlice,
     delete_bitset_opt: Option<DeleteBitSet>,
     schema: Schema,
 }
@@ -106,19 +106,26 @@ impl SegmentReader {
     }
 
     /// Accessor to the `FacetReader` associated to a given `Field`.
-    pub fn facet_reader(&self, field: Field) -> Option<FacetReader> {
+    pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
         if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return None;
+            return Err(crate::TantivyError::InvalidArgument(format!(
+                "Field {:?} is not a facet field.",
+                field_entry.name()
+            )));
         }
-        let term_ords_reader = self.fast_fields().u64s(field)?;
+        let term_ords_reader = self.fast_fields().u64s(field).ok_or_else(|| {
+            DataCorruption::comment_only(format!(
+                "Cannot find data for hierarchical facet {:?}",
+                field_entry.name()
+            ))
+        })?;
         let termdict = self
             .termdict_composite
             .open_read(field)
-            .map(|source| TermDictionary::from_source(&source))
-            .unwrap_or_else(TermDictionary::empty);
-        let facet_reader = FacetReader::new(term_ords_reader, termdict);
-        Some(facet_reader)
+            .map(TermDictionary::open)
+            .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
+        Ok(FacetReader::new(term_ords_reader, termdict))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.
@@ -129,7 +136,7 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> crate::Result<FieldNormReader> {
-        self.fieldnorm_readers.get_field(field).ok_or_else(|| {
+        self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
                 "Field norm not found for field {:?}. Was it marked as indexed during indexing?",
@@ -140,33 +147,33 @@ impl SegmentReader {
     }
 
     /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self) -> StoreReader {
-        StoreReader::from_source(self.store_source.clone())
+    pub fn get_store_reader(&self) -> io::Result<StoreReader> {
+        StoreReader::open(self.store_file.clone())
     }
 
     /// Open a new segment for reading.
     pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
-        let termdict_source = segment.open_read(SegmentComponent::TERMS)?;
-        let termdict_composite = CompositeFile::open(&termdict_source)?;
+        let termdict_file = segment.open_read(SegmentComponent::TERMS)?;
+        let termdict_composite = CompositeFile::open(&termdict_file)?;
 
-        let store_source = segment.open_read(SegmentComponent::STORE)?;
+        let store_file = segment.open_read(SegmentComponent::STORE)?;
 
         fail_point!("SegmentReader::open#middle");
 
-        let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
-        let postings_composite = CompositeFile::open(&postings_source)?;
+        let postings_file = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_composite = CompositeFile::open(&postings_file)?;
 
         let positions_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS) {
-                CompositeFile::open(&source)?
+            if let Ok(positions_file) = segment.open_read(SegmentComponent::POSITIONS) {
+                CompositeFile::open(&positions_file)?
             } else {
                 CompositeFile::empty()
             }
         };
 
         let positions_idx_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
-                CompositeFile::open(&source)?
+            if let Ok(positions_skip_file) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
+                CompositeFile::open(&positions_skip_file)?
             } else {
                 CompositeFile::empty()
             }
@@ -184,13 +191,14 @@ impl SegmentReader {
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::DELETE)?;
-            Some(DeleteBitSet::open(delete_data))
+            let delete_bitset = DeleteBitSet::open(delete_data)?;
+            Some(delete_bitset)
         } else {
             None
         };
 
         Ok(SegmentReader {
-            inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
+            inv_idx_reader_cache: Default::default(),
             max_doc: segment.meta().max_doc(),
             num_docs: segment.meta().num_docs(),
             termdict_composite,
@@ -198,7 +206,7 @@ impl SegmentReader {
             fast_fields_readers: fast_field_readers,
             fieldnorm_readers,
             segment_id: segment.id(),
-            store_source,
+            store_file,
             delete_bitset_opt,
             positions_composite,
             positions_idx_composite,
@@ -218,14 +226,14 @@ impl SegmentReader {
     /// is returned.
     /// Similarly if the field is marked as indexed but no term has been indexed for the given
     /// index. an empty `InvertedIndexReader` is returned (but no warning is logged).
-    pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
+    pub fn inverted_index(&self, field: Field) -> crate::Result<Arc<InvertedIndexReader>> {
         if let Some(inv_idx_reader) = self
             .inv_idx_reader_cache
             .read()
             .expect("Lock poisoned. This should never happen")
             .get(&field)
         {
-            return Arc::clone(inv_idx_reader);
+            return Ok(Arc::clone(inv_idx_reader));
         }
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -235,41 +243,42 @@ impl SegmentReader {
             warn!("Field {:?} does not seem indexed.", field_entry.name());
         }
 
-        let postings_source_opt = self.postings_composite.open_read(field);
+        let postings_file_opt = self.postings_composite.open_read(field);
 
-        if postings_source_opt.is_none() || record_option_opt.is_none() {
+        if postings_file_opt.is_none() || record_option_opt.is_none() {
             // no documents in the segment contained this field.
             // As a result, no data is associated to the inverted index.
             //
             // Returns an empty inverted index.
             let record_option = record_option_opt.unwrap_or(IndexRecordOption::Basic);
-            return Arc::new(InvertedIndexReader::empty(record_option));
+            return Ok(Arc::new(InvertedIndexReader::empty(record_option)));
         }
 
         let record_option = record_option_opt.unwrap();
-        let postings_source = postings_source_opt.unwrap();
+        let postings_file = postings_file_opt.unwrap();
 
-        let termdict_source = self.termdict_composite.open_read(field).expect(
-            "Failed to open field term dictionary in composite file. Is the field indexed?",
-        );
+        let termdict_file: FileSlice = self.termdict_composite.open_read(field)
+            .ok_or_else(||
+               DataCorruption::comment_only(format!("Failed to open field {:?}'s term dictionary in the composite file. Has the schema been modified?", field_entry.name()))
+            )?;
 
-        let positions_source = self
+        let positions_file = self
             .positions_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
-        let positions_idx_source = self
+        let positions_idx_file = self
             .positions_idx_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::from_source(&termdict_source),
-            postings_source,
-            positions_source,
-            positions_idx_source,
+            TermDictionary::open(termdict_file)?,
+            postings_file,
+            positions_file,
+            positions_idx_file,
             record_option,
-        ));
+        )?);
 
         // by releasing the lock in between, we may end up opening the inverting index
         // twice, but this is fine.
@@ -278,7 +287,7 @@ impl SegmentReader {
             .expect("Field reader cache lock poisoned. This should never happen.")
             .insert(field, Arc::clone(&inv_idx_reader));
 
-        inv_idx_reader
+        Ok(inv_idx_reader)
     }
 
     /// Returns the segment id
@@ -306,8 +315,8 @@ impl SegmentReader {
     }
 
     /// Summarize total space usage of this segment.
-    pub fn space_usage(&self) -> SegmentSpaceUsage {
-        SegmentSpaceUsage::new(
+    pub fn space_usage(&self) -> io::Result<SegmentSpaceUsage> {
+        Ok(SegmentSpaceUsage::new(
             self.num_docs(),
             self.termdict_composite.space_usage(),
             self.postings_composite.space_usage(),
@@ -315,12 +324,12 @@ impl SegmentReader {
             self.positions_idx_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
-            self.get_store_reader().space_usage(),
+            self.get_store_reader()?.space_usage(),
             self.delete_bitset_opt
                 .as_ref()
                 .map(DeleteBitSet::space_usage)
                 .unwrap_or(0),
-        )
+        ))
     }
 }
 
@@ -337,7 +346,7 @@ mod test {
     use crate::DocId;
 
     #[test]
-    fn test_alive_docs_iterator() {
+    fn test_alive_docs_iterator() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("name", TEXT | STORED);
         let schema = schema_builder.build();
@@ -345,26 +354,26 @@ mod test {
         let name = schema.get_field("name").unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             index_writer.add_document(doc!(name => "tantivy"));
             index_writer.add_document(doc!(name => "horse"));
             index_writer.add_document(doc!(name => "jockey"));
             index_writer.add_document(doc!(name => "cap"));
-
             // we should now have one segment with two docs
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
 
         {
-            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            let mut index_writer2 = index.writer(50_000_000)?;
             index_writer2.delete_term(Term::from_field_text(name, "horse"));
             index_writer2.delete_term(Term::from_field_text(name, "cap"));
 
             // ok, now we should have a deleted doc
-            index_writer2.commit().unwrap();
+            index_writer2.commit()?;
         }
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
         assert_eq!(vec![0u32, 2u32], docs);
+        Ok(())
     }
 }

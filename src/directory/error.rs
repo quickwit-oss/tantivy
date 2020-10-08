@@ -57,6 +57,11 @@ pub enum OpenWriteError {
     },
 }
 
+impl OpenWriteError {
+    pub(crate) fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
+        Self::IOError { io_error, filepath }
+    }
+}
 /// Type of index incompatibility between the library and the index found on disk
 /// Used to catch and provide a hint to solve this incompatibility issue
 pub enum Incompatibility {
@@ -137,6 +142,11 @@ pub enum OpenReadError {
     IncompatibleIndex(Incompatibility),
 }
 
+impl OpenReadError {
+    pub(crate) fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
+        Self::IOError { io_error, filepath }
+    }
+}
 /// Error that may occur when trying to delete a file
 #[derive(Debug, Error)]
 pub enum DeleteError {

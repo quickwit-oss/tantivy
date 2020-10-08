@@ -1,6 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use std::io;
-use std::ops::Deref;
+
+use crate::directory::OwnedBytes;
 
 pub(crate) struct BitPacker {
     mini_buffer: u64,
@@ -60,20 +61,14 @@ impl BitPacker {
 }
 
 #[derive(Clone)]
-pub struct BitUnpacker<Data>
-where
-    Data: Deref<Target = [u8]>,
-{
+pub struct BitUnpacker {
     num_bits: u64,
     mask: u64,
-    data: Data,
+    data: OwnedBytes,
 }
 
-impl<Data> BitUnpacker<Data>
-where
-    Data: Deref<Target = [u8]>,
-{
-    pub fn new(data: Data, num_bits: u8) -> BitUnpacker<Data> {
+impl BitUnpacker {
+    pub fn new(data: OwnedBytes, num_bits: u8) -> BitUnpacker {
         let mask: u64 = if num_bits == 64 {
             !0u64
         } else {
@@ -90,7 +85,7 @@ where
         if self.num_bits == 0 {
             return 0u64;
         }
-        let data: &[u8] = &*self.data;
+        let data: &[u8] = self.data.as_slice();
         let num_bits = self.num_bits;
         let mask = self.mask;
         let addr_in_bits = idx * num_bits;
@@ -109,8 +104,9 @@ where
 #[cfg(test)]
 mod test {
     use super::{BitPacker, BitUnpacker};
+    use crate::directory::OwnedBytes;
 
-    fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker<Vec<u8>>, Vec<u64>) {
+    fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker, Vec<u64>) {
         let mut data = Vec::new();
         let mut bitpacker = BitPacker::new();
         let max_val: u64 = (1u64 << num_bits as u64) - 1u64;
@@ -122,7 +118,7 @@ mod test {
         }
         bitpacker.close(&mut data).unwrap();
         assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8 + 7);
-        let bitunpacker = BitUnpacker::new(data, num_bits);
+        let bitunpacker = BitUnpacker::new(OwnedBytes::new(data), num_bits);
         (bitunpacker, vals)
     }
 

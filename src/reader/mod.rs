@@ -9,8 +9,8 @@ use crate::directory::META_LOCK;
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
-use std::convert::TryInto;
 use std::sync::Arc;
+use std::{convert::TryInto, io};
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -138,11 +138,11 @@ impl InnerIndexReader {
                 .collect::<crate::Result<_>>()?
         };
         let schema = self.index.schema();
-        let searchers = std::iter::repeat_with(|| {
+        let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone())
         })
         .take(self.num_searchers)
-        .collect();
+        .collect::<io::Result<_>>()?;
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }

@@ -36,11 +36,9 @@ impl Weight for TermWeight {
             Ok(self.scorer(reader, 1.0)?.count(delete_bitset))
         } else {
             let field = self.term.field();
-            Ok(reader
-                .inverted_index(field)
-                .get_term_info(&self.term)
-                .map(|term_info| term_info.doc_freq)
-                .unwrap_or(0))
+            let inv_index = reader.inverted_index(field)?;
+            let term_info = inv_index.get_term_info(&self.term);
+            Ok(term_info.map(|term_info| term_info.doc_freq).unwrap_or(0))
         }
     }
 
@@ -97,11 +95,11 @@ impl TermWeight {
         boost: Score,
     ) -> crate::Result<TermScorer> {
         let field = self.term.field();
-        let inverted_index = reader.inverted_index(field);
+        let inverted_index = reader.inverted_index(field)?;
         let fieldnorm_reader = reader.get_fieldnorms_reader(field)?;
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
-            inverted_index.read_postings(&self.term, self.index_record_option);
+            inverted_index.read_postings(&self.term, self.index_record_option)?;
         if let Some(segment_postings) = postings_opt {
             Ok(TermScorer::new(
                 segment_postings,

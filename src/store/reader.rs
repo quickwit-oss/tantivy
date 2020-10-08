@@ -1,8 +1,8 @@
 use super::decompress;
 use super::skiplist::SkipList;
-use crate::common::BinarySerializable;
 use crate::common::VInt;
-use crate::directory::ReadOnlySource;
+use crate::common::{BinarySerializable, HasLen};
+use crate::directory::{FileSlice, OwnedBytes};
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::DocId;
@@ -13,8 +13,8 @@ use std::mem::size_of;
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
 pub struct StoreReader {
-    data: ReadOnlySource,
-    offset_index_source: ReadOnlySource,
+    data: FileSlice,
+    offset_index_file: OwnedBytes,
     current_block_offset: RefCell<usize>,
     current_block: RefCell<Vec<u8>>,
     max_doc: DocId,
@@ -22,19 +22,20 @@ pub struct StoreReader {
 
 impl StoreReader {
     /// Opens a store reader
-    pub fn from_source(data: ReadOnlySource) -> StoreReader {
-        let (data_source, offset_index_source, max_doc) = split_source(data);
-        StoreReader {
-            data: data_source,
-            offset_index_source,
+    // TODO rename open
+    pub fn open(store_file: FileSlice) -> io::Result<StoreReader> {
+        let (data_file, offset_index_file, max_doc) = split_file(store_file)?;
+        Ok(StoreReader {
+            data: data_file,
+            offset_index_file: offset_index_file.read_bytes()?,
             current_block_offset: RefCell::new(usize::max_value()),
             current_block: RefCell::new(Vec::new()),
             max_doc,
-        }
+        })
     }
 
     pub(crate) fn block_index(&self) -> SkipList<'_, u64> {
-        SkipList::from(self.offset_index_source.as_slice())
+        SkipList::from(self.offset_index_file.as_slice())
     }
 
     fn block_offset(&self, doc_id: DocId) -> (DocId, u64) {
@@ -44,23 +45,22 @@ impl StoreReader {
             .unwrap_or((0u32, 0u64))
     }
 
-    pub(crate) fn block_data(&self) -> &[u8] {
-        self.data.as_slice()
+    pub(crate) fn block_data(&self) -> io::Result<OwnedBytes> {
+        self.data.read_bytes()
     }
 
-    fn compressed_block(&self, addr: usize) -> &[u8] {
-        let total_buffer = self.data.as_slice();
-        let mut buffer = &total_buffer[addr..];
-        let block_len = u32::deserialize(&mut buffer).expect("") as usize;
-        &buffer[..block_len]
+    fn compressed_block(&self, addr: usize) -> io::Result<OwnedBytes> {
+        let (block_len_bytes, block_body) = self.data.slice_from(addr).split(4);
+        let block_len = u32::deserialize(&mut block_len_bytes.read_bytes()?)?;
+        block_body.slice_to(block_len as usize).read_bytes()
     }
 
     fn read_block(&self, block_offset: usize) -> io::Result<()> {
         if block_offset != *self.current_block_offset.borrow() {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
-            let compressed_block = self.compressed_block(block_offset);
-            decompress(compressed_block, &mut current_block_mut)?;
+            let compressed_block = self.compressed_block(block_offset)?;
+            decompress(compressed_block.as_slice(), &mut current_block_mut)?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
         Ok(())
@@ -89,21 +89,21 @@ impl StoreReader {
 
     /// Summarize total space usage of this store reader.
     pub fn space_usage(&self) -> StoreSpaceUsage {
-        StoreSpaceUsage::new(self.data.len(), self.offset_index_source.len())
+        StoreSpaceUsage::new(self.data.len(), self.offset_index_file.len())
     }
 }
 
-fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId) {
+fn split_file(data: FileSlice) -> io::Result<(FileSlice, FileSlice, DocId)> {
     let data_len = data.len();
     let footer_offset = data_len - size_of::<u64>() - size_of::<u32>();
-    let serialized_offset: ReadOnlySource = data.slice(footer_offset, data_len);
+    let serialized_offset: OwnedBytes = data.slice(footer_offset, data_len).read_bytes()?;
     let mut serialized_offset_buf = serialized_offset.as_slice();
-    let offset = u64::deserialize(&mut serialized_offset_buf).unwrap();
+    let offset = u64::deserialize(&mut serialized_offset_buf)?;
     let offset = offset as usize;
-    let max_doc = u32::deserialize(&mut serialized_offset_buf).unwrap();
-    (
+    let max_doc = u32::deserialize(&mut serialized_offset_buf)?;
+    Ok((
         data.slice(0, offset),
         data.slice(offset, footer_offset),
         max_doc,
-    )
+    ))
 }

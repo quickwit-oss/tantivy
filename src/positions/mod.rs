@@ -38,11 +38,11 @@ const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) a
 pub mod tests {
 
     use super::PositionSerializer;
-    use crate::directory::ReadOnlySource;
     use crate::positions::reader::PositionReader;
+    use crate::{common::HasLen, directory::FileSlice};
     use std::iter;
 
-    fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {
+    fn create_stream_buffer(vals: &[u32]) -> (FileSlice, FileSlice) {
         let mut skip_buffer = vec![];
         let mut stream_buffer = vec![];
         {
@@ -53,10 +53,7 @@ pub mod tests {
             }
             serializer.close().unwrap();
         }
-        (
-            ReadOnlySource::from(stream_buffer),
-            ReadOnlySource::from(skip_buffer),
-        )
+        (FileSlice::new(stream_buffer), FileSlice::new(skip_buffer))
     }
 
     #[test]
@@ -65,7 +62,7 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
-        let mut position_reader = PositionReader::new(stream, skip, 0u64);
+        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
         for &n in &[1, 10, 127, 128, 130, 312] {
             let mut v = vec![0u32; n];
             position_reader.read(0, &mut v[..]);
@@ -81,7 +78,7 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
-        let mut position_reader = PositionReader::new(stream, skip, 0u64);
+        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
         for &offset in &[1u64, 10u64, 127u64, 128u64, 130u64, 312u64] {
             for &len in &[1, 10, 130, 500] {
                 let mut v = vec![0u32; len];
@@ -100,7 +97,7 @@ pub mod tests {
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
 
-        let mut position_reader = PositionReader::new(stream, skip, 0u64);
+        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
         let mut buf = [0u32; 7];
         let mut c = 0;
 
@@ -122,7 +119,7 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 15_749);
         assert_eq!(stream.len(), 4_987_872);
-        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0);
+        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0).unwrap();
         let mut buf = [0u32; 256];
         position_reader.read(128, &mut buf);
         for i in 0..256 {
@@ -142,7 +139,8 @@ pub mod tests {
         assert_eq!(skip.len(), 15_749);
         assert_eq!(stream.len(), 4_987_872);
         let mut buf = [0u32; 1];
-        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 200_000);
+        let mut position_reader =
+            PositionReader::new(stream.clone(), skip.clone(), 200_000).unwrap();
         position_reader.read(230, &mut buf);
         position_reader.read(9, &mut buf);
     }
@@ -157,7 +155,7 @@ pub mod tests {
         }
         let (stream, skip) = create_stream_buffer(&v[..]);
         let mut buf = Vec::new();
-        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0);
+        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0).unwrap();
         let mut offset = 0;
         for i in 1..24 {
             buf.resize(i, 0);
@@ -175,7 +173,7 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 15_749);
         assert_eq!(stream.len(), 1_000_000);
-        let mut position_reader = PositionReader::new(stream, skip, 128 * 1024);
+        let mut position_reader = PositionReader::new(stream, skip, 128 * 1024).unwrap();
         let mut buf = [0u32; 1];
         position_reader.read(0, &mut buf);
         assert_eq!(buf[0], CONST_VAL);
@@ -194,7 +192,8 @@ pub mod tests {
             128 * 1024 + 7,
             128 * 10 * 1024 + 10,
         ] {
-            let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), offset);
+            let mut position_reader =
+                PositionReader::new(stream.clone(), skip.clone(), offset).unwrap();
             let mut buf = [0u32; 1];
             position_reader.read(0, &mut buf);
             assert_eq!(buf[0], offset as u32);

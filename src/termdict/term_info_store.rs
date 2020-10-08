@@ -1,8 +1,6 @@
-use crate::common::bitpacker::BitPacker;
 use crate::common::compute_num_bits;
-use crate::common::Endianness;
-use crate::common::{BinarySerializable, FixedSize};
-use crate::directory::ReadOnlySource;
+use crate::common::{bitpacker::BitPacker, BinarySerializable, FixedSize};
+use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
@@ -79,8 +77,8 @@ impl TermInfoBlockMeta {
 
 pub struct TermInfoStore {
     num_terms: usize,
-    block_meta_source: ReadOnlySource,
-    term_info_source: ReadOnlySource,
+    block_meta_bytes: OwnedBytes,
+    term_info_bytes: OwnedBytes,
 }
 
 fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
@@ -105,35 +103,35 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 }
 
 impl TermInfoStore {
-    pub fn open(data: &ReadOnlySource) -> TermInfoStore {
-        let buffer = data.as_slice();
-        let len = Endianness::read_u64(&buffer[0..8]) as usize;
-        let num_terms = Endianness::read_u64(&buffer[8..16]) as usize;
-        let block_meta_source = data.slice(16, 16 + len);
-        let term_info_source = data.slice_from(16 + len);
-        TermInfoStore {
+    pub fn open(term_info_store_file: FileSlice) -> crate::Result<TermInfoStore> {
+        let (len_slice, main_slice) = term_info_store_file.split(16);
+        let mut bytes = len_slice.read_bytes()?;
+        let len = u64::deserialize(&mut bytes)? as usize;
+        let num_terms = u64::deserialize(&mut bytes)? as usize;
+        let (block_meta_file, term_info_file) = main_slice.split(len);
+        let term_info_bytes = term_info_file.read_bytes()?;
+        Ok(TermInfoStore {
             num_terms,
-            block_meta_source,
-            term_info_source,
-        }
+            block_meta_bytes: block_meta_file.read_bytes()?,
+            term_info_bytes,
+        })
     }
 
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
         let block_id = (term_ord as usize) / BLOCK_LEN;
-        let buffer = self.block_meta_source.as_slice();
+        let buffer = self.block_meta_bytes.as_slice();
         let mut block_data: &[u8] = &buffer[block_id * TermInfoBlockMeta::SIZE_IN_BYTES..];
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
             .expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
-            term_info_block_data.ref_term_info
-        } else {
-            let term_info_data = self.term_info_source.as_slice();
-            term_info_block_data.deserialize_term_info(
-                &term_info_data[term_info_block_data.offset as usize..],
-                inner_offset - 1,
-            )
+            return term_info_block_data.ref_term_info;
         }
+        let term_info_data = self.term_info_bytes.as_slice();
+        term_info_block_data.deserialize_term_info(
+            &term_info_data[term_info_block_data.offset as usize..],
+            inner_offset - 1,
+        )
     }
 
     pub fn num_terms(&self) -> usize {
@@ -263,7 +261,7 @@ mod tests {
     use crate::common::bitpacker::BitPacker;
     use crate::common::compute_num_bits;
     use crate::common::BinarySerializable;
-    use crate::directory::ReadOnlySource;
+    use crate::directory::FileSlice;
     use crate::postings::TermInfo;
 
     #[test]
@@ -309,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pack() {
+    fn test_pack() -> crate::Result<()> {
         let mut store_writer = TermInfoStoreWriter::new();
         let mut term_infos = vec![];
         for i in 0..1000 {
@@ -318,14 +316,15 @@ mod tests {
                 postings_offset: (i / 10) as u64,
                 positions_idx: (i * 7) as u64,
             };
-            store_writer.write_term_info(&term_info).unwrap();
+            store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);
         }
         let mut buffer = Vec::new();
-        store_writer.serialize(&mut buffer).unwrap();
-        let term_info_store = TermInfoStore::open(&ReadOnlySource::from(buffer));
+        store_writer.serialize(&mut buffer)?;
+        let term_info_store = TermInfoStore::open(FileSlice::new(buffer))?;
         for i in 0..1000 {
             assert_eq!(term_info_store.get(i as u64), term_infos[i]);
         }
+        Ok(())
     }
 }
