@@ -69,7 +69,7 @@ impl StoreReader {
     /// Reads a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
-    /// decompressing a LZ4-compressed block.
+    /// decompressing a compressed block.
     ///
     /// It should not be called to score documents
     /// for instance.

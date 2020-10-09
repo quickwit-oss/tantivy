@@ -8,7 +8,7 @@ pub struct StoredFlag;
 /// This flag can apply to any kind of field.
 ///
 /// A stored fields of a document can be retrieved given its `DocId`.
-/// Stored field are stored together and LZ4 compressed.
+/// Stored field are stored together and compressed.
 /// Reading the stored fields of a document is relatively slow.
 /// (~ 100 microsecs)
 ///

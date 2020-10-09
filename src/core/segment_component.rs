@@ -20,7 +20,7 @@ pub enum SegmentComponent {
     /// Dictionary associating `Term`s to `TermInfo`s which is
     /// simply an address into the `postings` file and the `positions` file.
     TERMS,
-    /// Row-oriented, LZ4-compressed storage of the documents.
+    /// Row-oriented, compressed storage of the documents.
     /// Accessing a document from the store is relatively slow, as it
     /// requires to decompress the entire block it belongs to.
     STORE,
