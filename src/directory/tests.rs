@@ -137,6 +137,7 @@ fn test_simple(directory: &mut dyn Directory) -> crate::Result<()> {
     write_file.flush()?;
     let read_file = directory.open_read(test_path)?.read_bytes()?;
     assert_eq!(read_file.as_slice(), &[4u8, 3u8, 7u8, 3u8, 5u8]);
+    mem::drop(read_file);
     assert!(directory.delete(test_path).is_ok());
     assert!(!directory.exists(test_path));
     Ok(())
