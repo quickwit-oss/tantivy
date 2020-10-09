@@ -10,12 +10,12 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
     params.quality = 5;
 
     compressed.clear();
-    brotli::BrotliCompress(&mut Cursor::new(uncompressed), compressed, &params)?;
+    brotli::BrotliCompress(uncompressed, compressed, &params)?;
     Ok(())
 }
 
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
     decompressed.clear();
-    brotli::BrotliDecompress(&mut Cursor::new(compressed), decompressed)?;
+    brotli::BrotliDecompress(compressed, decompressed)?;
     Ok(())
 }

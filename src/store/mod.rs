@@ -40,7 +40,7 @@ pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
 #[cfg(all(feature = "lz4", feature = "brotli"))]
-compile_error!("feature `lz4` or `brotli` shouldn't be enabled both.");
+compile_error!("feature `lz4` or `brotli` must not be enabled together.");
 
 #[cfg(feature = "lz4")]
 mod compression_lz4;
