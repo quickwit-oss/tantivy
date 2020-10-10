@@ -1,20 +1,15 @@
 use crate::common::HasLen;
-
+use crate::directory::FileSlice;
 use crate::docset::DocSet;
+use crate::fastfield::DeleteBitSet;
 use crate::positions::PositionReader;
-
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::serializer::PostingsSerializer;
 use crate::postings::BlockSearcher;
-
+use crate::postings::BlockSegmentPostings;
 use crate::postings::Postings;
-
 use crate::schema::IndexRecordOption;
 use crate::{DocId, TERMINATED};
-
-use crate::directory::FileSlice;
-use crate::fastfield::DeleteBitSet;
-use crate::postings::BlockSegmentPostings;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
@@ -88,7 +83,7 @@ impl SegmentPostings {
         }
         let block_segment_postings = BlockSegmentPostings::open(
             docs.len() as u32,
-            FileSlice::new(buffer),
+            FileSlice::from(buffer),
             IndexRecordOption::Basic,
             IndexRecordOption::Basic,
         )
@@ -134,7 +129,7 @@ impl SegmentPostings {
             .unwrap();
         let block_segment_postings = BlockSegmentPostings::open(
             doc_and_tfs.len() as u32,
-            FileSlice::new(buffer),
+            FileSlice::from(buffer),
             IndexRecordOption::WithFreqs,
             IndexRecordOption::WithFreqs,
         )

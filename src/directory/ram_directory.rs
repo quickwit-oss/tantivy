@@ -86,7 +86,7 @@ struct InnerDirectory {
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
-        let data = FileSlice::new(Vec::from(data));
+        let data = FileSlice::from(data.to_vec());
         self.fs.insert(path, data).is_some()
     }
 
@@ -151,7 +151,7 @@ impl RAMDirectory {
     /// written using the `atomic_write` api.
     ///
     /// If an error is encounterred, files may be persisted partially.
-    pub fn persist(&self, dest: &mut dyn Directory) -> crate::Result<()> {
+    pub fn persist(&self, dest: &dyn Directory) -> crate::Result<()> {
         let wlock = self.fs.write().unwrap();
         for (path, file) in wlock.fs.iter() {
             let mut dest_wrt = dest.open_write(path)?;
@@ -181,7 +181,7 @@ impl Directory for RAMDirectory {
         self.fs.read().unwrap().exists(path)
     }
 
-    fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
@@ -205,7 +205,7 @@ impl Directory for RAMDirectory {
         Ok(bytes.as_slice().to_owned())
     }
 
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+    fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
         fail_point!("RAMDirectory::atomic_write", |msg| Err(io::Error::new(
             io::ErrorKind::Other,
             msg.unwrap_or_else(|| "Undefined".to_string())
@@ -242,13 +242,13 @@ mod tests {
         let msg_seq: &'static [u8] = b"sequential is the way";
         let path_atomic: &'static Path = Path::new("atomic");
         let path_seq: &'static Path = Path::new("seq");
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
         let mut wrt = directory.open_write(path_seq).unwrap();
         assert!(wrt.write_all(msg_seq).is_ok());
         assert!(wrt.flush().is_ok());
-        let mut directory_copy = RAMDirectory::create();
-        assert!(directory.persist(&mut directory_copy).is_ok());
+        let directory_copy = RAMDirectory::create();
+        assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);
     }

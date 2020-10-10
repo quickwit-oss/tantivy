@@ -17,7 +17,7 @@ use notify::RawEvent;
 use notify::RecursiveMode;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use stable_deref_trait::StableDeref;
 use std::convert::From;
 use std::fmt;
 use std::fs::OpenOptions;
@@ -32,6 +32,7 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
+use std::{collections::HashMap, ops::Deref};
 use tempfile::TempDir;
 
 /// Create a default io error given a string.
@@ -400,6 +401,18 @@ impl TerminatingWrite for SafeFileWriter {
     }
 }
 
+#[derive(Clone)]
+struct MmapArc(Arc<Box<dyn Deref<Target = [u8]> + Send + Sync>>);
+
+impl Deref for MmapArc {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        self.0.deref()
+    }
+}
+unsafe impl StableDeref for MmapArc {}
+
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         debug!("Open Read {:?}", path);
@@ -414,10 +427,11 @@ impl Directory for MmapDirectory {
             let io_err = make_io_err(msg);
             OpenReadError::wrap_io_error(io_err, path.to_path_buf())
         })?;
-        Ok(mmap_cache
-            .get_mmap(&full_path)?
-            .map(FileSlice::from)
-            .unwrap_or_else(FileSlice::empty))
+        if let Some(mmap_arc) = mmap_cache.get_mmap(&full_path)? {
+            Ok(FileSlice::from(MmapArc(mmap_arc)))
+        } else {
+            Ok(FileSlice::empty())
+        }
     }
 
     /// Any entry associated to the path in the mmap will be
@@ -447,7 +461,7 @@ impl Directory for MmapDirectory {
         full_path.exists()
     }
 
-    fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         debug!("Open Write {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -497,7 +511,7 @@ impl Directory for MmapDirectory {
         }
     }
 
-    fn atomic_write(&mut self, path: &Path, content: &[u8]) -> io::Result<()> {
+    fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let mut tempfile = tempfile::Builder::new().tempfile_in(&self.inner.root_path)?;
         tempfile.write_all(content)?;
@@ -557,7 +571,7 @@ mod tests {
         // cannot be mmapped.
         //
         // In that case the directory returns a SharedVecSlice.
-        let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let path = PathBuf::from("test");
         {
             let mut w = mmap_directory.open_write(&path).unwrap();
@@ -573,7 +587,7 @@ mod tests {
 
         // here we test if the cache releases
         // mmaps correctly.
-        let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         let num_paths = 10;
         let paths: Vec<PathBuf> = (0..num_paths)
             .map(|i| PathBuf::from(&*format!("file_{}", i)))

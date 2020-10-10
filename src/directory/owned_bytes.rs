@@ -4,6 +4,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io};
 
+use super::file_slice::FileHandle;
+
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a static slice.
 ///
@@ -12,6 +14,12 @@ use std::{fmt, io};
 pub struct OwnedBytes {
     data: &'static [u8],
     box_stable_deref: Arc<dyn Deref<Target = [u8]> + Sync + Send>,
+}
+
+impl FileHandle for OwnedBytes {
+    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+        Ok(self.slice(from, to))
+    }
 }
 
 impl OwnedBytes {
@@ -25,10 +33,19 @@ impl OwnedBytes {
         data_holder: T,
     ) -> OwnedBytes {
         let box_stable_deref = Arc::new(data_holder);
-        let data = unsafe { mem::transmute::<_, &'static [u8]>(box_stable_deref.deref().deref()) };
+        let bytes: &[u8] = box_stable_deref.as_ref();
+        let data = unsafe { mem::transmute::<_, &'static [u8]>(bytes.deref()) };
         OwnedBytes {
             box_stable_deref,
             data,
+        }
+    }
+
+    /// creates a fileslice that is just a view over a slice of the data.
+    pub fn slice(&self, from: usize, to: usize) -> Self {
+        OwnedBytes {
+            data: &self.data[from..to],
+            box_stable_deref: self.box_stable_deref.clone(),
         }
     }
 

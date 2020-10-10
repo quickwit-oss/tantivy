@@ -321,7 +321,7 @@ mod tests {
         }
         let mut buffer = Vec::new();
         store_writer.serialize(&mut buffer)?;
-        let term_info_store = TermInfoStore::open(FileSlice::new(buffer))?;
+        let term_info_store = TermInfoStore::open(FileSlice::from(buffer))?;
         for i in 0..1000 {
             assert_eq!(term_info_store.get(i as u64), term_infos[i]);
         }

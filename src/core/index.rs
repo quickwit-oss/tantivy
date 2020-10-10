@@ -21,7 +21,6 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
-use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::fmt;
 
@@ -153,8 +152,8 @@ impl Index {
     /// Create a new index from a directory.
     ///
     /// This will overwrite existing meta.json
-    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
-        save_new_metas(schema.clone(), directory.borrow_mut())?;
+    fn from_directory(directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
+        save_new_metas(schema.clone(), &directory)?;
         let metas = IndexMeta::with_schema(schema);
         Index::create_from_metas(directory, &metas, SegmentMetaInventory::default())
     }

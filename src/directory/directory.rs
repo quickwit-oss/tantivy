@@ -152,7 +152,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// was not called.
     ///
     /// The file may not previously exist.
-    fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError>;
+    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError>;
 
     /// Reads the full content file that has been written using
     /// atomic_write.
@@ -168,7 +168,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// a partially written file.
     ///
     /// The file may or may not previously exist.
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
+    fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()>;
 
     /// Acquire a lock in the given directory.
     ///

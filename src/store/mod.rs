@@ -115,7 +115,7 @@ pub mod tests {
     #[test]
     fn test_store() -> crate::Result<()> {
         let path = Path::new("store");
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let store_wrt = directory.open_write(path)?;
         let schema = write_lorem_ipsum_store(store_wrt, 1_000);
         let field_title = schema.get_field("title").unwrap();
@@ -149,7 +149,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "mmap")]
     fn bench_store_encode(b: &mut Bencher) {
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = Path::new("store");
         b.iter(|| {
             write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
@@ -159,7 +159,7 @@ mod bench {
 
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
         let store_file = directory.open_read(path).unwrap();

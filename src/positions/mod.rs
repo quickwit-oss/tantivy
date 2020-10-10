@@ -53,7 +53,7 @@ pub mod tests {
             }
             serializer.close().unwrap();
         }
-        (FileSlice::new(stream_buffer), FileSlice::new(skip_buffer))
+        (FileSlice::from(stream_buffer), FileSlice::from(skip_buffer))
     }
 
     #[test]

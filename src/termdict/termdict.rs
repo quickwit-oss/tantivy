@@ -98,7 +98,7 @@ static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
         .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
         .finish()
         .expect("Writing in a Vec<u8> should never fail");
-    FileSlice::new(term_dictionary_data)
+    FileSlice::from(term_dictionary_data)
 });
 
 /// The term dictionary contains all of the terms in

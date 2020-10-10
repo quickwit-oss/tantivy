@@ -196,7 +196,7 @@ mod test {
     #[test]
     fn test_composite_file() -> crate::Result<()> {
         let path = Path::new("test_path");
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         {
             let w = directory.open_write(path).unwrap();
             let mut composite_write = CompositeWrite::wrap(w);
