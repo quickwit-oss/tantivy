@@ -21,46 +21,46 @@ mod mmap_directory_tests {
 
     #[test]
     fn test_simple() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_simple(&mut directory)
+        let directory = make_directory();
+        super::test_simple(&directory)
     }
 
     #[test]
     fn test_write_create_the_file() {
-        let mut directory = make_directory();
-        super::test_write_create_the_file(&mut directory);
+        let directory = make_directory();
+        super::test_write_create_the_file(&directory);
     }
 
     #[test]
     fn test_rewrite_forbidden() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_rewrite_forbidden(&mut directory)?;
+        let directory = make_directory();
+        super::test_rewrite_forbidden(&directory)?;
         Ok(())
     }
 
     #[test]
     fn test_directory_delete() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_directory_delete(&mut directory)?;
+        let directory = make_directory();
+        super::test_directory_delete(&directory)?;
         Ok(())
     }
 
     #[test]
     fn test_lock_non_blocking() {
-        let mut directory = make_directory();
-        super::test_lock_non_blocking(&mut directory);
+        let directory = make_directory();
+        super::test_lock_non_blocking(&directory);
     }
 
     #[test]
     fn test_lock_blocking() {
-        let mut directory = make_directory();
-        super::test_lock_blocking(&mut directory);
+        let directory = make_directory();
+        super::test_lock_blocking(&directory);
     }
 
     #[test]
     fn test_watch() {
-        let mut directory = make_directory();
-        super::test_watch(&mut directory);
+        let directory = make_directory();
+        super::test_watch(&directory);
     }
 }
 
@@ -75,46 +75,46 @@ mod ram_directory_tests {
 
     #[test]
     fn test_simple() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_simple(&mut directory)
+        let directory = make_directory();
+        super::test_simple(&directory)
     }
 
     #[test]
     fn test_write_create_the_file() {
-        let mut directory = make_directory();
-        super::test_write_create_the_file(&mut directory);
+        let directory = make_directory();
+        super::test_write_create_the_file(&directory);
     }
 
     #[test]
     fn test_rewrite_forbidden() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_rewrite_forbidden(&mut directory)?;
+        let directory = make_directory();
+        super::test_rewrite_forbidden(&directory)?;
         Ok(())
     }
 
     #[test]
     fn test_directory_delete() -> crate::Result<()> {
-        let mut directory = make_directory();
-        super::test_directory_delete(&mut directory)?;
+        let directory = make_directory();
+        super::test_directory_delete(&directory)?;
         Ok(())
     }
 
     #[test]
     fn test_lock_non_blocking() {
-        let mut directory = make_directory();
-        super::test_lock_non_blocking(&mut directory);
+        let directory = make_directory();
+        super::test_lock_non_blocking(&directory);
     }
 
     #[test]
     fn test_lock_blocking() {
-        let mut directory = make_directory();
-        super::test_lock_blocking(&mut directory);
+        let directory = make_directory();
+        super::test_lock_blocking(&directory);
     }
 
     #[test]
     fn test_watch() {
-        let mut directory = make_directory();
-        super::test_watch(&mut directory);
+        let directory = make_directory();
+        super::test_watch(&directory);
     }
 }
 
@@ -122,12 +122,12 @@ mod ram_directory_tests {
 #[should_panic]
 fn ram_directory_panics_if_flush_forgotten() {
     let test_path: &'static Path = Path::new("some_path_for_test");
-    let mut ram_directory = RAMDirectory::create();
+    let ram_directory = RAMDirectory::create();
     let mut write_file = ram_directory.open_write(test_path).unwrap();
     assert!(write_file.write_all(&[4]).is_ok());
 }
 
-fn test_simple(directory: &mut dyn Directory) -> crate::Result<()> {
+fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     let mut write_file = directory.open_write(test_path)?;
     assert!(directory.exists(test_path));
@@ -143,7 +143,7 @@ fn test_simple(directory: &mut dyn Directory) -> crate::Result<()> {
     Ok(())
 }
 
-fn test_rewrite_forbidden(directory: &mut dyn Directory) -> crate::Result<()> {
+fn test_rewrite_forbidden(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     directory.open_write(test_path)?;
     assert!(directory.exists(test_path));
@@ -152,7 +152,7 @@ fn test_rewrite_forbidden(directory: &mut dyn Directory) -> crate::Result<()> {
     Ok(())
 }
 
-fn test_write_create_the_file(directory: &mut dyn Directory) {
+fn test_write_create_the_file(directory: &dyn Directory) {
     let test_path: &'static Path = Path::new("some_path_for_test");
     {
         assert!(directory.open_read(test_path).is_err());
@@ -163,7 +163,7 @@ fn test_write_create_the_file(directory: &mut dyn Directory) {
     }
 }
 
-fn test_directory_delete(directory: &mut dyn Directory) -> crate::Result<()> {
+fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     assert!(directory.open_read(test_path).is_err());
     let mut write_file = directory.open_write(&test_path)?;
@@ -189,7 +189,7 @@ fn test_directory_delete(directory: &mut dyn Directory) -> crate::Result<()> {
     Ok(())
 }
 
-fn test_watch(directory: &mut dyn Directory) {
+fn test_watch(directory: &dyn Directory) {
     let num_progress: Arc<AtomicUsize> = Default::default();
     let counter: Arc<AtomicUsize> = Default::default();
     let counter_clone = counter.clone();
@@ -224,7 +224,7 @@ fn test_watch(directory: &mut dyn Directory) {
     assert!(10 <= counter.load(SeqCst));
 }
 
-fn test_lock_non_blocking(directory: &mut dyn Directory) {
+fn test_lock_non_blocking(directory: &dyn Directory) {
     {
         let lock_a_res = directory.acquire_lock(&Lock {
             filepath: PathBuf::from("a.lock"),
@@ -249,7 +249,7 @@ fn test_lock_non_blocking(directory: &mut dyn Directory) {
     assert!(lock_a_res.is_ok());
 }
 
-fn test_lock_blocking(directory: &mut dyn Directory) {
+fn test_lock_blocking(directory: &dyn Directory) {
     let lock_a_res = directory.acquire_lock(&Lock {
         filepath: PathBuf::from("a.lock"),
         is_blocking: true,

@@ -1,6 +1,7 @@
+use stable_deref_trait::StableDeref;
+
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
-use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::sync::Arc;
 use std::{io, ops::Deref};
 
@@ -8,57 +9,81 @@ pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///
-/// These read objects are only in charge to deliver
-/// the data in the form of a constant read-only `&[u8]`.
-/// Whatever happens to the directory file, the data
-/// hold by this object should never be altered or destroyed.
-pub trait FileSliceTrait: 'static + Send + Sync + HasLen {
-    fn read_bytes(&self) -> io::Result<OwnedBytes>;
-    fn slice(&self, from: usize, to: usize) -> FileSlice;
+/// By contract, whatever happens to the directory file, as long as a FileHandle
+/// is alive, the data associated with it cannot be altered or destroyed.
+///
+/// The underlying behavior is therefore specific to the `Directory` that created it.
+/// Despite its name, a `FileSlice` may or may not directly map to an actual file
+/// on the filesystem.
+pub trait FileHandle: 'static + Send + Sync + HasLen {
+    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes>;
 }
 
-impl FileSliceTrait for &'static [u8] {
-    fn read_bytes(&self) -> io::Result<OwnedBytes> {
-        Ok(OwnedBytes::new(*self))
-    }
-
-    fn slice(&self, from: usize, to: usize) -> FileSlice {
-        FileSlice::from(&self[from..to])
+impl FileHandle for &'static [u8] {
+    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+        let bytes = &self[from..to];
+        Ok(OwnedBytes::new(bytes))
     }
 }
 
-impl HasLen for &'static [u8] {
+impl<T: Deref<Target = [u8]>> HasLen for T {
     fn len(&self) -> usize {
         self.as_ref().len()
     }
 }
 
+impl<B> From<B> for FileSlice
+where
+    B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync,
+{
+    fn from(bytes: B) -> FileSlice {
+        FileSlice::new(OwnedBytes::new(bytes))
+    }
+}
+
 /// Logical slice of read only file in tantivy.
 //
-/// In other words, it is more or less equivalent to the triplet `(file, start_byteoffset, stop_offset)`.
+/// It can be cloned and sliced cheaply.
 ///
-/// FileSlice is a simple wrapper over an `Arc<Box<dyn FileSliceTrait>>`. It can
-/// be cloned cheaply.
-///
-/// The underlying behavior is therefore specific to the `Directory` that created it.
-/// Despite its name, a `FileSlice` may or may not directly map to an actual file
-/// on the filesystem.
 #[derive(Clone)]
-pub struct FileSlice(Arc<Box<dyn FileSliceTrait>>);
+pub struct FileSlice {
+    data: Arc<Box<dyn FileHandle>>,
+    start: usize,
+    stop: usize,
+}
 
 impl FileSlice {
-    /// Creates a FileSlice, wrapping over a FileSliceTrait.
+    /// Wraps a new `Deref<Target = [u8]>`
     pub fn new<D>(data: D) -> Self
     where
-        D: Deref<Target = [u8]> + Send + Sync + 'static,
+        D: FileHandle,
     {
-        FileSlice::from(SlicedDeref::new(data))
+        let len = data.len();
+        FileSlice {
+            data: Arc::new(Box::new(data)),
+            start: 0,
+            stop: len,
+        }
+    }
+
+    /// Creates a fileslice that is just a view over a slice of the data.
+    ///
+    /// # Panics
+    /// Panics if `to < from` or if `to` exceeds the filesize.
+    pub fn slice(&self, from: usize, to: usize) -> FileSlice {
+        assert!(to <= self.len());
+        assert!(to >= from);
+        FileSlice {
+            data: self.data.clone(),
+            start: self.start + from,
+            stop: self.start + to,
+        }
     }
 
     /// Creates an empty FileSlice
     pub fn empty() -> FileSlice {
-        let data: &'static [u8] = &[];
-        FileSlice::from(data)
+        const EMPTY_SLICE: &'static [u8] = &[];
+        FileSlice::from(EMPTY_SLICE)
     }
 
     /// Returns a `OwnedBytes` with all of the data in the `FileSlice`.
@@ -68,10 +93,10 @@ impl FileSlice {
     /// In particular, it is  up to the `Directory` implementation
     /// to handle caching if needed.
     pub fn read_bytes(&self) -> io::Result<OwnedBytes> {
-        self.0.read_bytes()
+        self.data.read_bytes(self.start, self.stop)
     }
 
-    /// Splits the file slice at the given offset and return two file slices.
+    /// Splits the FileSlice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
     /// This operation is cheap and must not copy any underlying data.
@@ -86,18 +111,6 @@ impl FileSlice {
     pub fn split_from_end(self, right_len: usize) -> (FileSlice, FileSlice) {
         let left_len = self.len() - right_len;
         self.split(left_len)
-    }
-
-    /// Creates a FileSlice that is just a view over a slice of the data.
-    pub fn slice(&self, start: usize, stop: usize) -> FileSlice {
-        assert!(
-            start <= stop,
-            "Requested negative slice [{}..{}]",
-            start,
-            stop
-        );
-        assert!(stop <= self.len());
-        self.0.slice(start, stop)
     }
 
     /// Like `.slice(...)` but enforcing only the `from`
@@ -119,93 +132,13 @@ impl FileSlice {
 
 impl HasLen for FileSlice {
     fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl<S: FileSliceTrait> From<S> for FileSlice {
-    fn from(file: S) -> Self {
-        FileSlice(Arc::new(Box::new(file)))
-    }
-}
-
-impl From<Arc<BoxedData>> for FileSlice {
-    fn from(data: Arc<BoxedData>) -> Self {
-        let slice_deref: SlicedDeref = SlicedDeref::from(data);
-        FileSlice::from(slice_deref)
-    }
-}
-
-/// `SliceDeref` wraps an `Arc<BoxData>` to implement `FileSliceTrait` .
-/// It keeps track of (start, stop) boundaries.
-#[derive(Clone)]
-pub struct SlicedDeref {
-    data: Arc<BoxedData>,
-    start: usize,
-    stop: usize,
-}
-
-impl SlicedDeref {
-    /// Wraps a new `Deref<Target = [u8]>`
-    pub fn new<D>(data: D) -> Self
-    where
-        D: Deref<Target = [u8]> + 'static + Send + Sync,
-    {
-        let len = data.len();
-        SlicedDeref {
-            data: Arc::new(Box::new(data)),
-            start: 0,
-            stop: len,
-        }
-    }
-}
-
-impl From<Arc<BoxedData>> for SlicedDeref {
-    fn from(data: Arc<BoxedData>) -> Self {
-        let len = data.len();
-        SlicedDeref {
-            data,
-            start: 0,
-            stop: len,
-        }
-    }
-}
-
-unsafe impl StableDeref for SlicedDeref {}
-unsafe impl CloneStableDeref for SlicedDeref {}
-
-impl FileSliceTrait for SlicedDeref {
-    fn read_bytes(&self) -> io::Result<OwnedBytes> {
-        Ok(OwnedBytes::new(self.clone()))
-    }
-
-    fn slice(&self, from: usize, to: usize) -> FileSlice {
-        assert!(to <= self.len());
-        FileSlice::from(SlicedDeref {
-            data: self.data.clone(),
-            start: self.start + from,
-            stop: self.start + to,
-        })
-    }
-}
-
-impl HasLen for SlicedDeref {
-    fn len(&self) -> usize {
         self.stop - self.start
-    }
-}
-
-impl Deref for SlicedDeref {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.data.deref()[self.start..self.stop]
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FileSlice, FileSliceTrait, SlicedDeref};
+    use super::{FileHandle, FileSlice};
     use crate::common::HasLen;
     use std::io;
 
@@ -249,13 +182,13 @@ mod tests {
     #[test]
     fn test_file_slice_trait_slice_len() {
         let blop: &'static [u8] = b"abc";
-        let owned_bytes: Box<dyn FileSliceTrait> = Box::new(blop);
+        let owned_bytes: Box<dyn FileHandle> = Box::new(blop);
         assert_eq!(owned_bytes.len(), 3);
     }
 
     #[test]
     fn test_slice_deref() -> io::Result<()> {
-        let slice_deref = SlicedDeref::new(&b"abcdef"[..]);
+        let slice_deref = FileSlice::new(&b"abcdef"[..]);
         assert_eq!(slice_deref.len(), 6);
         assert_eq!(slice_deref.read_bytes()?.as_ref(), b"abcdef");
         assert_eq!(slice_deref.slice(1, 4).read_bytes()?.as_ref(), b"bcd");

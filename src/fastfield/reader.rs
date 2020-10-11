@@ -127,7 +127,7 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
         let path = Path::new("__dummy__");
-        let mut directory: RAMDirectory = RAMDirectory::create();
+        let directory: RAMDirectory = RAMDirectory::create();
         {
             let write: WritePtr = directory
                 .open_write(path)

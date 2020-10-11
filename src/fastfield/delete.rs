@@ -54,7 +54,7 @@ impl DeleteBitSet {
         for &doc in docs {
             bitset.insert(doc);
         }
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = Path::new("dummydeletebitset");
         let mut wrt = directory.open_write(path).unwrap();
         write_delete_bitset(&bitset, max_doc, &mut wrt).unwrap();

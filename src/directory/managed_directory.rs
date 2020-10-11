@@ -53,7 +53,7 @@ struct MetaInformation {
 /// Saves the file containing the list of existing files
 /// that were created by tantivy.
 fn save_managed_paths(
-    directory: &mut dyn Directory,
+    directory: &dyn Directory,
     wlock: &RwLockWriteGuard<'_, MetaInformation>,
 ) -> io::Result<()> {
     let mut w = serde_json::to_vec(&wlock.managed_paths)?;
@@ -212,7 +212,7 @@ impl ManagedDirectory {
     /// File starting by "." are reserved to locks.
     /// They are not managed and cannot be subjected
     /// to garbage collection.
-    fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
+    fn register_file_as_managed(&self, filepath: &Path) -> io::Result<()> {
         // Files starting by "." (e.g. lock files) are not managed.
         if !is_managed(filepath) {
             return Ok(());
@@ -223,7 +223,7 @@ impl ManagedDirectory {
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
         if has_changed {
-            save_managed_paths(self.directory.as_mut(), &meta_wlock)?;
+            save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
         }
         Ok(())
     }
@@ -282,7 +282,7 @@ impl Directory for ManagedDirectory {
         Ok(reader)
     }
 
-    fn open_write(&mut self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
+    fn open_write(&self, path: &Path) -> result::Result<WritePtr, OpenWriteError> {
         self.register_file_as_managed(path)
             .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
         Ok(io::BufWriter::new(Box::new(FooterProxy::new(
@@ -294,7 +294,7 @@ impl Directory for ManagedDirectory {
         ))))
     }
 
-    fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+    fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
         self.register_file_as_managed(path)?;
         self.directory.atomic_write(path, data)
     }
@@ -416,7 +416,7 @@ mod tests_mmap_specific {
         let tempdir_path = PathBuf::from(tempdir.path());
 
         let mmap_directory = MmapDirectory::open(&tempdir_path)?;
-        let mut managed_directory = ManagedDirectory::wrap(mmap_directory)?;
+        let managed_directory = ManagedDirectory::wrap(mmap_directory)?;
         let mut write = managed_directory.open_write(test_path1)?;
         write.write_all(&[0u8, 1u8])?;
         write.terminate()?;

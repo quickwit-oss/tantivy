@@ -69,7 +69,7 @@ mod tests {
             "Sweden",
             "Switzerland",
         ];
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path)?;
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_term_dictionary_simple() -> crate::Result<()> {
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path)?;
@@ -169,7 +169,7 @@ mod tests {
             }
             term_dictionary_builder.finish().unwrap()
         };
-        let term_file = FileSlice::new(buffer);
+        let term_file = FileSlice::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::open(term_file)?;
         {
             let mut streamer = term_dictionary.stream();
@@ -200,7 +200,7 @@ mod tests {
             term_dictionary_builder.insert("abr", &make_term_info(2))?;
             term_dictionary_builder.finish()?
         };
-        let term_dict_file = FileSlice::new(buffer);
+        let term_dict_file = FileSlice::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::open(term_dict_file)?;
         let mut kv_stream = term_dictionary.stream();
         assert!(kv_stream.advance());
@@ -230,7 +230,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
 
-        let file = FileSlice::new(buffer);
+        let file = FileSlice::from(buffer);
 
         let term_dictionary: TermDictionary = TermDictionary::open(file)?;
         {
@@ -298,7 +298,7 @@ mod tests {
                 .unwrap();
             term_dictionary_builder.finish().unwrap()
         };
-        let file = FileSlice::new(buffer);
+        let file = FileSlice::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::open(file)?;
         let mut stream = term_dictionary.stream();
         assert!(stream.advance());
@@ -319,7 +319,7 @@ mod tests {
             }
             term_dictionary_builder.finish()?
         };
-        let file = FileSlice::new(buffer);
+        let file = FileSlice::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::open(file)?;
 
         let value_list = |mut streamer: TermStreamer<'_>, backwards: bool| {
@@ -426,7 +426,7 @@ mod tests {
             "Switzerland",
         ];
 
-        let mut directory = RAMDirectory::create();
+        let directory = RAMDirectory::create();
         let path = PathBuf::from("TermDictionary");
         {
             let write = directory.open_write(&path)?;
