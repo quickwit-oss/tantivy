@@ -32,7 +32,7 @@ fs2={version="0.4", optional=true}
 levenshtein_automata = "0.2"
 notify = {version="4", optional=true}
 uuid = { version = "0.8", features = ["v4", "serde"] }
-crossbeam = "0.7"
+crossbeam = "0.8"
 futures = {version = "0.3",  features=["thread-pool"] }
 tantivy-query-grammar = { version="0.14.0-dev", path="./query-grammar" }
 stable_deref_trait = "1"
