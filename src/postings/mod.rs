@@ -28,8 +28,6 @@ pub use self::segment_postings::SegmentPostings;
 
 pub(crate) use self::stacker::compute_table_size;
 
-pub use crate::common::HasLen;
-
 pub(crate) type UnorderedTermId = u64;
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
@@ -42,8 +40,8 @@ pub(crate) enum FreqReadingOption {
 
 #[cfg(test)]
 pub mod tests {
-
-    use super::*;
+    use super::InvertedIndexSerializer;
+    use super::Postings;
     use crate::core::Index;
     use crate::core::SegmentComponent;
     use crate::core::SegmentReader;
@@ -58,6 +56,7 @@ pub mod tests {
     use crate::schema::{IndexRecordOption, TextFieldIndexing};
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use crate::DocId;
+    use crate::HasLen;
     use crate::Score;
     use once_cell::sync::Lazy;
     use rand::rngs::StdRng;
