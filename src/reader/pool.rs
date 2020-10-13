@@ -1,5 +1,5 @@
-use crossbeam::crossbeam_channel::unbounded;
-use crossbeam::{Receiver, RecvError, Sender};
+use crossbeam::channel::unbounded;
+use crossbeam::channel::{Receiver, RecvError, Sender};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -186,6 +186,7 @@ mod tests {
 
     use super::Pool;
     use super::Queue;
+    use crossbeam::channel;
     use std::{iter, mem};
 
     #[test]
@@ -230,11 +231,11 @@ mod tests {
         let mut threads = vec![];
         // spawn one more thread than there are elements in the pool
 
-        let (start_1_send, start_1_recv) = crossbeam::bounded(0);
-        let (start_2_send, start_2_recv) = crossbeam::bounded(0);
-        let (start_3_send, start_3_recv) = crossbeam::bounded(0);
+        let (start_1_send, start_1_recv) = channel::bounded(0);
+        let (start_2_send, start_2_recv) = channel::bounded(0);
+        let (start_3_send, start_3_recv) = channel::bounded(0);
 
-        let (event_send1, event_recv) = crossbeam::unbounded();
+        let (event_send1, event_recv) = channel::unbounded();
         let event_send2 = event_send1.clone();
         let event_send3 = event_send1.clone();
 
