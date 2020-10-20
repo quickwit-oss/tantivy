@@ -96,7 +96,7 @@ impl Term {
         term
     }
 
-    pub(crate) fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
+    pub fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
         let mut term = Term::for_field(field);
         term.set_bytes(bytes);
         term
