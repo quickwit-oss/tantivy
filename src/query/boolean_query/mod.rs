@@ -134,29 +134,29 @@ mod tests {
                 .collect::<Vec<DocId>>()
         };
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a"))]);
+            let boolean_query = BooleanQuery::new(vec![(Occur::Must, make_term_query("a"))]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Should, make_term_query("a"))]);
+            let boolean_query = BooleanQuery::new(vec![(Occur::Should, make_term_query("a"))]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![
+            let boolean_query = BooleanQuery::new(vec![
                 (Occur::Should, make_term_query("a")),
                 (Occur::Should, make_term_query("b")),
             ]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 2, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![
+            let boolean_query = BooleanQuery::new(vec![
                 (Occur::Must, make_term_query("a")),
                 (Occur::Should, make_term_query("b")),
             ]);
             assert_eq!(matching_docs(&boolean_query), vec![0, 1, 3]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![
+            let boolean_query = BooleanQuery::new(vec![
                 (Occur::Must, make_term_query("a")),
                 (Occur::Should, make_term_query("b")),
                 (Occur::MustNot, make_term_query("d")),
@@ -164,7 +164,7 @@ mod tests {
             assert_eq!(matching_docs(&boolean_query), vec![0, 1]);
         }
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::MustNot, make_term_query("d"))]);
+            let boolean_query = BooleanQuery::new(vec![(Occur::MustNot, make_term_query("d"))]);
             assert_eq!(matching_docs(&boolean_query), Vec::<u32>::new());
         }
     }
@@ -194,7 +194,7 @@ mod tests {
         let score_doc_4: Score; // score of doc 4 should not be influenced by exclusion
         {
             let boolean_query_no_excluded =
-                BooleanQuery::from(vec![(Occur::Must, make_term_query("d"))]);
+                BooleanQuery::new(vec![(Occur::Must, make_term_query("d"))]);
             let topdocs_no_excluded = matching_topdocs(&boolean_query_no_excluded);
             assert_eq!(topdocs_no_excluded.len(), 2);
             let (top_score, top_doc) = topdocs_no_excluded[0];
@@ -204,7 +204,7 @@ mod tests {
         }
 
         {
-            let boolean_query_two_excluded = BooleanQuery::from(vec![
+            let boolean_query_two_excluded = BooleanQuery::new(vec![
                 (Occur::Must, make_term_query("d")),
                 (Occur::MustNot, make_term_query("a")),
                 (Occur::MustNot, make_term_query("b")),
@@ -241,7 +241,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let boolean_query =
-            BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
+            BooleanQuery::new(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
         let boolean_weight = boolean_query.weight(&searcher, true).unwrap();
         {
             let mut boolean_scorer = boolean_weight
@@ -281,7 +281,7 @@ mod tests {
         };
 
         {
-            let boolean_query = BooleanQuery::from(vec![
+            let boolean_query = BooleanQuery::new(vec![
                 (Occur::Must, make_term_query("a")),
                 (Occur::Must, make_term_query("b")),
             ]);
