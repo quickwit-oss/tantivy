@@ -450,9 +450,8 @@ impl SegmentUpdater {
             .into_iter()
             .map(|merge_candidate: MergeCandidate| {
                 MergeOperation::new(&self.merge_operations, commit_opstamp, merge_candidate.0)
-            })
-            .collect::<Vec<_>>();
-        merge_candidates.extend(committed_merge_candidates.into_iter());
+            });
+        merge_candidates.extend(committed_merge_candidates);
 
         for merge_operation in merge_candidates {
             if let Err(err) = self.start_merge(merge_operation) {

@@ -7,7 +7,7 @@ use std::{cmp::Ordering, fmt};
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     /// The str type is used for any text information.
     Str(String),
@@ -28,6 +28,11 @@ pub enum Value {
 }
 
 impl Eq for Value {}
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 impl Ord for Value {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
