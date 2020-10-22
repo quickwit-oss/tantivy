@@ -33,13 +33,11 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_for_tests().unwrap();
-            {
-                index_writer.add_document(doc!(text_field => "a b c"));
-                index_writer.add_document(doc!(text_field => "a c"));
-                index_writer.add_document(doc!(text_field => "b c"));
-                index_writer.add_document(doc!(text_field => "a b c d"));
-                index_writer.add_document(doc!(text_field => "d"));
-            }
+            index_writer.add_document(doc!(text_field => "a b c"));
+            index_writer.add_document(doc!(text_field => "a c"));
+            index_writer.add_document(doc!(text_field => "b c"));
+            index_writer.add_document(doc!(text_field => "a b c d"));
+            index_writer.add_document(doc!(text_field => "d"));
             assert!(index_writer.commit().is_ok());
         }
         (index, text_field)
@@ -289,5 +287,30 @@ mod tests {
             assert_nearly_equals!(scores[0], 0.977973);
             assert_nearly_equals!(scores[1], 0.84699446);
         }
+    }
+
+    #[test]
+    pub fn test_explain() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 5_000_000)?;
+        index_writer.add_document(doc!(text=>"a"));
+        index_writer.add_document(doc!(text=>"b"));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let term_a: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text, "a"),
+            IndexRecordOption::Basic,
+        ));
+        let term_b: Box<dyn Query> = Box::new(TermQuery::new(
+            Term::from_field_text(text, "b"),
+            IndexRecordOption::Basic,
+        ));
+        let query = BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
+        let explanation = query.explain(&searcher, DocAddress(0, 0u32))?;
+        assert_nearly_equals!(explanation.value(), 0.6931472f32);
+        Ok(())
     }
 }

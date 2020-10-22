@@ -17,6 +17,7 @@ pub struct Explanation {
     description: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     details: Vec<Explanation>,
+    context: Vec<String>,
 }
 
 impl fmt::Debug for Explanation {
@@ -32,6 +33,7 @@ impl Explanation {
             value,
             description: description.to_string(),
             details: vec![],
+            context: vec![],
         }
     }
 
@@ -45,6 +47,11 @@ impl Explanation {
     /// Details are treated as child of the current node.
     pub fn add_detail(&mut self, child_explanation: Explanation) {
         self.details.push(child_explanation);
+    }
+
+    /// Adds some extra context to the explanation.
+    pub fn add_context(&mut self, context: String) {
+        self.context.push(context);
     }
 
     /// Shortcut for `self.details.push(Explanation::new(name, value));`
