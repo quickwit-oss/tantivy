@@ -6,6 +6,7 @@ Tantivy 0.14.0
 - Large API Change in the Directory API. Tantivy used to assume that all files could be somehow memory mapped. After this change, Directory return a `FileSlice` that can be reduced and eventually read into an `OwnedBytes` object. Long and blocking io operation are still required by they do not span over the entire file.
 - Added support for Brotli compression in the DocStore. (@ppodolsky)
 - Added helper for building intersections and unions in BooleanQuery (@guilload)
+- Bugfix in `Query::explain`
 
 Tantivy 0.13.2
 ===================

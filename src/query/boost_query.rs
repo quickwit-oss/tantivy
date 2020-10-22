@@ -153,7 +153,7 @@ mod tests {
         let explanation = query.explain(&searcher, DocAddress(0, 0u32)).unwrap();
         assert_eq!(
             explanation.to_pretty_json(),
-            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\"\n    }\n  ]\n}"
+            "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\",\n      \"context\": []\n    }\n  ],\n  \"context\": []\n}"
         )
     }
 }
