@@ -143,7 +143,7 @@ impl MultiValueIntFastFieldWriter {
                             .iter()
                             .map(|val| *mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);
-                        doc_vals.sort();
+                        doc_vals.sort_unstable();
                         for &val in &doc_vals {
                             value_serializer.add_val(val)?;
                         }
