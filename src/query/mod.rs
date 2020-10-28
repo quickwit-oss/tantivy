@@ -46,7 +46,7 @@ pub(crate) use self::fuzzy_query::DFAWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;
-pub use self::query::Query;
+pub use self::query::{Query, QueryClone};
 pub use self::query_parser::QueryParser;
 pub use self::query_parser::QueryParserError;
 pub use self::range_query::RangeQuery;
