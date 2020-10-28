@@ -111,6 +111,9 @@ mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 use crate::query::Weight;
 
+mod docset_collector;
+pub use self::docset_collector::DocSetCollector;
+
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
 pub trait Fruit: Send + downcast_rs::Downcast {}

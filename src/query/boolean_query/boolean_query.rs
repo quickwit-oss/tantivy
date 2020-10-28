@@ -143,7 +143,7 @@ impl Clone for BooleanQuery {
 
 impl From<Vec<(Occur, Box<dyn Query>)>> for BooleanQuery {
     fn from(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
-        BooleanQuery { subqueries }
+        BooleanQuery::new(subqueries)
     }
 }
 
@@ -167,7 +167,6 @@ impl Query for BooleanQuery {
 }
 
 impl BooleanQuery {
-
     /// Creates a new boolean query.
     pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
         BooleanQuery { subqueries }
@@ -176,13 +175,13 @@ impl BooleanQuery {
     /// Returns the intersection of the queries.
     pub fn intersection(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
         let subqueries = queries.into_iter().map(|s| (Occur::Must, s)).collect();
-        BooleanQuery { subqueries }
+        BooleanQuery::new(subqueries)
     }
 
     /// Returns the union of the queries.
     pub fn union(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
         let subqueries = queries.into_iter().map(|s| (Occur::Should, s)).collect();
-        BooleanQuery { subqueries }
+        BooleanQuery::new(subqueries)
     }
 
     /// Helper method to create a boolean query matching a given list of terms.
@@ -202,5 +201,79 @@ impl BooleanQuery {
     /// Deconstructed view of the clauses making up this query.
     pub fn clauses(&self) -> &[(Occur, Box<dyn Query>)] {
         &self.subqueries[..]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BooleanQuery;
+    use crate::collector::DocSetCollector;
+    use crate::query::{QueryClone, TermQuery};
+    use crate::schema::{IndexRecordOption, Schema, TEXT};
+    use crate::{DocAddress, Index, Term};
+
+    fn create_test_index() -> crate::Result<Index> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests().unwrap();
+        writer.add_document(doc!(text=>"b c"));
+        writer.add_document(doc!(text=>"a c"));
+        writer.add_document(doc!(text=>"a b"));
+        writer.add_document(doc!(text=>"a d"));
+        writer.commit()?;
+        Ok(index)
+    }
+
+    #[test]
+    fn test_union() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let searcher = index.reader()?.searcher();
+        let text = index.schema().get_field("text").unwrap();
+        let term_a = TermQuery::new(Term::from_field_text(text, "a"), IndexRecordOption::Basic);
+        let term_d = TermQuery::new(Term::from_field_text(text, "d"), IndexRecordOption::Basic);
+        let union_ad = BooleanQuery::union(vec![term_a.box_clone(), term_d.box_clone()]);
+        let docs = searcher.search(&union_ad, &DocSetCollector)?;
+        assert_eq!(
+            docs,
+            vec![
+                DocAddress(0u32, 1u32),
+                DocAddress(0u32, 2u32),
+                DocAddress(0u32, 3u32)
+            ]
+            .into_iter()
+            .collect()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_intersection() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let searcher = index.reader()?.searcher();
+        let text = index.schema().get_field("text").unwrap();
+        let term_a = TermQuery::new(Term::from_field_text(text, "a"), IndexRecordOption::Basic);
+        let term_b = TermQuery::new(Term::from_field_text(text, "b"), IndexRecordOption::Basic);
+        let term_c = TermQuery::new(Term::from_field_text(text, "c"), IndexRecordOption::Basic);
+        let intersection_ab =
+            BooleanQuery::intersection(vec![term_a.box_clone(), term_b.box_clone()]);
+        let intersection_ac =
+            BooleanQuery::intersection(vec![term_a.box_clone(), term_c.box_clone()]);
+        let intersection_bc =
+            BooleanQuery::intersection(vec![term_b.box_clone(), term_c.box_clone()]);
+        {
+            let docs = searcher.search(&intersection_ab, &DocSetCollector)?;
+            assert_eq!(docs, vec![DocAddress(0u32, 2u32)].into_iter().collect());
+        }
+        {
+            let docs = searcher.search(&intersection_ac, &DocSetCollector)?;
+            assert_eq!(docs, vec![DocAddress(0u32, 1u32)].into_iter().collect());
+        }
+        {
+            let docs = searcher.search(&intersection_bc, &DocSetCollector)?;
+            assert_eq!(docs, vec![DocAddress(0u32, 0u32)].into_iter().collect());
+        }
+        Ok(())
     }
 }

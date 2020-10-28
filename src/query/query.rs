@@ -71,7 +71,9 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
     fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
 }
 
+/// Implements `box_clone`.
 pub trait QueryClone {
+    /// Returns a boxed clone of `self`.
     fn box_clone(&self) -> Box<dyn Query>;
 }
 

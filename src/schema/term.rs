@@ -96,6 +96,7 @@ impl Term {
         term
     }
 
+    /// Builds a term bytes.
     pub fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
         let mut term = Term::for_field(field);
         term.set_bytes(bytes);
