@@ -557,7 +557,7 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
                 !occur_subqueries.is_empty(),
                 "Should not be empty after trimming"
             );
-            Box::new(BooleanQuery::from(occur_subqueries))
+            Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAST::Leaf(trimmed_logical_literal)) => {
             convert_literal_to_query(*trimmed_logical_literal)

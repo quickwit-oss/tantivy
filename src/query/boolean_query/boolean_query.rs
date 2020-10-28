@@ -83,7 +83,7 @@ use std::collections::BTreeSet;
 ///    ];
 ///    // Make a BooleanQuery equivalent to
 ///    // title:+diary title:-girl
-///    let diary_must_and_girl_mustnot = BooleanQuery::from(queries_with_occurs1);
+///    let diary_must_and_girl_mustnot = BooleanQuery::new(queries_with_occurs1);
 ///    let count1 = searcher.search(&diary_must_and_girl_mustnot, &Count)?;
 ///    assert_eq!(count1, 1);
 ///
@@ -93,7 +93,7 @@ use std::collections::BTreeSet;
 ///        IndexRecordOption::Basic,
 ///    ));
 ///    // "title:diary OR title:cow"
-///    let title_diary_or_cow = BooleanQuery::from(vec![
+///    let title_diary_or_cow = BooleanQuery::new(vec![
 ///        (Occur::Should, diary_term_query.box_clone()),
 ///        (Occur::Should, cow_term_query),
 ///    ]);
@@ -108,7 +108,7 @@ use std::collections::BTreeSet;
 ///    // You can combine subqueries of different types into 1 BooleanQuery:
 ///    // `TermQuery` and `PhraseQuery`
 ///    // "title:diary OR "dairy cow"
-///    let term_of_phrase_query = BooleanQuery::from(vec![
+///    let term_of_phrase_query = BooleanQuery::new(vec![
 ///        (Occur::Should, diary_term_query.box_clone()),
 ///        (Occur::Should, phrase_query.box_clone()),
 ///    ]);
@@ -117,7 +117,7 @@ use std::collections::BTreeSet;
 ///
 ///    // You can nest one BooleanQuery inside another
 ///    // body:found AND ("title:diary OR "dairy cow")
-///    let nested_query = BooleanQuery::from(vec![
+///    let nested_query = BooleanQuery::new(vec![
 ///        (Occur::Must, body_term_query),
 ///        (Occur::Must, Box::new(term_of_phrase_query))
 ///    ]);
@@ -167,6 +167,24 @@ impl Query for BooleanQuery {
 }
 
 impl BooleanQuery {
+
+    /// Creates a new boolean query.
+    pub fn new(subqueries: Vec<(Occur, Box<dyn Query>)>) -> BooleanQuery {
+        BooleanQuery { subqueries }
+    }
+
+    /// Returns the intersection of the queries.
+    pub fn intersection(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
+        let subqueries = queries.into_iter().map(|s| (Occur::Must, s)).collect();
+        BooleanQuery { subqueries }
+    }
+
+    /// Returns the union of the queries.
+    pub fn union(queries: Vec<Box<dyn Query>>) -> BooleanQuery {
+        let subqueries = queries.into_iter().map(|s| (Occur::Should, s)).collect();
+        BooleanQuery { subqueries }
+    }
+
     /// Helper method to create a boolean query matching a given list of terms.
     /// The resulting query is a disjunction of the terms.
     pub fn new_multiterms_query(terms: Vec<Term>) -> BooleanQuery {
@@ -178,7 +196,7 @@ impl BooleanQuery {
                 (Occur::Should, term_query)
             })
             .collect();
-        BooleanQuery::from(occur_term_queries)
+        BooleanQuery::new(occur_term_queries)
     }
 
     /// Deconstructed view of the clauses making up this query.
