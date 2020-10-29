@@ -29,6 +29,13 @@ impl WatchHandle {
     pub fn new(watch_callback: Arc<WatchCallback>) -> WatchHandle {
         WatchHandle(watch_callback)
     }
+
+    /// Returns an empty watch handle.
+    ///
+    /// This function is only useful when implementing a readonly directory.
+    pub fn empty() -> WatchHandle {
+        WatchHandle::new(Arc::new(Box::new(|| {})))
+    }
 }
 
 impl WatchCallbackList {

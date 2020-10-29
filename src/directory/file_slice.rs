@@ -16,6 +16,9 @@ pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 /// Despite its name, a `FileSlice` may or may not directly map to an actual file
 /// on the filesystem.
 pub trait FileHandle: 'static + Send + Sync + HasLen {
+    /// Reads a slice of bytes.
+    ///
+    /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes>;
 }
 
@@ -53,7 +56,7 @@ pub struct FileSlice {
 }
 
 impl FileSlice {
-    /// Wraps a new `Deref<Target = [u8]>`
+    /// Wraps a FileHandle.
     pub fn new<D>(data: D) -> Self
     where
         D: FileHandle,
@@ -69,6 +72,7 @@ impl FileSlice {
     /// Creates a fileslice that is just a view over a slice of the data.
     ///
     /// # Panics
+    ///
     /// Panics if `to < from` or if `to` exceeds the filesize.
     pub fn slice(&self, from: usize, to: usize) -> FileSlice {
         assert!(to <= self.len());
@@ -94,6 +98,18 @@ impl FileSlice {
     /// to handle caching if needed.
     pub fn read_bytes(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes(self.start, self.stop)
+    }
+
+    /// Reads a specific slice of data.
+    ///
+    /// This is equivalent to running `file_slice.slice(from, to).read_bytes()`.
+    pub fn read_bytes_slice(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+        assert!(from <= to);
+        assert!(
+            self.start + to <= self.stop,
+            "`to` exceeds the fileslice length"
+        );
+        self.data.read_bytes(self.start + from, self.start + to)
     }
 
     /// Splits the FileSlice at the given offset and return two file slices.
@@ -187,11 +203,35 @@ mod tests {
     }
 
     #[test]
-    fn test_slice_deref() -> io::Result<()> {
-        let slice_deref = FileSlice::new(&b"abcdef"[..]);
-        assert_eq!(slice_deref.len(), 6);
-        assert_eq!(slice_deref.read_bytes()?.as_ref(), b"abcdef");
-        assert_eq!(slice_deref.slice(1, 4).read_bytes()?.as_ref(), b"bcd");
+    fn test_slice_simple_read() -> io::Result<()> {
+        let slice = FileSlice::new(&b"abcdef"[..]);
+        assert_eq!(slice.len(), 6);
+        assert_eq!(slice.read_bytes()?.as_ref(), b"abcdef");
+        assert_eq!(slice.slice(1, 4).read_bytes()?.as_ref(), b"bcd");
         Ok(())
+    }
+
+    #[test]
+    fn test_slice_read_slice() -> io::Result<()> {
+        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        assert_eq!(slice_deref.read_bytes_slice(1, 4)?.as_ref(), b"bcd");
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: from <= to")]
+    fn test_slice_read_slice_invalid_range() {
+        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        assert_eq!(slice_deref.read_bytes_slice(1, 0).unwrap().as_ref(), b"bcd");
+    }
+
+    #[test]
+    #[should_panic(expected = "`to` exceeds the fileslice length")]
+    fn test_slice_read_slice_invalid_range_exceeds() {
+        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        assert_eq!(
+            slice_deref.read_bytes_slice(0, 10).unwrap().as_ref(),
+            b"bcd"
+        );
     }
 }

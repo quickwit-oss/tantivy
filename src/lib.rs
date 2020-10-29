@@ -134,7 +134,7 @@ mod core;
 mod indexer;
 
 #[allow(unused_doc_comments)]
-mod error;
+pub mod error;
 pub mod tokenizer;
 
 pub mod collector;

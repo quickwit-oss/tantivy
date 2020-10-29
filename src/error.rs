@@ -13,12 +13,16 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
 
+/// Represents a `DataCorruption` error.
+///
+/// When facing data corruption, tantivy  actually panic or return this error.
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
     comment: String,
 }
 
 impl DataCorruption {
+    /// Creates a `DataCorruption` Error.
     pub fn new(filepath: PathBuf, comment: String) -> DataCorruption {
         DataCorruption {
             filepath: Some(filepath),
@@ -26,10 +30,11 @@ impl DataCorruption {
         }
     }
 
-    pub fn comment_only(comment: String) -> DataCorruption {
+    /// Creates a `DataCorruption` Error, when the filepath is irrelevant.
+    pub fn comment_only<TStr: ToString>(comment: TStr) -> DataCorruption {
         DataCorruption {
             filepath: None,
-            comment,
+            comment: comment.to_string(),
         }
     }
 }

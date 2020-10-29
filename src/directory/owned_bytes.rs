@@ -1,10 +1,9 @@
+use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
 use std::mem;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io};
-
-use super::file_slice::FileHandle;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a static slice.
