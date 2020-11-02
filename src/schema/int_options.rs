@@ -14,10 +14,50 @@ pub enum Cardinality {
     MultiValues,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IntOptionIndex {
+    #[serde(rename = "no_index")]
+    NoIndex,
+    #[serde(rename = "index_no_fieldnorms")]
+    IndexNoFieldnorms,
+    #[serde(rename = "index_with_fieldnorms")]
+    IndexWithFieldnorms,
+}
+
+impl BitOr<IntOptionIndex> for IntOptionIndex {
+    type Output = IntOptionIndex;
+
+    fn bitor(self, other: IntOptionIndex) -> IntOptionIndex {
+        match (self, other) {
+            (_, Self::IndexWithFieldnorms) | (Self::IndexWithFieldnorms, _) => {
+                Self::IndexWithFieldnorms
+            }
+            (_, Self::IndexNoFieldnorms) | (Self::IndexNoFieldnorms, _) => Self::IndexNoFieldnorms,
+            (Self::NoIndex, Self::NoIndex) => Self::NoIndex,
+        }
+    }
+}
+
+impl IntOptionIndex {
+    pub fn is_indexed(&self) -> bool {
+        match *self {
+            Self::NoIndex => false,
+            Self::IndexNoFieldnorms | Self::IndexWithFieldnorms => true,
+        }
+    }
+
+    pub fn has_fieldnorms(&self) -> bool {
+        match *self {
+            Self::NoIndex | Self::IndexNoFieldnorms => false,
+            Self::IndexWithFieldnorms => true,
+        }
+    }
+}
+
 /// Define how an u64, i64, of f64 field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntOptions {
-    indexed: bool,
+    indexed: IntOptionIndex,
     #[serde(skip_serializing_if = "Option::is_none")]
     fast: Option<Cardinality>,
     stored: bool,
@@ -31,7 +71,7 @@ impl IntOptions {
 
     /// Returns true iff the value is indexed.
     pub fn is_indexed(&self) -> bool {
-        self.indexed
+        self.indexed.is_indexed()
     }
 
     /// Returns true iff the value is a fast field.
@@ -48,12 +88,21 @@ impl IntOptions {
         self
     }
 
+    pub fn index_option(&self) -> &IntOptionIndex {
+        &self.indexed
+    }
+
+    pub fn set_indexed(mut self) -> IntOptions {
+        self.indexed = IntOptionIndex::IndexWithFieldnorms;
+        self
+    }
+
     /// Set the field as indexed.
     ///
     /// Setting an integer as indexed will generate
     /// a posting list for each value taken by the integer.
-    pub fn set_indexed(mut self) -> IntOptions {
-        self.indexed = true;
+    pub fn set_index_option(mut self, int_option_index: IntOptionIndex) -> IntOptions {
+        self.indexed = int_option_index;
         self
     }
 
@@ -80,7 +129,7 @@ impl IntOptions {
 impl Default for IntOptions {
     fn default() -> IntOptions {
         IntOptions {
-            indexed: false,
+            indexed: IntOptionIndex::NoIndex,
             stored: false,
             fast: None,
         }
@@ -96,7 +145,7 @@ impl From<()> for IntOptions {
 impl From<FastFlag> for IntOptions {
     fn from(_: FastFlag) -> Self {
         IntOptions {
-            indexed: false,
+            indexed: IntOptionIndex::NoIndex,
             stored: false,
             fast: Some(Cardinality::SingleValue),
         }
@@ -106,7 +155,7 @@ impl From<FastFlag> for IntOptions {
 impl From<StoredFlag> for IntOptions {
     fn from(_: StoredFlag) -> Self {
         IntOptions {
-            indexed: false,
+            indexed: IntOptionIndex::NoIndex,
             stored: true,
             fast: None,
         }
@@ -116,7 +165,7 @@ impl From<StoredFlag> for IntOptions {
 impl From<IndexedFlag> for IntOptions {
     fn from(_: IndexedFlag) -> Self {
         IntOptions {
-            indexed: true,
+            indexed: IntOptionIndex::IndexWithFieldnorms,
             stored: false,
             fast: None,
         }

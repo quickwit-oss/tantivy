@@ -55,6 +55,7 @@ impl Default for TextOptions {
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
+    fieldnorms: bool,
 }
 
 impl Default for TextFieldIndexing {
@@ -62,6 +63,7 @@ impl Default for TextFieldIndexing {
         TextFieldIndexing {
             tokenizer: Cow::Borrowed("default"),
             record: IndexRecordOption::Basic,
+            fieldnorms: false,
         }
     }
 }
@@ -76,6 +78,15 @@ impl TextFieldIndexing {
     /// Returns the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
         &self.tokenizer
+    }
+
+    pub fn set_fieldnorms(mut self, fieldnorms: bool) -> TextFieldIndexing {
+        self.fieldnorms = fieldnorms;
+        self
+    }
+
+    pub fn fieldnorms(&self) -> bool {
+        self.fieldnorms
     }
 
     /// Sets which information should be indexed with the tokens.
@@ -99,6 +110,7 @@ pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("raw"),
         record: IndexRecordOption::Basic,
+        fieldnorms: false,
     }),
     stored: false,
 };
@@ -108,6 +120,7 @@ pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("default"),
         record: IndexRecordOption::WithFreqsAndPositions,
+        fieldnorms: true,
     }),
     stored: false,
 };

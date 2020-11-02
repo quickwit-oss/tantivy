@@ -112,6 +112,21 @@ impl FieldEntry {
         }
     }
 
+    pub fn has_fieldnorms(&self) -> bool {
+        match self.field_type {
+            FieldType::Str(ref options) => options
+                .get_indexing_options()
+                .map(|options| options.fieldnorms())
+                .unwrap_or(false),
+            FieldType::U64(ref options)
+            | FieldType::I64(ref options)
+            | FieldType::F64(ref options)
+            | FieldType::Date(ref options) => options.index_option().has_fieldnorms(),
+            FieldType::HierarchicalFacet => false,
+            FieldType::Bytes(ref _options) => false,
+        }
+    }
+
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_fast(&self) -> bool {
         match self.field_type {
@@ -272,7 +287,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::TEXT;
+    use crate::schema::{Schema, STRING, TEXT};
+    use crate::Index;
     use serde_json;
 
     #[test]
@@ -291,7 +307,8 @@ mod tests {
   "options": {
     "indexing": {
       "record": "position",
-      "tokenizer": "default"
+      "tokenizer": "default",
+      "fieldnorms": true
     },
     "stored": false
   }
@@ -308,5 +325,20 @@ mod tests {
             FieldType::Str(_) => assert!(true),
             _ => panic!("expected FieldType::Str"),
         }
+    }
+
+    #[test]
+    fn test_fieldnorms() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text=>"abc"));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let err = searcher.segment_reader(0u32).get_fieldnorms_reader(text);
+        assert!(matches!(err, Err(crate::TantivyError::SchemaError(_))));
+        Ok(())
     }
 }

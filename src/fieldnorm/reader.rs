@@ -49,7 +49,7 @@ impl FieldNormReaders {
 ///
 /// This metric is important to compute the score of a
 /// document : a document having a query word in one its short fields
-/// (e.g. title)  is likely to be more relevant than in one of its longer field
+/// (e.g. title)is likely to be more relevant than in one of its longer field
 /// (e.g. body).
 ///
 /// tantivy encodes `fieldnorm` on one byte with some precision loss,
@@ -61,20 +61,31 @@ impl FieldNormReaders {
 /// precompute computationally expensive functions of the fieldnorm
 /// in a very short array.
 #[derive(Clone)]
-pub struct FieldNormReader {
-    data: OwnedBytes,
+pub enum FieldNormReader {
+    ConstFieldNorm { fieldnorm_id: u8, num_docs: u32 },
+    OneByte(OwnedBytes),
 }
 
 impl FieldNormReader {
+    pub fn const_fieldnorm_id(fieldnorm_id: u8, num_docs: u32) -> FieldNormReader {
+        FieldNormReader::ConstFieldNorm {
+            fieldnorm_id,
+            num_docs,
+        }
+    }
+
     /// Opens a field norm reader given its file.
     pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
         let data = fieldnorm_file.read_bytes()?;
-        Ok(FieldNormReader { data })
+        Ok(FieldNormReader::OneByte(data))
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
-        self.data.len() as u32
+        match self {
+            Self::ConstFieldNorm { num_docs, .. } => *num_docs,
+            FieldNormReader::OneByte(vals) => vals.len() as u32,
+        }
     }
 
     /// Returns the `fieldnorm` associated to a doc id.
@@ -86,6 +97,7 @@ impl FieldNormReader {
     ///
     /// The fieldnorm is effectively decoded from the
     /// `fieldnorm_id` by doing a simple table lookup.
+    #[inline(always)]
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
         let fieldnorm_id = self.fieldnorm_id(doc_id);
         id_to_fieldnorm(fieldnorm_id)
@@ -94,7 +106,11 @@ impl FieldNormReader {
     /// Returns the `fieldnorm_id` associated to a document.
     #[inline(always)]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
-        self.data.as_slice()[doc_id as usize]
+        match self {
+            FieldNormReader::ConstFieldNorm { fieldnorm_id, .. } => *fieldnorm_id,
+
+            FieldNormReader::OneByte(data) => data.as_slice()[doc_id as usize],
+        }
     }
 
     /// Converts a `fieldnorm_id` into a fieldnorm.
@@ -118,9 +134,7 @@ impl FieldNormReader {
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = OwnedBytes::new(field_norms_id);
-        FieldNormReader {
-            data: field_norms_data,
-        }
+        FieldNormReader::OneByte(field_norms_data)
     }
 }
 

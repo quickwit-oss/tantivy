@@ -231,6 +231,10 @@ impl Schema {
         &self.0.fields[field.field_id() as usize]
     }
 
+    pub fn num_fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
     /// Return the field name for a given `Field`.
     pub fn get_field_name(&self, field: Field) -> &str {
         self.get_field_entry(field).name()
@@ -444,7 +448,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "tokenizer": "default"
+        "tokenizer": "default",
+        "fieldnorms": true
       },
       "stored": false
     }
@@ -455,7 +460,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
-        "tokenizer": "raw"
+        "tokenizer": "raw",
+        "fieldnorms": false
       },
       "stored": false
     }
@@ -464,7 +470,7 @@ mod tests {
     "name": "count",
     "type": "u64",
     "options": {
-      "indexed": false,
+      "indexed": "no_index",
       "fast": "single",
       "stored": true
     }
@@ -473,7 +479,7 @@ mod tests {
     "name": "popularity",
     "type": "i64",
     "options": {
-      "indexed": false,
+      "indexed": "no_index",
       "fast": "single",
       "stored": true
     }
@@ -482,7 +488,7 @@ mod tests {
     "name": "score",
     "type": "f64",
     "options": {
-      "indexed": true,
+      "indexed": "index_with_fieldnorms",
       "fast": "single",
       "stored": false
     }
@@ -747,7 +753,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "tokenizer": "default"
+        "tokenizer": "default",
+        "fieldnorms": true
       },
       "stored": false
     }
@@ -756,7 +763,7 @@ mod tests {
     "name": "popularity",
     "type": "i64",
     "options": {
-      "indexed": false,
+      "indexed": "no_index",
       "fast": "single",
       "stored": true
     }
@@ -777,7 +784,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
-        "tokenizer": "raw"
+        "tokenizer": "raw",
+        "fieldnorms": false
       },
       "stored": true
     }
@@ -786,7 +794,7 @@ mod tests {
     "name": "_timestamp",
     "type": "date",
     "options": {
-      "indexed": true,
+      "indexed": "index_with_fieldnorms",
       "fast": "single",
       "stored": true
     }
@@ -797,7 +805,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "tokenizer": "default"
+        "tokenizer": "default",
+        "fieldnorms": true
       },
       "stored": false
     }
@@ -806,7 +815,7 @@ mod tests {
     "name": "popularity",
     "type": "i64",
     "options": {
-      "indexed": false,
+      "indexed": "no_index",
       "fast": "single",
       "stored": true
     }

@@ -7,6 +7,7 @@ Tantivy 0.14.0
 - Added support for Brotli compression in the DocStore. (@ppodolsky)
 - Added helper for building intersections and unions in BooleanQuery (@guilload)
 - Bugfix in `Query::explain`
+- Making it possible to opt out the generation of fieldnorms information for indexed fields. This change breaks compatibility as the meta.json file format is slightly changed. (#922, @pmasurel)
 
 Tantivy 0.13.2
 ===================
