@@ -72,7 +72,7 @@ impl SegmentPostings {
         let mut buffer = Vec::new();
         {
             let mut postings_serializer =
-                PostingsSerializer::new(&mut buffer, 0.0, false, false, None);
+                PostingsSerializer::new(&mut buffer, 0.0, IndexRecordOption::Basic, None);
             postings_serializer.new_term(docs.len() as u32);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
@@ -116,8 +116,7 @@ impl SegmentPostings {
         let mut postings_serializer = PostingsSerializer::new(
             &mut buffer,
             average_field_norm,
-            true,
-            false,
+            IndexRecordOption::WithFreqs,
             fieldnorm_reader,
         );
         postings_serializer.new_term(doc_and_tfs.len() as u32);

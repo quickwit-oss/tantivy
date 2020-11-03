@@ -160,7 +160,8 @@ impl MultiFieldPostingsWriter {
                 FieldType::Bytes(_) => {}
             }
 
-            let postings_writer = &self.per_field_postings_writers[field.field_id() as usize];
+            let postings_writer =
+                self.per_field_postings_writers[field.field_id() as usize].as_ref();
             let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
             let mut field_serializer = serializer.new_field(
                 field,
