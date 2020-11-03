@@ -8,8 +8,8 @@ use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
 use crate::query::BM25Weight;
-use crate::schema::Schema;
 use crate::schema::{Field, FieldEntry, FieldType};
+use crate::schema::{IndexRecordOption, Schema};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::{DocId, Score};
 use std::cmp::Ordering;
@@ -143,30 +143,24 @@ impl<'a> FieldSerializer<'a> {
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
         total_num_tokens.serialize(postings_write)?;
-        let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
+        let mode = match field_type {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {
-                    let index_option = text_indexing_options.index_option();
-                    (index_option.has_freq(), index_option.has_positions())
+                    text_indexing_options.index_option()
                 } else {
-                    (false, false)
+                    IndexRecordOption::Basic
                 }
             }
-            _ => (false, false),
+            _ => IndexRecordOption::Basic,
         };
         let term_dictionary_builder = TermDictionaryBuilder::create(term_dictionary_write)?;
         let average_fieldnorm = fieldnorm_reader
             .as_ref()
             .map(|ff_reader| (total_num_tokens as Score / ff_reader.num_docs() as Score))
             .unwrap_or(0.0);
-        let postings_serializer = PostingsSerializer::new(
-            postings_write,
-            average_fieldnorm,
-            term_freq_enabled,
-            position_enabled,
-            fieldnorm_reader,
-        );
-        let positions_serializer_opt = if position_enabled {
+        let postings_serializer =
+            PostingsSerializer::new(postings_write, average_fieldnorm, mode, fieldnorm_reader);
+        let positions_serializer_opt = if mode.has_positions() {
             Some(PositionSerializer::new(positions_write, positionsidx_write))
         } else {
             None
@@ -323,8 +317,7 @@ pub struct PostingsSerializer<W: Write> {
     postings_write: Vec<u8>,
     skip_write: SkipSerializer,
 
-    termfreq_enabled: bool,
-    termfreq_sum_enabled: bool,
+    mode: IndexRecordOption,
     fieldnorm_reader: Option<FieldNormReader>,
 
     bm25_weight: Option<BM25Weight>,
@@ -338,8 +331,7 @@ impl<W: Write> PostingsSerializer<W> {
     pub fn new(
         write: W,
         avg_fieldnorm: Score,
-        termfreq_enabled: bool,
-        termfreq_sum_enabled: bool,
+        mode: IndexRecordOption,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> PostingsSerializer<W> {
         let num_docs = fieldnorm_reader
@@ -356,8 +348,7 @@ impl<W: Write> PostingsSerializer<W> {
             skip_write: SkipSerializer::new(),
 
             last_doc_id_encoded: 0u32,
-            termfreq_enabled,
-            termfreq_sum_enabled,
+            mode,
 
             fieldnorm_reader,
             bm25_weight: None,
@@ -368,7 +359,7 @@ impl<W: Write> PostingsSerializer<W> {
     }
 
     pub fn new_term(&mut self, term_doc_freq: u32) {
-        if self.termfreq_enabled && self.num_docs > 0 {
+        if self.mode.has_freq() && self.num_docs > 0 {
             let bm25_weight = BM25Weight::for_one_term(
                 term_doc_freq as u64,
                 self.num_docs as u64,
@@ -390,13 +381,15 @@ impl<W: Write> PostingsSerializer<W> {
             // last el block 0, offset block 1,
             self.postings_write.extend(block_encoded);
         }
-        if self.termfreq_enabled {
+        if self.mode.has_freq() {
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
                 .compress_block_unsorted(&self.block.term_freqs());
             self.postings_write.extend(block_encoded);
             self.skip_write.write_term_freq(num_bits);
-            if self.termfreq_sum_enabled {
+            if self.mode.has_positions() {
+                // We serialize the sum of term freqs within the skip information
+                // in order to navigate through positions.
                 let sum_freq = self.block.term_freqs().iter().cloned().sum();
                 self.skip_write.write_total_term_freq(sum_freq);
             }
@@ -455,7 +448,7 @@ impl<W: Write> PostingsSerializer<W> {
                 self.postings_write.write_all(block_encoded)?;
             }
             // ... Idem for term frequencies
-            if self.termfreq_enabled {
+            if self.mode.has_freq() {
                 let block_encoded = self
                     .block_encoder
                     .compress_vint_unsorted(self.block.term_freqs());
