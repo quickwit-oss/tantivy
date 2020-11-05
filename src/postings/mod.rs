@@ -51,16 +51,13 @@ pub mod tests {
     use crate::indexer::SegmentWriter;
     use crate::merge_policy::NoMergePolicy;
     use crate::query::Scorer;
-    use crate::schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
     use crate::schema::{Field, TextOptions};
     use crate::schema::{IndexRecordOption, TextFieldIndexing};
+    use crate::schema::{Schema, Term, INDEXED, TEXT};
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
-    use once_cell::sync::Lazy;
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
     use std::iter;
 
     #[test]
@@ -491,53 +488,6 @@ pub mod tests {
         Ok(())
     }
 
-    pub static TERM_A: Lazy<Term> = Lazy::new(|| {
-        let field = Field::from_field_id(0);
-        Term::from_field_text(field, "a")
-    });
-    pub static TERM_B: Lazy<Term> = Lazy::new(|| {
-        let field = Field::from_field_id(0);
-        Term::from_field_text(field, "b")
-    });
-    pub static TERM_C: Lazy<Term> = Lazy::new(|| {
-        let field = Field::from_field_id(0);
-        Term::from_field_text(field, "c")
-    });
-    pub static TERM_D: Lazy<Term> = Lazy::new(|| {
-        let field = Field::from_field_id(0);
-        Term::from_field_text(field, "d")
-    });
-
-    pub static INDEX: Lazy<Index> = Lazy::new(|| {
-        let mut schema_builder = Schema::builder();
-        let text_field = schema_builder.add_text_field("text", STRING);
-        let schema = schema_builder.build();
-
-        let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
-
-        let index = Index::create_in_ram(schema);
-        let posting_list_size = 1_000_000;
-        {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            for _ in 0..posting_list_size {
-                let mut doc = Document::default();
-                if rng.gen_bool(1f64 / 15f64) {
-                    doc.add_text(text_field, "a");
-                }
-                if rng.gen_bool(1f64 / 10f64) {
-                    doc.add_text(text_field, "b");
-                }
-                if rng.gen_bool(1f64 / 5f64) {
-                    doc.add_text(text_field, "c");
-                }
-                doc.add_text(text_field, "d");
-                index_writer.add_document(doc);
-            }
-            assert!(index_writer.commit().is_ok());
-        }
-        index
-    });
-
     /// Wraps a given docset, and forward alls call but the
     /// `.skip_next(...)`. This is useful to test that a specialized
     /// implementation of `.skip_next(...)` is consistent
@@ -602,14 +552,64 @@ pub mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-
-    use super::tests::*;
     use crate::docset::TERMINATED;
     use crate::query::Intersection;
     use crate::schema::IndexRecordOption;
+    use crate::schema::{Document, Field, Schema, Term, STRING};
     use crate::tests;
     use crate::DocSet;
+    use crate::Index;
+    use once_cell::sync::Lazy;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use test::{self, Bencher};
+
+    pub static TERM_A: Lazy<Term> = Lazy::new(|| {
+        let field = Field::from_field_id(0);
+        Term::from_field_text(field, "a")
+    });
+    pub static TERM_B: Lazy<Term> = Lazy::new(|| {
+        let field = Field::from_field_id(0);
+        Term::from_field_text(field, "b")
+    });
+    pub static TERM_C: Lazy<Term> = Lazy::new(|| {
+        let field = Field::from_field_id(0);
+        Term::from_field_text(field, "c")
+    });
+    pub static TERM_D: Lazy<Term> = Lazy::new(|| {
+        let field = Field::from_field_id(0);
+        Term::from_field_text(field, "d")
+    });
+
+    pub static INDEX: Lazy<Index> = Lazy::new(|| {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", STRING);
+        let schema = schema_builder.build();
+
+        let mut rng: StdRng = StdRng::from_seed([1u8; 32]);
+
+        let index = Index::create_in_ram(schema);
+        let posting_list_size = 1_000_000;
+        {
+            let mut index_writer = index.writer_for_tests().unwrap();
+            for _ in 0..posting_list_size {
+                let mut doc = Document::default();
+                if rng.gen_bool(1f64 / 15f64) {
+                    doc.add_text(text_field, "a");
+                }
+                if rng.gen_bool(1f64 / 10f64) {
+                    doc.add_text(text_field, "b");
+                }
+                if rng.gen_bool(1f64 / 5f64) {
+                    doc.add_text(text_field, "c");
+                }
+                doc.add_text(text_field, "d");
+                index_writer.add_document(doc);
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        index
+    });
 
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
@@ -620,7 +620,9 @@ mod bench {
         b.iter(|| {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
-                .read_postings(&*TERM_A, IndexRecordOption::Basic)?
+                .unwrap()
+                .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .unwrap()
                 .unwrap();
             while segment_postings.advance() != TERMINATED {}
         });
@@ -634,21 +636,25 @@ mod bench {
         b.iter(|| {
             let segment_postings_a = segment_reader
                 .inverted_index(TERM_A.field())
+                .unwrap()
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_b = segment_reader
                 .inverted_index(TERM_B.field())
+                .unwrap()
                 .read_postings(&*TERM_B, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_c = segment_reader
                 .inverted_index(TERM_C.field())
+                .unwrap()
                 .read_postings(&*TERM_C, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
             let segment_postings_d = segment_reader
                 .inverted_index(TERM_D.field())
+                .unwrap()
                 .read_postings(&*TERM_D, IndexRecordOption::Basic)
                 .unwrap()
                 .unwrap();
@@ -670,6 +676,7 @@ mod bench {
 
         let mut segment_postings = segment_reader
             .inverted_index(TERM_A.field())
+            .unwrap()
             .read_postings(&*TERM_A, IndexRecordOption::Basic)
             .unwrap()
             .unwrap();
@@ -687,7 +694,9 @@ mod bench {
         b.iter(|| {
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
+                .unwrap()
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .unwrap()
                 .unwrap();
             for doc in &existing_docs {
                 if segment_postings.seek(*doc) == TERMINATED {
@@ -726,7 +735,9 @@ mod bench {
             let n: u32 = test::black_box(17);
             let mut segment_postings = segment_reader
                 .inverted_index(TERM_A.field())
+                .unwrap()
                 .read_postings(&*TERM_A, IndexRecordOption::Basic)
+                .unwrap()
                 .unwrap();
             let mut s = 0u32;
             while segment_postings.doc() != TERMINATED {

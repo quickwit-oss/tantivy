@@ -629,7 +629,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data);
+            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(7000u32);
@@ -663,7 +663,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data);
+            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(1000u32);
