@@ -30,7 +30,6 @@ serde_json = "1"
 num_cpus = "1"
 fs2={version="0.4", optional=true}
 levenshtein_automata = "0.2"
-notify = {version="4", optional=true}
 uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.8"
 futures = {version = "0.3",  features=["thread-pool"] }
@@ -73,7 +72,7 @@ overflow-checks = true
 
 [features]
 default = ["mmap"]
-mmap = ["fs2", "tempfile", "memmap", "notify"]
+mmap = ["fs2", "tempfile", "memmap"]
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4"]
 failpoints = ["fail/failpoints"]
