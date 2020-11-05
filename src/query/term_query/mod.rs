@@ -197,7 +197,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let explanation = term_query.explain(&searcher, DocAddress(0u32, 1u32))?;
-            assert_nearly_equals!(explanation.value(), 0.6931472f32);
+            assert_nearly_equals!(explanation.value(), 0.6931472);
         }
         {
             let explanation_err = term_query.explain(&searcher, DocAddress(0u32, 0u32));

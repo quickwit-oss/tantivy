@@ -86,7 +86,7 @@ mod tests {
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         let term_weight = term_query.specialized_weight(&searcher, true)?;
-        let term_scorer = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0f32)?;
+        let term_scorer = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0)?;
         assert_eq!(term_scorer.doc(), 0u32);
         Ok(())
     }
@@ -99,7 +99,7 @@ mod tests {
         let term = Term::from_field_bytes(field, b"lucene".as_ref());
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         let term_weight = term_query.specialized_weight(&searcher, false)?;
-        let term_scorer_err = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0f32);
+        let term_scorer_err = term_weight.specialized_scorer(searcher.segment_reader(0), 1.0);
         assert!(matches!(
             term_scorer_err,
             Err(crate::TantivyError::SchemaError(_))
