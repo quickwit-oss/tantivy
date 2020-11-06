@@ -190,38 +190,33 @@ fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
 }
 
 fn test_watch(directory: &dyn Directory) {
-    let num_progress: Arc<AtomicUsize> = Default::default();
     let counter: Arc<AtomicUsize> = Default::default();
-    let counter_clone = counter.clone();
-    let (sender, receiver) = crossbeam::channel::unbounded();
-    let watch_callback = Box::new(move || {
-        counter_clone.fetch_add(1, SeqCst);
-    });
-    // This callback is used to synchronize watching in our unit test.
-    // We bind it to a variable because the callback is removed when that
-    // handle is dropped.
-    let watch_handle = directory.watch(watch_callback).unwrap();
-    let _progress_listener = directory
+    let (tx, rx) = crossbeam::channel::unbounded();
+    let timeout = Duration::from_millis(500);
+
+    let handle = directory
         .watch(Box::new(move || {
-            let val = num_progress.fetch_add(1, SeqCst);
-            let _ = sender.send(val);
+            let val = counter.fetch_add(1, SeqCst);
+            tx.send(val + 1).unwrap();
         }))
         .unwrap();
 
-    for i in 0..10 {
-        assert!(i <= counter.load(SeqCst));
-        assert!(directory
-            .atomic_write(Path::new("meta.json"), b"random_test_data_2")
-            .is_ok());
-        assert_eq!(receiver.recv_timeout(Duration::from_millis(500)), Ok(i));
-        assert!(i + 1 <= counter.load(SeqCst)); // notify can trigger more than once.
-    }
-    mem::drop(watch_handle);
     assert!(directory
-        .atomic_write(Path::new("meta.json"), b"random_test_data")
+        .atomic_write(Path::new("meta.json"), b"foo")
         .is_ok());
-    assert!(receiver.recv_timeout(Duration::from_millis(500)).is_ok());
-    assert!(10 <= counter.load(SeqCst));
+    assert_eq!(rx.recv_timeout(timeout), Ok(1));
+
+    assert!(directory
+        .atomic_write(Path::new("meta.json"), b"bar")
+        .is_ok());
+    assert_eq!(rx.recv_timeout(timeout), Ok(2));
+
+    mem::drop(handle);
+
+    assert!(directory
+        .atomic_write(Path::new("meta.json"), b"qux")
+        .is_ok());
+    assert!(rx.recv_timeout(timeout).is_err());
 }
 
 fn test_lock_non_blocking(directory: &dyn Directory) {

@@ -10,6 +10,7 @@ mod mmap_directory;
 mod directory;
 mod directory_lock;
 mod file_slice;
+mod file_watcher;
 mod footer;
 mod managed_directory;
 mod owned_bytes;
