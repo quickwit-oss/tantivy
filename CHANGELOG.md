@@ -7,6 +7,7 @@ Tantivy 0.14.0
 - Added support for Brotli compression in the DocStore. (@ppodolsky)
 - Added helper for building intersections and unions in BooleanQuery (@guilload)
 - Bugfix in `Query::explain`
+- Removed dependency on `notify` #924. Replaced with `FileWatcher` struct that polls meta file every 500ms in background thread. (@halvorboe @guilload)
 
 Tantivy 0.13.2
 ===================
