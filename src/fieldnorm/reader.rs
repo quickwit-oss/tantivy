@@ -66,10 +66,21 @@ pub struct FieldNormReader {
 }
 
 impl FieldNormReader {
+    /// Creates a `FieldNormReader` with a constant fieldnorm.
+    pub fn constant(num_docs: u32, fieldnorm: u32) -> FieldNormReader {
+        let fieldnorm_id = fieldnorm_to_id(fieldnorm);
+        let field_norms_data = OwnedBytes::new(vec![fieldnorm_id; num_docs as usize]);
+        FieldNormReader::new(field_norms_data)
+    }
+
     /// Opens a field norm reader given its file.
     pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
         let data = fieldnorm_file.read_bytes()?;
-        Ok(FieldNormReader { data })
+        Ok(FieldNormReader::new(data))
+    }
+
+    fn new(data: OwnedBytes) -> Self {
+        FieldNormReader { data }
     }
 
     /// Returns the number of documents in this segment.

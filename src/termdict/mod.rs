@@ -49,7 +49,7 @@ mod tests {
         TermInfo {
             doc_freq: term_ord as u32,
             postings_start_offset: offset(term_ord),
-            postings_end_offset: offset(term_ord + 1),
+            postings_stop_offset: offset(term_ord + 1),
             positions_idx: offset(term_ord) * 2u64,
         }
     }
@@ -199,7 +199,6 @@ mod tests {
             // term requires more than 16bits
             term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))?;
             term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2))?;
-            term_dictionary_builder.insert("abr", &make_term_info(2))?;
             term_dictionary_builder.insert("abr", &make_term_info(3))?;
             term_dictionary_builder.finish()?
         };
@@ -209,7 +208,6 @@ mod tests {
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxy".as_bytes());
         assert_eq!(kv_stream.value(), &make_term_info(1));
-        dbg!(make_term_info(1));
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxyz".as_bytes());
         assert_eq!(kv_stream.value(), &make_term_info(2));

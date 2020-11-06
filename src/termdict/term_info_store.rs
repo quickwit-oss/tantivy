@@ -61,23 +61,26 @@ impl TermInfoBlockMeta {
     fn deserialize_term_info(&self, data: &[u8], inner_offset: usize) -> TermInfo {
         assert!(inner_offset < BLOCK_LEN - 1);
         let num_bits = self.num_bits() as usize;
-        let mut cursor = num_bits * inner_offset;
 
-        let postings_start_offset = extract_bits(data, cursor, self.postings_offset_nbits);
-        let postings_end_offset = self.ref_term_info.postings_start_offset
-            + extract_bits(data, cursor + num_bits, self.postings_offset_nbits);
-        cursor += self.postings_offset_nbits as usize;
+        let posting_start_addr = num_bits * inner_offset;
+        // the stop offset is the start offset of the next term info.
+        let posting_stop_addr = posting_start_addr + num_bits;
+        let doc_freq_addr = posting_start_addr + self.postings_offset_nbits as usize;
+        let positions_idx_addr = doc_freq_addr + self.doc_freq_nbits as usize;
 
-        let doc_freq = extract_bits(data, cursor, self.doc_freq_nbits) as u32;
-        cursor += self.doc_freq_nbits as usize;
-
-        let positions_idx = extract_bits(data, cursor, self.positions_idx_nbits);
+        let postings_start_offset = self.ref_term_info.postings_start_offset
+            + extract_bits(data, posting_start_addr, self.postings_offset_nbits);
+        let postings_stop_offset = self.ref_term_info.postings_start_offset
+            + extract_bits(data, posting_stop_addr, self.postings_offset_nbits);
+        let doc_freq = extract_bits(data, doc_freq_addr, self.doc_freq_nbits) as u32;
+        let positions_idx = self.ref_term_info.positions_idx
+            + extract_bits(data, positions_idx_addr, self.positions_idx_nbits);
 
         TermInfo {
             doc_freq,
-            postings_start_offset: postings_start_offset + self.ref_term_info.postings_start_offset,
-            postings_end_offset,
-            positions_idx: positions_idx + self.ref_term_info.positions_idx,
+            postings_start_offset,
+            postings_stop_offset,
+            positions_idx,
         }
     }
 }
@@ -197,15 +200,15 @@ impl TermInfoStoreWriter {
         } else {
             return Ok(());
         };
-        let postings_end_offset =
-            last_term_info.postings_end_offset - ref_term_info.postings_start_offset;
+        let postings_stop_offset =
+            last_term_info.postings_stop_offset - ref_term_info.postings_start_offset;
         for term_info in &mut self.term_infos[1..] {
             term_info.postings_start_offset -= ref_term_info.postings_start_offset;
             term_info.positions_idx -= ref_term_info.positions_idx;
         }
 
         let mut max_doc_freq: u32 = 0u32;
-        let max_postings_offset: u64 = postings_end_offset;
+        let max_postings_offset: u64 = postings_stop_offset;
         let max_positions_idx: u64 = last_term_info.positions_idx;
 
         for term_info in &self.term_infos[1..] {
@@ -235,7 +238,7 @@ impl TermInfoStoreWriter {
         }
 
         bit_packer.write(
-            postings_end_offset,
+            postings_stop_offset,
             term_info_block_meta.postings_offset_nbits,
             &mut self.buffer_term_infos,
         )?;
@@ -248,7 +251,7 @@ impl TermInfoStoreWriter {
     }
 
     pub fn write_term_info(&mut self, term_info: &TermInfo) -> io::Result<()> {
-        assert!(term_info.postings_end_offset >= term_info.postings_start_offset);
+        assert!(term_info.postings_stop_offset >= term_info.postings_start_offset);
         self.num_terms += 1u64;
         self.term_infos.push(term_info.clone());
         if self.term_infos.len() >= BLOCK_LEN {
@@ -312,7 +315,7 @@ mod tests {
             ref_term_info: TermInfo {
                 doc_freq: 512,
                 postings_start_offset: 51,
-                postings_end_offset: 57u64,
+                postings_stop_offset: 57u64,
                 positions_idx: 3584,
             },
             doc_freq_nbits: 10,
@@ -335,7 +338,7 @@ mod tests {
             let term_info = TermInfo {
                 doc_freq: i as u32,
                 postings_start_offset: offset(i),
-                postings_end_offset: offset(i + 1),
+                postings_stop_offset: offset(i + 1),
                 positions_idx: (i * 7) as u64,
             };
             store_writer.write_term_info(&term_info)?;
