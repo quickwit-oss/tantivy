@@ -177,14 +177,16 @@ impl<'a> FieldSerializer<'a> {
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let positions_idx = self
-            .positions_serializer_opt
-            .as_ref()
-            .map(PositionSerializer::positions_idx)
-            .unwrap_or(0u64);
+        let positions_idx =
+            if let Some(positions_serializer) = self.positions_serializer_opt.as_ref() {
+                positions_serializer.positions_idx()
+            } else {
+                0u64
+            };
         TermInfo {
             doc_freq: 0,
-            postings_offset: self.postings_serializer.addr(),
+            postings_start_offset: self.postings_serializer.addr(),
+            postings_stop_offset: 0u64,
             positions_idx,
         }
     }
@@ -238,10 +240,11 @@ impl<'a> FieldSerializer<'a> {
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
         if self.term_open {
-            self.term_dictionary_builder
-                .insert_value(&self.current_term_info)?;
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
+            self.current_term_info.postings_stop_offset = self.postings_serializer.addr();
+            self.term_dictionary_builder
+                .insert_value(&self.current_term_info)?;
             self.term_open = false;
         }
         Ok(())

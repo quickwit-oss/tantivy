@@ -44,11 +44,13 @@ mod tests {
 
     const BLOCK_SIZE: usize = 1_500;
 
-    fn make_term_info(val: u64) -> TermInfo {
+    fn make_term_info(term_ord: u64) -> TermInfo {
+        let offset = |term_ord: u64| term_ord * 100 + term_ord * term_ord;
         TermInfo {
-            doc_freq: val as u32,
-            positions_idx: val * 2u64,
-            postings_offset: val * 3u64,
+            doc_freq: term_ord as u32,
+            postings_start_offset: offset(term_ord),
+            postings_stop_offset: offset(term_ord + 1),
+            positions_idx: offset(term_ord) * 2u64,
         }
     }
 
@@ -197,7 +199,7 @@ mod tests {
             // term requires more than 16bits
             term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))?;
             term_dictionary_builder.insert("abcdefghijklmnopqrstuvwxyz", &make_term_info(2))?;
-            term_dictionary_builder.insert("abr", &make_term_info(2))?;
+            term_dictionary_builder.insert("abr", &make_term_info(3))?;
             term_dictionary_builder.finish()?
         };
         let term_dict_file = FileSlice::from(buffer);
@@ -211,6 +213,7 @@ mod tests {
         assert_eq!(kv_stream.value(), &make_term_info(2));
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abr".as_bytes());
+        assert_eq!(kv_stream.value(), &make_term_info(3));
         assert!(!kv_stream.advance());
         Ok(())
     }
