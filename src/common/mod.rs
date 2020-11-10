@@ -66,10 +66,6 @@ pub(crate) fn compute_num_bits(n: u64) -> u8 {
     }
 }
 
-pub(crate) fn is_power_of_2(n: usize) -> bool {
-    (n > 0) && (n & (n - 1) == 0)
-}
-
 /// Has length trait
 pub trait HasLen {
     /// Return length
