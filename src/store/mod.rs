@@ -33,8 +33,8 @@ and should rely on either
 
 !*/
 
+mod index;
 mod reader;
-mod skiplist;
 mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
