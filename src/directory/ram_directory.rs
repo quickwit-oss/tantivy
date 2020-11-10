@@ -177,8 +177,15 @@ impl Directory for RAMDirectory {
         self.fs.write().unwrap().delete(path)
     }
 
-    fn exists(&self, path: &Path) -> bool {
-        self.fs.read().unwrap().exists(path)
+    fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
+        Ok(self
+            .fs
+            .read()
+            .map_err(|e| OpenReadError::IOError {
+                io_error: io::Error::new(io::ErrorKind::Other, e.to_string()),
+                filepath: path.to_path_buf(),
+            })?
+            .exists(path))
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {

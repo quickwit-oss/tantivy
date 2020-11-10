@@ -130,7 +130,7 @@ fn ram_directory_panics_if_flush_forgotten() {
 fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     let mut write_file = directory.open_write(test_path)?;
-    assert!(directory.exists(test_path));
+    assert!(directory.exists(test_path).unwrap());
     write_file.write_all(&[4])?;
     write_file.write_all(&[3])?;
     write_file.write_all(&[7, 3, 5])?;
@@ -139,14 +139,14 @@ fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
     assert_eq!(read_file.as_slice(), &[4u8, 3u8, 7u8, 3u8, 5u8]);
     mem::drop(read_file);
     assert!(directory.delete(test_path).is_ok());
-    assert!(!directory.exists(test_path));
+    assert!(!directory.exists(test_path).unwrap());
     Ok(())
 }
 
 fn test_rewrite_forbidden(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     directory.open_write(test_path)?;
-    assert!(directory.exists(test_path));
+    assert!(directory.exists(test_path).unwrap());
     assert!(directory.open_write(test_path).is_err());
     assert!(directory.delete(test_path).is_ok());
     Ok(())
@@ -157,7 +157,7 @@ fn test_write_create_the_file(directory: &dyn Directory) {
     {
         assert!(directory.open_read(test_path).is_err());
         let _w = directory.open_write(test_path).unwrap();
-        assert!(directory.exists(test_path));
+        assert!(directory.exists(test_path).unwrap());
         assert!(directory.open_read(test_path).is_ok());
         assert!(directory.delete(test_path).is_ok());
     }

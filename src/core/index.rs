@@ -5,6 +5,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::SegmentMetaInventory;
 use crate::core::META_FILEPATH;
+use crate::directory::error::OpenReadError;
 use crate::directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
@@ -59,7 +60,7 @@ impl Index {
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
-    pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
+    pub fn exists<Dir: Directory>(dir: &Dir) -> Result<bool, OpenReadError> {
         dir.exists(&META_FILEPATH)
     }
 
@@ -106,7 +107,7 @@ impl Index {
         schema: Schema,
     ) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        if Index::exists(&mmap_directory) {
+        if Index::exists(&mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
         Index::create(mmap_directory, schema)
@@ -114,7 +115,7 @@ impl Index {
 
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
-        if !Index::exists(&dir) {
+        if !Index::exists(&dir)? {
             return Index::create(dir, schema);
         }
         let index = Index::open(dir)?;
@@ -423,24 +424,24 @@ mod tests {
     #[test]
     fn test_index_exists() {
         let directory = RAMDirectory::create();
-        assert!(!Index::exists(&directory));
+        assert!(!Index::exists(&directory).unwrap());
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
-        assert!(Index::exists(&directory));
+        assert!(Index::exists(&directory).unwrap());
     }
 
     #[test]
     fn open_or_create_should_create() {
         let directory = RAMDirectory::create();
-        assert!(!Index::exists(&directory));
+        assert!(!Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
-        assert!(Index::exists(&directory));
+        assert!(Index::exists(&directory).unwrap());
     }
 
     #[test]
     fn open_or_create_should_open() {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
-        assert!(Index::exists(&directory));
+        assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
 
@@ -448,7 +449,7 @@ mod tests {
     fn create_should_wipeoff_existing() {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
-        assert!(Index::exists(&directory));
+        assert!(Index::exists(&directory).unwrap());
         assert!(Index::create(directory.clone(), Schema::builder().build()).is_ok());
     }
 
@@ -456,7 +457,7 @@ mod tests {
     fn open_or_create_exists_but_schema_does_not_match() {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
-        assert!(Index::exists(&directory));
+        assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
         let err = Index::open_or_create(directory, Schema::builder().build());
         assert_eq!(

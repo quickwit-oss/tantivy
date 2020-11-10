@@ -18,7 +18,7 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
         .unwrap()
         .terminate()
         .unwrap();
-    assert!(managed_directory.exists(test_path));
+    assert!(managed_directory.exists(test_path).unwrap());
     // triggering gc and setting the delete operation to fail.
     //
     // We are checking that the gc operation is not removing the
@@ -29,12 +29,12 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
     // lock file.
     fail::cfg("RAMDirectory::delete", "1*off->1*return").unwrap();
     assert!(managed_directory.garbage_collect(Default::default).is_ok());
-    assert!(managed_directory.exists(test_path));
+    assert!(managed_directory.exists(test_path).unwrap());
 
     // running the gc a second time should remove the file.
     assert!(managed_directory.garbage_collect(Default::default).is_ok());
     assert!(
-        !managed_directory.exists(test_path),
+        !managed_directory.exists(test_path).unwrap(),
         "The file should have been deleted"
     );
 }

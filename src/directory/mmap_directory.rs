@@ -370,9 +370,9 @@ impl Directory for MmapDirectory {
         }
     }
 
-    fn exists(&self, path: &Path) -> bool {
+    fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
         let full_path = self.resolve_path(path);
-        full_path.exists()
+        Ok(full_path.exists())
     }
 
     fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
