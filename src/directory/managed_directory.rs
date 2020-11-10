@@ -307,7 +307,7 @@ impl Directory for ManagedDirectory {
         self.directory.delete(path)
     }
 
-    fn exists(&self, path: &Path) -> bool {
+    fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
         self.directory.exists(path)
     }
 
@@ -355,22 +355,22 @@ mod tests_mmap_specific {
             managed_directory
                 .atomic_write(test_path2, &[0u8, 1u8])
                 .unwrap();
-            assert!(managed_directory.exists(test_path1));
-            assert!(managed_directory.exists(test_path2));
+            assert!(managed_directory.exists(test_path1).unwrap());
+            assert!(managed_directory.exists(test_path2).unwrap());
             let living_files: HashSet<PathBuf> = [test_path1.to_owned()].iter().cloned().collect();
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-            assert!(managed_directory.exists(test_path1));
-            assert!(!managed_directory.exists(test_path2));
+            assert!(managed_directory.exists(test_path1).unwrap());
+            assert!(!managed_directory.exists(test_path2).unwrap());
         }
         {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
             let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
-            assert!(managed_directory.exists(test_path1));
-            assert!(!managed_directory.exists(test_path2));
+            assert!(managed_directory.exists(test_path1).unwrap());
+            assert!(!managed_directory.exists(test_path2).unwrap());
             let living_files: HashSet<PathBuf> = HashSet::new();
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-            assert!(!managed_directory.exists(test_path1));
-            assert!(!managed_directory.exists(test_path2));
+            assert!(!managed_directory.exists(test_path1).unwrap());
+            assert!(!managed_directory.exists(test_path2).unwrap());
         }
     }
 
@@ -387,7 +387,7 @@ mod tests_mmap_specific {
         let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();
         write.terminate().unwrap();
-        assert!(managed_directory.exists(test_path1));
+        assert!(managed_directory.exists(test_path1).unwrap());
 
         let _mmap_read = managed_directory.open_read(test_path1).unwrap();
         assert!(managed_directory
@@ -395,15 +395,15 @@ mod tests_mmap_specific {
             .is_ok());
         if cfg!(target_os = "windows") {
             // On Windows, gc should try and fail the file as it is mmapped.
-            assert!(managed_directory.exists(test_path1));
+            assert!(managed_directory.exists(test_path1).unwrap());
             // unmap should happen here.
             drop(_mmap_read);
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-            assert!(!managed_directory.exists(test_path1));
+            assert!(!managed_directory.exists(test_path1).unwrap());
         } else {
-            assert!(!managed_directory.exists(test_path1));
+            assert!(!managed_directory.exists(test_path1).unwrap());
         }
     }
 
