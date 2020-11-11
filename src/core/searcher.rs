@@ -168,6 +168,7 @@ impl Searcher {
     }
 }
 
+/// **Experimental API** `FieldSearcher` only gives access to a stream over the terms of a field.
 pub struct FieldSearcher {
     inv_index_readers: Vec<Arc<InvertedIndexReader>>,
 }
@@ -179,7 +180,11 @@ impl FieldSearcher {
 
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
-    pub fn terms(&self) -> TermMerger<'_> {
+    ///
+    /// This method does not take in account which document are deleted, so
+    /// in presence of deletes some terms may not actually exist in any document
+    /// anymore.
+    pub fn terms(&self) -> TermMerger {
         let term_streamers: Vec<_> = self
             .inv_index_readers
             .iter()
