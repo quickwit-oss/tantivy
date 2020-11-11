@@ -400,7 +400,7 @@ impl fmt::Debug for Index {
 
 #[cfg(test)]
 mod tests {
-    use crate::directory::RAMDirectory;
+    use crate::directory::{RAMDirectory, WatchCallback};
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
     use crate::IndexReader;
@@ -525,7 +525,7 @@ mod tests {
             assert_eq!(reader.searcher().num_docs(), 0);
             writer.add_document(doc!(field=>1u64));
             let (sender, receiver) = crossbeam::channel::unbounded();
-            let _handle = index.directory_mut().watch(Box::new(move || {
+            let _handle = index.directory_mut().watch(WatchCallback::new(move || {
                 let _ = sender.send(());
             }));
             writer.commit().unwrap();
@@ -555,9 +555,11 @@ mod tests {
     fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
         let mut reader_index = reader.index();
         let (sender, receiver) = crossbeam::channel::unbounded();
-        let _watch_handle = reader_index.directory_mut().watch(Box::new(move || {
-            let _ = sender.send(());
-        }));
+        let _watch_handle = reader_index
+            .directory_mut()
+            .watch(WatchCallback::new(move || {
+                let _ = sender.send(());
+            }));
         let mut writer = index.writer_for_tests().unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
@@ -596,7 +598,7 @@ mod tests {
             writer.add_document(doc!(field => i));
         }
         let (sender, receiver) = crossbeam::channel::unbounded();
-        let _handle = directory.watch(Box::new(move || {
+        let _handle = directory.watch(WatchCallback::new(move || {
             let _ = sender.send(());
         }));
         writer.commit().unwrap();

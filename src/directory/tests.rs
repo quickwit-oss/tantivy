@@ -195,7 +195,7 @@ fn test_watch(directory: &dyn Directory) {
     let timeout = Duration::from_millis(500);
 
     let handle = directory
-        .watch(Box::new(move || {
+        .watch(WatchCallback::new(move || {
             let val = counter.fetch_add(1, SeqCst);
             tx.send(val + 1).unwrap();
         }))
