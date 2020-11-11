@@ -4,8 +4,20 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
 
-/// Type alias for callbacks registered when watching files of a `Directory`.
-pub type WatchCallback = Box<dyn Fn() + Sync + Send>;
+/// Cloneable wrapper for callbacks registered when watching files of a `Directory`.
+#[derive(Clone)]
+pub struct WatchCallback(Arc<Box<dyn Fn() + Sync + Send>>);
+
+impl WatchCallback {
+    /// Wraps a `Fn()` to create a WatchCallback.
+    pub fn new<F: Fn() + Sync + Send + 'static>(op: F) -> Self {
+        WatchCallback(Arc::new(Box::new(op)))
+    }
+
+    fn call(&self) {
+        self.0()
+    }
+}
 
 /// Helper struct to implement the watch method in `Directory` implementations.
 ///
@@ -34,7 +46,7 @@ impl WatchHandle {
     ///
     /// This function is only useful when implementing a readonly directory.
     pub fn empty() -> WatchHandle {
-        WatchHandle::new(Arc::new(Box::new(|| {})))
+        WatchHandle::new(Arc::new(WatchCallback::new(|| {})))
     }
 }
 
@@ -47,13 +59,13 @@ impl WatchCallbackList {
         WatchHandle::new(watch_callback_arc)
     }
 
-    fn list_callback(&self) -> Vec<Arc<WatchCallback>> {
-        let mut callbacks = vec![];
+    fn list_callback(&self) -> Vec<WatchCallback> {
+        let mut callbacks: Vec<WatchCallback> = vec![];
         let mut router_wlock = self.router.write().unwrap();
         let mut i = 0;
         while i < router_wlock.len() {
             if let Some(watch) = router_wlock[i].upgrade() {
-                callbacks.push(watch);
+                callbacks.push(watch.as_ref().clone());
                 i += 1;
             } else {
                 router_wlock.swap_remove(i);
@@ -75,7 +87,7 @@ impl WatchCallbackList {
             .name("watch-callbacks".to_string())
             .spawn(move || {
                 for callback in callbacks {
-                    callback();
+                    callback.call();
                 }
                 let _ = sender.send(());
             });
@@ -91,7 +103,7 @@ impl WatchCallbackList {
 
 #[cfg(test)]
 mod tests {
-    use crate::directory::WatchCallbackList;
+    use crate::directory::{WatchCallback, WatchCallbackList};
     use futures::executor::block_on;
     use std::mem;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -102,7 +114,7 @@ mod tests {
         let watch_event_router = WatchCallbackList::default();
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
-        let inc_callback = Box::new(move || {
+        let inc_callback = WatchCallback::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         });
         block_on(watch_event_router.broadcast());
@@ -130,7 +142,7 @@ mod tests {
         let counter: Arc<AtomicUsize> = Default::default();
         let inc_callback = |inc: usize| {
             let counter_clone = counter.clone();
-            Box::new(move || {
+            WatchCallback::new(move || {
                 counter_clone.fetch_add(inc, Ordering::SeqCst);
             })
         };
@@ -158,7 +170,7 @@ mod tests {
         let watch_event_router = WatchCallbackList::default();
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
-        let inc_callback = Box::new(move || {
+        let inc_callback = WatchCallback::new(move || {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         });
         let handle_a = watch_event_router.subscribe(inc_callback);

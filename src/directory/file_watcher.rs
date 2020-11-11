@@ -112,7 +112,7 @@ mod tests {
 
             let counter_clone = counter.clone();
 
-            _handle = watcher.watch(Box::new(move || {
+            _handle = watcher.watch(WatchCallback::new(move || {
                 let val = counter_clone.fetch_add(1, Ordering::SeqCst);
                 tx.send(val + 1).unwrap();
             }));
