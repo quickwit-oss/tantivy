@@ -181,7 +181,7 @@ impl FieldSearcher {
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
     ///
-    /// This method does not take in account which document are deleted, so
+    /// This method does not take into account which documents are deleted, so
     /// in presence of deletes some terms may not actually exist in any document
     /// anymore.
     pub fn terms(&self) -> TermMerger {
