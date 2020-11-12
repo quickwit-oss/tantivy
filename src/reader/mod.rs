@@ -3,9 +3,9 @@ mod pool;
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use crate::core::Segment;
-use crate::directory::Directory;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
+use crate::directory::{Directory, WatchCallback};
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
@@ -88,7 +88,7 @@ impl IndexReaderBuilder {
                 let watch_handle = inner_reader_arc
                     .index
                     .directory()
-                    .watch(Box::new(callback))?;
+                    .watch(WatchCallback::new(callback))?;
                 watch_handle_opt = Some(watch_handle);
             }
         }
