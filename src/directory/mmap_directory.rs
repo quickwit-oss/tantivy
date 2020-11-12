@@ -327,6 +327,24 @@ impl Deref for MmapArc {
 }
 unsafe impl StableDeref for MmapArc {}
 
+/// Writes a file in an atomic manner.
+pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
+    // We create the temporary file in the same directory as the target file.
+    // Indeed the canonical temp directory and the target file might sit in different
+    // filesystem, in which case the atomic write may actually not work.
+    let parent_path = path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Path {:?} does not have parent directory.",
+        )
+    })?;
+    let mut tempfile = tempfile::Builder::new().tempfile_in(&parent_path)?;
+    tempfile.write_all(content)?;
+    tempfile.flush()?;
+    tempfile.into_temp_path().persist(path)?;
+    Ok(())
+}
+
 impl Directory for MmapDirectory {
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         debug!("Open Read {:?}", path);
@@ -427,12 +445,8 @@ impl Directory for MmapDirectory {
 
     fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
-        let mut tempfile = tempfile::Builder::new().tempfile_in(&self.inner.root_path)?;
-        tempfile.write_all(content)?;
-        tempfile.flush()?;
         let full_path = self.resolve_path(path);
-        tempfile.into_temp_path().persist(full_path)?;
-        Ok(())
+        atomic_write(&full_path, content)
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {

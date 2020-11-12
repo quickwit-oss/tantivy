@@ -91,48 +91,88 @@ impl Drop for FileWatcher {
 #[cfg(test)]
 mod tests {
 
+    use std::mem;
+
+    use crate::directory::mmap_directory::atomic_write;
+
     use super::*;
 
     #[test]
-    fn test_file_watcher() {
-        let tmp_dir = tempfile::TempDir::new().unwrap();
+    fn test_file_watcher_drop_watcher() -> crate::Result<()> {
+        let tmp_dir = tempfile::TempDir::new()?;
         let tmp_file = tmp_dir.path().join("watched.txt");
 
         let counter: Arc<AtomicUsize> = Default::default();
-        let _handle;
-        let state;
         let (tx, rx) = crossbeam::channel::unbounded();
         let timeout = Duration::from_millis(100);
 
-        {
-            let watcher = FileWatcher::new(&tmp_file);
+        let watcher = FileWatcher::new(&tmp_file);
 
-            state = watcher.state.clone();
-            assert_eq!(state.load(Ordering::SeqCst), 0);
+        let state = watcher.state.clone();
+        assert_eq!(state.load(Ordering::SeqCst), 0);
 
-            let counter_clone = counter.clone();
+        let counter_clone = counter.clone();
 
-            _handle = watcher.watch(WatchCallback::new(move || {
-                let val = counter_clone.fetch_add(1, Ordering::SeqCst);
-                tx.send(val + 1).unwrap();
-            }));
+        let _handle = watcher.watch(WatchCallback::new(move || {
+            let val = counter_clone.fetch_add(1, Ordering::SeqCst);
+            tx.send(val + 1).unwrap();
+        }));
 
-            assert_eq!(counter.load(Ordering::SeqCst), 0);
-            assert_eq!(state.load(Ordering::SeqCst), 1);
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        assert_eq!(state.load(Ordering::SeqCst), 1);
 
-            fs::write(&tmp_file, b"foo").unwrap();
-            assert_eq!(rx.recv_timeout(timeout), Ok(1));
+        atomic_write(&tmp_file, b"foo")?;
+        assert_eq!(rx.recv_timeout(timeout), Ok(1));
 
-            fs::write(&tmp_file, b"foo").unwrap();
-            assert!(rx.recv_timeout(timeout).is_err());
+        atomic_write(&tmp_file, b"foo")?;
+        assert!(rx.recv_timeout(timeout).is_err());
 
-            fs::write(&tmp_file, b"bar").unwrap();
-            assert_eq!(rx.recv_timeout(timeout), Ok(2));
-        }
+        atomic_write(&tmp_file, b"bar")?;
+        assert_eq!(rx.recv_timeout(timeout), Ok(2));
 
-        fs::write(&tmp_file, b"qux").unwrap();
+        mem::drop(watcher);
+
+        atomic_write(&tmp_file, b"qux")?;
         thread::sleep(Duration::from_millis(10));
         assert_eq!(counter.load(Ordering::SeqCst), 2);
         assert_eq!(state.load(Ordering::SeqCst), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_watcher_drop_handle() -> crate::Result<()> {
+        let tmp_dir = tempfile::TempDir::new()?;
+        let tmp_file = tmp_dir.path().join("watched.txt");
+
+        let counter: Arc<AtomicUsize> = Default::default();
+        let (tx, rx) = crossbeam::channel::unbounded();
+        let timeout = Duration::from_millis(100);
+
+        let watcher = FileWatcher::new(&tmp_file);
+
+        let state = watcher.state.clone();
+        assert_eq!(state.load(Ordering::SeqCst), 0);
+
+        let counter_clone = counter.clone();
+
+        let handle = watcher.watch(WatchCallback::new(move || {
+            let val = counter_clone.fetch_add(1, Ordering::SeqCst);
+            tx.send(val + 1).unwrap();
+        }));
+
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        assert_eq!(state.load(Ordering::SeqCst), 1);
+
+        atomic_write(&tmp_file, b"foo")?;
+        assert_eq!(rx.recv_timeout(timeout), Ok(1));
+
+        mem::drop(handle);
+
+        atomic_write(&tmp_file, b"qux")?;
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+        assert_eq!(state.load(Ordering::SeqCst), 1);
+
+        Ok(())
     }
 }
