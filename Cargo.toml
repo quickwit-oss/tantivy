@@ -34,6 +34,7 @@ uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.8"
 futures = {version = "0.3",  features=["thread-pool"] }
 tantivy-query-grammar = { version="0.14.0-dev", path="./query-grammar" }
+tantivy-sstable = {version="0.14.0-dev", path="./sstable"}
 stable_deref_trait = "1"
 rust-stemmers = "1"
 downcast-rs = "1"
@@ -81,7 +82,7 @@ unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [workspace]
-members = ["query-grammar"]
+members = ["query-grammar", "sstable"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }

@@ -516,7 +516,7 @@ mod tests {
             let field = schema.get_field("num_likes").unwrap();
             let mut index = Index::create_from_tempdir(schema)?;
             let mut writer = index.writer_for_tests()?;
-            writer.commit().unwrap();
+            writer.commit()?;
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
