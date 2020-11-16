@@ -531,6 +531,7 @@ mod tests {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(500))]
+        #[ignore]
         #[test]
         fn test_block_wand_three_term_scorers((posting_lists, fieldnorms) in gen_term_scorers(3)) {
             test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);

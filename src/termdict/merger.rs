@@ -60,12 +60,10 @@ impl<'a> TermMerger<'a> {
 
     pub(crate) fn matching_segments<'b: 'a>(
         &'b self,
-    ) -> Box<dyn 'b + Iterator<Item = (usize, TermOrdinal)>> {
-        Box::new(
-            self.current_streamers
-                .iter()
-                .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.term_ord())),
-        )
+    ) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
+        self.current_streamers
+            .iter()
+            .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.term_ord()))
     }
 
     fn advance_segments(&mut self) {
