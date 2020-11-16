@@ -1,12 +1,11 @@
-
-use {SSTable, Reader, Writer};
+use crate::termdict::sstable_termdict::sstable::{Reader, SSTable, Writer};
 
 use super::SingleValueMerger;
 use super::ValueMerger;
-use std::io;
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
 use std::collections::binary_heap::PeekMut;
+use std::collections::BinaryHeap;
+use std::io;
 
 struct HeapItem<B: AsRef<[u8]>>(B);
 
@@ -31,8 +30,10 @@ impl<B: AsRef<[u8]>> PartialEq for HeapItem<B> {
 pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
     readers: Vec<Reader<SST::Reader>>,
     mut writer: Writer<W, SST::Writer>,
-    mut merger: M) -> io::Result<()> {
-    let mut heap: BinaryHeap<HeapItem<Reader<SST::Reader>>> = BinaryHeap::with_capacity(readers.len());
+    mut merger: M,
+) -> io::Result<()> {
+    let mut heap: BinaryHeap<HeapItem<Reader<SST::Reader>>> =
+        BinaryHeap::with_capacity(readers.len());
     for mut reader in readers {
         if reader.advance()? {
             heap.push(HeapItem(reader));
@@ -55,7 +56,7 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
                 if head.0.key() == writer.current_key() {
                     value_merger.add(head.0.value());
                     if !head.0.advance()? {
-                        PeekMut::pop(head) ;
+                        PeekMut::pop(head);
                     }
                     continue;
                 }
@@ -64,6 +65,7 @@ pub fn merge_sstable<SST: SSTable, W: io::Write, M: ValueMerger<SST::Value>>(
         }
         let value = value_merger.finish();
         writer.write_value(&value);
+        writer.flush_block_if_required()?;
     }
     writer.finalize()?;
     Ok(())

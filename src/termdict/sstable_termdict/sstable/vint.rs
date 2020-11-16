@@ -1,3 +1,5 @@
+use super::BlockReader;
+
 const CONTINUE_BIT: u8 = 128u8;
 
 pub fn serialize(mut val: u64, buffer: &mut [u8]) -> usize {
@@ -12,6 +14,12 @@ pub fn serialize(mut val: u64, buffer: &mut [u8]) -> usize {
         }
     }
     10 //< actually unreachable
+}
+
+pub fn serialize_into_vec(val: u64, buffer: &mut Vec<u8>) {
+    let mut buf = [0u8; 10];
+    let num_bytes = serialize(val, &mut buf[..]);
+    buffer.extend_from_slice(&buf[..num_bytes]);
 }
 
 // super slow but we don't care
@@ -31,11 +39,15 @@ pub fn deserialize_read(buf: &[u8]) -> (usize, u64) {
     (consumed, result)
 }
 
+pub fn deserialize_from_block(block: &mut BlockReader) -> u64 {
+    let (num_bytes, val) = deserialize_read(block.buffer());
+    block.advance(num_bytes);
+    val
+}
 
 #[cfg(test)]
 mod tests {
-    use vint::serialize;
-    use vint::deserialize_read;
+    use super::{deserialize_read, serialize};
     use std::u64;
 
     fn aux_test_int(val: u64, expect_len: usize) {
@@ -54,10 +66,9 @@ mod tests {
         for i in 1..63 {
             let power_of_two = 1u64 << i;
             aux_test_int(power_of_two + 1, (i / 7) + 1);
-            aux_test_int(power_of_two, (i / 7) + 1 );
-            aux_test_int(power_of_two - 1, ((i-1) / 7) + 1);
+            aux_test_int(power_of_two, (i / 7) + 1);
+            aux_test_int(power_of_two - 1, ((i - 1) / 7) + 1);
         }
         aux_test_int(u64::MAX, 10);
     }
 }
-

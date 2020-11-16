@@ -26,6 +26,7 @@ snap = "1"
 tempfile = {version="3", optional=true}
 log = "0.4"
 serde = {version="1", features=["derive"]}
+serde_cbor = "0.11"
 serde_json = "1"
 num_cpus = "1"
 fs2={version="0.4", optional=true}
@@ -34,7 +35,6 @@ uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.8"
 futures = {version = "0.3",  features=["thread-pool"] }
 tantivy-query-grammar = { version="0.14.0-dev", path="./query-grammar" }
-tantivy-sstable = {version="0.14.0-dev", path="./sstable"}
 stable_deref_trait = "1"
 rust-stemmers = "1"
 downcast-rs = "1"
@@ -82,7 +82,7 @@ unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [workspace]
-members = ["query-grammar", "sstable"]
+members = ["query-grammar"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
