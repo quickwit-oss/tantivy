@@ -47,6 +47,7 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 smallvec = "1"
 rayon = "1"
+lru = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3"
