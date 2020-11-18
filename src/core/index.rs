@@ -233,6 +233,20 @@ impl Index {
         self.inventory.all()
     }
 
+    /// List the files that are useful to the index.
+    ///
+    /// This does not include lock files, or files that are obsolete
+    /// but have not yet been deleted by the garbage collector.
+    pub fn list_files(&self) -> HashSet<PathBuf> {
+        let mut files: HashSet<PathBuf> = self
+            .list_all_segment_metas()
+            .into_iter()
+            .flat_map(|segment_meta| segment_meta.list_files())
+            .collect();
+        files.insert(META_FILEPATH.to_path_buf());
+        files
+    }
+
     /// Creates a new segment_meta (Advanced user only).
     ///
     /// As long as the `SegmentMeta` lives, the files associated with the
