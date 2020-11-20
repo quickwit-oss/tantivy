@@ -27,6 +27,7 @@ use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::io::Write;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -98,8 +99,9 @@ async fn garbage_collect_files(
 ) -> crate::Result<GarbageCollectionResult> {
     info!("Running garbage collection");
     let mut index = segment_updater.index.clone();
-    let files = index.list_files();
-    index.directory_mut().garbage_collect(move || files)
+    index
+        .directory_mut()
+        .garbage_collect(move || segment_updater.list_files())
 }
 
 /// Merges a list of segments the list of segment givens in the `segment_entries`.
@@ -308,6 +310,21 @@ impl SegmentUpdater {
     ) -> impl Future<Output = crate::Result<GarbageCollectionResult>> {
         let garbage_collect_future = garbage_collect_files(self.clone());
         self.schedule_future(garbage_collect_future)
+    }
+
+    /// List the files that are useful to the index.
+    ///
+    /// This does not include lock files, or files that are obsolete
+    /// but have not yet been deleted by the garbage collector.
+    fn list_files(&self) -> HashSet<PathBuf> {
+        let mut files: HashSet<PathBuf> = self
+            .index
+            .list_all_segment_metas()
+            .into_iter()
+            .flat_map(|segment_meta| segment_meta.list_files())
+            .collect();
+        files.insert(META_FILEPATH.to_path_buf());
+        files
     }
 
     pub fn schedule_commit(
