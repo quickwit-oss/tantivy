@@ -2,14 +2,13 @@ use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use crate::directory::file_watcher::FileWatcher;
-use crate::directory::AntiCallToken;
 use crate::directory::BoxedData;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
-use crate::directory::FileSlice;
 use crate::directory::Lock;
 use crate::directory::WatchCallback;
 use crate::directory::WatchHandle;
+use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
 use memmap::Mmap;
@@ -161,7 +160,7 @@ impl MmapDirectoryInner {
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
-            root_path: root_path,
+            root_path,
         }
     }
 
@@ -346,7 +345,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 impl Directory for MmapDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> result::Result<Box<dyn FileHandle>, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -359,11 +358,16 @@ impl Directory for MmapDirectory {
             let io_err = make_io_err(msg);
             OpenReadError::wrap_io_error(io_err, path.to_path_buf())
         })?;
-        if let Some(mmap_arc) = mmap_cache.get_mmap(&full_path)? {
-            Ok(FileSlice::from(MmapArc(mmap_arc)))
-        } else {
-            Ok(FileSlice::empty())
-        }
+
+        let owned_bytes = mmap_cache
+            .get_mmap(&full_path)?
+            .map(|mmap_arc| {
+                let mmap_arc_obj = MmapArc(mmap_arc);
+                OwnedBytes::new(mmap_arc_obj)
+            })
+            .unwrap_or_else(OwnedBytes::empty);
+
+        Ok(Box::new(owned_bytes))
     }
 
     /// Any entry associated to the path in the mmap will be

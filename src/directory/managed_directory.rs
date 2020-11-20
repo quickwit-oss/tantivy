@@ -1,10 +1,10 @@
 use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
-use crate::directory::DirectoryLock;
 use crate::directory::GarbageCollectionResult;
 use crate::directory::Lock;
 use crate::directory::META_LOCK;
+use crate::directory::{DirectoryLock, FileHandle};
 use crate::directory::{FileSlice, WritePtr};
 use crate::directory::{WatchCallback, WatchHandle};
 use crate::error::DataCorruption;
@@ -274,6 +274,11 @@ impl ManagedDirectory {
 }
 
 impl Directory for ManagedDirectory {
+    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+        let file_slice = self.open_read(path)?;
+        Ok(Box::new(file_slice))
+    }
+
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         let file_slice = self.directory.open_read(path)?;
         let (footer, reader) = Footer::extract_footer(file_slice)
