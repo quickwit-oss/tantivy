@@ -72,7 +72,7 @@ pub struct FilterCollector<TCollector, TSegmentCollector> {
 impl<TCollector, TSegmentCollector> FilterCollector<TCollector, TSegmentCollector> 
 where 
     TCollector: Collector<Child = TSegmentCollector> + Send + Sync,
-    TSegmentCollector: 'static + SegmentCollector + Send + Sync {
+    TSegmentCollector: SegmentCollector + Send + Sync {
     pub fn new(field: Field, predicate: &'static (dyn Fn(u64) -> bool + Send + Sync), collector: TCollector) -> FilterCollector<TCollector, TSegmentCollector> {
         FilterCollector { field, predicate, collector, phantom: PhantomData }
     }
@@ -80,7 +80,7 @@ where
 
 impl<TCollector, TSegmentCollector> Collector for FilterCollector<TCollector, TSegmentCollector> 
 where 
-    TSegmentCollector: 'static + SegmentCollector + Send + Sync,
+    TSegmentCollector: SegmentCollector + Send + Sync,
     TCollector: Collector<Child = TSegmentCollector> + Send + Sync {
     // That's the type of our result.
     // Our standard deviation will be a float.
@@ -137,7 +137,7 @@ pub struct FilterSegmentCollector<TSegmentCollector> {
 
 impl<TSegmentCollector> SegmentCollector for FilterSegmentCollector<TSegmentCollector> 
 where 
-    TSegmentCollector: 'static + SegmentCollector + Send + Sync {
+    TSegmentCollector: SegmentCollector + Send + Sync {
     type Fruit = TSegmentCollector::Fruit;
 
     fn collect(&mut self, doc: u32, score: Score) {
