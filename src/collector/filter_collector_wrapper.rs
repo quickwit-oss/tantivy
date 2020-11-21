@@ -16,15 +16,8 @@ use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
-/// The `TopDocs` collector keeps track of the top `K` documents
-/// sorted by their score.
-///
-/// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity for collecting the top `K` out of `n` documents
-/// is `O(n log K)`.
-///
-/// This collector guarantees a stable sorting in case of a tie on the
-/// document score. As such, it is suitable to implement pagination.
+/// The `FilterCollector` collector filters docs using a u64 fast field value and a predicate.
+/// Only the documents for which the predicate returned "true" will be passed on to the next collector.
 ///
 /// ```rust
 /// use tantivy::collector::{TopDocs, FilterCollector};
