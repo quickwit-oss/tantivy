@@ -107,17 +107,14 @@ where
                     field_name
                 ))
             })?;
-        let child_segment_collector = self.collector.for_segment(segment_local_id, segment_reader);
-        match child_segment_collector {
-            Ok(segment_collector) => Ok(FilterSegmentCollector::<TSegmentCollector> {
-                fast_field_reader,
-                segment_collector: segment_collector,
-                predicate: self.predicate,
-            }),
-            Err(_) => Err(TantivyError::SystemError(
-                "Could not open segment: ".to_owned(),
-            )),
-        }
+        let segment_collector = self
+            .collector
+            .for_segment(segment_local_id, segment_reader)?;
+        Ok(FilterSegmentCollector::<TSegmentCollector> {
+            fast_field_reader,
+            segment_collector: segment_collector,
+            predicate: self.predicate,
+        })
     }
 
     fn requires_scoring(&self) -> bool {
