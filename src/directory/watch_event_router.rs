@@ -6,12 +6,12 @@ use std::sync::Weak;
 
 /// Cloneable wrapper for callbacks registered when watching files of a `Directory`.
 #[derive(Clone)]
-pub struct WatchCallback(Arc<Box<dyn Fn() + Sync + Send>>);
+pub struct WatchCallback(Arc<dyn Fn() + Sync + Send>);
 
 impl WatchCallback {
     /// Wraps a `Fn()` to create a WatchCallback.
     pub fn new<F: Fn() + Sync + Send + 'static>(op: F) -> Self {
-        WatchCallback(Arc::new(Box::new(op)))
+        WatchCallback(Arc::new(op))
     }
 
     fn call(&self) {

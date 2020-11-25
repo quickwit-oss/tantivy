@@ -9,6 +9,15 @@ pub struct DeleteOperation {
     pub term: Term,
 }
 
+impl Default for DeleteOperation {
+    fn default() -> Self {
+        DeleteOperation {
+            opstamp: 0u64,
+            term: Term::new(),
+        }
+    }
+}
+
 /// Timestamped Add operation.
 #[derive(Eq, PartialEq, Debug)]
 pub struct AddOperation {
