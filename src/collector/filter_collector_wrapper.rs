@@ -41,33 +41,37 @@ use crate::{Score, SegmentReader, TantivyError};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();
-/// let no_filter_collector = FilterCollector::new(price, &|value| true, TopDocs::with_limit(2));
+/// let no_filter_collector = FilterCollector::new(price, &|value| value > 20_120u64, TopDocs::with_limit(1));
 /// let top_docs = searcher.search(&query, &no_filter_collector).unwrap();
 ///
-/// assert_eq!(top_docs.len(), 2);
+/// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress(0, 1));
-/// assert_eq!(top_docs[1].1, DocAddress(0, 3));
 ///
-/// let filter_all_collector = FilterCollector::new(price, &|value| false, TopDocs::with_limit(2));
+/// let filter_all_collector = FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
 /// ```
-pub struct FilterCollector<TCollector> {
+pub struct FilterCollector<TCollector, TPredicate>
+where
+    TPredicate: 'static,
+{
     field: Field,
     collector: TCollector,
-    predicate: &'static (dyn Fn(u64) -> bool + Send + Sync),
+    predicate: &'static TPredicate,
 }
 
-impl<TCollector> FilterCollector<TCollector>
+impl<TCollector, TPredicate> FilterCollector<TCollector, TPredicate>
 where
     TCollector: Collector + Send + Sync,
+    TPredicate: Fn(u64) -> bool + Send + Sync,
 {
+    /// Create a new FilterCollector.
     pub fn new(
         field: Field,
-        predicate: &'static (dyn Fn(u64) -> bool + Send + Sync),
+        predicate: &'static TPredicate,
         collector: TCollector,
-    ) -> FilterCollector<TCollector> {
+    ) -> FilterCollector<TCollector, TPredicate> {
         FilterCollector {
             field,
             predicate,
@@ -76,21 +80,22 @@ where
     }
 }
 
-impl<TCollector> Collector for FilterCollector<TCollector>
+impl<TCollector, TPredicate> Collector for FilterCollector<TCollector, TPredicate>
 where
     TCollector: Collector + Send + Sync,
+    TPredicate: 'static + Fn(u64) -> bool + Send + Sync,
 {
     // That's the type of our result.
     // Our standard deviation will be a float.
     type Fruit = TCollector::Fruit;
 
-    type Child = FilterSegmentCollector<TCollector::Child>;
+    type Child = FilterSegmentCollector<TCollector::Child, TPredicate>;
 
     fn for_segment(
         &self,
         segment_local_id: u32,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<FilterSegmentCollector<TCollector::Child>> {
+    ) -> crate::Result<FilterSegmentCollector<TCollector::Child, TPredicate>> {
         let fast_field_reader = segment_reader
             .fast_fields()
             .u64(self.field)
@@ -123,15 +128,20 @@ where
     }
 }
 
-pub struct FilterSegmentCollector<TSegmentCollector> {
+pub struct FilterSegmentCollector<TSegmentCollector, TPredicate>
+where
+    TPredicate: 'static,
+{
     fast_field_reader: FastFieldReader<u64>,
     segment_collector: TSegmentCollector,
-    predicate: &'static (dyn Fn(u64) -> bool + Send + Sync),
+    predicate: &'static TPredicate,
 }
 
-impl<TSegmentCollector> SegmentCollector for FilterSegmentCollector<TSegmentCollector>
+impl<TSegmentCollector, TPredicate> SegmentCollector
+    for FilterSegmentCollector<TSegmentCollector, TPredicate>
 where
     TSegmentCollector: SegmentCollector,
+    TPredicate: 'static + Fn(u64) -> bool + Send + Sync,
 {
     type Fruit = TSegmentCollector::Fruit;
 
