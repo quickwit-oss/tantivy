@@ -5,8 +5,8 @@ use crate::directory::OwnedBytes;
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
 
-pub type BoxedData = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-pub type WeakBoxedData = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///

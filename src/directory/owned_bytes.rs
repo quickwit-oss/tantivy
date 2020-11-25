@@ -99,7 +99,7 @@ impl OwnedBytes {
 
     /// Reads an `u8` from the `OwnedBytes` and advance by one byte.
     pub fn read_u8(&mut self) -> u8 {
-        assert!(self.len() > 0);
+        assert!(!self.is_empty());
 
         let byte = self.as_slice()[0];
         self.advance(1);

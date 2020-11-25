@@ -53,7 +53,7 @@ impl DeleteQueue {
             return block;
         }
         let block = Arc::new(Block {
-            operations: Arc::new([DeleteOperation::default(); 0]),
+            operations: Arc::new([]),
             next: NextBlock::from(self.clone()),
         });
         wlock.last_block = Arc::downgrade(&block);
