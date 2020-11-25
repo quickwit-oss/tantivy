@@ -9,8 +9,6 @@
 
 // ---
 // Importing tantivy...
-use std::marker::PhantomData;
-
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
@@ -55,48 +53,44 @@ use crate::{Score, SegmentReader, TantivyError};
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
 /// ```
-pub struct FilterCollector<TCollector, TSegmentCollector> {
+pub struct FilterCollector<TCollector> {
     field: Field,
     collector: TCollector,
     predicate: &'static (dyn Fn(u64) -> bool + Send + Sync),
-    phantom: PhantomData<TSegmentCollector>,
 }
 
-impl<TCollector, TSegmentCollector> FilterCollector<TCollector, TSegmentCollector>
+impl<TCollector> FilterCollector<TCollector>
 where
-    TCollector: Collector<Child = TSegmentCollector> + Send + Sync,
-    TSegmentCollector: SegmentCollector + Send + Sync,
+    TCollector: Collector + Send + Sync,
 {
     pub fn new(
         field: Field,
         predicate: &'static (dyn Fn(u64) -> bool + Send + Sync),
         collector: TCollector,
-    ) -> FilterCollector<TCollector, TSegmentCollector> {
+    ) -> FilterCollector<TCollector> {
         FilterCollector {
             field,
             predicate,
             collector,
-            phantom: PhantomData,
         }
     }
 }
 
-impl<TCollector, TSegmentCollector> Collector for FilterCollector<TCollector, TSegmentCollector>
+impl<TCollector> Collector for FilterCollector<TCollector>
 where
-    TSegmentCollector: SegmentCollector + Send + Sync,
-    TCollector: Collector<Child = TSegmentCollector> + Send + Sync,
+    TCollector: Collector + Send + Sync,
 {
     // That's the type of our result.
     // Our standard deviation will be a float.
     type Fruit = TCollector::Fruit;
 
-    type Child = FilterSegmentCollector<TSegmentCollector>;
+    type Child = FilterSegmentCollector<TCollector::Child>;
 
     fn for_segment(
         &self,
         segment_local_id: u32,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<FilterSegmentCollector<TSegmentCollector>> {
+    ) -> crate::Result<FilterSegmentCollector<TCollector::Child>> {
         let fast_field_reader = segment_reader
             .fast_fields()
             .u64(self.field)
@@ -110,7 +104,7 @@ where
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
-        Ok(FilterSegmentCollector::<TSegmentCollector> {
+        Ok(FilterSegmentCollector {
             fast_field_reader,
             segment_collector: segment_collector,
             predicate: self.predicate,
@@ -137,7 +131,7 @@ pub struct FilterSegmentCollector<TSegmentCollector> {
 
 impl<TSegmentCollector> SegmentCollector for FilterSegmentCollector<TSegmentCollector>
 where
-    TSegmentCollector: SegmentCollector + Send + Sync,
+    TSegmentCollector: SegmentCollector,
 {
     type Fruit = TSegmentCollector::Fruit;
 
