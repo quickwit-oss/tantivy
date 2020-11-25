@@ -1,7 +1,7 @@
 use super::term_weight::TermWeight;
 use crate::query::bm25::BM25Weight;
-use crate::query::Query;
 use crate::query::Weight;
+use crate::query::{Explanation, Query};
 use crate::schema::IndexRecordOption;
 use crate::Searcher;
 use crate::Term;
@@ -100,7 +100,13 @@ impl TermQuery {
                 field_entry.name()
             )));
         }
-        let bm25_weight = BM25Weight::for_terms(searcher, &[term])?;
+        let bm25_weight;
+        if scoring_enabled {
+            bm25_weight = BM25Weight::for_terms(searcher, &[term])?;
+        } else {
+            bm25_weight =
+                BM25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32);
+        }
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {
