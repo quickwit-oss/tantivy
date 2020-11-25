@@ -41,7 +41,7 @@ use crate::{Score, SegmentReader, TantivyError};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();
-/// let no_filter_collector = FilterCollector::new(price, &|value| value > 20_120u64, TopDocs::with_limit(1));
+/// let no_filter_collector = FilterCollector::new(price, &|value| value > 20_120u64, TopDocs::with_limit(2));
 /// let top_docs = searcher.search(&query, &no_filter_collector).unwrap();
 ///
 /// assert_eq!(top_docs.len(), 1);
