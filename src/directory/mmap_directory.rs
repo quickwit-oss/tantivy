@@ -2,13 +2,13 @@ use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use crate::directory::file_watcher::FileWatcher;
-use crate::directory::BoxedData;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
 use crate::directory::Lock;
 use crate::directory::WatchCallback;
 use crate::directory::WatchHandle;
 use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
+use crate::directory::{BoxedData, WeakBoxedData};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
 use memmap::Mmap;
@@ -24,7 +24,6 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::Weak;
 use std::{collections::HashMap, ops::Deref};
 use tempfile::TempDir;
 
@@ -77,7 +76,7 @@ pub struct CacheInfo {
 
 struct MmapCache {
     counters: CacheCounters,
-    cache: HashMap<PathBuf, Weak<BoxedData>>,
+    cache: HashMap<PathBuf, WeakBoxedData>,
 }
 
 impl Default for MmapCache {
@@ -111,7 +110,7 @@ impl MmapCache {
     }
 
     // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
-    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<Arc<BoxedData>>, OpenReadError> {
+    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<BoxedData>, OpenReadError> {
         if let Some(mmap_weak) = self.cache.get(full_path) {
             if let Some(mmap_arc) = mmap_weak.upgrade() {
                 self.counters.hit += 1;
@@ -122,7 +121,7 @@ impl MmapCache {
         self.counters.miss += 1;
         let mmap_opt = open_mmap(full_path)?;
         Ok(mmap_opt.map(|mmap| {
-            let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
+            let mmap_arc: BoxedData = Arc::new(mmap);
             let mmap_weak = Arc::downgrade(&mmap_arc);
             self.cache.insert(full_path.to_owned(), mmap_weak);
             mmap_arc
@@ -315,7 +314,7 @@ impl TerminatingWrite for SafeFileWriter {
 }
 
 #[derive(Clone)]
-struct MmapArc(Arc<Box<dyn Deref<Target = [u8]> + Send + Sync>>);
+struct MmapArc(Arc<dyn Deref<Target = [u8]> + Send + Sync>);
 
 impl Deref for MmapArc {
     type Target = [u8];

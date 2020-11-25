@@ -154,7 +154,7 @@ pub(crate) struct InnerSegmentUpdater {
 
     index: Index,
     segment_manager: SegmentManager,
-    merge_policy: RwLock<Arc<Box<dyn MergePolicy>>>,
+    merge_policy: RwLock<Arc<dyn MergePolicy>>,
     killed: AtomicBool,
     stamper: Stamper,
     merge_operations: MergeOperationInventory,
@@ -193,19 +193,19 @@ impl SegmentUpdater {
             merge_thread_pool,
             index,
             segment_manager,
-            merge_policy: RwLock::new(Arc::new(Box::new(DefaultMergePolicy::default()))),
+            merge_policy: RwLock::new(Arc::new(DefaultMergePolicy::default())),
             killed: AtomicBool::new(false),
             stamper,
             merge_operations: Default::default(),
         })))
     }
 
-    pub fn get_merge_policy(&self) -> Arc<Box<dyn MergePolicy>> {
+    pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
         self.merge_policy.read().unwrap().clone()
     }
 
     pub fn set_merge_policy(&self, merge_policy: Box<dyn MergePolicy>) {
-        let arc_merge_policy = Arc::new(merge_policy);
+        let arc_merge_policy = Arc::from(merge_policy);
         *self.merge_policy.write().unwrap() = arc_merge_policy;
     }
 

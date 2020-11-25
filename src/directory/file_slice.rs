@@ -2,10 +2,11 @@ use stable_deref_trait::StableDeref;
 
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
 
-pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type BoxedData = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type WeakBoxedData = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///
