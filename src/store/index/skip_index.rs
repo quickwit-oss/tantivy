@@ -19,7 +19,7 @@ impl<'a> Iterator for LayerCursor<'a> {
                 return None;
             }
             let (block_mut, remaining_mut) = (&mut self.block, &mut self.remaining);
-            if let Err(_) = block_mut.deserialize(remaining_mut) {
+            if block_mut.deserialize(remaining_mut).is_err() {
                 return None;
             }
             self.cursor = 0;
@@ -50,8 +50,7 @@ impl Layer {
 
     fn seek_start_at_offset(&self, target: DocId, offset: u64) -> Option<Checkpoint> {
         self.cursor_at_offset(offset)
-            .filter(|checkpoint| checkpoint.end_doc > target)
-            .next()
+            .find(|checkpoint| checkpoint.end_doc > target)
     }
 }
 

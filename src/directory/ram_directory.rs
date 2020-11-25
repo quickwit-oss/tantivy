@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
 
+use super::FileHandle;
+
 /// Writer associated with the `RAMDirectory`
 ///
 /// The Writer just writes a buffer.
@@ -163,6 +165,11 @@ impl RAMDirectory {
 }
 
 impl Directory for RAMDirectory {
+    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+        let file_slice = self.open_read(path)?;
+        Ok(Box::new(file_slice))
+    }
+
     fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
         self.fs.read().unwrap().open_read(path)
     }
