@@ -449,7 +449,7 @@ impl IndexWriter {
     }
 
     /// Accessor to the merge policy.
-    pub fn get_merge_policy(&self) -> Arc<Box<dyn MergePolicy>> {
+    pub fn get_merge_policy(&self) -> Arc<dyn MergePolicy> {
         self.segment_updater.get_merge_policy()
     }
 

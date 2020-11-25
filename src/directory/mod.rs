@@ -23,7 +23,7 @@ pub mod error;
 pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
-pub(crate) use self::file_slice::BoxedData;
+pub(crate) use self::file_slice::{BoxedData, WeakBoxedData};
 pub use self::file_slice::{FileHandle, FileSlice};
 pub use self::owned_bytes::OwnedBytes;
 pub use self::ram_directory::RAMDirectory;
