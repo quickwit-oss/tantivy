@@ -129,6 +129,14 @@ impl<'a> DocSet for &'a mut dyn DocSet {
     fn size_hint(&self) -> u32 {
         (**self).size_hint()
     }
+
+    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
+        (**self).count(delete_bitset)
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        (**self).count_including_deleted()
+    }
 }
 
 impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
