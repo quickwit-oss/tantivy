@@ -61,16 +61,38 @@ impl FieldNormReaders {
 /// precompute computationally expensive functions of the fieldnorm
 /// in a very short array.
 #[derive(Clone)]
-pub struct FieldNormReader {
-    data: OwnedBytes,
+pub struct FieldNormReader(ReaderImplEnum);
+
+impl From<ReaderImplEnum> for FieldNormReader {
+    fn from(reader_enum: ReaderImplEnum) -> FieldNormReader {
+        FieldNormReader(reader_enum)
+    }
+}
+
+#[derive(Clone)]
+enum ReaderImplEnum {
+    FromData(OwnedBytes),
+    Const {
+        num_docs: u32,
+        fieldnorm_id: u8,
+        fieldnorm: u32,
+    },
 }
 
 impl FieldNormReader {
     /// Creates a `FieldNormReader` with a constant fieldnorm.
+    ///
+    /// The fieldnorm will be subjected to compression as if it was coming
+    /// from an array-backed fieldnorm reader.
     pub fn constant(num_docs: u32, fieldnorm: u32) -> FieldNormReader {
         let fieldnorm_id = fieldnorm_to_id(fieldnorm);
-        let field_norms_data = OwnedBytes::new(vec![fieldnorm_id; num_docs as usize]);
-        FieldNormReader::new(field_norms_data)
+        let fieldnorm = id_to_fieldnorm(fieldnorm_id);
+        ReaderImplEnum::Const {
+            num_docs,
+            fieldnorm_id,
+            fieldnorm,
+        }
+        .into()
     }
 
     /// Opens a field norm reader given its file.
@@ -80,12 +102,15 @@ impl FieldNormReader {
     }
 
     fn new(data: OwnedBytes) -> Self {
-        FieldNormReader { data }
+        ReaderImplEnum::FromData(data).into()
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
-        self.data.len() as u32
+        match &self.0 {
+            ReaderImplEnum::FromData(data) => data.len() as u32,
+            ReaderImplEnum::Const { num_docs, .. } => *num_docs,
+        }
     }
 
     /// Returns the `fieldnorm` associated to a doc id.
@@ -98,14 +123,25 @@ impl FieldNormReader {
     /// The fieldnorm is effectively decoded from the
     /// `fieldnorm_id` by doing a simple table lookup.
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
-        let fieldnorm_id = self.fieldnorm_id(doc_id);
-        id_to_fieldnorm(fieldnorm_id)
+        match &self.0 {
+            ReaderImplEnum::FromData(data) => {
+                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                id_to_fieldnorm(fieldnorm_id)
+            }
+            ReaderImplEnum::Const { fieldnorm, .. } => *fieldnorm,
+        }
     }
 
     /// Returns the `fieldnorm_id` associated to a document.
     #[inline(always)]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
-        self.data.as_slice()[doc_id as usize]
+        match &self.0 {
+            ReaderImplEnum::FromData(data) => {
+                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                fieldnorm_id
+            }
+            ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,
+        }
     }
 
     /// Converts a `fieldnorm_id` into a fieldnorm.
@@ -129,9 +165,7 @@ impl FieldNormReader {
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = OwnedBytes::new(field_norms_id);
-        FieldNormReader {
-            data: field_norms_data,
-        }
+        FieldNormReader::new(field_norms_data)
     }
 }
 
@@ -149,5 +183,21 @@ mod tests {
         assert_eq!(fieldnorm_reader.fieldnorm(2), 3);
         assert_eq!(fieldnorm_reader.fieldnorm(3), 4);
         assert_eq!(fieldnorm_reader.fieldnorm(4), 983_064);
+    }
+
+    #[test]
+    fn test_const_fieldnorm_reader_small_fieldnorm_id() {
+        let fieldnorm_reader = FieldNormReader::constant(1_000_000u32, 10u32);
+        assert_eq!(fieldnorm_reader.num_docs(), 1_000_000u32);
+        assert_eq!(fieldnorm_reader.fieldnorm(0u32), 10u32);
+        assert_eq!(fieldnorm_reader.fieldnorm_id(0u32), 10u8);
+    }
+
+    #[test]
+    fn test_const_fieldnorm_reader_large_fieldnorm_id() {
+        let fieldnorm_reader = FieldNormReader::constant(1_000_000u32, 300u32);
+        assert_eq!(fieldnorm_reader.num_docs(), 1_000_000u32);
+        assert_eq!(fieldnorm_reader.fieldnorm(0u32), 280u32);
+        assert_eq!(fieldnorm_reader.fieldnorm_id(0u32), 72u8);
     }
 }
