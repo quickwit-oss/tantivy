@@ -449,7 +449,8 @@ impl Directory for MmapDirectory {
     fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
-        atomic_write(&full_path, content)
+        atomic_write(&full_path, content)?;
+        self.sync_directory()
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
