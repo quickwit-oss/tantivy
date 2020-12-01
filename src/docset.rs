@@ -10,7 +10,7 @@ use std::borrow::BorrowMut;
 pub const TERMINATED: DocId = std::i32::MAX as u32;
 
 /// Represents an iterable set of sorted doc ids.
-pub trait DocSet {
+pub trait DocSet: Send {
     /// Goes to the next element.
     ///
     /// The DocId of the next element is returned.

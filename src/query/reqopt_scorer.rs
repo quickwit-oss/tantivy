@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 /// This is useful for queries like `+somethingrequired somethingoptional`.
 ///
 /// Note that `somethingoptional` has no impact on the `DocSet`.
-pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner> {
+pub struct RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner: ScoreCombiner> {
     req_scorer: TReqScorer,
     opt_scorer: TOptScorer,
     score_cache: Option<Score>,
@@ -23,6 +23,7 @@ impl<TReqScorer, TOptScorer, TScoreCombiner>
     RequiredOptionalScorer<TReqScorer, TOptScorer, TScoreCombiner>
 where
     TOptScorer: DocSet,
+    TScoreCombiner: ScoreCombiner,
 {
     /// Creates a new `RequiredOptionalScorer`.
     pub fn new(
@@ -43,6 +44,7 @@ impl<TReqScorer, TOptScorer, TScoreCombiner> DocSet
 where
     TReqScorer: DocSet,
     TOptScorer: DocSet,
+    TScoreCombiner: ScoreCombiner,
 {
     fn advance(&mut self) -> DocId {
         self.score_cache = None;
