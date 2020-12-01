@@ -111,7 +111,7 @@ where
             .for_segment(segment_local_id, segment_reader)?;
         Ok(FilterSegmentCollector {
             fast_field_reader,
-            segment_collector: segment_collector,
+            segment_collector,
             predicate: self.predicate,
         })
     }
