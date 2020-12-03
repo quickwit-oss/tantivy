@@ -7,6 +7,7 @@ use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::TantivyError;
 use crate::{DocId, Score};
+use std::io;
 use std::sync::Arc;
 use tantivy_fst::Automaton;
 
@@ -28,7 +29,10 @@ where
         }
     }
 
-    fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
+    fn automaton_stream<'a>(
+        &'a self,
+        term_dict: &'a TermDictionary,
+    ) -> io::Result<TermStreamer<'a, &'a A>> {
         let automaton: &A = &*self.automaton;
         let term_stream_builder = term_dict.search(automaton);
         term_stream_builder.into_stream()
@@ -44,7 +48,7 @@ where
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
-        let mut term_stream = self.automaton_stream(term_dict);
+        let mut term_stream = self.automaton_stream(term_dict)?;
         while term_stream.advance() {
             let term_info = term_stream.value();
             let mut block_segment_postings = inverted_index

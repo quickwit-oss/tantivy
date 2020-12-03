@@ -11,6 +11,7 @@ use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
 use std::collections::Bound;
+use std::io;
 use std::ops::Range;
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
@@ -274,7 +275,7 @@ pub struct RangeWeight {
 }
 
 impl RangeWeight {
-    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> TermStreamer<'a> {
+    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
         use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
         term_stream_builder = match self.left_bound {
@@ -298,7 +299,7 @@ impl Weight for RangeWeight {
 
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
-        let mut term_range = self.term_range(term_dict);
+        let mut term_range = self.term_range(term_dict)?;
         while term_range.advance() {
             let term_info = term_range.value();
             let mut block_segment_postings = inverted_index
