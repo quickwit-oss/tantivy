@@ -50,7 +50,7 @@ fn test_term_ordinals() -> crate::Result<()> {
     for (term_ord, term) in COUNTRIES.iter().enumerate() {
         assert_eq!(term_dict.term_ord(term)?, Some(term_ord as u64));
         let mut bytes = vec![];
-        assert!(term_dict.ord_to_term(term_ord as u64, &mut bytes));
+        assert!(term_dict.ord_to_term(term_ord as u64, &mut bytes)?);
         assert_eq!(bytes, term.as_bytes());
     }
     Ok(())

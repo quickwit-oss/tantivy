@@ -54,7 +54,7 @@ pub mod tests {
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
-    use std::iter;
+    use std::{iter, mem};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -71,6 +71,7 @@ pub mod tests {
             field_serializer.write_doc(doc_id, 4, &delta_positions)?;
         }
         field_serializer.close_term()?;
+        mem::drop(field_serializer);
         posting_serializer.close()?;
         let read = segment.open_read(SegmentComponent::POSITIONS)?;
         assert!(read.len() <= 140);
@@ -179,7 +180,7 @@ pub mod tests {
             let inverted_index = segment_reader.inverted_index(text_field)?;
             assert_eq!(inverted_index.terms().num_terms(), 1);
             let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes));
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
             assert_eq!(&bytes, b"hello");
         }
         {
@@ -191,7 +192,7 @@ pub mod tests {
             let inverted_index = segment_reader.inverted_index(text_field)?;
             assert_eq!(inverted_index.terms().num_terms(), 1);
             let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes));
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
             assert_eq!(&bytes[..], ok_token_text.as_bytes());
         }
         Ok(())
