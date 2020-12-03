@@ -20,9 +20,10 @@ impl<W: Write> CountingWriter<W> {
         self.written_bytes
     }
 
-    pub fn finish(mut self) -> io::Result<(W, u64)> {
-        self.flush()?;
-        Ok((self.underlying, self.written_bytes))
+    /// Returns the underlying write object.
+    /// Note that this method does not trigger any flushing.
+    pub fn finish(self) -> W {
+        self.underlying
     }
 }
 
@@ -46,7 +47,6 @@ impl<W: Write> Write for CountingWriter<W> {
 
 impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
     fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
-        self.flush()?;
         self.underlying.terminate_ref(token)
     }
 }
@@ -63,8 +63,9 @@ mod test {
         let mut counting_writer = CountingWriter::wrap(buffer);
         let bytes = (0u8..10u8).collect::<Vec<u8>>();
         counting_writer.write_all(&bytes).unwrap();
-        let (w, len): (Vec<u8>, u64) = counting_writer.finish().unwrap();
+        let len = counting_writer.written_bytes();
+        let buffer_restituted: Vec<u8> = counting_writer.finish();
         assert_eq!(len, 10u64);
-        assert_eq!(w.len(), 10);
+        assert_eq!(buffer_restituted.len(), 10);
     }
 }
