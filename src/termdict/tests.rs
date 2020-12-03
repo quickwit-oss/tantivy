@@ -1,6 +1,6 @@
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 
-use crate::directory::{Directory, FileSlice, RAMDirectory};
+use crate::directory::{Directory, FileSlice, RAMDirectory, TerminatingWrite};
 use crate::postings::TermInfo;
 
 use std::path::PathBuf;
@@ -43,7 +43,7 @@ fn test_term_ordinals() -> crate::Result<()> {
         for term in COUNTRIES.iter() {
             term_dictionary_builder.insert(term.as_bytes(), &make_term_info(0u64))?;
         }
-        term_dictionary_builder.finish()?;
+        term_dictionary_builder.finish()?.terminate()?;
     }
     let term_file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(term_file)?;
@@ -65,7 +65,7 @@ fn test_term_dictionary_simple() -> crate::Result<()> {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(write)?;
         term_dictionary_builder.insert("abc".as_bytes(), &make_term_info(34u64))?;
         term_dictionary_builder.insert("abcd".as_bytes(), &make_term_info(346u64))?;
-        term_dictionary_builder.finish()?;
+        term_dictionary_builder.finish()?.terminate()?;
     }
     let file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(file)?;
@@ -106,7 +106,7 @@ fn test_term_dictionary_stream() -> crate::Result<()> {
                 .insert(id.as_bytes(), &make_term_info(*i as u64))
                 .unwrap();
         }
-        term_dictionary_builder.finish().unwrap()
+        term_dictionary_builder.finish()?
     };
     let term_file = FileSlice::from(buffer);
     let term_dictionary: TermDictionary = TermDictionary::open(term_file)?;
@@ -167,7 +167,7 @@ fn test_stream_range() -> crate::Result<()> {
                 .insert(id.as_bytes(), &make_term_info(*i as u64))
                 .unwrap();
         }
-        term_dictionary_builder.finish().unwrap()
+        term_dictionary_builder.finish()?
     };
 
     let file = FileSlice::from(buffer);
@@ -236,7 +236,7 @@ fn test_empty_string() -> crate::Result<()> {
         term_dictionary_builder
             .insert(&[1u8], &make_term_info(2 as u64))
             .unwrap();
-        term_dictionary_builder.finish().unwrap()
+        term_dictionary_builder.finish()?
     };
     let file = FileSlice::from(buffer);
     let term_dictionary: TermDictionary = TermDictionary::open(file)?;
@@ -374,7 +374,7 @@ fn test_automaton_search() -> crate::Result<()> {
         for term in COUNTRIES.iter() {
             term_dictionary_builder.insert(term.as_bytes(), &make_term_info(0u64))?;
         }
-        term_dictionary_builder.finish()?;
+        term_dictionary_builder.finish()?.terminate()?;
     }
     let file = directory.open_read(&path)?;
     let term_dict: TermDictionary = TermDictionary::open(file)?;
