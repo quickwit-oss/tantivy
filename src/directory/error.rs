@@ -58,7 +58,8 @@ pub enum OpenWriteError {
 }
 
 impl OpenWriteError {
-    pub(crate) fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
+    /// Wraps an io error.
+    pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
         Self::IOError { io_error, filepath }
     }
 }
@@ -143,7 +144,8 @@ pub enum OpenReadError {
 }
 
 impl OpenReadError {
-    pub(crate) fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
+    /// Wraps an io error.
+    pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
         Self::IOError { io_error, filepath }
     }
 }
