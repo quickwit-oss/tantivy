@@ -514,7 +514,7 @@ impl IndexMerger {
 
         for field_reader in &field_readers {
             let terms = field_reader.terms();
-            field_term_streams.push(terms.stream());
+            field_term_streams.push(terms.stream()?);
             max_term_ords.push(terms.num_terms() as u64);
         }
 

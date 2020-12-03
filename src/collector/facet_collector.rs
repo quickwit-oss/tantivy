@@ -274,7 +274,7 @@ impl Collector for FacetCollector {
         let mut collapse_facet_it = self.facets.iter().peekable();
         collapse_facet_ords.push(0);
         {
-            let mut facet_streamer = facet_reader.facet_dict().range().into_stream();
+            let mut facet_streamer = facet_reader.facet_dict().range().into_stream()?;
             if facet_streamer.advance() {
                 'outer: loop {
                     // at the begining of this loop, facet_streamer

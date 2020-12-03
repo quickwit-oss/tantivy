@@ -139,8 +139,8 @@ impl TermDictionary {
     }
 
     /// Returns the ordinal associated to a given term.
-    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
-        self.fst_index.get(key)
+    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
+        Ok(self.fst_index.get(key))
     }
 
     /// Returns the term associated to a given term ordinal.
@@ -179,9 +179,10 @@ impl TermDictionary {
     }
 
     /// Lookups the value corresponding to the key.
-    pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
-        self.term_ord(key)
-            .map(|term_ord| self.term_info_from_ord(term_ord))
+    pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
+        Ok(self
+            .term_ord(key)?
+            .map(|term_ord| self.term_info_from_ord(term_ord)))
     }
 
     /// Returns a range builder, to stream all of the terms
@@ -191,7 +192,7 @@ impl TermDictionary {
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream(&self) -> TermStreamer<'_> {
+    pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
         self.range().into_stream()
     }
 
