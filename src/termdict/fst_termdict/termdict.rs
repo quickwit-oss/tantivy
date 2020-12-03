@@ -80,7 +80,6 @@ where
                 .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             (footer_size as u64).serialize(&mut counting_writer)?;
-            counting_writer.flush()?;
         }
         Ok(file)
     }
@@ -152,7 +151,7 @@ impl TermDictionary {
     ///
     /// Regardless of whether the term is found or not,
     /// the buffer may be modified.
-    pub fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool {
+    pub fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> io::Result<bool> {
         bytes.clear();
         let fst = self.fst_index.as_fst();
         let mut node = fst.root();
@@ -167,10 +166,10 @@ impl TermDictionary {
                 let new_node_addr = transition.addr;
                 node = fst.node(new_node_addr);
             } else {
-                return false;
+                return Ok(false);
             }
         }
-        true
+        Ok(true)
     }
 
     /// Returns the number of terms in the dictionary.

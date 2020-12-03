@@ -233,6 +233,7 @@ mod tests {
         assert_eq!(Facet::root(), Facet::from("/"));
         assert_eq!(format!("{}", Facet::root()), "/");
         assert!(Facet::root().is_root());
+        assert_eq!(Facet::root().encoded_str(), "");
     }
 
     #[test]
