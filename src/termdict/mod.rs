@@ -25,6 +25,8 @@ use tantivy_fst::automaton::AlwaysMatch;
 mod fst_termdict;
 use fst_termdict as termdict;
 
+mod merger;
+
 #[cfg(test)]
 mod tests;
 
@@ -47,7 +49,7 @@ pub type TermDictionaryBuilder<W> = self::termdict::TermDictionaryBuilder<W>;
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the terms.
-pub type TermMerger<'a> = self::termdict::TermMerger<'a>;
+pub type TermMerger<'a> = self::merger::TermMerger<'a>;
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
