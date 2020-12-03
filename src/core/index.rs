@@ -511,28 +511,28 @@ mod tests {
         }
 
         #[test]
-        fn test_index_manual_policy_mmap() {
+        fn test_index_manual_policy_mmap() -> crate::Result<()> {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
-            let mut index = Index::create_from_tempdir(schema).unwrap();
-            let mut writer = index.writer_for_tests().unwrap();
-            writer.commit().unwrap();
+            let mut index = Index::create_from_tempdir(schema)?;
+            let mut writer = index.writer_for_tests()?;
+            writer.commit()?;
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
-                .try_into()
-                .unwrap();
+                .try_into()?;
             assert_eq!(reader.searcher().num_docs(), 0);
             writer.add_document(doc!(field=>1u64));
             let (sender, receiver) = crossbeam::channel::unbounded();
             let _handle = index.directory_mut().watch(WatchCallback::new(move || {
                 let _ = sender.send(());
             }));
-            writer.commit().unwrap();
+            writer.commit()?;
             assert!(receiver.recv().is_ok());
             assert_eq!(reader.searcher().num_docs(), 0);
-            reader.reload().unwrap();
+            reader.reload()?;
             assert_eq!(reader.searcher().num_docs(), 1);
+            Ok(())
         }
 
         #[test]

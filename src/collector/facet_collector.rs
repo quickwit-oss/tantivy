@@ -368,9 +368,12 @@ impl SegmentCollector for FacetSegmentCollector {
             }
             let mut facet = vec![];
             let facet_ord = self.collapse_facet_ords[collapsed_facet_ord];
-            facet_dict.ord_to_term(facet_ord as u64, &mut facet);
-            // TODO
-            facet_counts.insert(Facet::from_encoded(facet).unwrap(), count);
+            // TODO handle errors.
+            if facet_dict.ord_to_term(facet_ord as u64, &mut facet).is_ok() {
+                if let Ok(facet) = Facet::from_encoded(facet) {
+                    facet_counts.insert(facet, count);
+                }
+            }
         }
         FacetCounts { facet_counts }
     }
