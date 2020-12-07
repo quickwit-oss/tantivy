@@ -249,8 +249,7 @@ fn test_empty_string() -> crate::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_stream_range_boundaries() -> crate::Result<()> {
+fn stream_range_test_dict() -> crate::Result<TermDictionary> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
         for i in 0u8..10u8 {
@@ -260,84 +259,96 @@ fn test_stream_range_boundaries() -> crate::Result<()> {
         term_dictionary_builder.finish()?
     };
     let file = FileSlice::from(buffer);
-    let term_dictionary: TermDictionary = TermDictionary::open(file)?;
+    TermDictionary::open(file)
+}
 
-    let value_list = |mut streamer: TermStreamer<'_>, backwards: bool| {
+#[test]
+fn test_stream_range_boundaries_forward() -> crate::Result<()> {
+    let term_dictionary = stream_range_test_dict()?;
+    let value_list = |mut streamer: TermStreamer<'_>| {
         let mut res: Vec<u32> = vec![];
         while let Some((_, ref v)) = streamer.next() {
             res.push(v.doc_freq);
         }
-        if backwards {
-            res.reverse();
-        }
         res
     };
     {
-        let range = term_dictionary.range().backward().into_stream()?;
-        assert_eq!(
-            value_list(range, true),
-            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
-        );
-    }
-    {
         let range = term_dictionary.range().ge([2u8]).into_stream()?;
         assert_eq!(
-            value_list(range, false),
-            vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
-        );
-    }
-    {
-        let range = term_dictionary.range().ge([2u8]).backward().into_stream()?;
-        assert_eq!(
-            value_list(range, true),
+            value_list(range),
             vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
         );
     }
     {
         let range = term_dictionary.range().gt([2u8]).into_stream()?;
         assert_eq!(
-            value_list(range, false),
-            vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
-        );
-    }
-    {
-        let range = term_dictionary.range().gt([2u8]).backward().into_stream()?;
-        assert_eq!(
-            value_list(range, true),
+            value_list(range),
             vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
         );
     }
     {
         let range = term_dictionary.range().lt([6u8]).into_stream()?;
-        assert_eq!(
-            value_list(range, false),
-            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
-        );
-    }
-    {
-        let range = term_dictionary.range().lt([6u8]).backward().into_stream()?;
-        assert_eq!(
-            value_list(range, true),
-            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
-        );
+        assert_eq!(value_list(range), vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]);
     }
     {
         let range = term_dictionary.range().le([6u8]).into_stream()?;
         assert_eq!(
-            value_list(range, false),
-            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]
-        );
-    }
-    {
-        let range = term_dictionary.range().le([6u8]).backward().into_stream()?;
-        assert_eq!(
-            value_list(range, true),
+            value_list(range),
             vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]
         );
     }
     {
         let range = term_dictionary.range().ge([0u8]).lt([5u8]).into_stream()?;
-        assert_eq!(value_list(range, false), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
+        assert_eq!(value_list(range), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_stream_range_boundaries_backward() -> crate::Result<()> {
+    let term_dictionary = stream_range_test_dict()?;
+    let value_list_backward = |mut streamer: TermStreamer<'_>| {
+        let mut res: Vec<u32> = vec![];
+        while let Some((_, ref v)) = streamer.next() {
+            res.push(v.doc_freq);
+        }
+        res.reverse();
+        res
+    };
+    {
+        let range = term_dictionary.range().backward().into_stream()?;
+        assert_eq!(
+            value_list_backward(range),
+            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
+        );
+    }
+    {
+        let range = term_dictionary.range().ge([2u8]).backward().into_stream()?;
+        assert_eq!(
+            value_list_backward(range),
+            vec![2u32, 3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
+        );
+    }
+    {
+        let range = term_dictionary.range().gt([2u8]).backward().into_stream()?;
+        assert_eq!(
+            value_list_backward(range),
+            vec![3u32, 4u32, 5u32, 6u32, 7u32, 8u32, 9u32]
+        );
+    }
+    {
+        let range = term_dictionary.range().lt([6u8]).backward().into_stream()?;
+        assert_eq!(
+            value_list_backward(range),
+            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32]
+        );
+    }
+    {
+        let range = term_dictionary.range().le([6u8]).backward().into_stream()?;
+        assert_eq!(
+            value_list_backward(range),
+            vec![0u32, 1u32, 2u32, 3u32, 4u32, 5u32, 6u32]
+        );
     }
     {
         let range = term_dictionary
@@ -346,8 +357,35 @@ fn test_stream_range_boundaries() -> crate::Result<()> {
             .lt([5u8])
             .backward()
             .into_stream()?;
-        assert_eq!(value_list(range, true), vec![0u32, 1u32, 2u32, 3u32, 4u32]);
+        assert_eq!(
+            value_list_backward(range),
+            vec![0u32, 1u32, 2u32, 3u32, 4u32]
+        );
     }
+    Ok(())
+}
+
+#[test]
+fn test_ord_to_term() -> crate::Result<()> {
+    let termdict = stream_range_test_dict()?;
+    let mut bytes = vec![];
+    for b in 0u8..10u8 {
+        termdict.ord_to_term(b as u64, &mut bytes)?;
+        assert_eq!(&bytes, &[b]);
+    }
+    Ok(())
+}
+
+#[test]
+fn test_stream_term_ord() -> crate::Result<()> {
+    let termdict = stream_range_test_dict()?;
+    let mut stream = termdict.stream()?;
+    for b in 0u8..10u8 {
+        assert!(stream.advance(), true);
+        assert_eq!(stream.term_ord(), b as u64);
+        assert_eq!(stream.key(), &[b]);
+    }
+    assert!(!stream.advance());
     Ok(())
 }
 
