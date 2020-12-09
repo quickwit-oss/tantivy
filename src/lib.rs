@@ -174,7 +174,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 2;
+const INDEX_FORMAT_VERSION: u32 = 3;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
