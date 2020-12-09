@@ -117,6 +117,10 @@ pub use self::docset_collector::DocSetCollector;
 mod filter_collector_wrapper;
 pub use self::filter_collector_wrapper::FilterCollector;
 
+mod top_field_collector;
+pub use self::top_field_collector::Feature;
+pub use self::top_field_collector::OrderField;
+
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
 pub trait Fruit: Send + downcast_rs::Downcast {}
@@ -205,6 +209,14 @@ pub trait SegmentCollector: 'static {
     /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;
 }
+
+/*pub trait FieldSegmentCollector: 'static {
+    type Fruit: Fruit;
+
+    fn collect(&mut self, field_doc: FieldDoc<Score, DocId>);
+
+    fn harvest(self) -> Self::Fruit;
+}*/
 
 // -----------------------------------------------
 // Tuple implementations.

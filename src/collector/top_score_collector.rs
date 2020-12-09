@@ -1,5 +1,8 @@
 use super::Collector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector};
+use crate::collector::top_field_collector::{
+    Feature, OrderField, TopFieldCollector, TopFieldSegmentCollector,
+};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
@@ -124,6 +127,27 @@ impl fmt::Debug for TopDocs {
             f,
             "TopDocs(limit={}, offset={})",
             self.0.limit, self.0.offset
+        )
+    }
+}
+
+/// The `TopFieldDocs` collector keeps track of the top `K` documents
+/// sorted by their score or fast fields.
+///
+/// The implementation is based on a `BinaryHeap`.
+/// The theorical complexity for collecting the top `K` out of `n` documents
+/// is `O(n log K)`.
+///
+/// This collector guarantees a stable sorting in case of a tie on the
+/// document score. As such, it is suitable to implement pagination.
+pub struct TopFieldDocs(TopFieldCollector<Score>);
+
+impl fmt::Debug for TopFieldDocs {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "TopFieldDocs(limit={}, offset={}, order_fields={:?})",
+            self.0.limit, self.0.offset, self.0.order_fields
         )
     }
 }
@@ -370,6 +394,97 @@ impl TopDocs {
             field: fast_field,
             fast_value: PhantomData,
         }
+    }
+
+    /// Set top-K to rank documents by a given score or fast field.
+    ///
+    /// ```rust
+    /// # use tantivy::schema::{Schema, FAST, TEXT};
+    /// # use tantivy::{doc, Index, DocAddress};
+    /// # use tantivy::query::{Query, QueryParser};
+    /// use tantivy::Searcher;
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::schema::Field;
+    /// use tantivy::collector::OrderField;
+    /// use tantivy::collector::Feature;
+    ///
+    /// # fn main() -> tantivy::Result<()> {
+    /// #   let mut schema_builder = Schema::builder();
+    /// #   let title = schema_builder.add_text_field("title", TEXT);
+    /// #   let rating = schema_builder.add_u64_field("rating", FAST);
+    /// #   let schema = schema_builder.build();
+    /// #  
+    /// #   let index = Index::create_in_ram(schema);
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+    /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64));
+    /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
+    /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
+    /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
+    /// #   assert!(index_writer.commit().is_ok());
+    /// #   let reader = index.reader().unwrap();
+    /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
+    /// #   let top_docs = docs_sorted_by(&reader.searcher(), &query, rating)?;
+    /// #   assert_eq!(
+    /// #        top_docs,
+    /// #        vec![
+    /// #            (
+    /// #                vec![Feature::Score(0.72615427f32), Feature::U64(97)],
+    /// #                DocAddress(0u32, 1)
+    /// #            ),
+    /// #            (
+    /// #                vec![Feature::Score(0.60996956f32), Feature::U64(80)],
+    /// #                DocAddress(0u32, 3)
+    /// #            )
+    /// #        ]
+    /// #    );
+    /// #   Ok(())
+    /// # }
+    ///
+    ///
+    /// /// Searches the document matching the given query, and
+    /// /// collects the top 10 documents, order by the u64-`field`
+    /// /// given in argument.
+    /// ///
+    /// /// `field` is required to be a FAST field.
+    /// fn docs_sorted_by(searcher: &Searcher,
+    ///                          query: &dyn Query,
+    ///                          sort_by_field: Field)
+    ///     -> tantivy::Result<Vec<(Vec<Feature<f32>>, DocAddress)>> {
+    ///
+    ///     // This is where we build our topdocs collector
+    ///     //
+    ///     // Note the generics parameter that needs to match the
+    ///     // type `sort_by_field`.
+    /// let top_docs_by_rating = TopDocs
+    ///                 ::with_limit(10)
+    ///                  .order_by(&vec![
+    ///     OrderField::with_score().desc(),
+    ///     OrderField::with_field(sort_by_field).desc()
+    /// ]);
+    ///     
+    ///     // ... and here are our documents. Note this is a simple vec.
+    ///     // The `u64` in the pair is the value of our fast field for
+    ///     // each documents.
+    ///     //
+    ///     // The vec is sorted decreasingly by `sort_by_field`, and has a
+    ///     // length of 10, or less if not enough documents matched the
+    ///     // query.
+    ///     let resulting_docs: Vec<(Vec<Feature<f32>>, DocAddress)> =
+    ///          searcher.search(query, &top_docs_by_rating)?;
+    ///     
+    ///     Ok(resulting_docs)
+    /// }
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// May panic if the field requested is not a fast field.
+    ///
+    pub fn order_by(self, order_fields: &[OrderField]) -> TopFieldDocs {
+        let collector = TopFieldCollector::with_limit(self.0.limit)
+            .and_offset(self.0.offset)
+            .order_by(order_fields);
+        TopFieldDocs(collector)
     }
 
     /// Ranks the documents using a custom score.
@@ -689,6 +804,46 @@ impl SegmentCollector for TopScoreSegmentCollector {
     }
 
     fn harvest(self) -> Vec<(Score, DocAddress)> {
+        self.0.harvest()
+    }
+}
+
+impl Collector for TopFieldDocs {
+    type Fruit = Vec<(Vec<Feature<Score>>, DocAddress)>;
+    type Child = TopScoreFieldSegmentCollector;
+
+    fn for_segment(
+        &self,
+        segment_local_id: u32,
+        segment_reader: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        let collector = self.0.for_segment(segment_local_id, segment_reader)?;
+        Ok(TopScoreFieldSegmentCollector(collector))
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0
+            .order_fields
+            .iter()
+            .any(|order_field| order_field.field.is_none())
+    }
+
+    fn merge_fruits(&self, child_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+        self.0.merge_fruits(child_fruits)
+    }
+}
+
+/// Segment Collector associated to `TopFieldDocs`
+pub struct TopScoreFieldSegmentCollector(TopFieldSegmentCollector<Score>);
+
+impl SegmentCollector for TopScoreFieldSegmentCollector {
+    type Fruit = Vec<(Vec<Feature<Score>>, DocAddress)>;
+
+    fn collect(&mut self, doc: u32, score: f32) {
+        self.0.collect(doc, score);
+    }
+
+    fn harvest(self) -> Self::Fruit {
         self.0.harvest()
     }
 }
