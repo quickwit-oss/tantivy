@@ -144,22 +144,19 @@ where
             ))
         };
         let fast_fields = segment_reader.fast_fields();
-        let fast_filed_reader: crate::Result<FastFieldReader<TPredicateValue>> = match schema_type {
-            crate::schema::Type::U64 => {fast_fields.u64(self.field).ok_or_else(err_closure)}
-            crate::schema::Type::I64 => {fast_fields.i64(self.field).ok_or_else(err_closure)}
-            crate::schema::Type::F64 => {fast_fields.f64(self.field).ok_or_else(err_closure)}
-            crate::schema::Type::Date => {fast_fields.date(self.field).ok_or_else(err_closure)}
-            crate::schema::Type::Bytes => {fast_fields.bytes(self.field).ok_or_else(err_closure)}
-            crate::schema::Type::Str | crate::schema::Type::HierarchicalFacet => {Err(TantivyError::SchemaError(format!("Field {:?} uses an unsupported type", segment_reader.schema().get_field_name(self.field))))}
-        };
 
+        let fast_value_type = TPredicateValue::to_type();
+        // TODO  do a runtime check of `fast_value_type` against the schema.
+
+        let fast_field_reader_opt = fast_fields.typed_fast_field_reader(self.field);
+        let fast_field_reader = fast_field_reader_opt
+            .ok_or_else(|| TantivyError::SchemaError(format!("{:?} is not declared as a fast field in the schema.", self.field)))?;
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
 
-        let a = fast_filed_reader?;
         Ok(FilterSegmentCollector {
-            fast_field_reader: a,
+            fast_field_reader ,
             segment_collector: segment_collector,
             predicate: self.predicate,
             t_predicate_value: PhantomData,
