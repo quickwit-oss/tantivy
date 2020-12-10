@@ -18,6 +18,7 @@ impl Tokenizer for RawTokenizer {
             position: 0,
             text: text.to_string(),
             position_length: 1,
+            score: 1
         };
         RawTokenStream {
             token,

@@ -246,7 +246,14 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<dyn Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(logical_ast))
+        Ok(convert_to_query(logical_ast, ""))
+    }
+
+    /// Parse a query with scoring option
+    /// when score_method = 'score', only the TF will be used instead of BM25.
+    pub fn parse_query_with_method(&self, query: &str, score_method: &str) -> Result<Box<dyn Query>, QueryParserError> {
+        let logical_ast = self.parse_query_to_logical_ast(query)?;
+        Ok(convert_to_query(logical_ast, score_method))
     }
 
     /// Parse the user query into an AST.
@@ -528,10 +535,16 @@ impl QueryParser {
     }
 }
 
-fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
+fn convert_literal_to_query(logical_literal: LogicalLiteral, score_option: &str) -> Box<dyn Query> {
     match logical_literal {
-        LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
-        LogicalLiteral::Phrase(term_with_offsets) => {
+        LogicalLiteral::Term(term) => {
+            match score_option {
+                "score" => {
+                    Box::new(TermQuery::new(term, IndexRecordOption::WithScore))
+                }
+                _ => {Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs))}
+            }
+        },        LogicalLiteral::Phrase(term_with_offsets) => {
             Box::new(PhraseQuery::new_with_offset(term_with_offsets))
         }
         LogicalLiteral::Range {
@@ -546,12 +559,12 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
     }
 }
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
+fn convert_to_query(logical_ast: LogicalAST, score_method: &str) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAST::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .map(|(occur, subquery)| (occur, convert_to_query(subquery, score_method)))
                 .collect::<Vec<_>>();
             assert!(
                 !occur_subqueries.is_empty(),
@@ -560,10 +573,10 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
             Box::new(BooleanQuery::new(occur_subqueries))
         }
         Some(LogicalAST::Leaf(trimmed_logical_literal)) => {
-            convert_literal_to_query(*trimmed_logical_literal)
+            convert_literal_to_query(*trimmed_logical_literal, score_method)
         }
         Some(LogicalAST::Boost(ast, boost)) => {
-            let query = convert_to_query(*ast);
+            let query = convert_to_query(*ast, score_method);
             let boosted_query = BoostQuery::new(query, boost);
             Box::new(boosted_query)
         }

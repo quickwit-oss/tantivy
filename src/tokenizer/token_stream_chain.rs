@@ -36,6 +36,7 @@ impl<'a> TokenStream for TokenStreamChain<'a> {
                 self.token.offset_from = token.offset_from + offset_offset;
                 self.token.offset_to = token.offset_to + offset_offset;
                 self.token.position = token.position + self.position_shift;
+                self.token.score = token.score + offset_offset;
                 self.token.text.clear();
                 self.token.text.push_str(token.text.as_str());
                 return true;

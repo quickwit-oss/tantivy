@@ -105,6 +105,7 @@ mod tests {
                     position: 0,
                     text: String::from("A"),
                     position_length: 1,
+                    score: 1
                 },
                 Token {
                     offset_from: 2,
@@ -112,6 +113,7 @@ mod tests {
                     position: 1,
                     text: String::from("a"),
                     position_length: 1,
+                    score: 1
                 },
             ],
         };
@@ -136,6 +138,7 @@ mod tests {
                     position: 0,
                     text: String::from("A"),
                     position_length: 1,
+                    score: 1
                 },
                 Token {
                     offset_from: 2,
@@ -143,6 +146,7 @@ mod tests {
                     position: 1,
                     text: String::from("a"),
                     position_length: 1,
+                    score: 1
                 },
             ],
         };
@@ -158,6 +162,7 @@ mod tests {
                 position: 0,
                 text: String::from("A"),
                 position_length: 1,
+                score: 1
             },
             Token {
                 offset_from: 2,
@@ -165,6 +170,7 @@ mod tests {
                 position: 1,
                 text: String::from("a"),
                 position_length: 1,
+                score: 1
             },
             Token {
                 offset_from: 3,
@@ -172,6 +178,7 @@ mod tests {
                 position: 3,
                 text: String::from("A"),
                 position_length: 1,
+                score: 1
             },
             Token {
                 offset_from: 5,
@@ -179,6 +186,7 @@ mod tests {
                 position: 4,
                 text: String::from("a"),
                 position_length: 1,
+                score: 1
             },
         ];
 

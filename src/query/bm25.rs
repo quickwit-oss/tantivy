@@ -40,6 +40,7 @@ pub struct BM25Weight {
     weight: Score,
     cache: [Score; 256],
     average_fieldnorm: Score,
+    use_bm25: bool
 }
 
 impl BM25Weight {
@@ -49,6 +50,17 @@ impl BM25Weight {
             weight: self.weight * boost,
             cache: self.cache,
             average_fieldnorm: self.average_fieldnorm,
+            use_bm25: self.use_bm25
+        }
+    }
+
+    pub fn set_bm25(&self, use_bm25: bool) -> BM25Weight {
+        BM25Weight {
+            idf_explain: self.idf_explain.clone(),
+            weight: self.weight,
+            cache: self.cache,
+            average_fieldnorm: self.average_fieldnorm,
+            use_bm25: use_bm25
         }
     }
 
@@ -113,12 +125,18 @@ impl BM25Weight {
             weight,
             cache: compute_tf_cache(average_fieldnorm),
             average_fieldnorm,
+            use_bm25: true,
+
         }
     }
 
     #[inline(always)]
     pub fn score(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
-        self.weight * self.tf_factor(fieldnorm_id, term_freq)
+        if self.use_bm25 {
+            self.weight * self.tf_factor(fieldnorm_id, term_freq)
+        } else {
+            term_freq as Score
+        }
     }
 
     pub fn max_score(&self) -> Score {

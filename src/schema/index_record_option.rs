@@ -28,6 +28,10 @@ pub enum IndexRecordOption {
     /// Positions are required to run [PhraseQueries](../query/struct.PhraseQuery.html).
     #[serde(rename = "position")]
     WithFreqsAndPositions,
+    /// Use a given term score instead of TF
+    /// The term score is computed via machine learning models
+    #[serde(rename = "score")]
+    WithScore,
 }
 
 impl IndexRecordOption {
@@ -36,7 +40,7 @@ impl IndexRecordOption {
     pub fn has_freq(self) -> bool {
         match self {
             IndexRecordOption::Basic => false,
-            IndexRecordOption::WithFreqs | IndexRecordOption::WithFreqsAndPositions => true,
+            IndexRecordOption::WithFreqs | IndexRecordOption::WithFreqsAndPositions | IndexRecordOption::WithScore=> true,
         }
     }
 
@@ -44,7 +48,7 @@ impl IndexRecordOption {
     ///  term positions.
     pub fn has_positions(self) -> bool {
         match self {
-            IndexRecordOption::Basic | IndexRecordOption::WithFreqs => false,
+            IndexRecordOption::Basic | IndexRecordOption::WithFreqs | IndexRecordOption::WithScore => false,
             IndexRecordOption::WithFreqsAndPositions => true,
         }
     }
