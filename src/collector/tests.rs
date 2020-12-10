@@ -8,12 +8,12 @@ use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
 
-use crate::collector::{TopDocs, FilterCollector};
+use crate::collector::{FilterCollector, TopDocs};
 use crate::query::QueryParser;
 use crate::schema::{Schema, FAST, TEXT};
 use crate::DateTime;
-use std::str::FromStr;
 use crate::{doc, Index};
+use std::str::FromStr;
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
     compute_score: true,
@@ -25,7 +25,6 @@ pub const TEST_COLLECTOR_WITHOUT_SCORE: TestCollector = TestCollector {
 
 #[test]
 pub fn test_filter_collector() {
-
     let mut schema_builder = Schema::builder();
     let title = schema_builder.add_text_field("title", TEXT);
     let price = schema_builder.add_u64_field("price", FAST);
@@ -36,6 +35,7 @@ pub fn test_filter_collector() {
     let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
     index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_str("1898-04-09T00:00:00+00:00").unwrap()));
     index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_str("2020-04-09T00:00:00+00:00").unwrap()));
+    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_str("2019-04-20T00:00:00+00:00").unwrap()));
     index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()));
     index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_str("2018-04-09T00:00:00+00:00").unwrap()));
     assert!(index_writer.commit().is_ok());
@@ -45,7 +45,11 @@ pub fn test_filter_collector() {
 
     let query_parser = QueryParser::for_index(&index, vec![title]);
     let query = query_parser.parse_query("diary").unwrap();
-    let filter_some_collector = FilterCollector::new(price, &|value: u64| value > 20_120u64, TopDocs::with_limit(2));
+    let filter_some_collector = FilterCollector::new(
+        price,
+        &|value: u64| value > 20_120u64,
+        TopDocs::with_limit(2),
+    );
     let top_docs = searcher.search(&query, &filter_some_collector).unwrap();
 
     assert_eq!(top_docs.len(), 1);
@@ -56,16 +60,14 @@ pub fn test_filter_collector() {
 
     assert_eq!(filtered_top_docs.len(), 0);
 
-    fn date_debug(value: DateTime) -> bool {
-    println!("date: {:?}", value);
-    assert_eq!(value, DateTime::from_str("1000-04-09T00:00:00+00:00").unwrap());
-    (value - DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()).num_weeks() > 0
+    fn date_filter(value: DateTime) -> bool {
+        (value - DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()).num_weeks() > 0
     }
 
-    let filter_dates_collector = FilterCollector::new(date, &date_debug, TopDocs::with_limit(2));
+    let filter_dates_collector = FilterCollector::new(date, &date_filter, TopDocs::with_limit(5));
     let filtered_date_docs = searcher.search(&query, &filter_dates_collector).unwrap();
 
-    assert_eq!(filtered_date_docs.len(), 5);
+    assert_eq!(filtered_date_docs.len(), 2);
 }
 
 /// Stores all of the doc ids.

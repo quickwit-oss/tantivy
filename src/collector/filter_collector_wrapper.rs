@@ -11,9 +11,9 @@
 // Importing tantivy...
 use std::marker::PhantomData;
 
-use crate::fastfield::{FastValue, FastFieldReader};
-use crate::schema::Field;
 use crate::collector::{Collector, SegmentCollector};
+use crate::fastfield::{FastFieldReader, FastValue};
+use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
 /// The `FilterCollector` collector filters docs using a u64 fast field value and a predicate.
@@ -56,13 +56,13 @@ use crate::{Score, SegmentReader, TantivyError};
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
-/// 
+///
 /// fn date_debug(value: DateTime) -> bool {
 ///     println!("date: {:?}", value);
 ///     assert_eq!(value, DateTime::from_str("1000-04-09T00:00:00+00:00").unwrap());
 ///     (value - DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()).num_weeks() > 0
 /// }
-/// 
+///
 /// let filter_dates_collector = FilterCollector::new(date, &date_debug, TopDocs::with_limit(2));
 /// let filtered_date_docs = searcher.search(&query, &filter_all_collector).unwrap();
 ///
@@ -125,38 +125,33 @@ where
                 field_entry.name()
             )));
         }
-        let schema_type = TPredicateValue::to_type();
-        let requested_type = field_entry.field_type().value_type();
-        if schema_type != requested_type {
+        let requested_type = TPredicateValue::to_type();
+        let field_schema_type = field_entry.field_type().value_type();
+        if requested_type != field_schema_type {
             return Err(TantivyError::SchemaError(format!(
                 "Field {:?} is of type {:?}!={:?}",
                 field_entry.name(),
-                schema_type,
-                requested_type
+                requested_type,
+                field_schema_type
             )));
         }
 
-        let err_closure = || {
-            let field_name = segment_reader.schema().get_field_name(self.field);
-            TantivyError::SchemaError(format!(
-                "Field {:?} is not a u64 fast field.",
-                field_name
-            ))
-        };
-        let fast_fields = segment_reader.fast_fields();
+        let fast_field_reader = segment_reader
+            .fast_fields()
+            .typed_fast_field_reader(self.field)
+            .ok_or_else(|| {
+                TantivyError::SchemaError(format!(
+                    "{:?} is not declared as a fast field in the schema.",
+                    self.field
+                ))
+            })?;
 
-        let fast_value_type = TPredicateValue::to_type();
-        // TODO  do a runtime check of `fast_value_type` against the schema.
-
-        let fast_field_reader_opt = fast_fields.typed_fast_field_reader(self.field);
-        let fast_field_reader = fast_field_reader_opt
-            .ok_or_else(|| TantivyError::SchemaError(format!("{:?} is not declared as a fast field in the schema.", self.field)))?;
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
 
         Ok(FilterSegmentCollector {
-            fast_field_reader ,
+            fast_field_reader,
             segment_collector: segment_collector,
             predicate: self.predicate,
             t_predicate_value: PhantomData,
