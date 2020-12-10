@@ -22,23 +22,20 @@ use crate::{Score, SegmentReader, TantivyError};
 /// ```rust
 /// use tantivy::collector::{TopDocs, FilterCollector};
 /// use tantivy::query::QueryParser;
-/// use tantivy::schema::{Schema, FAST, TEXT};
-/// use tantivy::DateTime;
-/// use std::str::FromStr;
+/// use tantivy::schema::{Schema, TEXT, INDEXED, FAST};
 /// use tantivy::{doc, DocAddress, Index};
 ///
 /// let mut schema_builder = Schema::builder();
 /// let title = schema_builder.add_text_field("title", TEXT);
-/// let price = schema_builder.add_u64_field("price", FAST);
-/// let date = schema_builder.add_date_field("date", FAST);
+/// let price = schema_builder.add_u64_field("price", INDEXED | FAST);
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
 /// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-/// index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_str("1898-04-09T00:00:00+00:00").unwrap()));
-/// index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_str("2020-04-09T00:00:00+00:00").unwrap()));
-/// index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()));
-/// index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_str("2018-04-09T00:00:00+00:00").unwrap()));
+/// index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64));
+/// index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64));
+/// index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64));
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64));
 /// assert!(index_writer.commit().is_ok());
 ///
 /// let reader = index.reader().unwrap();
@@ -46,8 +43,8 @@ use crate::{Score, SegmentReader, TantivyError};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();
-/// let filter_some_collector = FilterCollector::new(price, &|value: u64| value > 20_120u64, TopDocs::with_limit(2));
-/// let top_docs = searcher.search(&query, &filter_some_collector).unwrap();
+/// let no_filter_collector = FilterCollector::new(price, &|value: u64| value > 20_120u64, TopDocs::with_limit(2));
+/// let top_docs = searcher.search(&query, &no_filter_collector).unwrap();
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress(0, 1));
@@ -56,17 +53,6 @@ use crate::{Score, SegmentReader, TantivyError};
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
-///
-/// fn date_debug(value: DateTime) -> bool {
-///     println!("date: {:?}", value);
-///     assert_eq!(value, DateTime::from_str("1000-04-09T00:00:00+00:00").unwrap());
-///     (value - DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()).num_weeks() > 0
-/// }
-///
-/// let filter_dates_collector = FilterCollector::new(date, &date_debug, TopDocs::with_limit(2));
-/// let filtered_date_docs = searcher.search(&query, &filter_all_collector).unwrap();
-///
-/// assert_eq!(filtered_date_docs.len(), 5);
 /// ```
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
 where
