@@ -55,7 +55,8 @@ pub fn test_filter_collector() {
     assert_eq!(top_docs.len(), 1);
     assert_eq!(top_docs[0].1, DocAddress(0, 1));
 
-    let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
+    let filter_all_collector: FilterCollector<_, _, u64> =
+        FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
     let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 
     assert_eq!(filtered_top_docs.len(), 0);

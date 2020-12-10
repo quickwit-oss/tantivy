@@ -14,7 +14,6 @@ Tantivy 0.14.0
 
 This version breaks compatibility and requires users to reindex everything.
 
-
 Tantivy 0.13.2
 ===================
 Bugfix. Acquiring a facet reader on a segment that does not contain any 
