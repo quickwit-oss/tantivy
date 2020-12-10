@@ -80,7 +80,6 @@ where
                 .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             (footer_size as u64).serialize(&mut counting_writer)?;
-            counting_writer.flush()?;
         }
         Ok(file)
     }
@@ -139,8 +138,8 @@ impl TermDictionary {
     }
 
     /// Returns the ordinal associated to a given term.
-    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> Option<TermOrdinal> {
-        self.fst_index.get(key)
+    pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
+        Ok(self.fst_index.get(key))
     }
 
     /// Returns the term associated to a given term ordinal.
@@ -152,7 +151,7 @@ impl TermDictionary {
     ///
     /// Regardless of whether the term is found or not,
     /// the buffer may be modified.
-    pub fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> bool {
+    pub fn ord_to_term(&self, mut ord: TermOrdinal, bytes: &mut Vec<u8>) -> io::Result<bool> {
         bytes.clear();
         let fst = self.fst_index.as_fst();
         let mut node = fst.root();
@@ -167,10 +166,10 @@ impl TermDictionary {
                 let new_node_addr = transition.addr;
                 node = fst.node(new_node_addr);
             } else {
-                return false;
+                return Ok(false);
             }
         }
-        true
+        Ok(true)
     }
 
     /// Returns the number of terms in the dictionary.
@@ -179,9 +178,10 @@ impl TermDictionary {
     }
 
     /// Lookups the value corresponding to the key.
-    pub fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<TermInfo> {
-        self.term_ord(key)
-            .map(|term_ord| self.term_info_from_ord(term_ord))
+    pub fn get<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermInfo>> {
+        Ok(self
+            .term_ord(key)?
+            .map(|term_ord| self.term_info_from_ord(term_ord)))
     }
 
     /// Returns a range builder, to stream all of the terms
@@ -191,7 +191,7 @@ impl TermDictionary {
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream(&self) -> TermStreamer<'_> {
+    pub fn stream(&self) -> io::Result<TermStreamer<'_>> {
         self.range().into_stream()
     }
 

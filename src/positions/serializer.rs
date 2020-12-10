@@ -8,7 +8,7 @@ use std::io::{self, Write};
 pub struct PositionSerializer<W: io::Write> {
     bit_packer: BitPacker4x,
     write_stream: CountingWriter<W>,
-    write_skiplist: W,
+    write_skip_index: W,
     block: Vec<u32>,
     buffer: Vec<u8>,
     num_ints: u64,
@@ -16,11 +16,11 @@ pub struct PositionSerializer<W: io::Write> {
 }
 
 impl<W: io::Write> PositionSerializer<W> {
-    pub fn new(write_stream: W, write_skiplist: W) -> PositionSerializer<W> {
+    pub fn new(write_stream: W, write_skip_index: W) -> PositionSerializer<W> {
         PositionSerializer {
             bit_packer: BitPacker4x::new(),
             write_stream: CountingWriter::wrap(write_stream),
-            write_skiplist,
+            write_skip_index,
             block: Vec::with_capacity(128),
             buffer: vec![0u8; 128 * 4],
             num_ints: 0u64,
@@ -52,7 +52,7 @@ impl<W: io::Write> PositionSerializer<W> {
 
     fn flush_block(&mut self) -> io::Result<()> {
         let num_bits = self.bit_packer.num_bits(&self.block[..]);
-        self.write_skiplist.write_all(&[num_bits])?;
+        self.write_skip_index.write_all(&[num_bits])?;
         let written_len = self
             .bit_packer
             .compress(&self.block[..], &mut self.buffer, num_bits);
@@ -70,10 +70,10 @@ impl<W: io::Write> PositionSerializer<W> {
             self.flush_block()?;
         }
         for &long_skip in &self.long_skips {
-            long_skip.serialize(&mut self.write_skiplist)?;
+            long_skip.serialize(&mut self.write_skip_index)?;
         }
-        (self.long_skips.len() as u32).serialize(&mut self.write_skiplist)?;
-        self.write_skiplist.flush()?;
+        (self.long_skips.len() as u32).serialize(&mut self.write_skip_index)?;
+        self.write_skip_index.flush()?;
         self.write_stream.flush()?;
         Ok(())
     }

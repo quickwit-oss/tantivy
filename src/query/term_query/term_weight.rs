@@ -45,7 +45,7 @@ impl Weight for TermWeight {
         } else {
             let field = self.term.field();
             let inv_index = reader.inverted_index(field)?;
-            let term_info = inv_index.get_term_info(&self.term);
+            let term_info = inv_index.get_term_info(&self.term)?;
             Ok(term_info.map(|term_info| term_info.doc_freq).unwrap_or(0))
         }
     }

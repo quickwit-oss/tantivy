@@ -2,14 +2,13 @@ use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use crate::directory::file_watcher::FileWatcher;
-use crate::directory::AntiCallToken;
-use crate::directory::BoxedData;
 use crate::directory::Directory;
 use crate::directory::DirectoryLock;
-use crate::directory::FileSlice;
 use crate::directory::Lock;
 use crate::directory::WatchCallback;
 use crate::directory::WatchHandle;
+use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
+use crate::directory::{ArcBytes, WeakArcBytes};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
 use memmap::Mmap;
@@ -25,7 +24,6 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::Weak;
 use std::{collections::HashMap, ops::Deref};
 use tempfile::TempDir;
 
@@ -78,7 +76,7 @@ pub struct CacheInfo {
 
 struct MmapCache {
     counters: CacheCounters,
-    cache: HashMap<PathBuf, Weak<BoxedData>>,
+    cache: HashMap<PathBuf, WeakArcBytes>,
 }
 
 impl Default for MmapCache {
@@ -112,7 +110,7 @@ impl MmapCache {
     }
 
     // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
-    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<Arc<BoxedData>>, OpenReadError> {
+    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<ArcBytes>, OpenReadError> {
         if let Some(mmap_weak) = self.cache.get(full_path) {
             if let Some(mmap_arc) = mmap_weak.upgrade() {
                 self.counters.hit += 1;
@@ -123,7 +121,7 @@ impl MmapCache {
         self.counters.miss += 1;
         let mmap_opt = open_mmap(full_path)?;
         Ok(mmap_opt.map(|mmap| {
-            let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
+            let mmap_arc: ArcBytes = Arc::new(mmap);
             let mmap_weak = Arc::downgrade(&mmap_arc);
             self.cache.insert(full_path.to_owned(), mmap_weak);
             mmap_arc
@@ -161,7 +159,7 @@ impl MmapDirectoryInner {
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
             watcher: FileWatcher::new(&root_path.join(*META_FILEPATH)),
-            root_path: root_path,
+            root_path,
         }
     }
 
@@ -316,7 +314,7 @@ impl TerminatingWrite for SafeFileWriter {
 }
 
 #[derive(Clone)]
-struct MmapArc(Arc<Box<dyn Deref<Target = [u8]> + Send + Sync>>);
+struct MmapArc(Arc<dyn Deref<Target = [u8]> + Send + Sync>);
 
 impl Deref for MmapArc {
     type Target = [u8];
@@ -346,7 +344,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 impl Directory for MmapDirectory {
-    fn open_read(&self, path: &Path) -> result::Result<FileSlice, OpenReadError> {
+    fn get_file_handle(&self, path: &Path) -> result::Result<Box<dyn FileHandle>, OpenReadError> {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
 
@@ -359,11 +357,16 @@ impl Directory for MmapDirectory {
             let io_err = make_io_err(msg);
             OpenReadError::wrap_io_error(io_err, path.to_path_buf())
         })?;
-        if let Some(mmap_arc) = mmap_cache.get_mmap(&full_path)? {
-            Ok(FileSlice::from(MmapArc(mmap_arc)))
-        } else {
-            Ok(FileSlice::empty())
-        }
+
+        let owned_bytes = mmap_cache
+            .get_mmap(&full_path)?
+            .map(|mmap_arc| {
+                let mmap_arc_obj = MmapArc(mmap_arc);
+                OwnedBytes::new(mmap_arc_obj)
+            })
+            .unwrap_or_else(OwnedBytes::empty);
+
+        Ok(Box::new(owned_bytes))
     }
 
     /// Any entry associated to the path in the mmap will be
@@ -446,7 +449,8 @@ impl Directory for MmapDirectory {
     fn atomic_write(&self, path: &Path, content: &[u8]) -> io::Result<()> {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
-        atomic_write(&full_path, content)
+        atomic_write(&full_path, content)?;
+        self.sync_directory()
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {

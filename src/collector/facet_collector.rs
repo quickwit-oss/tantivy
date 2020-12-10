@@ -274,7 +274,7 @@ impl Collector for FacetCollector {
         let mut collapse_facet_it = self.facets.iter().peekable();
         collapse_facet_ords.push(0);
         {
-            let mut facet_streamer = facet_reader.facet_dict().range().into_stream();
+            let mut facet_streamer = facet_reader.facet_dict().range().into_stream()?;
             if facet_streamer.advance() {
                 'outer: loop {
                     // at the begining of this loop, facet_streamer
@@ -368,9 +368,12 @@ impl SegmentCollector for FacetSegmentCollector {
             }
             let mut facet = vec![];
             let facet_ord = self.collapse_facet_ords[collapsed_facet_ord];
-            facet_dict.ord_to_term(facet_ord as u64, &mut facet);
-            // TODO
-            facet_counts.insert(Facet::from_encoded(facet).unwrap(), count);
+            // TODO handle errors.
+            if facet_dict.ord_to_term(facet_ord as u64, &mut facet).is_ok() {
+                if let Ok(facet) = Facet::from_encoded(facet) {
+                    facet_counts.insert(facet, count);
+                }
+            }
         }
         FacetCounts { facet_counts }
     }

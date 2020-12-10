@@ -1,5 +1,6 @@
 use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
+use std::convert::TryInto;
 use std::mem;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -94,6 +95,24 @@ impl OwnedBytes {
     #[inline(always)]
     pub fn advance(&mut self, advance_len: usize) {
         self.data = &self.data[advance_len..]
+    }
+
+    /// Reads an `u8` from the `OwnedBytes` and advance by one byte.
+    pub fn read_u8(&mut self) -> u8 {
+        assert!(!self.is_empty());
+
+        let byte = self.as_slice()[0];
+        self.advance(1);
+        byte
+    }
+
+    /// Reads an `u64` encoded as little-endian from the `OwnedBytes` and advance by 8 bytes.
+    pub fn read_u64(&mut self) -> u64 {
+        assert!(self.len() > 7);
+
+        let octlet: [u8; 8] = self.as_slice()[..8].try_into().unwrap();
+        self.advance(8);
+        u64::from_le_bytes(octlet)
     }
 }
 
@@ -227,6 +246,22 @@ mod tests {
         let mut buf = Vec::new();
         bytes.read_to_end(&mut buf)?;
         assert_eq!(buf.as_slice(), b"abcde".as_ref());
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_bytes_read_u8() -> io::Result<()> {
+        let mut bytes = OwnedBytes::new(b"\xFF".as_ref());
+        assert_eq!(bytes.read_u8(), 255);
+        assert_eq!(bytes.len(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_owned_bytes_read_u64() -> io::Result<()> {
+        let mut bytes = OwnedBytes::new(b"\0\xFF\xFF\xFF\xFF\xFF\xFF\xFF".as_ref());
+        assert_eq!(bytes.read_u64(), u64::MAX - 255);
+        assert_eq!(bytes.len(), 0);
         Ok(())
     }
 

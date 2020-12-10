@@ -3,7 +3,7 @@ use crc32fast::Hasher;
 use std::fs;
 use std::io;
 use std::io::BufRead;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -13,15 +13,15 @@ pub const POLLING_INTERVAL: Duration = Duration::from_millis(if cfg!(test) { 1 }
 
 // Watches a file and executes registered callbacks when the file is modified.
 pub struct FileWatcher {
-    path: Arc<PathBuf>,
+    path: Arc<Path>,
     callbacks: Arc<WatchCallbackList>,
     state: Arc<AtomicUsize>, // 0: new, 1: runnable, 2: terminated
 }
 
 impl FileWatcher {
-    pub fn new(path: &PathBuf) -> FileWatcher {
+    pub fn new(path: &Path) -> FileWatcher {
         FileWatcher {
-            path: Arc::new(path.clone()),
+            path: Arc::from(path),
             callbacks: Default::default(),
             state: Default::default(),
         }
@@ -63,7 +63,7 @@ impl FileWatcher {
         handle
     }
 
-    fn compute_checksum(path: &PathBuf) -> Result<u32, io::Error> {
+    fn compute_checksum(path: &Path) -> Result<u32, io::Error> {
         let reader = match fs::File::open(path) {
             Ok(f) => io::BufReader::new(f),
             Err(e) => {

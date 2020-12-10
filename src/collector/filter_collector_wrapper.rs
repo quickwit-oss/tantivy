@@ -138,7 +138,7 @@ where
 
         Ok(FilterSegmentCollector {
             fast_field_reader,
-            segment_collector: segment_collector,
+            segment_collector,
             predicate: self.predicate,
             t_predicate_value: PhantomData,
         })

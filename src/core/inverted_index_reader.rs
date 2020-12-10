@@ -66,7 +66,7 @@ impl InvertedIndexReader {
     }
 
     /// Returns the term info associated with the term.
-    pub fn get_term_info(&self, term: &Term) -> Option<TermInfo> {
+    pub fn get_term_info(&self, term: &Term) -> io::Result<Option<TermInfo>> {
         self.termdict.get(term.value_bytes())
     }
 
@@ -106,10 +106,9 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> io::Result<Option<BlockSegmentPostings>> {
-        Ok(self
-            .get_term_info(term)
+        self.get_term_info(term)?
             .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
-            .transpose()?)
+            .transpose()
     }
 
     /// Returns a block postings given a `term_info`.
@@ -181,7 +180,7 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> io::Result<Option<SegmentPostings>> {
-        self.get_term_info(term)
+        self.get_term_info(term)?
             .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
             .transpose()
     }
@@ -191,7 +190,7 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> io::Result<Option<SegmentPostings>> {
-        self.get_term_info(term)
+        self.get_term_info(term)?
             .map(|term_info| self.read_postings_from_terminfo(&term_info, option))
             .transpose()
     }
@@ -199,7 +198,7 @@ impl InvertedIndexReader {
     /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> io::Result<u32> {
         Ok(self
-            .get_term_info(term)
+            .get_term_info(term)?
             .map(|term_info| term_info.doc_freq)
             .unwrap_or(0u32))
     }

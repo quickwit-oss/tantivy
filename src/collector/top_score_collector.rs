@@ -728,7 +728,7 @@ mod tests {
     }
 
     #[test]
-    fn test_top_collector_not_at_capacity() {
+    fn test_top_collector_not_at_capacity_without_offset() {
         let index = make_index();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);

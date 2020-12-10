@@ -1,8 +1,8 @@
 use crate::directory::directory_lock::Lock;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use crate::directory::WatchCallback;
 use crate::directory::WatchHandle;
+use crate::directory::{FileHandle, WatchCallback};
 use crate::directory::{FileSlice, WritePtr};
 use std::fmt;
 use std::io;
@@ -108,10 +108,13 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
 /// should be your default choice.
 /// - The [`RAMDirectory`](struct.RAMDirectory.html), which
 /// should be used mostly for tests.
-///
 pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
-    /// Opens a virtual file for read.
+    /// Opens a file and returns a boxed `FileHandle`.
     ///
+    /// Users of `Directory` should typically call `Directory::open_read(...)`,
+    /// while `Directory` implementor should implement `get_file_handle()`.
+    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError>;
+
     /// Once a virtual file is open, its data may not
     /// change.
     ///
@@ -119,7 +122,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// have no effect on the returned `FileSlice` object.
     ///
     /// You should only use this to read files create with [Directory::open_write].
-    fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError>;
+    fn open_read(&self, path: &Path) -> Result<FileSlice, OpenReadError> {
+        let file_handle = self.get_file_handle(path)?;
+        Ok(FileSlice::new(file_handle))
+    }
 
     /// Removes a file
     ///

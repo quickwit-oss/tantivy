@@ -1,17 +1,16 @@
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::core::InvertedIndexReader;
+
 use crate::core::SegmentReader;
 use crate::query::Query;
 use crate::schema::Document;
 use crate::schema::Schema;
-use crate::schema::{Field, Term};
+use crate::schema::Term;
 use crate::space_usage::SearcherSpaceUsage;
 use crate::store::StoreReader;
-use crate::termdict::TermMerger;
 use crate::DocAddress;
 use crate::Index;
-use std::sync::Arc;
+
 use std::{fmt, io};
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -148,16 +147,6 @@ impl Searcher {
         collector.merge_fruits(fruits)
     }
 
-    /// Return the field searcher associated to a `Field`.
-    pub fn field(&self, field: Field) -> crate::Result<FieldSearcher> {
-        let inv_index_readers: Vec<Arc<InvertedIndexReader>> = self
-            .segment_readers
-            .iter()
-            .map(|segment_reader| segment_reader.inverted_index(field))
-            .collect::<crate::Result<Vec<_>>>()?;
-        Ok(FieldSearcher::new(inv_index_readers))
-    }
-
     /// Summarize total space usage of this searcher.
     pub fn space_usage(&self) -> io::Result<SearcherSpaceUsage> {
         let mut space_usage = SearcherSpaceUsage::new();
@@ -165,32 +154,6 @@ impl Searcher {
             space_usage.add_segment(segment_reader.space_usage()?);
         }
         Ok(space_usage)
-    }
-}
-
-/// **Experimental API** `FieldSearcher` only gives access to a stream over the terms of a field.
-pub struct FieldSearcher {
-    inv_index_readers: Vec<Arc<InvertedIndexReader>>,
-}
-
-impl FieldSearcher {
-    fn new(inv_index_readers: Vec<Arc<InvertedIndexReader>>) -> FieldSearcher {
-        FieldSearcher { inv_index_readers }
-    }
-
-    /// Returns a Stream over all of the sorted unique terms of
-    /// for the given field.
-    ///
-    /// This method does not take into account which documents are deleted, so
-    /// in presence of deletes some terms may not actually exist in any document
-    /// anymore.
-    pub fn terms(&self) -> TermMerger {
-        let term_streamers: Vec<_> = self
-            .inv_index_readers
-            .iter()
-            .map(|inverted_index| inverted_index.terms().stream())
-            .collect();
-        TermMerger::new(term_streamers)
     }
 }
 

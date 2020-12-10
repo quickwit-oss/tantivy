@@ -2,10 +2,11 @@ use stable_deref_trait::StableDeref;
 
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
 
-pub type BoxedData = Box<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///
@@ -40,7 +41,7 @@ where
     B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync,
 {
     fn from(bytes: B) -> FileSlice {
-        FileSlice::new(OwnedBytes::new(bytes))
+        FileSlice::new(Box::new(OwnedBytes::new(bytes)))
     }
 }
 
@@ -50,22 +51,25 @@ where
 ///
 #[derive(Clone)]
 pub struct FileSlice {
-    data: Arc<Box<dyn FileHandle>>,
+    data: Arc<dyn FileHandle>,
     start: usize,
     stop: usize,
 }
 
 impl FileSlice {
     /// Wraps a FileHandle.
-    pub fn new<D>(data: D) -> Self
-    where
-        D: FileHandle,
-    {
-        let len = data.len();
+    pub fn new(file_handle: Box<dyn FileHandle>) -> Self {
+        let num_bytes = file_handle.len();
+        FileSlice::new_with_num_bytes(file_handle, num_bytes)
+    }
+
+    /// Wraps a FileHandle.
+    #[doc(hidden)]
+    pub fn new_with_num_bytes(file_handle: Box<dyn FileHandle>, num_bytes: usize) -> Self {
         FileSlice {
-            data: Arc::new(Box::new(data)),
+            data: Arc::from(file_handle),
             start: 0,
-            stop: len,
+            stop: num_bytes,
         }
     }
 
@@ -146,6 +150,12 @@ impl FileSlice {
     }
 }
 
+impl FileHandle for FileSlice {
+    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+        self.read_bytes_slice(from, to)
+    }
+}
+
 impl HasLen for FileSlice {
     fn len(&self) -> usize {
         self.stop - self.start
@@ -160,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_file_slice() -> io::Result<()> {
-        let file_slice = FileSlice::new(b"abcdef".as_ref());
+        let file_slice = FileSlice::new(Box::new(b"abcdef".as_ref()));
         assert_eq!(file_slice.len(), 6);
         assert_eq!(file_slice.slice_from(2).read_bytes()?.as_slice(), b"cdef");
         assert_eq!(file_slice.slice_to(2).read_bytes()?.as_slice(), b"ab");
@@ -204,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_slice_simple_read() -> io::Result<()> {
-        let slice = FileSlice::new(&b"abcdef"[..]);
+        let slice = FileSlice::new(Box::new(&b"abcdef"[..]));
         assert_eq!(slice.len(), 6);
         assert_eq!(slice.read_bytes()?.as_ref(), b"abcdef");
         assert_eq!(slice.slice(1, 4).read_bytes()?.as_ref(), b"bcd");
@@ -213,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_slice_read_slice() -> io::Result<()> {
-        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        let slice_deref = FileSlice::new(Box::new(&b"abcdef"[..]));
         assert_eq!(slice_deref.read_bytes_slice(1, 4)?.as_ref(), b"bcd");
         Ok(())
     }
@@ -221,14 +231,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "assertion failed: from <= to")]
     fn test_slice_read_slice_invalid_range() {
-        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        let slice_deref = FileSlice::new(Box::new(&b"abcdef"[..]));
         assert_eq!(slice_deref.read_bytes_slice(1, 0).unwrap().as_ref(), b"bcd");
     }
 
     #[test]
     #[should_panic(expected = "`to` exceeds the fileslice length")]
     fn test_slice_read_slice_invalid_range_exceeds() {
-        let slice_deref = FileSlice::new(&b"abcdef"[..]);
+        let slice_deref = FileSlice::new(Box::new(&b"abcdef"[..]));
         assert_eq!(
             slice_deref.read_bytes_slice(0, 10).unwrap().as_ref(),
             b"bcd"

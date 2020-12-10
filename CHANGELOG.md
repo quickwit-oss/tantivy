@@ -9,7 +9,11 @@ Tantivy 0.14.0
 - Bugfix in `Query::explain`
 - Removed dependency on `notify` #924. Replaced with `FileWatcher` struct that polls meta file every 500ms in background thread. (@halvorboe @guilload)
 - Added `FilterCollector`, which wraps another collector and filters docs using a predicate over a fast field (@barrotsteindev)
-- `FilterCollector` now supports all Fast Field Values (@barrotsteindev)
+- Simplified the encoding of the skip reader struct. BlockWAND max tf is now encoded over a single byte. (@pmasurel)
+- `FilterCollector` now supports all Fast Field value types (@barrotsteindev)
+
+This version breaks compatibility and requires users to reindex everything.
+
 
 Tantivy 0.13.2
 ===================

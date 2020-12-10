@@ -10,7 +10,7 @@ use std::borrow::BorrowMut;
 pub const TERMINATED: DocId = std::i32::MAX as u32;
 
 /// Represents an iterable set of sorted doc ids.
-pub trait DocSet {
+pub trait DocSet: Send {
     /// Goes to the next element.
     ///
     /// The DocId of the next element is returned.
@@ -128,6 +128,14 @@ impl<'a> DocSet for &'a mut dyn DocSet {
 
     fn size_hint(&self) -> u32 {
         (**self).size_hint()
+    }
+
+    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
+        (**self).count(delete_bitset)
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        (**self).count_including_deleted()
     }
 }
 

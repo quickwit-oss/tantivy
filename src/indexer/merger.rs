@@ -503,7 +503,6 @@ impl IndexMerger {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
-        let mut field_term_streams = Vec::new();
         let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
 
         let field_readers: Vec<Arc<InvertedIndexReader>> = self
@@ -512,9 +511,10 @@ impl IndexMerger {
             .map(|reader| reader.inverted_index(indexed_field))
             .collect::<crate::Result<Vec<_>>>()?;
 
+        let mut field_term_streams = Vec::new();
         for field_reader in &field_readers {
             let terms = field_reader.terms();
-            field_term_streams.push(terms.stream());
+            field_term_streams.push(terms.stream()?);
             max_term_ords.push(terms.num_terms() as u64);
         }
 

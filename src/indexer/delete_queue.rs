@@ -53,7 +53,7 @@ impl DeleteQueue {
             return block;
         }
         let block = Arc::new(Block {
-            operations: Arc::default(),
+            operations: Arc::new([]),
             next: NextBlock::from(self.clone()),
         });
         wlock.last_block = Arc::downgrade(&block);
@@ -108,7 +108,7 @@ impl DeleteQueue {
         let delete_operations = mem::replace(&mut self_wlock.writer, vec![]);
 
         let new_block = Arc::new(Block {
-            operations: Arc::new(delete_operations.into_boxed_slice()),
+            operations: Arc::from(delete_operations.into_boxed_slice()),
             next: NextBlock::from(self.clone()),
         });
 
@@ -167,7 +167,7 @@ impl NextBlock {
 }
 
 struct Block {
-    operations: Arc<Box<[DeleteOperation]>>,
+    operations: Arc<[DeleteOperation]>,
     next: NextBlock,
 }
 

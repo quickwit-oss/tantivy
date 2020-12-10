@@ -7,6 +7,7 @@ use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::TantivyError;
 use crate::{DocId, Score};
+use std::io;
 use std::sync::Arc;
 use tantivy_fst::Automaton;
 
@@ -19,6 +20,7 @@ pub struct AutomatonWeight<A> {
 impl<A> AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
 {
     /// Create a new AutomationWeight
     pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> AutomatonWeight<A> {
@@ -28,7 +30,10 @@ where
         }
     }
 
-    fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
+    fn automaton_stream<'a>(
+        &'a self,
+        term_dict: &'a TermDictionary,
+    ) -> io::Result<TermStreamer<'a, &'a A>> {
         let automaton: &A = &*self.automaton;
         let term_stream_builder = term_dict.search(automaton);
         term_stream_builder.into_stream()
@@ -38,13 +43,14 @@ where
 impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton + Send + Sync + 'static,
+    A::State: Clone,
 {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
-        let mut term_stream = self.automaton_stream(term_dict);
+        let mut term_stream = self.automaton_stream(term_dict)?;
         while term_stream.advance() {
             let term_info = term_stream.value();
             let mut block_segment_postings = inverted_index
@@ -98,6 +104,7 @@ mod tests {
         index
     }
 
+    #[derive(Clone, Copy)]
     enum State {
         Start,
         NotMatching,

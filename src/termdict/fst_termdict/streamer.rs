@@ -1,3 +1,5 @@
+use std::io;
+
 use super::TermDictionary;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
@@ -59,14 +61,14 @@ where
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `TermStreamerBuilder`.
-    pub fn into_stream(self) -> TermStreamer<'a, A> {
-        TermStreamer {
+    pub fn into_stream(self) -> io::Result<TermStreamer<'a, A>> {
+        Ok(TermStreamer {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
             term_ord: 0u64,
             current_key: Vec::with_capacity(100),
             current_value: TermInfo::default(),
-        }
+        })
     }
 }
 

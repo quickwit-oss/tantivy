@@ -12,7 +12,7 @@ pub use self::executor::Executor;
 pub use self::index::Index;
 pub use self::index_meta::{IndexMeta, SegmentMeta, SegmentMetaInventory};
 pub use self::inverted_index_reader::InvertedIndexReader;
-pub use self::searcher::{FieldSearcher, Searcher};
+pub use self::searcher::Searcher;
 pub use self::segment::Segment;
 pub use self::segment::SerializableSegment;
 pub use self::segment_component::SegmentComponent;

@@ -61,7 +61,7 @@ fn main() -> tantivy::Result<()> {
 
                 let query_ords: HashSet<u64> = facets
                     .iter()
-                    .filter_map(|key| facet_dict.term_ord(key.encoded_str()))
+                    .filter_map(|key| facet_dict.term_ord(key.encoded_str()).unwrap())
                     .collect();
 
                 let mut facet_ords_buffer: Vec<u64> = Vec::with_capacity(20);
