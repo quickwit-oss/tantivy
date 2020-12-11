@@ -129,6 +129,7 @@ pub(crate) struct TopFieldCollector<T> {
     pub limit: usize,
     pub offset: usize,
     pub order_fields: Vec<OrderField>,
+    pub requires_scoring: bool,
     _marker: PhantomData<T>,
 }
 
@@ -148,6 +149,7 @@ where
             limit,
             offset: 0,
             order_fields: vec![],
+            requires_scoring: true,
             _marker: PhantomData,
         }
     }
@@ -163,6 +165,7 @@ where
 
     /// Order by order_fields
     pub fn order_by(mut self, order_fields: &[OrderField]) -> TopFieldCollector<T> {
+        self.requires_scoring = order_fields.iter().any(|order_field| order_field.field.is_none());
         self.order_fields = order_fields.to_vec();
         self
     }

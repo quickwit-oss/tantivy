@@ -146,8 +146,8 @@ impl fmt::Debug for TopFieldDocs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "TopFieldDocs(limit={}, offset={}, order_fields={:?})",
-            self.0.limit, self.0.offset, self.0.order_fields
+            "TopFieldDocs(limit={}, offset={}, order_fields={:?}), requires_scoring={:?}",
+            self.0.limit, self.0.offset, self.0.order_fields, self.0.requires_scoring
         )
     }
 }
@@ -822,10 +822,7 @@ impl Collector for TopFieldDocs {
     }
 
     fn requires_scoring(&self) -> bool {
-        self.0
-            .order_fields
-            .iter()
-            .any(|order_field| order_field.field.is_none())
+        self.0.requires_scoring
     }
 
     fn merge_fruits(&self, child_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
