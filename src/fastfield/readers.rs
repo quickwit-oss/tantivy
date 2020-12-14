@@ -1,6 +1,6 @@
 use crate::common::CompositeFile;
-use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::fastfield::{BytesFastFieldReader, FastValue};
 use crate::fastfield::{FastFieldNotAvailableError, FastFieldReader};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
@@ -199,6 +199,14 @@ impl FastFieldReaders {
             return Some(date_ff_reader.into_u64_reader());
         }
         None
+    }
+
+    pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
+        &self,
+        field: Field,
+    ) -> Option<FastFieldReader<TFastValue>> {
+        self.u64_lenient(field)
+            .map(|fast_field_reader| fast_field_reader.cast())
     }
 
     /// Returns the `i64` fast field reader reader associated to `field`.

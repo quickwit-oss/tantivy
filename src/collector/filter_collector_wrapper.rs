@@ -9,8 +9,10 @@
 
 // ---
 // Importing tantivy...
+use std::marker::PhantomData;
+
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::FastFieldReader;
+use crate::fastfield::{FastFieldReader, FastValue};
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
@@ -41,78 +43,104 @@ use crate::{Score, SegmentReader, TantivyError};
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
 /// let query = query_parser.parse_query("diary").unwrap();
-/// let no_filter_collector = FilterCollector::new(price, &|value| value > 20_120u64, TopDocs::with_limit(2));
+/// let no_filter_collector = FilterCollector::new(price, &|value: u64| value > 20_120u64, TopDocs::with_limit(2));
 /// let top_docs = searcher.search(&query, &no_filter_collector).unwrap();
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress(0, 1));
 ///
-/// let filter_all_collector = FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
+/// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
 /// let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
 /// ```
-pub struct FilterCollector<TCollector, TPredicate>
+pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
 where
     TPredicate: 'static,
 {
     field: Field,
     collector: TCollector,
     predicate: &'static TPredicate,
+    t_predicate_value: PhantomData<TPredicateValue>,
 }
 
-impl<TCollector, TPredicate> FilterCollector<TCollector, TPredicate>
+impl<TCollector, TPredicate, TPredicateValue: FastValue>
+    FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
-    TPredicate: Fn(u64) -> bool + Send + Sync,
+    TPredicate: Fn(TPredicateValue) -> bool + Send + Sync,
 {
     /// Create a new FilterCollector.
     pub fn new(
         field: Field,
         predicate: &'static TPredicate,
         collector: TCollector,
-    ) -> FilterCollector<TCollector, TPredicate> {
+    ) -> FilterCollector<TCollector, TPredicate, TPredicateValue> {
         FilterCollector {
             field,
             predicate,
             collector,
+            t_predicate_value: PhantomData,
         }
     }
 }
 
-impl<TCollector, TPredicate> Collector for FilterCollector<TCollector, TPredicate>
+impl<TCollector, TPredicate, TPredicateValue: FastValue> Collector
+    for FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
-    TPredicate: 'static + Fn(u64) -> bool + Send + Sync,
+    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
+    TPredicateValue: 'static + FastValue,
 {
     // That's the type of our result.
     // Our standard deviation will be a float.
     type Fruit = TCollector::Fruit;
 
-    type Child = FilterSegmentCollector<TCollector::Child, TPredicate>;
+    type Child = FilterSegmentCollector<TCollector::Child, TPredicate, TPredicateValue>;
 
     fn for_segment(
         &self,
         segment_local_id: u32,
         segment_reader: &SegmentReader,
-    ) -> crate::Result<FilterSegmentCollector<TCollector::Child, TPredicate>> {
+    ) -> crate::Result<FilterSegmentCollector<TCollector::Child, TPredicate, TPredicateValue>> {
+        let schema = segment_reader.schema();
+        let field_entry = schema.get_field_entry(self.field);
+        if !field_entry.is_fast() {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is not a fast field.",
+                field_entry.name()
+            )));
+        }
+        let requested_type = TPredicateValue::to_type();
+        let field_schema_type = field_entry.field_type().value_type();
+        if requested_type != field_schema_type {
+            return Err(TantivyError::SchemaError(format!(
+                "Field {:?} is of type {:?}!={:?}",
+                field_entry.name(),
+                requested_type,
+                field_schema_type
+            )));
+        }
+
         let fast_field_reader = segment_reader
             .fast_fields()
-            .u64(self.field)
+            .typed_fast_field_reader(self.field)
             .ok_or_else(|| {
-                let field_name = segment_reader.schema().get_field_name(self.field);
                 TantivyError::SchemaError(format!(
-                    "Field {:?} is not a u64 fast field.",
-                    field_name
+                    "{:?} is not declared as a fast field in the schema.",
+                    self.field
                 ))
             })?;
+
         let segment_collector = self
             .collector
             .for_segment(segment_local_id, segment_reader)?;
+
         Ok(FilterSegmentCollector {
             fast_field_reader,
             segment_collector,
             predicate: self.predicate,
+            t_predicate_value: PhantomData,
         })
     }
 
@@ -128,20 +156,23 @@ where
     }
 }
 
-pub struct FilterSegmentCollector<TSegmentCollector, TPredicate>
+pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
 where
     TPredicate: 'static,
+    TPredicateValue: 'static + FastValue,
 {
-    fast_field_reader: FastFieldReader<u64>,
+    fast_field_reader: FastFieldReader<TPredicateValue>,
     segment_collector: TSegmentCollector,
     predicate: &'static TPredicate,
+    t_predicate_value: PhantomData<TPredicateValue>,
 }
 
-impl<TSegmentCollector, TPredicate> SegmentCollector
-    for FilterSegmentCollector<TSegmentCollector, TPredicate>
+impl<TSegmentCollector, TPredicate, TPredicateValue> SegmentCollector
+    for FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
 where
     TSegmentCollector: SegmentCollector,
-    TPredicate: 'static + Fn(u64) -> bool + Send + Sync,
+    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
+    TPredicateValue: 'static + FastValue,
 {
     type Fruit = TSegmentCollector::Fruit;
 
