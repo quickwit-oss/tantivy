@@ -115,10 +115,15 @@ pub fn u64_to_i64(val: u64) -> i64 {
 /// For simplicity, tantivy internally handles `f64` as `u64`.
 /// The mapping is defined by this function.
 ///
-/// Maps `f64` to `u64` so that lexical order is preserved.
+/// Maps `f64` to `u64` in a monotonic manner, so that bytes lexical order is preserved.
 ///
 /// This is more suited than simply casting (`val as u64`)
 /// which would truncate the result
+///
+/// # Reference
+///
+/// Daniel Lemire's [blog post](https://lemire.me/blog/2020/12/14/converting-floating-point-numbers-to-integers-while-preserving-order/)
+/// explains the mapping in a clear manner.
 ///
 /// # See also
 /// The [reverse mapping is `u64_to_f64`](./fn.u64_to_f64.html).
@@ -148,6 +153,7 @@ pub(crate) mod test {
     pub use super::minmax;
     pub use super::serialize::test::fixed_size_test;
     use super::{compute_num_bits, f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
+    use proptest::prelude::*;
     use std::f64;
 
     fn test_i64_converter_helper(val: i64) {
@@ -156,6 +162,15 @@ pub(crate) mod test {
 
     fn test_f64_converter_helper(val: f64) {
         assert_eq!(u64_to_f64(f64_to_u64(val)), val);
+    }
+
+    proptest! {
+        #[test]
+        fn test_f64_converter_monotonicity_proptest((left, right) in (proptest::num::f64::NORMAL, proptest::num::f64::NORMAL)) {
+            let left_u64 = f64_to_u64(left);
+            let right_u64 = f64_to_u64(right);
+            assert_eq!(left_u64 < right_u64,  left < right);
+        }
     }
 
     #[test]
