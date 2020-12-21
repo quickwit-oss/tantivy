@@ -2,7 +2,6 @@ use crate::tokenizer::TokenStreamChain;
 use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
-use std::borrow::{Borrow, BorrowMut};
 use std::ops::{Deref, DerefMut};
 
 /// Token
@@ -88,7 +87,7 @@ impl TextAnalyzer {
     /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
     /// to prevent accidental `PhraseQuery` to match accross two terms.
     pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> BoxTokenStream<'a> {
-        assert!(!texts.is_empty());
+        debug_assert!(!texts.is_empty());
         if texts.len() == 1 {
             self.token_stream(texts[0])
         } else {
@@ -100,7 +99,6 @@ impl TextAnalyzer {
             }
             let token_streams: Vec<BoxTokenStream<'a>> = texts
                 .iter()
-                .cloned()
                 .map(|text| self.token_stream(text))
                 .collect();
             From::from(TokenStreamChain::new(offsets, token_streams))
@@ -150,23 +148,6 @@ pub trait TokenizerClone {
 impl<T: Tokenizer + Clone> TokenizerClone for T {
     fn box_clone(&self) -> Box<dyn Tokenizer> {
         Box::new(self.clone())
-    }
-}
-
-impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
-    fn advance(&mut self) -> bool {
-        let token_stream: &mut dyn TokenStream = self.borrow_mut();
-        token_stream.advance()
-    }
-
-    fn token<'b>(&'b self) -> &'b Token {
-        let token_stream: &'b (dyn TokenStream + 'a) = self.borrow();
-        token_stream.token()
-    }
-
-    fn token_mut<'b>(&'b mut self) -> &'b mut Token {
-        let token_stream: &'b mut (dyn TokenStream + 'a) = self.borrow_mut();
-        token_stream.token_mut()
     }
 }
 
