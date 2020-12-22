@@ -91,17 +91,13 @@ impl TextAnalyzer {
         if texts.len() == 1 {
             self.token_stream(texts[0])
         } else {
-            let mut offsets = vec![];
+            let mut streams_with_offsets = vec![];
             let mut total_offset = 0;
             for &text in texts {
-                offsets.push(total_offset);
+                streams_with_offsets.push((self.token_stream(text), total_offset));
                 total_offset += text.len();
             }
-            let token_streams: Vec<BoxTokenStream<'a>> = texts
-                .iter()
-                .map(|text| self.token_stream(text))
-                .collect();
-            From::from(TokenStreamChain::new(offsets, token_streams))
+            From::from(TokenStreamChain::new(streams_with_offsets))
         }
     }
 

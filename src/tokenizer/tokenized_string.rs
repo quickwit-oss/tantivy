@@ -44,22 +44,20 @@ impl PreTokenizedStream {
         tok_strings: &'a [&'a PreTokenizedString],
     ) -> BoxTokenStream {
         if tok_strings.len() == 1 {
-            PreTokenizedStream::from((*tok_strings[0]).clone()).into()
+            PreTokenizedStream::from(tok_strings[0].to_owned()).into()
         } else {
-            let mut offsets = vec![];
+            let mut streams_with_offsets = vec![];
             let mut total_offset = 0;
             for &tok_string in tok_strings {
-                offsets.push(total_offset);
+                streams_with_offsets.push((
+                    PreTokenizedStream::from(tok_string.to_owned()).into(),
+                    total_offset,
+                ));
                 if let Some(last_token) = tok_string.tokens.last() {
                     total_offset += last_token.offset_to;
                 }
             }
-            // TODO remove the string cloning.
-            let token_streams: Vec<BoxTokenStream<'static>> = tok_strings
-                .iter()
-                .map(|&tok_string| PreTokenizedStream::from((*tok_string).clone()).into())
-                .collect();
-            TokenStreamChain::new(offsets, token_streams).into()
+            TokenStreamChain::new(streams_with_offsets).into()
         }
     }
 }

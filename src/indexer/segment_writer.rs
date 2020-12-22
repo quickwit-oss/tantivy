@@ -172,37 +172,37 @@ impl SegmentWriter {
                     }
                 }
                 FieldType::Str(_) => {
-                    let mut token_streams: Vec<BoxTokenStream> = vec![];
-                    let mut offsets = vec![];
+                    let mut streams_with_offsets = vec![];
                     let mut total_offset = 0;
 
                     for field_value in field_values {
                         match field_value.value() {
                             Value::PreTokStr(tok_str) => {
-                                offsets.push(total_offset);
+                                streams_with_offsets.push((
+                                    PreTokenizedStream::from(tok_str.clone()).into(),
+                                    total_offset,
+                                ));
                                 if let Some(last_token) = tok_str.tokens.last() {
                                     total_offset += last_token.offset_to;
                                 }
-                                token_streams
-                                    .push(PreTokenizedStream::from(tok_str.clone()).into());
                             }
                             Value::Str(ref text) => {
                                 if let Some(ref mut tokenizer) =
                                     self.tokenizers[field.field_id() as usize]
                                 {
-                                    offsets.push(total_offset);
+                                    streams_with_offsets
+                                        .push((tokenizer.token_stream(text), total_offset));
                                     total_offset += text.len();
-                                    token_streams.push(tokenizer.token_stream(text));
                                 }
                             }
                             _ => (),
                         }
                     }
 
-                    let num_tokens = if token_streams.is_empty() {
+                    let num_tokens = if streams_with_offsets.is_empty() {
                         0
                     } else {
-                        let mut token_stream = TokenStreamChain::new(offsets, token_streams);
+                        let mut token_stream = TokenStreamChain::new(streams_with_offsets);
                         multifield_postings.index_text(
                             doc_id,
                             field,
