@@ -1,25 +1,19 @@
 use crate::tokenizer::{BoxTokenStream, Token, TokenStream};
-use std::ops::DerefMut;
 
 const POSITION_GAP: usize = 2;
 
 pub(crate) struct TokenStreamChain<'a> {
-    offsets: Vec<usize>,
-    token_streams: Vec<BoxTokenStream<'a>>,
+    streams_with_offsets: Vec<(BoxTokenStream<'a>, usize)>,
     position_shift: usize,
     stream_idx: usize,
     token: Token,
 }
 
 impl<'a> TokenStreamChain<'a> {
-    pub fn new(
-        offsets: Vec<usize>,
-        token_streams: Vec<BoxTokenStream<'a>>,
-    ) -> TokenStreamChain<'a> {
+    pub fn new(streams_with_offsets: Vec<(BoxTokenStream<'a>, usize)>) -> TokenStreamChain<'a> {
         TokenStreamChain {
-            offsets,
+            streams_with_offsets,
             stream_idx: 0,
-            token_streams,
             position_shift: 0,
             token: Token::default(),
         }
@@ -28,11 +22,10 @@ impl<'a> TokenStreamChain<'a> {
 
 impl<'a> TokenStream for TokenStreamChain<'a> {
     fn advance(&mut self) -> bool {
-        while self.stream_idx < self.token_streams.len() {
-            let token_stream = self.token_streams[self.stream_idx].deref_mut();
+        while self.stream_idx < self.streams_with_offsets.len() {
+            let (ref mut token_stream, offset_offset) = self.streams_with_offsets[self.stream_idx];
             if token_stream.advance() {
                 let token = token_stream.token();
-                let offset_offset = self.offsets[self.stream_idx];
                 self.token.offset_from = token.offset_from + offset_offset;
                 self.token.offset_to = token.offset_to + offset_offset;
                 self.token.position = token.position + self.position_shift;
@@ -49,7 +42,7 @@ impl<'a> TokenStream for TokenStreamChain<'a> {
 
     fn token(&self) -> &Token {
         assert!(
-            self.stream_idx <= self.token_streams.len(),
+            self.stream_idx <= self.streams_with_offsets.len(),
             "You called .token(), after the end of the token stream has been reached"
         );
         &self.token
@@ -57,7 +50,7 @@ impl<'a> TokenStream for TokenStreamChain<'a> {
 
     fn token_mut(&mut self) -> &mut Token {
         assert!(
-            self.stream_idx <= self.token_streams.len(),
+            self.stream_idx <= self.streams_with_offsets.len(),
             "You called .token(), after the end of the token stream has been reached"
         );
         &mut self.token
@@ -73,10 +66,10 @@ mod tests {
     #[test]
     fn test_chain_first_emits_no_tokens() {
         let token_streams = vec![
-            SimpleTokenizer.token_stream(""),
-            SimpleTokenizer.token_stream("hello world"),
+            (SimpleTokenizer.token_stream(""), 0),
+            (SimpleTokenizer.token_stream("hello world"), 0),
         ];
-        let mut token_chain = TokenStreamChain::new(vec![0, 0], token_streams);
+        let mut token_chain = TokenStreamChain::new(token_streams);
 
         assert!(token_chain.advance());
         assert_eq!(token_chain.token().text, "hello");
