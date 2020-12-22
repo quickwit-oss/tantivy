@@ -13,7 +13,6 @@
 //! ```
 //!
 use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::BoxTokenStream;
 
 /// `RemoveLongFilter` removes tokens that are longer
 /// than a given number of bytes (in UTF-8 representation).
@@ -39,8 +38,8 @@ impl<'a> RemoveLongFilterStream<'a> {
 }
 
 impl TokenFilter for RemoveLongFilter {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(RemoveLongFilterStream {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(RemoveLongFilterStream {
             token_length_limit: self.length_limit,
             tail: token_stream,
         })
@@ -49,7 +48,7 @@ impl TokenFilter for RemoveLongFilter {
 
 pub struct RemoveLongFilterStream<'a> {
     token_length_limit: usize,
-    tail: BoxTokenStream<'a>,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
 impl<'a> TokenStream for RemoveLongFilterStream<'a> {

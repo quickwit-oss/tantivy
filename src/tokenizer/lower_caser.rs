@@ -1,10 +1,9 @@
 use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::BoxTokenStream;
 use std::mem;
 
 impl TokenFilter for LowerCaser {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(LowerCaserTokenStream {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(LowerCaserTokenStream {
             tail: token_stream,
             buffer: String::with_capacity(100),
         })
@@ -17,7 +16,7 @@ pub struct LowerCaser;
 
 pub struct LowerCaserTokenStream<'a> {
     buffer: String,
-    tail: BoxTokenStream<'a>,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
 // writes a lowercased version of text into output.

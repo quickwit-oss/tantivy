@@ -1,4 +1,4 @@
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter, TokenStream};
 use std::mem;
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
@@ -8,8 +8,8 @@ use std::mem;
 pub struct AsciiFoldingFilter;
 
 impl TokenFilter for AsciiFoldingFilter {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        From::from(AsciiFoldingFilterTokenStream {
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(AsciiFoldingFilterTokenStream {
             tail: token_stream,
             buffer: String::with_capacity(100),
         })
@@ -18,7 +18,7 @@ impl TokenFilter for AsciiFoldingFilter {
 
 pub struct AsciiFoldingFilterTokenStream<'a> {
     buffer: String,
-    tail: BoxTokenStream<'a>,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
 impl<'a> TokenStream for AsciiFoldingFilterTokenStream<'a> {
