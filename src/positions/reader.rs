@@ -132,7 +132,7 @@ impl PositionReader {
             "offset arguments should be increasing."
         );
         let delta_to_block_offset = offset as i64 - self.block_offset as i64;
-        if delta_to_block_offset < 0 || delta_to_block_offset >= 128 {
+        if !(0..128).contains(&delta_to_block_offset) {
             // The first position is not within the first block.
             // We need to decompress the first block.
             let delta_to_anchor_offset = offset - self.anchor_offset;

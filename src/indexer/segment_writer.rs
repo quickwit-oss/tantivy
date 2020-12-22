@@ -11,7 +11,7 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
-use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
+use crate::tokenizer::PreTokenizedStream;
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
@@ -141,13 +141,13 @@ impl SegmentWriter {
             }
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
-            match *field_entry.field_type() {
+            match field_entry.field_type() {
                 FieldType::HierarchicalFacet => {
                     term_buffer.set_field(field);
                     let facets =
                         field_values
                             .iter()
-                            .flat_map(|field_value| match *field_value.value() {
+                            .flat_map(|field_value| match field_value.value() {
                                 Value::Facet(ref facet) => Some(facet.encoded_str()),
                                 _ => {
                                     panic!("Expected hierarchical facet");

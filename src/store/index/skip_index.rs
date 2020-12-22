@@ -35,11 +35,11 @@ struct Layer {
 }
 
 impl Layer {
-    fn cursor<'a>(&'a self) -> impl Iterator<Item = Checkpoint> + 'a {
+    fn cursor(&self) -> impl Iterator<Item = Checkpoint> + '_ {
         self.cursor_at_offset(0u64)
     }
 
-    fn cursor_at_offset<'a>(&'a self, start_offset: u64) -> impl Iterator<Item = Checkpoint> + 'a {
+    fn cursor_at_offset(&self, start_offset: u64) -> impl Iterator<Item = Checkpoint> + '_ {
         let data = &self.data.as_slice();
         LayerCursor {
             remaining: &data[start_offset as usize..],
@@ -59,7 +59,7 @@ pub struct SkipIndex {
 }
 
 impl SkipIndex {
-    pub(crate) fn checkpoints<'a>(&'a self) -> impl Iterator<Item = Checkpoint> + 'a {
+    pub(crate) fn checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
         self.layers
             .last()
             .into_iter()

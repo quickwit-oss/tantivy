@@ -109,9 +109,9 @@ impl BlockSearcher {
     /// The results should be equivalent to
     /// ```compile_fail
     /// block[..]
-    //       .iter()
-    //       .take_while(|&&val| val < target)
-    //       .count()
+    ///       .iter()
+    ///       .take_while(|&&val| val < target)
+    ///       .count()
     /// ```
     ///
     /// The `start` argument is just used to hint that the response is
