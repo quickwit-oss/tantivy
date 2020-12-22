@@ -46,7 +46,7 @@ impl StoreReader {
         })
     }
 
-    pub(crate) fn block_checkpoints<'a>(&'a self) -> impl Iterator<Item = Checkpoint> + 'a {
+    pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
         self.skip_index.checkpoints()
     }
 
