@@ -2,7 +2,6 @@ use crate::tokenizer::TokenStreamChain;
 use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
-use std::ops::{Deref, DerefMut};
 
 /// Token
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -39,7 +38,7 @@ impl Default for Token {
 /// It simply wraps a `Tokenizer` and a list of `TokenFilter` that are applied sequentially.
 pub struct TextAnalyzer {
     tokenizer: Box<dyn Tokenizer>,
-    token_filters: Vec<BoxTokenFilter>,
+    token_filters: Vec<Box<dyn TokenFilter>>,
 }
 
 impl<T: Tokenizer> From<T> for TextAnalyzer {
@@ -49,11 +48,14 @@ impl<T: Tokenizer> From<T> for TextAnalyzer {
 }
 
 impl TextAnalyzer {
-    /// Creates a new `TextAnalyzer` given a tokenizer and a vector of `BoxTokenFilter`.
+    /// Creates a new `TextAnalyzer` given a tokenizer and a vector of `Box<dyn TokenFilter>`.
     ///
     /// When creating a `TextAnalyzer` from a `Tokenizer` alone, prefer using
     /// `TextAnalyzer::from(tokenizer)`.
-    pub fn new<T: Tokenizer>(tokenizer: T, token_filters: Vec<BoxTokenFilter>) -> TextAnalyzer {
+    pub fn new<T: Tokenizer>(
+        tokenizer: T,
+        token_filters: Vec<Box<dyn TokenFilter>>,
+    ) -> TextAnalyzer {
         TextAnalyzer {
             tokenizer: Box::new(tokenizer),
             token_filters,
@@ -76,8 +78,8 @@ impl TextAnalyzer {
     ///     .filter(Stemmer::default());
     /// ```
     ///
-    pub fn filter<F: Into<BoxTokenFilter>>(mut self, token_filter: F) -> Self {
-        self.token_filters.push(token_filter.into());
+    pub fn filter<F: TokenFilter>(mut self, token_filter: F) -> Self {
+        self.token_filters.push(Box::new(token_filter));
         self
     }
 
@@ -86,7 +88,7 @@ impl TextAnalyzer {
     /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
     /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
     /// to prevent accidental `PhraseQuery` to match accross two terms.
-    pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> BoxTokenStream<'a> {
+    pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> Box<dyn TokenStream + 'a> {
         debug_assert!(!texts.is_empty());
         if texts.len() == 1 {
             self.token_stream(texts[0])
@@ -97,12 +99,12 @@ impl TextAnalyzer {
                 streams_with_offsets.push((self.token_stream(text), total_offset));
                 total_offset += text.len();
             }
-            From::from(TokenStreamChain::new(streams_with_offsets))
+            Box::new(TokenStreamChain::new(streams_with_offsets))
         }
     }
 
     /// Creates a token stream for a given `str`.
-    pub fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
+    pub fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
         let mut token_stream = self.tokenizer.token_stream(text);
         for token_filter in &self.token_filters {
             token_stream = token_filter.transform(token_stream);
@@ -134,7 +136,7 @@ impl Clone for TextAnalyzer {
 /// This API may change to use associated types.
 pub trait Tokenizer: 'static + Send + Sync + TokenizerClone {
     /// Creates a token stream for a given `str`.
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a>;
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a>;
 }
 
 pub trait TokenizerClone {
@@ -150,48 +152,7 @@ impl<T: Tokenizer + Clone> TokenizerClone for T {
 /// Simple wrapper of `Box<dyn TokenStream + 'a>`.
 ///
 /// See `TokenStream` for more information.
-pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
-
-impl<'a, T> From<T> for BoxTokenStream<'a>
-where
-    T: TokenStream + 'a,
-{
-    fn from(token_stream: T) -> BoxTokenStream<'a> {
-        BoxTokenStream(Box::new(token_stream))
-    }
-}
-
-impl<'a> Deref for BoxTokenStream<'a> {
-    type Target = dyn TokenStream + 'a;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.0
-    }
-}
-impl<'a> DerefMut for BoxTokenStream<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.0
-    }
-}
-
-/// Simple wrapper of `Box<dyn TokenFilter + 'a>`.
-///
-/// See `TokenStream` for more information.
-pub struct BoxTokenFilter(Box<dyn TokenFilter>);
-
-impl Deref for BoxTokenFilter {
-    type Target = dyn TokenFilter;
-
-    fn deref(&self) -> &dyn TokenFilter {
-        &*self.0
-    }
-}
-
-impl<T: TokenFilter> From<T> for BoxTokenFilter {
-    fn from(tokenizer: T) -> BoxTokenFilter {
-        BoxTokenFilter(Box::new(tokenizer))
-    }
-}
+// pub struct Box<dyn TokenStream + 'a>(Box<dyn TokenStream + 'a>);
 
 /// `TokenStream` is the result of the tokenization.
 ///
@@ -272,18 +233,18 @@ pub trait TokenStream {
 }
 
 pub trait TokenFilterClone {
-    fn box_clone(&self) -> BoxTokenFilter;
+    fn box_clone(&self) -> Box<dyn TokenFilter>;
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
 pub trait TokenFilter: 'static + Send + Sync + TokenFilterClone {
     /// Wraps a token stream and returns the modified one.
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a>;
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a>;
 }
 
 impl<T: TokenFilter + Clone> TokenFilterClone for T {
-    fn box_clone(&self) -> BoxTokenFilter {
-        BoxTokenFilter::from(self.clone())
+    fn box_clone(&self) -> Box<dyn TokenFilter> {
+        Box::new(self.clone())
     }
 }
 

@@ -1,5 +1,4 @@
 use super::{Token, TokenStream, Tokenizer};
-use crate::tokenizer::BoxTokenStream;
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
@@ -131,8 +130,8 @@ pub struct NgramTokenStream<'a> {
 }
 
 impl Tokenizer for NgramTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> BoxTokenStream<'a> {
-        From::from(NgramTokenStream {
+    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        Box::new(NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
                 self.min_gram,
@@ -308,9 +307,9 @@ mod tests {
     use super::StutteringIterator;
     use crate::tokenizer::tests::assert_token;
     use crate::tokenizer::tokenizer::Tokenizer;
-    use crate::tokenizer::{BoxTokenStream, Token};
+    use crate::tokenizer::{Token, TokenStream};
 
-    fn test_helper(mut tokenizer: BoxTokenStream) -> Vec<Token> {
+    fn test_helper(mut tokenizer: Box<dyn TokenStream>) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];
         tokenizer.process(&mut |token: &Token| tokens.push(token.clone()));
         tokens

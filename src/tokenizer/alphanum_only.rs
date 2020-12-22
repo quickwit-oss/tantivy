@@ -19,7 +19,7 @@
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
 //! ```
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes all tokens that contain non
 /// ascii alphanumeric characters.
@@ -27,7 +27,7 @@ use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 pub struct AlphaNumOnlyFilter;
 
 pub struct AlphaNumOnlyFilterStream<'a> {
-    tail: BoxTokenStream<'a>,
+    tail: Box<dyn TokenStream + 'a>,
 }
 
 impl<'a> AlphaNumOnlyFilterStream<'a> {
@@ -37,8 +37,8 @@ impl<'a> AlphaNumOnlyFilterStream<'a> {
 }
 
 impl TokenFilter for AlphaNumOnlyFilter {
-    fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {
-        BoxTokenStream::from(AlphaNumOnlyFilterStream { tail: token_stream })
+    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
+        Box::new(AlphaNumOnlyFilterStream { tail: token_stream })
     }
 }
 

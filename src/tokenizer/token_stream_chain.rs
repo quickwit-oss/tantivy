@@ -1,16 +1,18 @@
-use crate::tokenizer::{BoxTokenStream, Token, TokenStream};
+use crate::tokenizer::{Token, TokenStream};
 
 const POSITION_GAP: usize = 2;
 
 pub(crate) struct TokenStreamChain<'a> {
-    streams_with_offsets: Vec<(BoxTokenStream<'a>, usize)>,
+    streams_with_offsets: Vec<(Box<dyn TokenStream + 'a>, usize)>,
     position_shift: usize,
     stream_idx: usize,
     token: Token,
 }
 
 impl<'a> TokenStreamChain<'a> {
-    pub fn new(streams_with_offsets: Vec<(BoxTokenStream<'a>, usize)>) -> TokenStreamChain<'a> {
+    pub fn new(
+        streams_with_offsets: Vec<(Box<dyn TokenStream + 'a>, usize)>,
+    ) -> TokenStreamChain<'a> {
         TokenStreamChain {
             streams_with_offsets,
             stream_idx: 0,

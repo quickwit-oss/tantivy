@@ -12,6 +12,7 @@ use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::PreTokenizedStream;
+use crate::tokenizer::TokenStream;
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
@@ -179,7 +180,8 @@ impl SegmentWriter {
                         match field_value.value() {
                             Value::PreTokStr(tok_str) => {
                                 streams_with_offsets.push((
-                                    PreTokenizedStream::from(tok_str.clone()).into(),
+                                    Box::new(PreTokenizedStream::from(tok_str.clone()))
+                                        as Box<dyn TokenStream>,
                                     total_offset,
                                 ));
                                 if let Some(last_token) = tok_str.tokens.last() {
