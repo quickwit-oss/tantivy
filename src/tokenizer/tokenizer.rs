@@ -1,4 +1,4 @@
-use crate::tokenizer::TokenStreamChain;
+use crate::tokenizer::Chain;
 use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
@@ -39,7 +39,7 @@ impl Default for Token {
 #[derive(Clone)]
 pub struct TokenStream<'a, I> {
     tokens: I,
-    filters: Vec<Box<dyn TokenFilter>>,
+    transformers: Vec<Box<dyn Transformer>>,
 }
 
 impl<'a, I> Iterator for TokenStream<'a, I>
@@ -48,12 +48,11 @@ where
 {
     type Item = I::Item;
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(token) = self.tokens.next() {
-            if self.filters.all(|filter| filter(&token)) {
-                return Some(token);
-            }
+        let token = self.tokens.next()?;
+        for transformer in self.tranformers.iter_mut() {
+            token = transformer.transform(token)?;
         }
-        None
+        Some(token)
     }
 }
 
@@ -68,11 +67,10 @@ where
     pub fn new<T: Tokenizer<'a, Iter = I>>(
         tokenizer: T,
         text: &str,
-        token_filters: Vec<Box<dyn TokenFilter>>,
     ) -> TokenStream<'a, I> {
         TokenStream {
             tokens: tokenizer.token_stream(text),
-            token_filters,
+            transformers: vec![],
         }
     }
 
@@ -92,7 +90,7 @@ where
     ///     .filter(Stemmer::default());
     /// ```
     ///
-    pub fn filter<F: TokenFilter>(mut self, token_filter: F) -> Self {
+    pub fn filter<F: Transformer>(mut self, token_filter: F) -> Self {
         self.token_filters.push(Box::new(token_filter));
         self
     }
@@ -142,23 +140,35 @@ pub trait Tokenizer<'a>: 'static + Send + Sync + Clone {
         debug_assert!(!texts.is_empty());
         let mut streams_with_offsets = vec![];
         let mut total_offset = 0;
-        for &text in texts {
-            streams_with_offsets.push((self.token_stream(text), total_offset));
-            total_offset += text.len();
-        }
-        TokenStreamChain::new(streams_with_offsets)
+        // for &text in texts {
+        //     streams_with_offsets.push((self.token_stream(text), total_offset));
+        //     total_offset += text.len();
+        // }
+        let streams_with_offsets = texts.iter().scan(0,|total_offset, &text| {
+            let temp = *total_offset;
+            *total_offset += text.len();
+            Some((self.token_stream(text), temp))
+        });
+
+        // {
+        //     streams_with_offsets.push((self.token_stream(text), total_offset));
+        //     total_offset += text.len();
+        // }
+        Chain::new(streams_with_offsets)
     }
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
-pub trait TokenFilter: Fn(&Token) -> bool + 'static + Send + Sync + TokenFilterClone {}
-
-pub trait TokenFilterClone {
-    fn box_clone(&self) -> Box<dyn TokenFilter>;
+pub trait Transformer: 'static + Send + Sync + TransformerClone {
+    fn transform(&mut self, token: Token) -> Option<Token>;
 }
 
-impl<T: TokenFilter + Clone> TokenFilterClone for T {
-    fn box_clone(&self) -> Box<dyn TokenFilter> {
+pub trait TransformerClone {
+    fn box_clone(&self) -> Box<dyn Transformer>;
+}
+
+impl<T: Transformer + Clone> TransformerClone for T {
+    fn box_clone(&self) -> Box<dyn Transformer> {
         Box::new(self.clone())
     }
 }
