@@ -3,39 +3,37 @@ use crate::tokenizer::{Token, TokenStream};
 const POSITION_GAP: usize = 2;
 
 pub(crate) struct Chain<'a, I> {
-    streams_with_offsets: Vec<(I, usize)>,
-    stream_idx: usize,
+    streams_with_offsets: I,
     position_shift: usize,
 }
 
-impl<'a, I> Chain<'a, I>
-where
-    I: Iterator<Item = Token>,
-{
-    pub fn new(streams_with_offsets: Vec<(I, usize)>) -> Chain<'a, I> {
+impl<'a, Out> Chain<'a, Out> {
+    pub fn new<In>(streams_with_offsets: Out) -> Chain<'a, Out>
+    where
+        In: Iterator<Item = Token>,
+        Out: Iterator<Item = In>,
+    {
         Chain {
             streams_with_offsets,
-            stream_idx: 0,
             position_shift: 0,
         }
     }
 }
 
-impl<'a, I> Iterator for Chain<'a, I>
+impl<'a, In, Out> Iterator for Chain<'a, Out>
 where
-    I: Iterator<Item = Token>,
+    In: Iterator<Item = Token>,
+    Out: Iterator<Item = In>,
 {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
-        while self.stream_idx < self.streams_with_offsets.len() {
-            let (ref mut token_stream, offset_offset) = self.streams_with_offsets[self.stream_idx];
+        while let Some((ref mut token_stream, offset_offset)) = self.streams_with_offsets.next() {
             if let Some(token) = token_stream.next() {
                 token.offset_from += offset_offset;
                 token.offset_to += offset_offset;
                 token.position += self.position_shift;
                 return Some(token);
             } else {
-                self.stream_idx += 1;
                 self.position_shift = self.token.position.wrapping_add(POSITION_GAP);
             }
         }

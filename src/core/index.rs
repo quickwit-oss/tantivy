@@ -42,8 +42,7 @@ fn load_metas(
                 META_FILEPATH.to_path_buf(),
                 format!("Meta file cannot be deserialized. {:?}.", e),
             )
-        })
-        .map_err(From::from)
+        })?
 }
 
 /// Search Index
@@ -119,13 +118,12 @@ impl Index {
             return Index::create(dir, schema);
         }
         let index = Index::open(dir)?;
-        if index.schema() == schema {
-            Ok(index)
-        } else {
-            Err(TantivyError::SchemaError(
+        if index.schema() != schema {
+            return Err(TantivyError::SchemaError(
                 "An index exists but the schema does not match.".to_string(),
-            ))
+            ));
         }
+        Ok(index)
     }
 
     /// Creates a new index in a temp directory.
