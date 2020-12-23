@@ -145,11 +145,6 @@ impl<T: Tokenizer + Clone> TokenizerClone for T {
     }
 }
 
-/// Simple wrapper of `Box<dyn TokenStream + 'a>`.
-///
-/// See `TokenStream` for more information.
-// pub struct Box<dyn TokenStream + 'a>(Box<dyn TokenStream + 'a>);
-
 /// `TokenStream` is the result of the tokenization.
 ///
 /// It consists consumable stream of `Token`s.
