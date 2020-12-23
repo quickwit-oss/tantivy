@@ -88,7 +88,7 @@ impl TextAnalyzer {
     /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
     /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
     /// to prevent accidental `PhraseQuery` to match accross two terms.
-    pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> Box<dyn TokenStream + 'a> {
+    pub fn token_stream_texts<'a>(&self, texts: &'a [&str]) -> Box<dyn TokenStream + 'a> {
         debug_assert!(!texts.is_empty());
         let mut streams_with_offsets = vec![];
         let mut total_offset = 0;
