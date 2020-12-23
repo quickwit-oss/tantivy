@@ -90,17 +90,13 @@ impl TextAnalyzer {
     /// to prevent accidental `PhraseQuery` to match accross two terms.
     pub fn token_stream_texts<'a>(&self, texts: &'a [&'a str]) -> Box<dyn TokenStream + 'a> {
         debug_assert!(!texts.is_empty());
-        if texts.len() == 1 {
-            self.token_stream(texts[0])
-        } else {
-            let mut streams_with_offsets = vec![];
-            let mut total_offset = 0;
-            for &text in texts {
-                streams_with_offsets.push((self.token_stream(text), total_offset));
-                total_offset += text.len();
-            }
-            Box::new(TokenStreamChain::new(streams_with_offsets))
+        let mut streams_with_offsets = vec![];
+        let mut total_offset = 0;
+        for &text in texts {
+            streams_with_offsets.push((self.token_stream(text), total_offset));
+            total_offset += text.len();
         }
+        Box::new(TokenStreamChain::new(streams_with_offsets))
     }
 
     /// Creates a token stream for a given `str`.
