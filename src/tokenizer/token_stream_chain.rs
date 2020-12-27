@@ -20,6 +20,8 @@ impl<'a, Out> TokenStreamChain<'a, Out> {
     }
 }
 
+impl<'a, Out> TokenStream for TokenStreamChain<'a, Out> {}
+
 impl<'a, In, Out> Iterator for TokenStreamChain<'a, Out>
 where
     In: Iterator<Item = Token>,

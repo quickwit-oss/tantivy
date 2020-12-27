@@ -117,8 +117,8 @@
 //!     .register("custom_en", custom_en_tokenizer);
 //! ```
 //!
-mod alphanum_only;
-mod ascii_folding_filter;
+// mod alphanum_only;
+// mod ascii_folding_filter;
 mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
@@ -126,14 +126,14 @@ mod raw_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod stemmer;
-mod stop_word_filter;
+// mod stop_word_filter;
 mod token_stream_chain;
 mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 
-pub use self::alphanum_only::AlphaNumOnlyFilter;
-pub use self::ascii_folding_filter::AsciiFolding;
+// pub use self::alphanum_only::AlphaNumOnlyFilter;
+// pub use self::ascii_folding_filter::AsciiFolding;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
@@ -141,7 +141,7 @@ pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::stemmer::{Language, Stemmer};
-pub use self::stop_word_filter::StopWordFilter;
+// pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
@@ -158,10 +158,7 @@ pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 4;
 
 #[cfg(test)]
 pub mod tests {
-    use super::{
-        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
-    };
-    use crate::tokenizer::TokenStream;
+    use super::*;
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -228,7 +225,7 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            TextAnalyzer::from(SimpleTokenizer)
+            TextAnalyzer::new(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new(Language::Greek)),

@@ -31,7 +31,7 @@ impl TokenizerManager {
     where
         TextAnalyzer: From<T>,
     {
-        let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
+        let boxed_tokenizer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
@@ -63,13 +63,13 @@ impl Default for TokenizerManager {
             "default",
             TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser),
+                .filter(LowerCaser::new()),
         );
         manager.register(
             "en_stem",
             TextAnalyzer::from(SimpleTokenizer)
                 .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
+                .filter(LowerCaser::new())
                 .filter(Stemmer::new(Language::English)),
         );
         manager

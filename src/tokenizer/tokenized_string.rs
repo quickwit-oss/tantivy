@@ -26,63 +26,43 @@ impl PartialOrd for PreTokenizedString {
 /// TokenStream implementation which wraps PreTokenizedString
 pub struct PreTokenizedStream {
     tokenized_string: PreTokenizedString,
-    current_token: i64,
+    current_token: usize,
 }
 
 impl From<PreTokenizedString> for PreTokenizedStream {
     fn from(s: PreTokenizedString) -> PreTokenizedStream {
         PreTokenizedStream {
             tokenized_string: s,
-            current_token: -1,
+            current_token: 0,
         }
     }
 }
 
 impl PreTokenizedStream {
     /// Creates a TokenStream from PreTokenizedString array
-    pub fn chain_tokenized_strings<'a>(
-        tok_strings: &'a [&'a PreTokenizedString],
-    ) -> Box<dyn TokenStream> {
-        if tok_strings.len() == 1 {
-            Box::new(PreTokenizedStream::from(tok_strings[0].to_owned()))
-        } else {
-            let mut streams_with_offsets = vec![];
-            let mut total_offset = 0;
-            for &tok_string in tok_strings {
-                streams_with_offsets.push((
-                    Box::new(PreTokenizedStream::from(tok_string.to_owned()))
-                        as Box<dyn TokenStream>,
-                    total_offset,
-                ));
-                if let Some(last_token) = tok_string.tokens.last() {
-                    total_offset += last_token.offset_to;
-                }
+    pub fn chain_tokenized_strings<'a>(tok_strings: &'a [&PreTokenizedString]) -> impl TokenStream {
+        let streams_with_offsets = tok_strings.iter().scan(|total_offset, tok_string| {
+            let next = Some((
+                PreTokenizedStream::from(tok_string.to_owned()),
+                *total_offset,
+            ));
+            if let Some(last_token) = tok_string.tokens.last() {
+                *total_offset += last_token.offset_to;
             }
-            Box::new(TokenStreamChain::new(streams_with_offsets))
-        }
+            next
+        });
+        TokenStreamChain::new(streams_with_offsets)
     }
 }
 
-impl TokenStream for PreTokenizedStream {
-    fn advance(&mut self) -> bool {
+impl TokenStream for PreTokenizedStream {}
+
+impl Iterator for PreTokenizedStream {
+    type Item = Token;
+    fn next(&mut self) -> Option<Token> {
+        let token = self.tokenized_string.tokens.get(self.current_token);
         self.current_token += 1;
-        self.current_token < self.tokenized_string.tokens.len() as i64
-    }
-
-    fn token(&self) -> &Token {
-        assert!(
-            self.current_token >= 0,
-            "TokenStream not initialized. You should call advance() at least once."
-        );
-        &self.tokenized_string.tokens[self.current_token as usize]
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        assert!(
-            self.current_token >= 0,
-            "TokenStream not initialized. You should call advance() at least once."
-        );
-        &mut self.tokenized_string.tokens[self.current_token as usize]
+        token
     }
 }
 

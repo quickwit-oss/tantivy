@@ -78,7 +78,7 @@ use super::{Token, TokenStream, Tokenizer};
 /// }
 /// assert!(stream.next().is_none());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NgramTokenizer {
     /// min size of the n-gram
     min_gram: usize,
@@ -129,9 +129,10 @@ pub struct NgramTokenStream<'a> {
     token: Token,
 }
 
-impl Tokenizer for NgramTokenizer {
-    fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
-        Box::new(NgramTokenStream {
+impl<'a> Tokenizer<'a> for NgramTokenizer {
+    type Iter = NgramTokenStream<'a>;
+    fn token_stream(&self, text: &'a str) -> Self::Iter {
+        NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
                 self.min_gram,
@@ -140,32 +141,27 @@ impl Tokenizer for NgramTokenizer {
             prefix_only: self.prefix_only,
             text,
             token: Token::default(),
-        })
+        }
     }
 }
 
-impl<'a> TokenStream for NgramTokenStream<'a> {
-    fn advance(&mut self) -> bool {
+impl<'a> TokenStream for NgramTokenStream<'a> {}
+
+impl<'a> Iterator for NgramTokenStream<'a> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
         if let Some((offset_from, offset_to)) = self.ngram_charidx_iterator.next() {
             if self.prefix_only && offset_from > 0 {
-                return false;
+                return None;
             }
             self.token.position = 0;
             self.token.offset_from = offset_from;
             self.token.offset_to = offset_to;
             self.token.text.clear();
             self.token.text.push_str(&self.text[offset_from..offset_to]);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn token(&self) -> &Token {
-        &self.token
-    }
-    fn token_mut(&mut self) -> &mut Token {
-        &mut self.token
+            return Some(self.token.clone());
+        };
+        None
     }
 }
 
