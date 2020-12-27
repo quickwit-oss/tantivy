@@ -2,25 +2,25 @@ use crate::tokenizer::{Token, TokenStream};
 
 const POSITION_GAP: usize = 2;
 
-pub(crate) struct Chain<'a, I> {
+pub(crate) struct TokenStreamChain<'a, I> {
     streams_with_offsets: I,
     position_shift: usize,
 }
 
-impl<'a, Out> Chain<'a, Out> {
-    pub fn new<In>(streams_with_offsets: Out) -> Chain<'a, Out>
+impl<'a, Out> TokenStreamChain<'a, Out> {
+    pub fn new<In>(streams_with_offsets: Out) -> TokenStreamChain<'a, Out>
     where
         In: Iterator<Item = Token>,
         Out: Iterator<Item = In>,
     {
-        Chain {
+        TokenStreamChain {
             streams_with_offsets,
             position_shift: 0,
         }
     }
 }
 
-impl<'a, In, Out> Iterator for Chain<'a, Out>
+impl<'a, In, Out> Iterator for TokenStreamChain<'a, Out>
 where
     In: Iterator<Item = Token>,
     Out: Iterator<Item = In>,

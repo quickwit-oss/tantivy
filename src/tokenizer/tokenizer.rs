@@ -1,4 +1,4 @@
-use crate::tokenizer::Chain;
+use crate::tokenizer::TokenStreamChain;
 use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
@@ -37,12 +37,12 @@ impl Default for Token {
 ///
 /// It simply wraps a `Tokenizer` and a list of `TokenFilter` that are applied sequentially.
 #[derive(Clone)]
-pub struct TokenStream<'a, I> {
+pub struct TextAnalyzer<'a, I> {
     tokens: I,
-    transformers: Vec<Box<dyn Transformer>>,
+    transformers: Vec<Box<dyn TokenFilter>>,
 }
 
-impl<'a, I> Iterator for TokenStream<'a, I>
+impl<'a, I> Iterator for TextAnalyzer<'a, I>
 where
     I: Iterator<Item = Token>,
 {
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<'a, I> TokenStream<'a, I>
+impl<'a, I> TextAnalyzer<'a, I>
 where
     I: Iterator<Item = Token>,
 {
@@ -64,11 +64,8 @@ where
     ///
     /// When creating a `TextAnalyzer` from a `Tokenizer` alone, prefer using
     /// `TextAnalyzer::from(tokenizer)`.
-    pub fn new<T: Tokenizer<'a, Iter = I>>(
-        tokenizer: T,
-        text: &str,
-    ) -> TokenStream<'a, I> {
-        TokenStream {
+    pub fn new<T: Tokenizer<'a, Iter = I>>(tokenizer: T, text: &str) -> TextAnalyzer<'a, I> {
+        TextAnalyzer {
             tokens: tokenizer.token_stream(text),
             transformers: vec![],
         }
@@ -90,7 +87,7 @@ where
     ///     .filter(Stemmer::default());
     /// ```
     ///
-    pub fn filter<F: Transformer>(mut self, token_filter: F) -> Self {
+    pub fn filter<F: TokenFilter>(mut self, token_filter: F) -> Self {
         self.token_filters.push(Box::new(token_filter));
         self
     }
@@ -102,27 +99,11 @@ where
     // /// to prevent accidental `PhraseQuery` to match accross two terms.
 
     // /// Creates a token stream for a given `str`.
-    // pub fn token_stream<'a>(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+    // pub fn token_stream<'a>(&self, text: &'a str) -> TextAnalyzer {
     //     let mut token_stream = self.tokenizer.token_stream(text);
-    //     for token_filter in &self.token_filters {
-    //         token_stream = token_filter.transform(token_stream);
-    //     }
     //     token_stream
     // }
 }
-
-// impl<'a,I: Clone> Clone for Tokens<'a,I> {
-//     fn clone(&self) -> Self {
-//         Tokens {
-//             tokenizer: self.tokenizer.box_clone(),
-//             token_filters: self
-//                 .token_filters
-//                 .iter()
-//                 .map(|token_filter| token_filter.box_clone())
-//                 .collect(),
-//         }
-//     }
-// }
 
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
@@ -140,38 +121,32 @@ pub trait Tokenizer<'a>: 'static + Send + Sync + Clone {
         debug_assert!(!texts.is_empty());
         let mut streams_with_offsets = vec![];
         let mut total_offset = 0;
-        // for &text in texts {
-        //     streams_with_offsets.push((self.token_stream(text), total_offset));
-        //     total_offset += text.len();
-        // }
-        let streams_with_offsets = texts.iter().scan(0,|total_offset, &text| {
+        let streams_with_offsets = texts.iter().scan(0, |total_offset, &text| {
             let temp = *total_offset;
             *total_offset += text.len();
             Some((self.token_stream(text), temp))
         });
 
-        // {
-        //     streams_with_offsets.push((self.token_stream(text), total_offset));
-        //     total_offset += text.len();
-        // }
-        Chain::new(streams_with_offsets)
+        TokenStreamChain::new(streams_with_offsets)
     }
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
-pub trait Transformer: 'static + Send + Sync + TransformerClone {
+pub trait TokenFilter: 'static + Send + Sync + TokenFilterClone {
     fn transform(&mut self, token: Token) -> Option<Token>;
 }
 
-pub trait TransformerClone {
-    fn box_clone(&self) -> Box<dyn Transformer>;
+pub trait TokenFilterClone {
+    fn box_clone(&self) -> Box<dyn TokenFilter>;
 }
 
-impl<T: Transformer + Clone> TransformerClone for T {
-    fn box_clone(&self) -> Box<dyn Transformer> {
+impl<T: TokenFilter + Clone> TokenFilterClone for T {
+    fn box_clone(&self) -> Box<dyn TokenFilter> {
         Box::new(self.clone())
     }
 }
+
+trait TokenStream: Iterator<Item = Token> {}
 
 // #[cfg(test)]
 // mod test {

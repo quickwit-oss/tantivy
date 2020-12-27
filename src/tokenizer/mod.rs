@@ -133,7 +133,7 @@ mod tokenizer;
 mod tokenizer_manager;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
-pub use self::ascii_folding_filter::AsciiFoldingFilter;
+pub use self::ascii_folding_filter::AsciiFolding;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
@@ -161,7 +161,7 @@ pub mod tests {
     use super::{
         Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, TokenizerManager,
     };
-    use crate::tokenizer::TextAnalyzer;
+    use crate::tokenizer::TokenStream;
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
