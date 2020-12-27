@@ -146,7 +146,7 @@ impl<T: TokenFilter + Clone> TokenFilterClone for T {
     }
 }
 
-trait TokenStream: Iterator<Item = Token> {}
+pub trait TokenStream: Iterator<Item = Token> {}
 
 // #[cfg(test)]
 // mod test {
