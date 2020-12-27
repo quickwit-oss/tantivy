@@ -103,9 +103,7 @@ impl MultiFieldPostingsWriter {
         token_stream: &mut dyn TokenStream,
         term_buffer: &mut Term,
     ) -> u32 {
-        let postings_writer =
-            self.per_field_postings_writers[field.field_id() as usize].deref_mut();
-        postings_writer.index_text(
+        self.per_field_postings_writers[field.field_id() as usize].index_text(
             &mut self.term_index,
             doc,
             field,
