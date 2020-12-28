@@ -21,7 +21,7 @@ pub struct LowerCaser {
 }
 
 impl LowerCaser {
-    fn new() -> Self {
+    pub fn new() -> Self {
         LowerCaser {
             buffer: String::with_capacity(100),
         }

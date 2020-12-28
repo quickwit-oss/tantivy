@@ -36,38 +36,62 @@ impl Default for Token {
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
 ///
 /// It simply wraps a `Tokenizer` and a list of `TokenFilter` that are applied sequentially.
-#[derive(Clone)]
-pub struct TextAnalyzer<'a, I> {
-    tokens: I,
-    transformers: Vec<Box<dyn TokenFilter>>,
+pub struct TextAnalyzer<T> {
+    tokenizer: T,
+    filters: Vec<Box<dyn TokenFilter>>,
 }
 
-impl<'a, I> Iterator for TextAnalyzer<'a, I>
-where
-    I: Iterator<Item = Token>,
-{
-    type Item = I::Item;
-    fn next(&mut self) -> Option<Self::Item> {
-        let token = self.tokens.next()?;
-        for transformer in self.tranformers.iter_mut() {
-            token = transformer.transform(token)?;
-        }
-        Some(token)
+pub trait TextAnalyzerT<'a>: 'static + Send + Sync + TextAnalyzerClone<'a> {
+    fn token_stream(&self, text: &'a str) -> Box<dyn TokenStream + 'a>;
+}
+
+pub trait TextAnalyzerClone<'a> {
+    fn box_clone(&self) -> Box<dyn TextAnalyzerT<'a>>;
+}
+
+impl<'a> Clone for Box<dyn TextAnalyzerT<'a>> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+impl Clone for Box<dyn TokenFilter> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
     }
 }
 
-impl<'a, I> TextAnalyzer<'a, I>
+impl<'a, T: Clone + Tokenizer<'a>> TextAnalyzerClone<'a> for TextAnalyzer<T> {
+    fn box_clone(&self) -> Box<dyn TextAnalyzerT<'a>> {
+        Box::new(TextAnalyzer {
+            tokenizer: self.tokenizer.clone(),
+            filters: self.filters.clone(),
+        })
+    }
+}
+
+impl<'a, T: Tokenizer<'a>> TextAnalyzerT<'a> for TextAnalyzer<T> {
+    fn token_stream(&self, text: &'a str) -> Box<dyn TokenStream + 'a> {
+        let tokens = self.tokenizer.token_stream(text);
+        Box::new(TextIter {
+            tokens,
+            // TODO: remove clone
+            filters: self.filters.clone(),
+        })
+    }
+}
+
+impl<'a, T> TextAnalyzer<T>
 where
-    I: Iterator<Item = Token>,
+    T: Tokenizer<'a>,
 {
     /// Creates a new `TextAnalyzer` given a tokenizer and a vector of `Box<dyn TokenFilter>`.
     ///
     /// When creating a `TextAnalyzer` from a `Tokenizer` alone, prefer using
     /// `TextAnalyzer::from(tokenizer)`.
-    pub fn new<T: Tokenizer<'a, Iter = I>>(tokenizer: T, text: &str) -> TextAnalyzer<'a, I> {
+    pub fn new(tokenizer: T) -> TextAnalyzer<T> {
         TextAnalyzer {
-            tokens: tokenizer.token_stream(text),
-            transformers: vec![],
+            tokenizer,
+            filters: vec![],
         }
     }
 
@@ -88,22 +112,52 @@ where
     /// ```
     ///
     pub fn filter<F: TokenFilter>(mut self, token_filter: F) -> Self {
-        self.token_filters.push(Box::new(token_filter));
+        self.filters.push(Box::new(token_filter));
         self
     }
 
-    // /// Tokenize an array`&str`
-    // ///
-    // /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
-    // /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
-    // /// to prevent accidental `PhraseQuery` to match accross two terms.
+    /// Tokenize an array`&str`
+    ///
+    /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
+    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
+    /// to prevent accidental `PhraseQuery` to match accross two terms.
 
-    // /// Creates a token stream for a given `str`.
-    // pub fn token_stream<'a>(&self, text: &'a str) -> TextAnalyzer {
-    //     let mut token_stream = self.tokenizer.token_stream(text);
-    //     token_stream
-    // }
+    /// Creates a token stream for a given `str`.
+    pub fn token_stream(&self, text: &'a str) -> TextIter<T::Iter> {
+        let tokens = self.tokenizer.token_stream(text);
+        TextIter {
+            tokens,
+            // TODO: remove clone
+            filters: self.filters.clone(),
+        }
+    }
 }
+
+struct TextIter<I> {
+    tokens: I,
+    filters: Vec<Box<dyn TokenFilter>>,
+}
+
+impl<'a, I> Iterator for TextIter<I>
+where
+    I: Iterator<Item = Token>,
+{
+    type Item = I::Item;
+    fn next(&mut self) -> Option<Self::Item> {
+        'outer: while let Some(mut token) = self.tokens.next() {
+            for filter in self.filters.iter_mut() {
+                if let Some(tok) = filter.transform(token) {
+                    token = tok;
+                    continue;
+                };
+                continue 'outer;
+            }
+        }
+        None
+    }
+}
+
+impl<I: Iterator<Item = Token>> TokenStream for TextIter<I> {}
 
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
@@ -116,19 +170,20 @@ where
 pub trait Tokenizer<'a>: 'static + Send + Sync + Clone {
     type Iter: Iterator<Item = Token> + 'a;
     /// Creates a token stream for a given `str`.
+    // TODO: make clone unnecessary
     fn token_stream(&self, text: &'a str) -> Self::Iter;
-    fn token_stream_texts(&self, texts: &'a [&str]) -> Self::Iter {
-        debug_assert!(!texts.is_empty());
-        let mut streams_with_offsets = vec![];
-        let mut total_offset = 0;
-        let streams_with_offsets = texts.iter().scan(0, |total_offset, &text| {
-            let temp = *total_offset;
-            *total_offset += text.len();
-            Some((self.token_stream(text), temp))
-        });
+}
 
-        TokenStreamChain::new(streams_with_offsets)
-    }
+fn token_stream_texts<'a, T: Tokenizer<'a>>(
+    tokenizer: &'a T,
+    texts: &'a [&str],
+) -> impl TokenStream + 'a {
+    let streams_with_offsets = texts.iter().scan(0, move |total_offset, &text| {
+        let temp = *total_offset;
+        *total_offset += text.len();
+        Some((tokenizer.token_stream(text), temp))
+    });
+    TokenStreamChain::new(streams_with_offsets)
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
@@ -146,7 +201,16 @@ impl<T: TokenFilter + Clone> TokenFilterClone for T {
     }
 }
 
-pub trait TokenStream: Iterator<Item = Token> {}
+pub trait TokenStream: Iterator<Item = Token> {
+    fn process(&mut self, sink: &mut dyn FnMut(&Token)) -> u32 {
+        let mut num_tokens_pushed = 0u32;
+        while let Some(token) = self.next() {
+            sink(&token);
+            num_tokens_pushed += 1u32;
+        }
+        num_tokens_pushed
+    }
+}
 
 // #[cfg(test)]
 // mod test {

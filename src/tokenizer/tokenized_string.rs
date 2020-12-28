@@ -40,10 +40,12 @@ impl From<PreTokenizedString> for PreTokenizedStream {
 
 impl PreTokenizedStream {
     /// Creates a TokenStream from PreTokenizedString array
-    pub fn chain_tokenized_strings<'a>(tok_strings: &'a [&PreTokenizedString]) -> impl TokenStream {
-        let streams_with_offsets = tok_strings.iter().scan(|total_offset, tok_string| {
+    pub fn chain_tokenized_strings<'a>(
+        tok_strings: &'a [&PreTokenizedString],
+    ) -> impl TokenStream + 'a {
+        let streams_with_offsets = tok_strings.iter().scan(0, |total_offset, tok_string| {
             let next = Some((
-                PreTokenizedStream::from(tok_string.to_owned()),
+                PreTokenizedStream::from((*tok_string).to_owned()),
                 *total_offset,
             ));
             if let Some(last_token) = tok_string.tokens.last() {
@@ -60,9 +62,9 @@ impl TokenStream for PreTokenizedStream {}
 impl Iterator for PreTokenizedStream {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
-        let token = self.tokenized_string.tokens.get(self.current_token);
+        let token = self.tokenized_string.tokens.get(self.current_token)?;
         self.current_token += 1;
-        token
+        Some(token.clone())
     }
 }
 
