@@ -21,19 +21,19 @@ use super::{Token, TokenFilter};
 /// e.g. Mail containing base-64 encoded pictures etc.
 #[derive(Clone, Debug)]
 pub struct RemoveLongFilter {
-    length_limit: usize,
+    limit: usize,
 }
 
 impl RemoveLongFilter {
     /// Creates a `RemoveLongFilter` given a limit in bytes of the UTF-8 representation.
-    pub fn new(length_limit: usize) -> RemoveLongFilter {
-        RemoveLongFilter { length_limit }
+    pub fn new(limit: usize) -> RemoveLongFilter {
+        RemoveLongFilter { limit }
     }
 }
 
 impl TokenFilter for RemoveLongFilter {
-    fn transform<'a>(&self, mut token: Token) -> Option<Token> {
-        if token.text.len() >= self.length_limit {
+    fn transform(&mut self, mut token: Token) -> Option<Token> {
+        if token.text.len() >= self.limit {
             return None;
         }
         Some(token)

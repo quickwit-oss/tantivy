@@ -14,7 +14,7 @@ use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::PreTokenizedStream;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
-use crate::tokenizer::{TokenStreamChain, Tokenizer};
+use crate::tokenizer::{TextAnalyzerT, TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 
@@ -46,7 +46,8 @@ pub struct SegmentWriter {
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
     doc_opstamps: Vec<Opstamp>,
-    tokenizers: Vec<Option<TextAnalyzer>>,
+    // TODO: redo ugly trait
+    tokenizers: Vec<Option<Box<dyn TextAnalyzerT<'static>>>>,
     term_buffer: Term,
 }
 

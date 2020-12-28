@@ -1,7 +1,7 @@
 use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
-use crate::tokenizer::{TextAnalyzer, Token};
+use crate::tokenizer::{TextAnalyzerT, Token};
 use crate::Searcher;
 use crate::{Document, Score};
 use htmlescape::encode_minimal;
@@ -140,12 +140,12 @@ impl Snippet {
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
 fn search_fragments<'a>(
-    tokenizer: &TextAnalyzer,
-    text: &'a str,
+    tokenizer: &(dyn TextAnalyzerT<'a> + 'a),
+    text: String,
     terms: &BTreeMap<String, Score>,
     max_num_chars: usize,
 ) -> Vec<FragmentCandidate> {
-    let mut token_stream = tokenizer.token_stream(text);
+    let mut token_stream = tokenizer.token_stream(text.as_ref());
     let mut fragment = FragmentCandidate::new(0);
     let mut fragments: Vec<FragmentCandidate> = vec![];
     while let Some(next) = token_stream.next() {
@@ -155,7 +155,7 @@ fn search_fragments<'a>(
             };
             fragment = FragmentCandidate::new(next.offset_from);
         }
-        fragment.try_add_token(next, &terms);
+        fragment.try_add_token(&next, &terms);
     }
     if fragment.score > 0.0 {
         fragments.push(fragment)
@@ -249,7 +249,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// ```
 pub struct SnippetGenerator {
     terms_text: BTreeMap<String, Score>,
-    tokenizer: TextAnalyzer,
+    tokenizer: Box<dyn TextAnalyzerT<'static>>,
     field: Field,
     max_num_chars: usize,
 }
@@ -303,13 +303,13 @@ impl SnippetGenerator {
             .flat_map(Value::text)
             .collect::<Vec<&str>>()
             .join(" ");
-        self.snippet(&text)
+        self.snippet(text)
     }
 
     /// Generates a snippet for the given text.
-    pub fn snippet(&self, text: &str) -> Snippet {
+    pub fn snippet(&self, text: String) -> Snippet {
         let fragment_candidates =
-            search_fragments(&self.tokenizer, &text, &self.terms_text, self.max_num_chars);
+            search_fragments(&mut *self.tokenizer, text, &self.terms_text, self.max_num_chars);
         select_best_fragment_combination(&fragment_candidates[..], &text)
     }
 }

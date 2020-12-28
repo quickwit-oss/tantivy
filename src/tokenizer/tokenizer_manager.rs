@@ -1,5 +1,5 @@
 use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::tokenizer::TextAnalyzer;
+use crate::tokenizer::tokenizer::{TextAnalyzer, TextAnalyzerT, Tokenizer};
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
@@ -21,25 +21,24 @@ use std::sync::{Arc, RwLock};
 ///  resulting tokens. Stemming can improve the recall of your
 ///  search engine.
 #[derive(Clone)]
-pub struct TokenizerManager {
-    tokenizers: Arc<RwLock<HashMap<String, TextAnalyzer>>>,
+pub struct TokenizerManager<'a> {
+    tokenizers: Arc<RwLock<HashMap<String, Box<dyn TextAnalyzerT<'a>>>>>,
 }
 
-impl TokenizerManager {
+impl<'a> TokenizerManager<'a> {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        TextAnalyzer: From<T>,
+        T: TextAnalyzerT<'a>,
     {
-        let boxed_tokenizer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
-            .insert(tokenizer_name.to_string(), boxed_tokenizer);
+            .insert(tokenizer_name.to_string(), Box::new(tokenizer));
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<TextAnalyzer> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn TextAnalyzerT<'a>>> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
@@ -48,27 +47,27 @@ impl TokenizerManager {
     }
 }
 
-impl Default for TokenizerManager {
+impl<'a> Default for TokenizerManager<'a> {
     /// Creates an `TokenizerManager` prepopulated with
     /// the default pre-configured tokenizers of `tantivy`.
     /// - simple
     /// - en_stem
     /// - ja
-    fn default() -> TokenizerManager {
+    fn default() -> Self {
         let manager = TokenizerManager {
             tokenizers: Arc::new(RwLock::new(HashMap::new())),
         };
-        manager.register("raw", RawTokenizer);
+        manager.register("raw", TextAnalyzer::new(RawTokenizer));
         manager.register(
             "default",
-            TextAnalyzer::from(SimpleTokenizer)
-                .filter(RemoveLongFilter::limit(40))
+            TextAnalyzer::new(SimpleTokenizer)
+                .filter(RemoveLongFilter::new(40))
                 .filter(LowerCaser::new()),
         );
         manager.register(
             "en_stem",
-            TextAnalyzer::from(SimpleTokenizer)
-                .filter(RemoveLongFilter::limit(40))
+            TextAnalyzer::new(SimpleTokenizer)
+                .filter(RemoveLongFilter::new(40))
                 .filter(LowerCaser::new())
                 .filter(Stemmer::new(Language::English)),
         );

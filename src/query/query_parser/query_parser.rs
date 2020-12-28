@@ -329,9 +329,7 @@ impl QueryParser {
                         let term = Term::from_field_text(field, &token.text);
                         terms.push((token.position, term));
                     });
-                    if terms.is_empty() {
-                        Ok(vec![])
-                    } else if terms.len() == 1 {
+                    if terms.len() <= 1 {
                         Ok(terms)
                     } else {
                         let field_entry = self.schema.get_field_entry(field);

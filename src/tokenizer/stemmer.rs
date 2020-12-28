@@ -55,7 +55,7 @@ impl Language {
 /// `Stemmer` token filter. Several languages are supported, see `Language` for the available
 /// languages.
 /// Tokens are expected to be lowercased beforehand.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Stemmer {
     stemmer: rust_stemmers::Stemmer,
 }
@@ -76,7 +76,7 @@ impl Default for Stemmer {
 }
 
 impl TokenFilter for Stemmer {
-    fn transform(&self, mut token: Token) -> Option<Token> {
+    fn transform(&mut self, mut token: Token) -> Option<Token> {
         // TODO remove allocation
         let stemmed_str: String = self.stemmer.stem(&token.text).into_owned();
         // TODO remove clear
@@ -85,5 +85,3 @@ impl TokenFilter for Stemmer {
         Some(token)
     }
 }
-
-impl TokenStream for Stemmer {}
