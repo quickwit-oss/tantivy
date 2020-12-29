@@ -118,20 +118,20 @@ impl NgramTokenizer {
 }
 
 /// TokenStream associate to the `NgramTokenizer`
-pub struct NgramTokenStream<'a> {
+pub struct NgramTokenStream {
     /// parameters
-    ngram_charidx_iterator: StutteringIterator<CodepointFrontiers<'a>>,
+    ngram_charidx_iterator: StutteringIterator<CodepointFrontiers>,
     /// true if the NgramTokenStream is in prefix mode.
     prefix_only: bool,
     /// input
-    text: &'a str,
+    text: String,
     /// output
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for NgramTokenizer {
-    type Iter = NgramTokenStream<'a>;
-    fn token_stream(&self, text: &'a str) -> Self::Iter {
+impl Tokenizer for NgramTokenizer {
+    type Iter = NgramTokenStream;
+    fn token_stream(&self, text: &str) -> Self::Iter {
         NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
                 CodepointFrontiers::for_str(text),
@@ -139,15 +139,15 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
                 self.max_gram,
             ),
             prefix_only: self.prefix_only,
-            text,
+            text: text.to_string(),
             token: Token::default(),
         }
     }
 }
 
-impl<'a> TokenStream for NgramTokenStream<'a> {}
+impl TokenStream for NgramTokenStream {}
 
-impl<'a> Iterator for NgramTokenStream<'a> {
+impl Iterator for NgramTokenStream {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some((offset_from, offset_to)) = self.ngram_charidx_iterator.next() {
@@ -252,21 +252,21 @@ where
 /// or a codepoint ends.
 ///
 /// By convention, we emit [0] for the empty string.
-struct CodepointFrontiers<'a> {
-    s: &'a str,
+struct CodepointFrontiers {
+    s: String,
     next_el: Option<usize>,
 }
 
-impl<'a> CodepointFrontiers<'a> {
-    fn for_str(s: &'a str) -> Self {
+impl CodepointFrontiers {
+    fn for_str(s: &str) -> Self {
         CodepointFrontiers {
-            s,
+            s: s.to_string(),
             next_el: Some(0),
         }
     }
 }
 
-impl<'a> Iterator for CodepointFrontiers<'a> {
+impl<'a> Iterator for CodepointFrontiers {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
@@ -275,7 +275,7 @@ impl<'a> Iterator for CodepointFrontiers<'a> {
                 self.next_el = None;
             } else {
                 let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
-                self.s = &self.s[first_codepoint_width..];
+                self.s = (&self.s[first_codepoint_width..]).to_string();
                 self.next_el = Some(offset + first_codepoint_width);
             }
             offset
@@ -305,10 +305,8 @@ mod tests {
     use crate::tokenizer::tokenizer::Tokenizer;
     use crate::tokenizer::{Token, TokenStream};
 
-    fn test_helper(mut tokenizer: Box<dyn TokenStream>) -> Vec<Token> {
-        let mut tokens: Vec<Token> = vec![];
-        tokenizer.process(&mut |token: &Token| tokens.push(token.clone()));
-        tokens
+    fn test_helper<T: TokenStream>(tokens: T) -> Vec<Token> {
+        tokens.collect()
     }
 
     #[test]

@@ -117,8 +117,8 @@
 //!     .register("custom_en", custom_en_tokenizer);
 //! ```
 //!
-// mod alphanum_only;
-// mod ascii_folding_filter;
+mod alphanum_only;
+mod ascii_folding_filter;
 mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
@@ -126,14 +126,14 @@ mod raw_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
 mod stemmer;
-// mod stop_word_filter;
+mod stop_word_filter;
 mod token_stream_chain;
 mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
 
-// pub use self::alphanum_only::AlphaNumOnlyFilter;
-// pub use self::ascii_folding_filter::AsciiFolding;
+pub use self::alphanum_only::AlphaNumOnlyFilter;
+pub use self::ascii_folding_filter::AsciiFolding;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
@@ -141,8 +141,8 @@ pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::stemmer::{Language, Stemmer};
-// pub use self::stop_word_filter::StopWordFilter;
-pub(crate) use self::token_stream_chain::TokenStreamChain;
+pub use self::stop_word_filter::StopWordFilter;
+pub(crate) use self::token_stream_chain::{DynTokenStreamChain, TokenStreamChain};
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
@@ -187,15 +187,9 @@ pub mod tests {
     fn test_raw_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("raw").unwrap();
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("Hello, happy tax payer!")
-                .process(&mut add_token);
-        }
+        let tokens: Vec<Token> = en_tokenizer
+            .token_stream("Hello, happy tax payer!")
+            .collect();
         assert_eq!(tokens.len(), 1);
         assert_token(&tokens[0], 0, "Hello, happy tax payer!", 0, 23);
     }
@@ -205,15 +199,9 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("Hello, happy tax payer!")
-                .process(&mut add_token);
-        }
+        let tokens: Vec<Token> = en_tokenizer
+            .token_stream("Hello, happy tax payer!")
+            .collect();
 
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "hello", 0, 5);
@@ -228,20 +216,14 @@ pub mod tests {
         tokenizer_manager.register(
             "el_stem",
             TextAnalyzer::new(SimpleTokenizer)
-                .filter(RemoveLongFilter::limit(40))
-                .filter(LowerCaser)
+                .filter(RemoveLongFilter::new(40))
+                .filter(LowerCaser::new())
                 .filter(Stemmer::new(Language::Greek)),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("Καλημέρα, χαρούμενε φορολογούμενε!")
-                .process(&mut add_token);
-        }
+        let tokens: Vec<Token> = en_tokenizer
+            .token_stream("Καλημέρα, χαρούμενε φορολογούμενε!")
+            .collect();
 
         assert_eq!(tokens.len(), 3);
         assert_token(&tokens[0], 0, "καλημερ", 0, 16);
@@ -253,25 +235,9 @@ pub mod tests {
     fn test_tokenizer_empty() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
-        {
-            let mut tokens: Vec<Token> = vec![];
-            {
-                let mut add_token = |token: &Token| {
-                    tokens.push(token.clone());
-                };
-                en_tokenizer.token_stream(" ").process(&mut add_token);
-            }
-            assert!(tokens.is_empty());
-        }
-        {
-            let mut tokens: Vec<Token> = vec![];
-            {
-                let mut add_token = |token: &Token| {
-                    tokens.push(token.clone());
-                };
-                en_tokenizer.token_stream(" ").process(&mut add_token);
-            }
-            assert!(tokens.is_empty());
-        }
+        let tokens: Vec<Token> = en_tokenizer.token_stream(" ").collect();
+        assert!(tokens.is_empty());
+        let tokens: Vec<Token> = en_tokenizer.token_stream(" ").collect();
+        assert!(tokens.is_empty());
     }
 }

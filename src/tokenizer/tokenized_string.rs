@@ -97,13 +97,8 @@ mod tests {
             ],
         };
 
-        let mut token_stream = PreTokenizedStream::from(tok_text.clone());
-
-        for expected_token in tok_text.tokens {
-            assert!(token_stream.advance());
-            assert_eq!(token_stream.token(), &expected_token);
-        }
-        assert!(!token_stream.advance());
+        let token_stream: Vec<_> = PreTokenizedStream::from(tok_text.clone()).collect();
+        assert_eq!(token_stream, tok_text.tokens);
     }
 
     #[test]
@@ -130,7 +125,7 @@ mod tests {
 
         let chain_parts = vec![&tok_text, &tok_text];
 
-        let mut token_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
+        let token_stream = PreTokenizedStream::chain_tokenized_strings(&chain_parts[..]);
 
         let expected_tokens = vec![
             Token {
@@ -162,11 +157,6 @@ mod tests {
                 position_length: 1,
             },
         ];
-
-        for expected_token in expected_tokens {
-            assert!(token_stream.advance());
-            assert_eq!(token_stream.token(), &expected_token);
-        }
-        assert!(!token_stream.advance());
+        assert_eq!(token_stream.collect::<Vec<_>>(), expected_tokens);
     }
 }

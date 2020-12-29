@@ -3,6 +3,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
+#![allow(unused_imports)]
 
 //! # `tantivy`
 //!

@@ -289,7 +289,7 @@ impl QueryParser {
             let field_name = field_entry.name().to_string();
             return Err(QueryParserError::FieldNotIndexed(field_name));
         }
-        match *field_type {
+        match field_type {
             FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
@@ -312,7 +312,7 @@ impl QueryParser {
                 let term = Term::from_field_u64(field, val);
                 Ok(vec![(0, term)])
             }
-            FieldType::Str(ref str_options) => {
+            FieldType::Str(str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
                     let tokenizer =
                         self.tokenizer_manager
@@ -323,12 +323,13 @@ impl QueryParser {
                                     option.tokenizer().to_string(),
                                 )
                             })?;
-                    let mut terms: Vec<(usize, Term)> = Vec::new();
-                    let mut token_stream = tokenizer.token_stream(phrase);
-                    token_stream.process(&mut |token| {
-                        let term = Term::from_field_text(field, &token.text);
-                        terms.push((token.position, term));
-                    });
+                    let token_stream = tokenizer.token_stream(phrase);
+                    let terms: Vec<_> = token_stream
+                        .map(|token| {
+                            let term = Term::from_field_text(field, &token.text);
+                            (token.position, term)
+                        })
+                        .collect();
                     if terms.len() <= 1 {
                         Ok(terms)
                     } else {
@@ -412,7 +413,7 @@ impl QueryParser {
         &self,
         given_field: &Option<String>,
     ) -> Result<Cow<'_, [Field]>, QueryParserError> {
-        match *given_field {
+        match given_field {
             None => {
                 if self.default_fields.is_empty() {
                     Err(QueryParserError::NoDefaultFieldDeclared)
@@ -420,7 +421,7 @@ impl QueryParser {
                     Ok(Cow::from(&self.default_fields[..]))
                 }
             }
-            Some(ref field) => Ok(Cow::from(vec![self.resolve_field_name(&*field)?])),
+            Some(field) => Ok(Cow::from(vec![self.resolve_field_name(&*field)?])),
         }
     }
 
@@ -618,9 +619,9 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "en_with_stop_words",
-            TextAnalyzer::from(SimpleTokenizer)
-                .filter(LowerCaser)
-                .filter(StopWordFilter::remove(vec!["the".to_string()])),
+            TextAnalyzer::new(SimpleTokenizer)
+                .filter(LowerCaser::new())
+                .filter(StopWordFilter::new(vec!["the".to_string()])),
         );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
@@ -977,7 +978,7 @@ mod test {
         let index = Index::create_in_ram(schema);
         index
             .tokenizers()
-            .register("customtokenizer", SimpleTokenizer);
+            .register("customtokenizer", TextAnalyzer::new(SimpleTokenizer));
         let query_parser = QueryParser::for_index(&index, vec![title]);
         assert_eq!(
             query_parser.parse_query("title:\"happy tax\"").unwrap_err(),

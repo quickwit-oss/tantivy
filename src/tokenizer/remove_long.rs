@@ -32,7 +32,7 @@ impl RemoveLongFilter {
 }
 
 impl TokenFilter for RemoveLongFilter {
-    fn transform(&mut self, mut token: Token) -> Option<Token> {
+    fn transform(&mut self, token: Token) -> Option<Token> {
         if token.text.len() >= self.limit {
             return None;
         }

@@ -21,15 +21,15 @@ use std::sync::{Arc, RwLock};
 ///  resulting tokens. Stemming can improve the recall of your
 ///  search engine.
 #[derive(Clone)]
-pub struct TokenizerManager<'a> {
-    tokenizers: Arc<RwLock<HashMap<String, Box<dyn TextAnalyzerT<'a>>>>>,
+pub struct TokenizerManager {
+    tokenizers: Arc<RwLock<HashMap<String, Box<dyn TextAnalyzerT>>>>,
 }
 
-impl<'a> TokenizerManager<'a> {
+impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        T: TextAnalyzerT<'a>,
+        T: TextAnalyzerT,
     {
         self.tokenizers
             .write()
@@ -38,7 +38,7 @@ impl<'a> TokenizerManager<'a> {
     }
 
     /// Accessing a tokenizer given its name.
-    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn TextAnalyzerT<'a>>> {
+    pub fn get(&self, tokenizer_name: &str) -> Option<Box<dyn TextAnalyzerT>> {
         self.tokenizers
             .read()
             .expect("Acquiring the lock should never fail")
@@ -47,7 +47,7 @@ impl<'a> TokenizerManager<'a> {
     }
 }
 
-impl<'a> Default for TokenizerManager<'a> {
+impl Default for TokenizerManager {
     /// Creates an `TokenizerManager` prepopulated with
     /// the default pre-configured tokenizers of `tantivy`.
     /// - simple

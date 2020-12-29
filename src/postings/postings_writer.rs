@@ -240,7 +240,7 @@ pub trait PostingsWriter {
                 );
             }
         };
-        token_stream.process(&mut sink)
+        token_stream.map(|tok| sink(&tok)).count() as u32
     }
 
     fn total_num_tokens(&self) -> u64;
