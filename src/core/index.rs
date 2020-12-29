@@ -37,12 +37,14 @@ fn load_metas(
 ) -> crate::Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
-    IndexMeta::deserialize(&meta_string, &inventory).map_err(|e| {
-        DataCorruption::new(
-            META_FILEPATH.to_path_buf(),
-            format!("Meta file cannot be deserialized. {:?}.", e),
-        )
-    })?
+    IndexMeta::deserialize(&meta_string, &inventory)
+        .map_err(|e| {
+            DataCorruption::new(
+                META_FILEPATH.to_path_buf(),
+                format!("Meta file cannot be deserialized. {:?}.", e),
+            )
+        })
+        .map_err(From::from)
 }
 
 /// Search Index
@@ -179,11 +181,11 @@ impl Index {
     }
 
     /// Helper to access the tokenizer associated to a specific field.
-    pub fn tokenizer_for_field(&'a self, field: Field) -> crate::Result<Box<dyn TextAnalyzerT<'a>>> {
+    pub fn tokenizer_for_field(&self, field: Field) -> crate::Result<Box<dyn TextAnalyzerT>> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
-        let tokenizer_manager: &TokenizerManager<'a> = self.tokenizers();
-        let tokenizer_name_opt: Option<Box<dyn TextAnalyzerT<'static>>> = match field_type {
+        let tokenizer_manager: &TokenizerManager = self.tokenizers();
+        let tokenizer_name_opt: Option<Box<dyn TextAnalyzerT>> = match field_type {
             FieldType::Str(text_options) => text_options
                 .get_indexing_options()
                 .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())

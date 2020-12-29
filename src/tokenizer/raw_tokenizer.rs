@@ -10,9 +10,9 @@ pub struct RawTokenStream {
     has_token: bool,
 }
 
-impl<'a> Tokenizer<'a> for RawTokenizer {
+impl Tokenizer for RawTokenizer {
     type Iter = RawTokenStream;
-    fn token_stream(&self, text: &'a str) -> Self::Iter {
+    fn token_stream(&self, text: &str) -> Self::Iter {
         let token = Token {
             offset_from: 0,
             offset_to: text.len(),

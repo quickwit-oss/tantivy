@@ -1,4 +1,4 @@
-use super::{Token, TokenStream, TokenFilter};
+use super::{Token, TokenFilter, TokenStream};
 use std::mem;
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
@@ -9,14 +9,23 @@ pub struct AsciiFolding {
     buffer: String,
 }
 
+impl AsciiFolding {
+    /// Construct a new `AsciiFolding` filter.
+    pub fn new() -> Self {
+        Self {
+            buffer: String::with_capacity(100),
+        }
+    }
+}
+
 impl TokenFilter for AsciiFolding {
     fn transform(&mut self, mut token: Token) -> Option<Token> {
-        let token = &mut token;
         if !token.text.is_ascii() {
             // ignore its already ascii
-            to_ascii(&mut token.text, &mut self.buffer);
-            mem::swap(&mut token, &mut self.buffer);
+            to_ascii(&token.text, &mut self.buffer);
+            mem::swap(&mut token.text, &mut self.buffer);
         }
+        Some(token)
     }
 }
 
@@ -1517,11 +1526,8 @@ fn to_ascii(text: &String, output: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use super::to_ascii;
-    use crate::tokenizer::AsciiFoldingFilter;
-    use crate::tokenizer::RawTokenizer;
-    use crate::tokenizer::SimpleTokenizer;
-    use crate::tokenizer::TextAnalyzer;
+    use super::super::*;
+    use super::*;
     use std::iter;
 
     #[test]
@@ -1537,22 +1543,20 @@ mod tests {
     }
 
     fn folding_helper(text: &str) -> Vec<String> {
-        let mut tokens = Vec::new();
-        TextAnalyzer::from(SimpleTokenizer)
-            .filter(AsciiFoldingFilter)
+        let tokens = TextAnalyzer::new(SimpleTokenizer)
+            .filter(AsciiFolding::new())
             .token_stream(text)
-            .process(&mut |token| {
-                tokens.push(token.text.clone());
-            });
+            .map(|token| token.text.clone())
+            .collect();
         tokens
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = TextAnalyzer::from(RawTokenizer)
-            .filter(AsciiFoldingFilter)
+        let mut token_stream = TextAnalyzer::new(RawTokenizer)
+            .filter(AsciiFolding::new())
             .token_stream(text);
-        token_stream.advance();
-        token_stream.token().text.clone()
+        let Token { text, .. } = token_stream.next().unwrap();
+        text
     }
 
     #[test]
@@ -1603,9 +1607,9 @@ mod tests {
 
     #[test]
     fn test_to_ascii() {
-        let mut input = "Rámon".to_string();
+        let input = "Rámon".to_string();
         let mut buffer = String::new();
-        to_ascii(&mut input, &mut buffer);
+        to_ascii(&input, &mut buffer);
         assert_eq!("Ramon", buffer);
     }
 

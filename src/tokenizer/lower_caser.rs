@@ -21,6 +21,7 @@ pub struct LowerCaser {
 }
 
 impl LowerCaser {
+    /// Initialize the `LowerCaser`
     pub fn new() -> Self {
         LowerCaser {
             buffer: String::with_capacity(100),
@@ -40,6 +41,7 @@ fn to_lowercase_unicode(text: &String, output: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer};
 
     #[test]
@@ -51,13 +53,14 @@ mod tests {
     }
 
     fn lowercase_helper(text: &str) -> Vec<String> {
-        let mut tokens = vec![];
-        let mut token_stream = TextAnalyzer::new(SimpleTokenizer, text).filter(LowerCaser::new());
-        while let Some(token) = token_stream.next() {
-            let token_text = token.text.clone();
-            tokens.push(token_text);
-        }
-        tokens
+        TextAnalyzer::new(SimpleTokenizer)
+            .filter(LowerCaser::new())
+            .token_stream(text)
+            .map(|token| {
+                let Token { text, .. } = token;
+                text
+            })
+            .collect()
     }
 
     #[test]

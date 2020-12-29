@@ -27,7 +27,7 @@ pub struct StopWordFilter {
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn remove(words: Vec<String>) -> StopWordFilter {
+    pub fn new(words: Vec<String>) -> StopWordFilter {
         let mut set = StopWordHashSet::default();
 
         for word in words {
@@ -44,46 +44,16 @@ impl StopWordFilter {
             "there", "these", "they", "this", "to", "was", "will", "with",
         ];
 
-        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
+        StopWordFilter::new(words.iter().map(|&s| s.to_string()).collect())
     }
-}
-
-pub struct StopWordFilterStream<'a> {
-    words: StopWordHashSet,
-    tail: Box<dyn TokenStream + 'a>,
 }
 
 impl TokenFilter for StopWordFilter {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(StopWordFilterStream {
-            words: self.words.clone(),
-            tail: token_stream,
-        })
-    }
-}
-
-impl<'a> StopWordFilterStream<'a> {
-    fn predicate(&self, token: &Token) -> bool {
-        !self.words.contains(&token.text)
-    }
-}
-
-impl<'a> TokenStream for StopWordFilterStream<'a> {
-    fn advance(&mut self) -> bool {
-        while self.tail.advance() {
-            if self.predicate(self.tail.token()) {
-                return true;
-            }
+    fn transform(&mut self, token: Token) -> Option<Token> {
+        if self.words.contains(&token.text) {
+            return None;
         }
-        false
-    }
-
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
+        Some(token)
     }
 }
 

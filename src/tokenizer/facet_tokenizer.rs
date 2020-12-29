@@ -20,24 +20,24 @@ enum State {
 }
 
 #[derive(Clone, Debug)]
-pub struct FacetTokenStream<'a> {
-    text: &'a str,
+pub struct FacetTokenStream {
+    text: String,
     state: State,
     token: Token,
 }
 
-impl<'a> Tokenizer<'a> for FacetTokenizer {
-    type Iter = FacetTokenStream<'a>;
-    fn token_stream(&self, text: &'a str) -> Self::Iter {
+impl Tokenizer for FacetTokenizer {
+    type Iter = FacetTokenStream;
+    fn token_stream(&self, text: &str) -> Self::Iter {
         FacetTokenStream {
-            text,
+            text: text.to_string(),
             state: State::RootFacetNotEmitted, //< pos is the first char that has not been processed yet.
             token: Token::default(),
         }
     }
 }
 
-impl<'a> Iterator for FacetTokenStream<'a> {
+impl Iterator for FacetTokenStream {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         match self.state {
@@ -69,7 +69,7 @@ impl<'a> Iterator for FacetTokenStream<'a> {
     }
 }
 
-impl<'a> TokenStream for FacetTokenStream<'a> {}
+impl TokenStream for FacetTokenStream {}
 
 #[cfg(test)]
 mod tests {
@@ -81,16 +81,14 @@ mod tests {
     #[test]
     fn test_facet_tokenizer() {
         let facet = Facet::from_path(vec!["top", "a", "b"]);
-        let mut tokens = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap();
-                tokens.push(format!("{}", facet));
-            };
-            FacetTokenizer
-                .token_stream(facet.encoded_str())
-                .process(&mut add_token);
-        }
+        let tokens: Vec<_> = FacetTokenizer
+            .token_stream(facet.encoded_str())
+            .map(|token| {
+                Facet::from_encoded(token.text.as_bytes().to_owned())
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0], "/");
         assert_eq!(tokens[1], "/top");
@@ -101,16 +99,14 @@ mod tests {
     #[test]
     fn test_facet_tokenizer_root_facets() {
         let facet = Facet::root();
-        let mut tokens = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap(); // ok test
-                tokens.push(format!("{}", facet));
-            };
-            FacetTokenizer
-                .token_stream(facet.encoded_str()) // ok test
-                .process(&mut add_token);
-        }
+        let tokens: Vec<_> = FacetTokenizer
+            .token_stream(facet.encoded_str())
+            .map(|token| {
+                Facet::from_encoded(token.text.as_bytes().to_owned())
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], "/");
     }

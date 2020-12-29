@@ -26,38 +26,11 @@ use super::{Token, TokenFilter, TokenStream};
 #[derive(Clone)]
 pub struct AlphaNumOnlyFilter;
 
-pub struct AlphaNumOnlyFilterStream<'a> {
-    tail: Box<dyn TokenStream + 'a>,
-}
-
-impl<'a> AlphaNumOnlyFilterStream<'a> {
-    fn predicate(&self, token: &Token) -> bool {
-        token.text.chars().all(|c| c.is_ascii_alphanumeric())
-    }
-}
-
 impl TokenFilter for AlphaNumOnlyFilter {
-    fn transform<'a>(&self, token_stream: Box<dyn TokenStream + 'a>) -> Box<dyn TokenStream + 'a> {
-        Box::new(AlphaNumOnlyFilterStream { tail: token_stream })
-    }
-}
-
-impl<'a> TokenStream for AlphaNumOnlyFilterStream<'a> {
-    fn advance(&mut self) -> bool {
-        while self.tail.advance() {
-            if self.predicate(self.tail.token()) {
-                return true;
-            }
+    fn transform(&mut self, token: Token) -> Option<Token> {
+        if token.text.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return None;
         }
-
-        false
-    }
-
-    fn token(&self) -> &Token {
-        self.tail.token()
-    }
-
-    fn token_mut(&mut self) -> &mut Token {
-        self.tail.token_mut()
+        Some(token)
     }
 }
