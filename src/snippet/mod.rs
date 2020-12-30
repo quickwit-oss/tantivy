@@ -1,7 +1,7 @@
 use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
-use crate::tokenizer::{TextAnalyzerT, Token};
+use crate::tokenizer::{TextAnalyzerT, Token, Tokenizer};
 use crate::Searcher;
 use crate::{Document, Score};
 use htmlescape::encode_minimal;
@@ -350,8 +350,13 @@ Survey in 2016, 2017, and 2018."#;
             String::from("rust") => 1.0,
             String::from("language") => 0.9
         };
-        let fragments =
-            search_fragments(&TextAnalyzer::new(SimpleTokenizer), TEST_TEXT, &terms, 100);
+
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            TEST_TEXT,
+            &terms,
+            100,
+        );
         assert_eq!(fragments.len(), 7);
         {
             let first = &fragments[0];
@@ -378,8 +383,12 @@ Survey in 2016, 2017, and 2018."#;
                 String::from("rust") =>1.0,
                 String::from("language") => 0.9
             };
-            let fragments =
-                search_fragments(&TextAnalyzer::new(SimpleTokenizer), TEST_TEXT, &terms, 20);
+            let fragments = search_fragments(
+                &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+                TEST_TEXT,
+                &terms,
+                20,
+            );
             {
                 let first = &fragments[0];
                 assert_eq!(first.score, 1.0);
@@ -393,8 +402,12 @@ Survey in 2016, 2017, and 2018."#;
                 String::from("rust") =>0.9,
                 String::from("language") => 1.0
             };
-            let fragments =
-                search_fragments(&TextAnalyzer::new(SimpleTokenizer), TEST_TEXT, &terms, 20);
+            let fragments = search_fragments(
+                &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+                TEST_TEXT,
+                &terms,
+                20,
+            );
             //assert_eq!(fragments.len(), 7);
             {
                 let first = &fragments[0];
@@ -413,7 +426,12 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("c"), 1.0);
 
-        let fragments = search_fragments(&TextAnalyzer::new(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            &text,
+            &terms,
+            3,
+        );
 
         assert_eq!(fragments.len(), 1);
         {
@@ -435,7 +453,12 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("f"), 1.0);
 
-        let fragments = search_fragments(&TextAnalyzer::new(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            &text,
+            &terms,
+            3,
+        );
 
         assert_eq!(fragments.len(), 2);
         {
@@ -458,7 +481,12 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("f"), 1.0);
         terms.insert(String::from("a"), 0.9);
 
-        let fragments = search_fragments(&TextAnalyzer::new(SimpleTokenizer), &text, &terms, 7);
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            &text,
+            &terms,
+            7,
+        );
 
         assert_eq!(fragments.len(), 2);
         {
@@ -480,7 +508,12 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("z"), 1.0);
 
-        let fragments = search_fragments(&TextAnalyzer::new(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            &text,
+            &terms,
+            3,
+        );
 
         assert_eq!(fragments.len(), 0);
 
@@ -494,7 +527,12 @@ Survey in 2016, 2017, and 2018."#;
         let text = "a b c d";
 
         let terms = BTreeMap::new();
-        let fragments = search_fragments(&TextAnalyzer::new(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(
+            &Into::<TextAnalyzer<_>>::into(SimpleTokenizer),
+            &text,
+            &terms,
+            3,
+        );
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], &text);

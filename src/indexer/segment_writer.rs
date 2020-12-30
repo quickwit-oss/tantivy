@@ -13,8 +13,8 @@ use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::PreTokenizedStream;
 use crate::tokenizer::TokenStream;
-use crate::tokenizer::{DynTokenStreamChain, TextAnalyzerT, TokenStreamChain, Tokenizer};
-use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
+use crate::tokenizer::{DynTokenStreamChain, TokenStreamChain, Tokenizer};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzer, TextAnalyzerT};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 

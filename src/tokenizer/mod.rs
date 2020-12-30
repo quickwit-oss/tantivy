@@ -64,10 +64,10 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let en_stem = TextAnalyzer::from(SimpleTokenizer)
+//! let en_stem = analyzer_builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser)
-//!     .filter(Stemmer::new(Language::English));
+//!     .filter(LowerCaser::new())
+//!     .filter(Stemmer::new(Language::English)).build();
 //! ```
 //!
 //! Once your tokenizer is defined, you need to
@@ -109,9 +109,9 @@
 //! let index = Index::create_in_ram(schema);
 //!
 //! // We need to register our tokenizer :
-//! let custom_en_tokenizer = TextAnalyzer::from(SimpleTokenizer)
+//! let custom_en_tokenizer = analyzer_builder(SimpleTokenizer)
 //!     .filter(RemoveLongFilter::limit(40))
-//!     .filter(LowerCaser);
+//!     .filter(LowerCaser::new()).build();
 //! index
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
@@ -146,7 +146,8 @@ pub(crate) use self::token_stream_chain::{DynTokenStreamChain, TokenStreamChain}
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
-    TextAnalyzer, TextAnalyzerT, Token, TokenFilter, TokenStream, Tokenizer,
+    analyzer_builder, Identity, TextAnalyzer, TextAnalyzerT, Token, TokenFilter, TokenStream,
+    Tokenizer,
 };
 
 pub use self::tokenizer_manager::TokenizerManager;
@@ -215,10 +216,11 @@ pub mod tests {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "el_stem",
-            TextAnalyzer::new(SimpleTokenizer)
-                .filter(RemoveLongFilter::new(40))
+            analyzer_builder(SimpleTokenizer)
+                .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser::new())
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Stemmer::new(Language::Greek))
+                .build(),
         );
         let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
         let tokens: Vec<Token> = en_tokenizer

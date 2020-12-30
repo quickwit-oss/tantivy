@@ -2,8 +2,8 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-//!   .filter(RemoveLongFilter::limit(5));
+//! let tokenizer = analyzer_builder(SimpleTokenizer)
+//!   .filter(RemoveLongFilter::limit(5)).build();
 //!
 //! let mut stream = tokenizer.token_stream("toolong nice");
 //! // because `toolong` is more than 5 characters, it is filtered
@@ -26,7 +26,7 @@ pub struct RemoveLongFilter {
 
 impl RemoveLongFilter {
     /// Creates a `RemoveLongFilter` given a limit in bytes of the UTF-8 representation.
-    pub fn new(limit: usize) -> RemoveLongFilter {
+    pub fn limit(limit: usize) -> RemoveLongFilter {
         RemoveLongFilter { limit }
     }
 }

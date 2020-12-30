@@ -78,7 +78,7 @@ use super::{Token, TokenStream, Tokenizer};
 /// }
 /// assert!(stream.next().is_none());
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NgramTokenizer {
     /// min size of the n-gram
     min_gram: usize,

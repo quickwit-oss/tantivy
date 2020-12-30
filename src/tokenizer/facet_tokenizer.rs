@@ -9,7 +9,7 @@ use crate::schema::FACET_SEP_BYTE;
 ///     - `/america/north_america/canada`
 ///     - `/america/north_america`
 ///     - `/america`
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FacetTokenizer;
 
 #[derive(Clone, Debug)]
@@ -40,13 +40,13 @@ impl Tokenizer for FacetTokenizer {
 impl Iterator for FacetTokenStream {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.state {
+        self.state = match self.state {
             State::RootFacetNotEmitted => {
-                self.state = if self.text.is_empty() {
+                if self.text.is_empty() {
                     State::Terminated
                 } else {
                     State::UpToPosition(0)
-                };
+                }
             }
             State::UpToPosition(cursor) => {
                 if let Some(next_sep_pos) = self.text.as_bytes()[cursor + 1..]
@@ -56,11 +56,11 @@ impl Iterator for FacetTokenStream {
                 {
                     let facet_part = &self.text[cursor..next_sep_pos];
                     self.token.text.push_str(facet_part);
-                    self.state = State::UpToPosition(next_sep_pos);
+                    State::UpToPosition(next_sep_pos)
                 } else {
                     let facet_part = &self.text[cursor..];
                     self.token.text.push_str(facet_part);
-                    self.state = State::Terminated;
+                    State::Terminated
                 }
             }
             State::Terminated => return None,

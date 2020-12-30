@@ -36,16 +36,101 @@ impl Default for Token {
 /// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
 ///
 /// It simply wraps a `Tokenizer` and a list of `TokenFilter` that are applied sequentially.
-pub struct TextAnalyzer<T> {
-    tokenizer: T,
-    filters: Vec<Box<dyn TokenFilter>>,
+#[derive(Clone, Debug, Default)]
+pub struct TextAnalyzer<T>(T);
+
+/// Identity `TokenFilter`
+#[derive(Clone, Debug, Default)]
+pub struct Identity;
+
+impl TokenFilter for Identity {
+    fn transform(&mut self, token: Token) -> Option<Token> {
+        Some(token)
+    }
 }
 
-/// Top-level trait for hiding the types contained in it.
-pub trait TextAnalyzerT: 'static + Send + Sync + TextAnalyzerClone {
-    /// Top-level method that calls the corresponding `token_stream` on the
-    /// contained type.
-    fn token_stream(&self, text: &str) -> Box<dyn TokenStream>;
+#[derive(Clone, Debug, Default)]
+pub struct AnalyzerBuilder<T, F> {
+    tokenizer: T,
+    f: F,
+}
+
+/// Construct an `AnalyzerBuilder` on which to apply `TokenFilter`.
+pub fn analyzer_builder<T: Tokenizer>(tokenizer: T) -> AnalyzerBuilder<T, Identity> {
+    AnalyzerBuilder {
+        tokenizer,
+        f: Identity,
+    }
+}
+
+impl<T, F> AnalyzerBuilder<T, F>
+where
+    T: Tokenizer,
+    F: TokenFilter,
+{
+    /// Appends a token filter to the current tokenizer.
+    ///
+    /// The method consumes the current `TokenStream` and returns a
+    /// new one.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tantivy::tokenizer::*;
+    ///
+    /// let en_stem = analyzer_builder(SimpleTokenizer)
+    ///     .filter(RemoveLongFilter::limit(40))
+    ///     .filter(LowerCaser::new())
+    ///     .filter(Stemmer::default()).build();
+    /// ```
+    ///
+    pub fn filter<G: TokenFilter>(self, f: G) -> AnalyzerBuilder<AnalyzerBuilder<T, F>, G> {
+        AnalyzerBuilder { tokenizer: self, f }
+    }
+    /// Finalize the build process.
+    pub fn build(self) -> TextAnalyzer<AnalyzerBuilder<T, F>> {
+        TextAnalyzer(self)
+    }
+}
+
+impl<T: Tokenizer, F: TokenFilter> Tokenizer for AnalyzerBuilder<T, F> {
+    type Iter = Filter<T::Iter, F>;
+    fn token_stream(&self, text: &str) -> Self::Iter {
+        Filter {
+            iter: self.tokenizer.token_stream(text),
+            f: self.f.clone(),
+        }
+    }
+}
+
+/// `Filter` is a wrapper around a `TokenStream` and a `TokenFilter` which modifies the `TokenStream`.
+#[derive(Clone, Default, Debug)]
+pub struct Filter<I, F> {
+    iter: I,
+    f: F,
+}
+
+impl<I, F> Iterator for Filter<I, F>
+where
+    I: TokenStream,
+    F: TokenFilter,
+{
+    type Item = Token;
+    fn next(&mut self) -> Option<Token> {
+        while let Some(token) = self.iter.next() {
+            if let Some(tok) = self.f.transform(token) {
+                return Some(tok);
+            }
+        }
+        None
+    }
+}
+
+impl<I, F> TokenStream for Filter<I, F>
+where
+    I: TokenStream,
+    F: TokenFilter,
+{
 }
 
 pub trait TextAnalyzerClone {
@@ -58,111 +143,24 @@ impl Clone for Box<dyn TextAnalyzerT> {
     }
 }
 
-impl Clone for Box<dyn TokenFilter> {
-    fn clone(&self) -> Self {
-        (**self).box_clone()
-    }
-}
-
-impl<T: Clone + Tokenizer> TextAnalyzerClone for TextAnalyzer<T> {
+impl<T: Tokenizer> TextAnalyzerClone for TextAnalyzer<T> {
     fn box_clone(&self) -> Box<dyn TextAnalyzerT> {
-        Box::new(TextAnalyzer {
-            tokenizer: self.tokenizer.clone(),
-            filters: self.filters.clone(),
-        })
+        Box::new(TextAnalyzer(self.0.clone()))
     }
 }
 
 impl<T: Tokenizer> TextAnalyzerT for TextAnalyzer<T> {
     fn token_stream(&self, text: &str) -> Box<dyn TokenStream> {
-        let tokens = self.tokenizer.token_stream(text);
-        Box::new(TextIter {
-            tokens,
-            // TODO: remove clone
-            filters: self.filters.clone(),
-        })
+        Box::new(self.0.token_stream(text))
     }
 }
 
-impl<T> TextAnalyzer<T>
-where
-    T: Tokenizer,
-{
-    /// Creates a new `TextAnalyzer` given a tokenizer and a vector of `Box<dyn TokenFilter>`.
-    ///
-    /// When creating a `TextAnalyzer` from a `Tokenizer` alone, prefer using
-    /// `TextAnalyzer::from(tokenizer)`.
-    pub fn new(tokenizer: T) -> TextAnalyzer<T> {
-        TextAnalyzer {
-            tokenizer,
-            filters: vec![],
-        }
-    }
-
-    /// Appends a token filter to the current tokenizer.
-    ///
-    /// The method consumes the current `TokenStream` and returns a
-    /// new one.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use tantivy::tokenizer::*;
-    ///
-    /// let en_stem = TextAnalyzer::from(SimpleTokenizer)
-    ///     .filter(RemoveLongFilter::limit(40))
-    ///     .filter(LowerCaser)
-    ///     .filter(Stemmer::default());
-    /// ```
-    ///
-    pub fn filter<F: TokenFilter>(mut self, token_filter: F) -> Self {
-        self.filters.push(Box::new(token_filter));
-        self
-    }
-
-    /// Tokenize an array`&str`
-    ///
-    /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
-    /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
-    /// to prevent accidental `PhraseQuery` to match accross two terms.
-
-    /// Creates a token stream for a given `str`.
-    pub fn token_stream(&self, text: &str) -> TextIter<T::Iter> {
-        let tokens = self.tokenizer.token_stream(text);
-        TextIter {
-            tokens,
-            // TODO: remove clone
-            filters: self.filters.clone(),
-        }
-    }
+/// 'Top-level' trait hiding concrete types, below which static dispatch occurs.
+pub trait TextAnalyzerT: 'static + Send + Sync + TextAnalyzerClone {
+    /// 'Top-level' dynamic dispatch function hiding concrete types of the staticly
+    /// dispatched `token_stream` from the `Tokenizer` trait.
+    fn token_stream(&self, text: &str) -> Box<dyn TokenStream>;
 }
-
-pub struct TextIter<I> {
-    tokens: I,
-    filters: Vec<Box<dyn TokenFilter>>,
-}
-
-impl<I> Iterator for TextIter<I>
-where
-    I: Iterator<Item = Token>,
-{
-    type Item = I::Item;
-    fn next(&mut self) -> Option<Self::Item> {
-        'outer: while let Some(mut token) = self.tokens.next() {
-            for filter in self.filters.iter_mut() {
-                if let Some(tok) = filter.transform(token) {
-                    token = tok;
-                    continue;
-                };
-                continue 'outer;
-            }
-            return Some(token);
-        }
-        None
-    }
-}
-
-impl<I: Iterator<Item = Token>> TokenStream for TextIter<I> {}
 
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
@@ -193,20 +191,10 @@ pub trait Tokenizer: 'static + Send + Sync + Clone {
 }
 
 /// Trait for the pluggable components of `Tokenizer`s.
-pub trait TokenFilter: 'static + Send + Sync + TokenFilterClone {
+pub trait TokenFilter: 'static + Send + Sync + Clone {
     /// Take a `Token` and transform it or return `None` if it's to be removed
     /// from the output stream.
     fn transform(&mut self, token: Token) -> Option<Token>;
-}
-
-pub trait TokenFilterClone {
-    fn box_clone(&self) -> Box<dyn TokenFilter>;
-}
-
-impl<T: TokenFilter + Clone> TokenFilterClone for T {
-    fn box_clone(&self) -> Box<dyn TokenFilter> {
-        Box::new(self.clone())
-    }
 }
 
 /// `TokenStream` is the result of the tokenization.
@@ -218,9 +206,9 @@ impl<T: TokenFilter + Clone> TokenFilterClone for T {
 /// ```
 /// use tantivy::tokenizer::*;
 ///
-/// let tokenizer = TextAnalyzer::from(SimpleTokenizer)
+/// let tokenizer = analyzer_builder(SimpleTokenizer)
 ///        .filter(RemoveLongFilter::limit(40))
-///        .filter(LowerCaser);
+///        .filter(LowerCaser::new()).build();
 /// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
 /// {
 ///     let token = token_stream.next().unwrap();
@@ -238,6 +226,12 @@ impl<T: TokenFilter + Clone> TokenFilterClone for T {
 /// }
 /// ```
 pub trait TokenStream: Iterator<Item = Token> {}
+
+impl<T: Tokenizer> From<T> for TextAnalyzer<T> {
+    fn from(src: T) -> TextAnalyzer<T> {
+        TextAnalyzer(src)
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -263,7 +257,7 @@ mod test {
 
     #[test]
     fn text_analyzer() {
-        let mut stream = TextAnalyzer::new(SimpleTokenizer).token_stream("tokenizer hello world");
+        let mut stream = SimpleTokenizer.token_stream("tokenizer hello world");
         dbg!(stream.next());
         dbg!(stream.next());
         dbg!(stream.next());

@@ -1,5 +1,5 @@
 use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::tokenizer::{TextAnalyzer, TextAnalyzerT, Tokenizer};
+use crate::tokenizer::tokenizer::{analyzer_builder, TextAnalyzer, TextAnalyzerT, Tokenizer};
 use crate::tokenizer::LowerCaser;
 use crate::tokenizer::RawTokenizer;
 use crate::tokenizer::RemoveLongFilter;
@@ -27,14 +27,14 @@ pub struct TokenizerManager {
 
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
-    pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
+    pub fn register<U: Tokenizer, T>(&self, tokenizer_name: &str, tokenizer: T)
     where
-        T: TextAnalyzerT,
+        T: Into<TextAnalyzer<U>>,
     {
         self.tokenizers
             .write()
             .expect("Acquiring the lock should never fail")
-            .insert(tokenizer_name.to_string(), Box::new(tokenizer));
+            .insert(tokenizer_name.to_string(), Box::new(tokenizer.into()));
     }
 
     /// Accessing a tokenizer given its name.
@@ -57,19 +57,21 @@ impl Default for TokenizerManager {
         let manager = TokenizerManager {
             tokenizers: Arc::new(RwLock::new(HashMap::new())),
         };
-        manager.register("raw", TextAnalyzer::new(RawTokenizer));
+        manager.register("raw", RawTokenizer);
         manager.register(
             "default",
-            TextAnalyzer::new(SimpleTokenizer)
-                .filter(RemoveLongFilter::new(40))
-                .filter(LowerCaser::new()),
+            analyzer_builder(SimpleTokenizer)
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser::new())
+                .build(),
         );
         manager.register(
             "en_stem",
-            TextAnalyzer::new(SimpleTokenizer)
-                .filter(RemoveLongFilter::new(40))
+            analyzer_builder(SimpleTokenizer)
+                .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser::new())
-                .filter(Stemmer::new(Language::English)),
+                .filter(Stemmer::new(Language::English))
+                .build(),
         );
         manager
     }
