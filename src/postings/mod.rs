@@ -50,7 +50,9 @@ pub mod tests {
     use crate::schema::{Field, TextOptions};
     use crate::schema::{IndexRecordOption, TextFieldIndexing};
     use crate::schema::{Schema, Term, INDEXED, TEXT};
-    use crate::tokenizer::{SimpleTokenizer, TextAnalyzer, MAX_TOKEN_LEN};
+    use crate::tokenizer::{
+        analyzer_builder, SimpleTokenizer, TextAnalyzer, TextAnalyzerT, MAX_TOKEN_LEN,
+    };
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
@@ -167,7 +169,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema.clone());
         index
             .tokenizers()
-            .register("simple_no_truncation", TextAnalyzer::new(SimpleTokenizer));
+            .register("simple_no_truncation", SimpleTokenizer);
         let reader = index.reader().unwrap();
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));

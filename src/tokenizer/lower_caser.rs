@@ -1,4 +1,4 @@
-use super::{Token, TokenFilter};
+use super::{analyzer_builder, TextAnalyzerT, Token, TokenFilter};
 use std::mem;
 
 impl TokenFilter for LowerCaser {
@@ -15,7 +15,7 @@ impl TokenFilter for LowerCaser {
 }
 
 /// Token filter that lowercase terms.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LowerCaser {
     buffer: String,
 }
@@ -46,15 +46,13 @@ mod tests {
 
     #[test]
     fn test_to_lower_case() {
-        assert_eq!(
-            lowercase_helper("Русский текст"),
-            vec!["русский".to_string(), "текст".to_string()]
-        );
+        assert_eq!(lowercase_helper("Русский текст"), vec!["русский", "текст"]);
     }
 
     fn lowercase_helper(text: &str) -> Vec<String> {
-        TextAnalyzer::new(SimpleTokenizer)
+        analyzer_builder(SimpleTokenizer)
             .filter(LowerCaser::new())
+            .build()
             .token_stream(text)
             .map(|token| {
                 let Token { text, .. } = token;
@@ -65,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_lowercaser() {
-        assert_eq!(lowercase_helper("Tree"), vec!["tree".to_string()]);
-        assert_eq!(lowercase_helper("Русский"), vec!["русский".to_string()]);
+        assert_eq!(lowercase_helper("Tree"), vec!["tree"]);
+        assert_eq!(lowercase_helper("Русский"), vec!["русский"]);
     }
 }

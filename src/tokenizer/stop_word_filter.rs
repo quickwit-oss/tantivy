@@ -2,8 +2,8 @@
 //! ```rust
 //! use tantivy::tokenizer::*;
 //!
-//! let tokenizer = TextAnalyzer::from(SimpleTokenizer)
-//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
+//! let tokenizer = analyzer_builder(SimpleTokenizer)
+//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()])).build();
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");
 //! assert_eq!(stream.next().unwrap().text, "fox");
@@ -27,7 +27,7 @@ pub struct StopWordFilter {
 
 impl StopWordFilter {
     /// Creates a `StopWordFilter` given a list of words to remove
-    pub fn new(words: Vec<String>) -> StopWordFilter {
+    pub fn remove(words: Vec<String>) -> StopWordFilter {
         let mut set = StopWordHashSet::default();
 
         for word in words {
@@ -44,7 +44,7 @@ impl StopWordFilter {
             "there", "these", "they", "this", "to", "was", "will", "with",
         ];
 
-        StopWordFilter::new(words.iter().map(|&s| s.to_string()).collect())
+        StopWordFilter::remove(words.iter().map(|&s| s.to_string()).collect())
     }
 }
 

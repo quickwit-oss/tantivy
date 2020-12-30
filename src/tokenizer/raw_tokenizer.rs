@@ -1,13 +1,12 @@
 use super::{Token, TokenStream, Tokenizer};
 
 /// For each value of the field, emit a single unprocessed token.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RawTokenizer;
 
 #[derive(Clone, Debug)]
 pub struct RawTokenStream {
-    token: Token,
-    has_token: bool,
+    token: Option<Token>,
 }
 
 impl Tokenizer for RawTokenizer {
@@ -21,8 +20,7 @@ impl Tokenizer for RawTokenizer {
             position_length: 1,
         };
         RawTokenStream {
-            token,
-            has_token: true,
+            token: Some(token),
         }
     }
 }
@@ -30,12 +28,7 @@ impl Tokenizer for RawTokenizer {
 impl Iterator for RawTokenStream {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
-        if self.has_token {
-            self.has_token = false;
-            Some(self.token.clone())
-        } else {
-            None
-        }
+        self.token.take()
     }
 }
 

@@ -573,14 +573,13 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
 #[cfg(test)]
 mod test {
     use super::super::logical_ast::*;
-    use super::QueryParser;
-    use super::QueryParserError;
+    use super::*;
     use crate::query::Query;
     use crate::schema::Field;
     use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
     use crate::tokenizer::{
-        LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer, TokenizerManager,
+        analyzer_builder, LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer,
     };
     use crate::Index;
     use matches::assert_matches;
@@ -619,9 +618,10 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
             "en_with_stop_words",
-            TextAnalyzer::new(SimpleTokenizer)
+            analyzer_builder(SimpleTokenizer)
                 .filter(LowerCaser::new())
-                .filter(StopWordFilter::new(vec!["the".to_string()])),
+                .filter(StopWordFilter::remove(vec!["the".to_string()]))
+                .build(),
         );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
@@ -978,7 +978,7 @@ mod test {
         let index = Index::create_in_ram(schema);
         index
             .tokenizers()
-            .register("customtokenizer", TextAnalyzer::new(SimpleTokenizer));
+            .register("customtokenizer", SimpleTokenizer);
         let query_parser = QueryParser::for_index(&index, vec![title]);
         assert_eq!(
             query_parser.parse_query("title:\"happy tax\"").unwrap_err(),

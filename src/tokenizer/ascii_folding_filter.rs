@@ -1,10 +1,10 @@
-use super::{Token, TokenFilter, TokenStream};
+use super::{analyzer_builder, Token, TokenFilter, TokenStream};
 use std::mem;
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
 /// block) into their ASCII equivalents, if one exists.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AsciiFolding {
     buffer: String,
 }
@@ -1543,8 +1543,9 @@ mod tests {
     }
 
     fn folding_helper(text: &str) -> Vec<String> {
-        let tokens = TextAnalyzer::new(SimpleTokenizer)
+        let tokens = analyzer_builder(SimpleTokenizer)
             .filter(AsciiFolding::new())
+            .build()
             .token_stream(text)
             .map(|token| token.text.clone())
             .collect();
@@ -1552,8 +1553,9 @@ mod tests {
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
-        let mut token_stream = TextAnalyzer::new(RawTokenizer)
+        let mut token_stream = analyzer_builder(RawTokenizer)
             .filter(AsciiFolding::new())
+            .build()
             .token_stream(text);
         let Token { text, .. } = token_stream.next().unwrap();
         text
