@@ -87,9 +87,6 @@ members = ["query-grammar"]
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
 
-[patch.crates-io]
-rust-stemmers = {path = "src/vendor/rust-stemmers"}
-
 # Following the "fail" crate best practises, we isolate
 # tests that define specific behavior in fail check points
 # in a different binary.
