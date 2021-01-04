@@ -88,6 +88,7 @@ impl Iterator for DynTokenStreamChain {
 
 #[cfg(test)]
 mod tests {
+    use super::super::tokenizer::Tokenizer;
     use super::super::SimpleTokenizer;
     use super::*;
 

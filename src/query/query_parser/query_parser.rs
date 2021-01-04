@@ -578,9 +578,7 @@ mod test {
     use crate::schema::Field;
     use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
-    use crate::tokenizer::{
-        analyzer_builder, LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer,
-    };
+    use crate::tokenizer::{analyzer_builder, LowerCaser, SimpleTokenizer, StopWordFilter};
     use crate::Index;
     use matches::assert_matches;
 

@@ -42,7 +42,7 @@ fn to_lowercase_unicode(text: &String, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer};
+    use crate::tokenizer::{analyzer_builder, LowerCaser, SimpleTokenizer, TextAnalyzerT};
 
     #[test]
     fn test_to_lower_case() {

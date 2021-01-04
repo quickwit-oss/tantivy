@@ -50,9 +50,7 @@ pub mod tests {
     use crate::schema::{Field, TextOptions};
     use crate::schema::{IndexRecordOption, TextFieldIndexing};
     use crate::schema::{Schema, Term, INDEXED, TEXT};
-    use crate::tokenizer::{
-        analyzer_builder, SimpleTokenizer, TextAnalyzer, TextAnalyzerT, MAX_TOKEN_LEN,
-    };
+    use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
