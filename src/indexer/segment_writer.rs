@@ -10,10 +10,9 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
-use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::PreTokenizedStream;
-use crate::tokenizer::{DynTokenStreamChain, TokenStreamChain, Tokenizer};
-use crate::tokenizer::{FacetTokenizer, TextAnalyzer, TextAnalyzerT, Token};
+use crate::tokenizer::{DynTokenStreamChain, Tokenizer};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzerT, Token};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 

@@ -1,4 +1,4 @@
-use super::{analyzer_builder, TextAnalyzerT, Token, TokenFilter};
+use super::{Token, TokenFilter};
 use std::mem;
 
 impl TokenFilter for LowerCaser {

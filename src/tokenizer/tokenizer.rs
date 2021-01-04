@@ -1,4 +1,4 @@
-use crate::tokenizer::{DynTokenStreamChain, TokenStreamChain};
+use crate::tokenizer::TokenStreamChain;
 use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
