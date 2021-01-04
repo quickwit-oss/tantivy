@@ -31,6 +31,6 @@ impl TokenFilter for AlphaNumOnlyFilter {
         if token.text.chars().all(|c| c.is_ascii_alphanumeric()) {
             return Some(token);
         }
-       None
+        None
     }
 }
