@@ -1,4 +1,4 @@
-use crate::tokenizer::{Token, TokenStream, Tokenizer};
+use crate::tokenizer::{Token, Tokenizer};
 
 const POSITION_GAP: usize = 2;
 
@@ -25,13 +25,6 @@ where
     }
 }
 
-impl<'a, Inner, Outer: Iterator<Item = (Inner, usize)>> TokenStream
-    for TokenStreamChain<Inner, Outer>
-where
-    Inner: Iterator<Item = Token>,
-{
-}
-
 impl<'a, Inner, Outer> Iterator for TokenStreamChain<Inner, Outer>
 where
     Inner: Iterator<Item = Token>,
@@ -55,7 +48,9 @@ where
 }
 
 impl DynTokenStreamChain {
-    pub fn from_vec(streams_with_offsets: Vec<(Box<dyn TokenStream>, usize)>) -> impl TokenStream {
+    pub fn from_vec(
+        streams_with_offsets: Vec<(Box<dyn Iterator<Item = Token>>, usize)>,
+    ) -> impl Iterator<Item = Token> {
         DynTokenStreamChain {
             streams_with_offsets,
             idx: 0,
@@ -66,13 +61,11 @@ impl DynTokenStreamChain {
 }
 
 pub(crate) struct DynTokenStreamChain {
-    streams_with_offsets: Vec<(Box<dyn TokenStream>, usize)>,
+    streams_with_offsets: Vec<(Box<dyn Iterator<Item = Token>>, usize)>,
     idx: usize,
     position: usize,
     position_shift: usize,
 }
-
-impl<'a> TokenStream for DynTokenStreamChain {}
 
 impl Iterator for DynTokenStreamChain {
     type Item = Token;

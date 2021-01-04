@@ -1,4 +1,4 @@
-use super::{Token, TokenStream, Tokenizer};
+use super::{Token, Tokenizer};
 use crate::schema::FACET_SEP_BYTE;
 
 /// The `FacetTokenizer` process a `Facet` binary representation
@@ -68,8 +68,6 @@ impl Iterator for FacetTokenStream {
         Some(self.token.clone())
     }
 }
-
-impl TokenStream for FacetTokenStream {}
 
 #[cfg(test)]
 mod tests {

@@ -11,7 +11,7 @@ pub trait TextAnalyzerClone {
 pub trait TextAnalyzerT: 'static + Send + Sync + TextAnalyzerClone {
     /// 'Top-level' dynamic dispatch function hiding concrete types of the staticly
     /// dispatched `token_stream` from the `Tokenizer` trait.
-    fn token_stream(&self, text: &str) -> Box<dyn TokenStream>;
+    fn token_stream(&self, text: &str) -> Box<dyn Iterator<Item = Token>>;
 }
 
 impl Clone for Box<dyn TextAnalyzerT> {
@@ -57,51 +57,21 @@ pub trait TokenFilter: 'static + Send + Sync + Clone {
     fn transform(&mut self, token: Token) -> Option<Token>;
 }
 
-/// `TokenStream` is the result of the tokenization.
-///
-/// It consists consumable stream of `Token`s.
-///
-/// # Example
-///
-/// ```
-/// use tantivy::tokenizer::*;
-///
-/// let tokenizer = analyzer_builder(SimpleTokenizer)
-///        .filter(RemoveLongFilter::limit(40))
-///        .filter(LowerCaser::new()).build();
-/// let mut token_stream = tokenizer.token_stream("Hello, happy tax payer");
-/// {
-///     let token = token_stream.next().unwrap();
-///     assert_eq!(&token.text, "hello");
-///     assert_eq!(token.offset_from, 0);
-///     assert_eq!(token.offset_to, 5);
-///     assert_eq!(token.position, 0);
-/// }
-/// {
-///     let token = token_stream.next().unwrap();
-///     assert_eq!(&token.text, "happy");
-///     assert_eq!(token.offset_from, 7);
-///     assert_eq!(token.offset_to, 12);
-///     assert_eq!(token.position, 1);
-/// }
-/// ```
-pub trait TokenStream: Iterator<Item = Token> {}
-
 /// `Tokenizer` are in charge of splitting text into a stream of token
 /// before indexing.
 ///
 /// See the [module documentation](./index.html) for more detail.
 pub trait Tokenizer: 'static + Send + Sync + Clone {
     /// An iteratable type is returned.
-    type Iter: TokenStream;
+    type Iter: Iterator<Item = Token>;
     /// Creates a token stream for a given `str`.
     fn token_stream(&self, text: &str) -> Self::Iter;
     /// Tokenize an array`&str`
     ///
-    /// The resulting `BoxTokenStream` is equivalent to what would be obtained if the &str were
+    /// The resulting `Token` stream is equivalent to what would be obtained if the &str were
     /// one concatenated `&str`, with an artificial position gap of `2` between the different fields
     /// to prevent accidental `PhraseQuery` to match accross two terms.
-    fn token_stream_texts<'a>(&'a self, texts: &'a [&str]) -> Box<dyn TokenStream + 'a> {
+    fn token_stream_texts<'a>(&'a self, texts: &'a [&str]) -> Box<dyn Iterator<Item = Token> + 'a> {
         let streams_with_offsets = texts.iter().scan(0, move |total_offset, &text| {
             let temp = *total_offset;
             *total_offset += text.len();
@@ -111,7 +81,7 @@ pub trait Tokenizer: 'static + Send + Sync + Clone {
     }
 }
 
-/// `TextAnalyzer` tokenizes an input text into tokens and modifies the resulting `TokenStream`.
+/// `TextAnalyzer` wraps the tokenization of an input text and its modification by any filters applied onto it.
 ///
 /// It simply wraps a `Tokenizer` and a list of `TokenFilter` that are applied sequentially.
 #[derive(Clone, Debug, Default)]
@@ -130,7 +100,7 @@ impl<T: Tokenizer> TextAnalyzerClone for TextAnalyzer<T> {
 }
 
 impl<T: Tokenizer> TextAnalyzerT for TextAnalyzer<T> {
-    fn token_stream(&self, text: &str) -> Box<dyn TokenStream> {
+    fn token_stream(&self, text: &str) -> Box<dyn Iterator<Item = Token>> {
         Box::new(self.0.token_stream(text))
     }
 }
@@ -145,7 +115,7 @@ impl TokenFilter for Identity {
     }
 }
 
-/// `Filter` is a wrapper around a `TokenStream` and a `TokenFilter` which modifies the `TokenStream`.
+/// `Filter` is a wrapper around a `Token` stream and a `TokenFilter` which modifies it.
 #[derive(Clone, Default, Debug)]
 pub struct Filter<I, F> {
     iter: I,
@@ -154,7 +124,7 @@ pub struct Filter<I, F> {
 
 impl<I, F> Iterator for Filter<I, F>
 where
-    I: TokenStream,
+    I: Iterator<Item = Token>,
     F: TokenFilter,
 {
     type Item = Token;
@@ -166,13 +136,6 @@ where
         }
         None
     }
-}
-
-impl<I, F> TokenStream for Filter<I, F>
-where
-    I: TokenStream,
-    F: TokenFilter,
-{
 }
 
 #[derive(Clone, Debug, Default)]
@@ -196,7 +159,7 @@ where
 {
     /// Appends a token filter to the current tokenizer.
     ///
-    /// The method consumes the current `TokenStream` and returns a
+    /// The method consumes the current `Token` and returns a
     /// new one.
     ///
     /// # Example

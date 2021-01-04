@@ -12,9 +12,8 @@ use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
 use crate::tokenizer::PreTokenizedStream;
-use crate::tokenizer::TokenStream;
 use crate::tokenizer::{DynTokenStreamChain, TokenStreamChain, Tokenizer};
-use crate::tokenizer::{FacetTokenizer, TextAnalyzer, TextAnalyzerT};
+use crate::tokenizer::{FacetTokenizer, TextAnalyzer, TextAnalyzerT, Token};
 use crate::Opstamp;
 use crate::{DocId, SegmentComponent};
 
@@ -183,7 +182,7 @@ impl SegmentWriter {
                             Value::PreTokStr(tok_str) => {
                                 streams_with_offsets.push((
                                     Box::new(PreTokenizedStream::from(tok_str.clone()))
-                                        as Box<dyn TokenStream>,
+                                        as Box<dyn Iterator<Item = Token>>,
                                     total_offset,
                                 ));
                                 if let Some(last_token) = tok_str.tokens.last() {

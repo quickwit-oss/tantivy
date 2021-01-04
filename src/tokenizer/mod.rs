@@ -146,8 +146,7 @@ pub(crate) use self::token_stream_chain::{DynTokenStreamChain, TokenStreamChain}
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
-    analyzer_builder, Identity, TextAnalyzer, TextAnalyzerT, Token, TokenFilter, TokenStream,
-    Tokenizer,
+    analyzer_builder, Identity, TextAnalyzer, TextAnalyzerT, Token, TokenFilter, Tokenizer,
 };
 
 pub use self::tokenizer_manager::TokenizerManager;

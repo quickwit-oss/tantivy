@@ -19,7 +19,7 @@
 //! // the "emoji" is dropped because its not an alphanum
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter};
 
 /// `TokenFilter` that removes all tokens that contain non
 /// ascii alphanumeric characters.

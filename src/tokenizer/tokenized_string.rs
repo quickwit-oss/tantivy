@@ -1,4 +1,4 @@
-use crate::tokenizer::{Token, TokenStream, TokenStreamChain};
+use crate::tokenizer::{Token, TokenStreamChain};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
@@ -42,7 +42,7 @@ impl PreTokenizedStream {
     /// Creates a TokenStream from PreTokenizedString array
     pub fn chain_tokenized_strings<'a>(
         tok_strings: &'a [&PreTokenizedString],
-    ) -> impl TokenStream + 'a {
+    ) -> impl Iterator<Item = Token> + 'a {
         let streams_with_offsets = tok_strings.iter().scan(0, |total_offset, tok_string| {
             let next = Some((
                 PreTokenizedStream::from((*tok_string).to_owned()),
@@ -56,8 +56,6 @@ impl PreTokenizedStream {
         TokenStreamChain::new(streams_with_offsets)
     }
 }
-
-impl TokenStream for PreTokenizedStream {}
 
 impl Iterator for PreTokenizedStream {
     type Item = Token;

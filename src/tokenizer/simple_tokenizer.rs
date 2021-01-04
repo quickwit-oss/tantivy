@@ -1,7 +1,5 @@
-use super::{Token, TokenStream, Tokenizer};
+use super::{Token, Tokenizer};
 use std::str::CharIndices;
-
-impl TokenStream for SimpleTokenizerStream {}
 
 /// Tokenize the text by splitting on whitespaces and punctuation.
 #[derive(Clone, Debug)]

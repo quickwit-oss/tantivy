@@ -1,4 +1,4 @@
-use super::{Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter};
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
 
