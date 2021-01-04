@@ -1,4 +1,4 @@
-use super::{Token, TokenStream, Tokenizer};
+use super::{Token, Tokenizer};
 
 /// For each value of the field, emit a single unprocessed token.
 #[derive(Clone, Debug, Default)]
@@ -29,5 +29,3 @@ impl Iterator for RawTokenStream {
         self.token.take()
     }
 }
-
-impl TokenStream for RawTokenStream {}

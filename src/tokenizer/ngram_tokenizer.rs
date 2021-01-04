@@ -1,4 +1,4 @@
-use super::{Token, TokenStream, Tokenizer};
+use super::{Token, Tokenizer};
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
@@ -144,8 +144,6 @@ impl Tokenizer for NgramTokenizer {
         }
     }
 }
-
-impl TokenStream for NgramTokenStream {}
 
 impl Iterator for NgramTokenStream {
     type Item = Token;
@@ -296,18 +294,8 @@ fn utf8_codepoint_width(b: u8) -> usize {
 
 #[cfg(test)]
 mod tests {
-
-    use super::utf8_codepoint_width;
-    use super::CodepointFrontiers;
-    use super::NgramTokenizer;
-    use super::StutteringIterator;
+    use super::*;
     use crate::tokenizer::tests::assert_token;
-    use crate::tokenizer::tokenizer::Tokenizer;
-    use crate::tokenizer::{Token, TokenStream};
-
-    fn test_helper<T: TokenStream>(tokens: T) -> Vec<Token> {
-        tokens.collect()
-    }
 
     #[test]
     fn test_utf8_codepoint_width() {
@@ -344,7 +332,9 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_1_2_false() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 2).token_stream("hello"));
+        let tokens: Vec<_> = NgramTokenizer::all_ngrams(1, 2)
+            .token_stream("hello")
+            .collect();
         assert_eq!(tokens.len(), 9);
         assert_token(&tokens[0], 0, "h", 0, 1);
         assert_token(&tokens[1], 0, "he", 0, 2);
@@ -359,7 +349,9 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_min_max_equal() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(3, 3).token_stream("hello"));
+        let tokens: Vec<_> = NgramTokenizer::all_ngrams(3, 3)
+            .token_stream("hello")
+            .collect();
         assert_eq!(tokens.len(), 3);
         assert_token(&tokens[0], 0, "hel", 0, 3);
         assert_token(&tokens[1], 0, "ell", 1, 4);
@@ -368,7 +360,9 @@ mod tests {
 
     #[test]
     fn test_ngram_tokenizer_2_5_prefix() {
-        let tokens = test_helper(NgramTokenizer::prefix_only(2, 5).token_stream("frankenstein"));
+        let tokens: Vec<_> = NgramTokenizer::prefix_only(2, 5)
+            .token_stream("frankenstein")
+            .collect();
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "fr", 0, 2);
         assert_token(&tokens[1], 0, "fra", 0, 3);
@@ -378,7 +372,9 @@ mod tests {
 
     #[test]
     fn test_ngram_non_ascii_1_2() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 2).token_stream("hεllo"));
+        let tokens: Vec<_> = NgramTokenizer::all_ngrams(1, 2)
+            .token_stream("hεllo")
+            .collect();
         assert_eq!(tokens.len(), 9);
         assert_token(&tokens[0], 0, "h", 0, 1);
         assert_token(&tokens[1], 0, "hε", 0, 3);
@@ -393,7 +389,9 @@ mod tests {
 
     #[test]
     fn test_ngram_non_ascii_2_5_prefix() {
-        let tokens = test_helper(NgramTokenizer::prefix_only(2, 5).token_stream("hεllo"));
+        let tokens: Vec<_> = NgramTokenizer::prefix_only(2, 5)
+            .token_stream("hεllo")
+            .collect();
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "hε", 0, 3);
         assert_token(&tokens[1], 0, "hεl", 0, 4);
@@ -403,16 +401,16 @@ mod tests {
 
     #[test]
     fn test_ngram_empty() {
-        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 5).token_stream(""));
+        let tokens: Vec<_> = NgramTokenizer::all_ngrams(1, 5).token_stream("").collect();
         assert!(tokens.is_empty());
-        let tokens = test_helper(NgramTokenizer::all_ngrams(2, 5).token_stream(""));
+        let tokens: Vec<_> = NgramTokenizer::all_ngrams(2, 5).token_stream("").collect();
         assert!(tokens.is_empty());
     }
 
     #[test]
     #[should_panic(expected = "min_gram must be greater than 0")]
     fn test_ngram_min_max_interval_empty() {
-        test_helper(NgramTokenizer::all_ngrams(0, 2).token_stream("hellossss"));
+        NgramTokenizer::all_ngrams(0, 2).token_stream("hellossss");
     }
 
     #[test]

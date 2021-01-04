@@ -10,7 +10,7 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream};
+use super::{Token, TokenFilter};
 use fnv::FnvHasher;
 use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
