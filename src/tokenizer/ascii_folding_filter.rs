@@ -1,4 +1,4 @@
-use super::{analyzer_builder, Token, TokenFilter};
+use super::{Token, TokenFilter};
 use std::mem;
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters

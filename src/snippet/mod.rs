@@ -1,7 +1,7 @@
 use crate::query::Query;
 use crate::schema::Field;
 use crate::schema::Value;
-use crate::tokenizer::{TextAnalyzerT, Token, Tokenizer};
+use crate::tokenizer::{TextAnalyzerT, Token};
 use crate::Searcher;
 use crate::{Document, Score};
 use htmlescape::encode_minimal;
