@@ -74,7 +74,7 @@ mod tests {
 
     use super::FacetTokenizer;
     use crate::schema::Facet;
-    use crate::tokenizer::{Token, Tokenizer};
+    use crate::tokenizer::Tokenizer;
 
     #[test]
     fn test_facet_tokenizer() {
