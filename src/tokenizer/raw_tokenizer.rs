@@ -19,9 +19,7 @@ impl Tokenizer for RawTokenizer {
             text: text.to_string(),
             position_length: 1,
         };
-        RawTokenStream {
-            token: Some(token),
-        }
+        RawTokenStream { token: Some(token) }
     }
 }
 
