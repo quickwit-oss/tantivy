@@ -302,7 +302,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..3_000 {
-            let term_freq = rng.gen_range(1, 10000);
+            let term_freq = rng.gen_range(1..10000);
             let words: Vec<&str> = std::iter::repeat("bbbb").take(term_freq).collect();
             let text = words.join(" ");
             writer.add_document(doc!(text_field=>text));

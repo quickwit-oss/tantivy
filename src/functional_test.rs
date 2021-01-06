@@ -31,7 +31,7 @@ fn test_indexing() {
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
 
     for _ in 0..200 {
-        let random_val = rng.gen_range(0, 20);
+        let random_val = rng.gen_range(0..20);
         if random_val == 0 {
             index_writer.commit().expect("Commit failed");
             committed_docs.extend(&uncommitted_docs);
