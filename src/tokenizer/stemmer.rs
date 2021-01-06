@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{Token, TokenFilter};
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
@@ -57,14 +59,16 @@ impl Language {
 /// Tokens are expected to be lowercased beforehand.
 #[derive(Clone)]
 pub struct Stemmer {
-    stemmer: rust_stemmers::Stemmer,
+    stemmer: Arc<rust_stemmers::Stemmer>,
 }
 
 impl Stemmer {
     /// Creates a new Stemmer `TokenFilter` for a given language algorithm.
     pub fn new(language: Language) -> Stemmer {
         let stemmer = rust_stemmers::Stemmer::create(language.algorithm());
-        Stemmer { stemmer }
+        Stemmer {
+            stemmer: Arc::new(stemmer),
+        }
     }
 }
 
