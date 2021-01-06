@@ -57,6 +57,7 @@ rand = "0.8"
 maplit = "1"
 matches = "0.1.8"
 proptest = "0.10"
+criterion = "0.3"
 
 [dev-dependencies.fail]
 version = "0.4"
@@ -97,3 +98,7 @@ travis-ci = { repository = "tantivy-search/tantivy" }
 name = "failpoints"
 path = "tests/failpoints/mod.rs"
 required-features = ["fail/failpoints"]
+
+[[bench]]
+name = "analyzer"
+harness = false
