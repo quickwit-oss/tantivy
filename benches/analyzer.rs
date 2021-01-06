@@ -10,7 +10,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             let mut word_count = 0;
             let mut token_stream = tokenizer.token_stream(ALICE_TXT);
-            while token_stream.advance() {
+            for token in token_stream {
                 word_count += 1;
             }
             assert_eq!(word_count, 30_731);
