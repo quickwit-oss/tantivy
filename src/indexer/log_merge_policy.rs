@@ -8,7 +8,7 @@ const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_MERGE_SIZE: usize = 8;
 const DEFAULT_MAX_MERGE_SIZE: usize = 10_000_000;
 
-/// `LogMergePolicy` tries tries to merge segments that have a similar number of
+/// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
 #[derive(Debug, Clone)]
 pub struct LogMergePolicy {
