@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_store_with_stacking() -> crate::Result<()> {
+    fn test_merge_store_with_stacking_reproducing_issue969() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::default();
         let text = schema_builder.add_text_field("text", STORED | STRING);
         let body = schema_builder.add_text_field("body", STORED);

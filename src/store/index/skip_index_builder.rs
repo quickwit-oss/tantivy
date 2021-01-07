@@ -59,14 +59,13 @@ impl LayerBuilder {
     }
 }
 
-#[derive(Default)]
 pub struct SkipIndexBuilder {
     layers: Vec<LayerBuilder>,
 }
 
 impl SkipIndexBuilder {
     pub fn new() -> SkipIndexBuilder {
-        Self::default()
+        SkipIndexBuilder { layers: Vec::new() }
     }
 
     fn get_layer(&mut self, layer_id: usize) -> &mut LayerBuilder {
