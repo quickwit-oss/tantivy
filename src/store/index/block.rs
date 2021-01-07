@@ -43,6 +43,9 @@ impl CheckpointBlock {
 
     /// Adding another checkpoint in the block.
     pub fn push(&mut self, checkpoint: Checkpoint) {
+        if let Some(prev_checkpoint) = self.checkpoints.last() {
+            assert!(checkpoint.follows(prev_checkpoint));
+        }
         self.checkpoints.push(checkpoint);
     }
 

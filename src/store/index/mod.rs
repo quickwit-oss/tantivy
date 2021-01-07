@@ -26,6 +26,13 @@ pub struct Checkpoint {
     pub end_offset: u64,
 }
 
+impl Checkpoint {
+    pub(crate) fn follows(&self, other: &Checkpoint) -> bool {
+        (self.start_doc == other.end_doc) &&
+        (self.start_offset == other.end_offset)
+    }
+}
+
 impl fmt::Debug for Checkpoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -39,13 +46,16 @@ impl fmt::Debug for Checkpoint {
 #[cfg(test)]
 mod tests {
 
-    use std::io;
+    use std::{io, iter};
 
+    use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
 
     use crate::directory::OwnedBytes;
+    use crate::indexer::NoMergePolicy;
+    use crate::schema::{SchemaBuilder, STORED, STRING};
     use crate::store::index::Checkpoint;
-    use crate::DocId;
+    use crate::{DocAddress, DocId, Index, Term};
 
     use super::{SkipIndex, SkipIndexBuilder};
 
@@ -131,6 +141,40 @@ mod tests {
 
     fn offset_test(doc: DocId) -> u64 {
         (doc as u64) * (doc as u64)
+    }
+
+    #[test]
+    fn test_merge_store_with_stacking_reproducing_issue969() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::default();
+        let text = schema_builder.add_text_field("text", STORED | STRING);
+        let body = schema_builder.add_text_field("body", STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        let long_text: String = iter::repeat("abcdefghijklmnopqrstuvwxyz")
+            .take(1_000)
+            .collect();
+        for _ in 0..20 {
+            index_writer.add_document(doc!(body=>long_text.clone()));
+        }
+        index_writer.commit()?;
+        index_writer.add_document(doc!(text=>"testb"));
+        for _ in 0..10 {
+            index_writer.add_document(doc!(text=>"testd", body=>long_text.clone()));
+        }
+        index_writer.commit()?;
+        index_writer.delete_term(Term::from_field_text(text, "testb"));
+        index_writer.commit()?;
+        let segment_ids = index.searchable_segment_ids()?;
+        block_on(index_writer.merge(&segment_ids))?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 30);
+        for i in 0..searcher.num_docs() as u32 {
+            let _doc = searcher.doc(DocAddress(0u32, i))?;
+        }
+        Ok(())
     }
 
     #[test]
