@@ -50,6 +50,21 @@ impl StoreReader {
         self.skip_index.checkpoints()
     }
 
+    pub fn documents(&self) -> Vec<Document>  {
+        let mut documents = Vec::new();
+        for checkpoint in self.skip_index.checkpoints() {
+            let block =  self.read_block(&checkpoint).unwrap();
+            let mut cursor = &block[..];
+            while cursor.len() > 0 {
+                let doc_length = VInt::deserialize(&mut cursor).unwrap().val() as usize;
+                let doc = Document::deserialize(&mut &cursor[..doc_length]).unwrap();
+                documents.push(doc);
+                cursor = &cursor[doc_length..];
+            }
+        }
+        documents
+    }
+
     fn block_checkpoint(&self, doc_id: DocId) -> Option<Checkpoint> {
         self.skip_index.seek(doc_id)
     }

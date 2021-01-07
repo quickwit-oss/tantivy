@@ -36,6 +36,8 @@ and should rely on either
 mod index;
 mod reader;
 mod writer;
+mod tests_store;
+
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
