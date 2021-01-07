@@ -26,6 +26,13 @@ pub struct Checkpoint {
     pub end_offset: u64,
 }
 
+impl Checkpoint {
+    pub(crate) fn follows(&self, other: &Checkpoint) -> bool {
+        (self.start_doc == other.end_doc) &&
+        (self.start_offset == other.end_offset)
+    }
+}
+
 impl fmt::Debug for Checkpoint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(

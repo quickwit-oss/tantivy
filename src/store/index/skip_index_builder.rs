@@ -28,18 +28,20 @@ impl LayerBuilder {
     ///
     /// If the block was empty to begin with, simply return None.
     fn flush_block(&mut self) -> Option<Checkpoint> {
-        self.block.doc_interval().map(|(start_doc, end_doc)| {
+        if let Some((start_doc, end_doc)) = self.block.doc_interval() {
             let start_offset = self.buffer.len() as u64;
             self.block.serialize(&mut self.buffer);
             let end_offset = self.buffer.len() as u64;
             self.block.clear();
-            Checkpoint {
+            Some(Checkpoint {
                 start_doc,
                 end_doc,
                 start_offset,
                 end_offset,
-            }
-        })
+            })
+        } else {
+            None
+        }
     }
 
     fn push(&mut self, checkpoint: Checkpoint) {
@@ -48,7 +50,7 @@ impl LayerBuilder {
 
     fn insert(&mut self, checkpoint: Checkpoint) -> Option<Checkpoint> {
         self.push(checkpoint);
-        let emit_skip_info = (self.block.len() % CHECKPOINT_PERIOD) == 0;
+        let emit_skip_info = self.block.len() >= CHECKPOINT_PERIOD;
         if emit_skip_info {
             self.flush_block()
         } else {
@@ -57,13 +59,14 @@ impl LayerBuilder {
     }
 }
 
+#[derive(Default)]
 pub struct SkipIndexBuilder {
     layers: Vec<LayerBuilder>,
 }
 
 impl SkipIndexBuilder {
     pub fn new() -> SkipIndexBuilder {
-        SkipIndexBuilder { layers: Vec::new() }
+        Self::default()
     }
 
     fn get_layer(&mut self, layer_id: usize) -> &mut LayerBuilder {
