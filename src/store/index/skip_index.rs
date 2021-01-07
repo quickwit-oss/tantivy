@@ -59,7 +59,6 @@ pub struct SkipIndex {
 }
 
 impl SkipIndex {
-
     pub fn open(mut data: OwnedBytes) -> SkipIndex {
         let offsets: Vec<u64> = Vec::<VInt>::deserialize(&mut data)
             .unwrap()
@@ -108,6 +107,4 @@ impl SkipIndex {
         }
         Some(cur_checkpoint)
     }
-
-    
 }

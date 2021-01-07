@@ -1,9 +1,9 @@
-use std::collections::HashSet;
-use rand::thread_rng;
 use crate::Index;
 use crate::Searcher;
 use crate::{doc, schema::*};
+use rand::thread_rng;
 use rand::Rng;
+use std::collections::HashSet;
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
@@ -84,7 +84,10 @@ fn test_functional_indexing() -> crate::Result<()> {
             reader.reload()?;
             let searcher = reader.searcher();
             // check that everything is correct.
-            check_index_content(&searcher, &committed_docs.iter().cloned().collect::<Vec<u64>>())?;
+            check_index_content(
+                &searcher,
+                &committed_docs.iter().cloned().collect::<Vec<u64>>(),
+            )?;
         } else {
             if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
                 let doc_id_term = Term::from_field_u64(id_field, random_val);
