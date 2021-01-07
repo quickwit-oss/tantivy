@@ -35,7 +35,7 @@ impl StoreReader {
         let (data_file, offset_index_file) = split_file(store_file)?;
         let index_data = offset_index_file.read_bytes()?;
         let space_usage = StoreSpaceUsage::new(data_file.len(), offset_index_file.len());
-        let skip_index = SkipIndex::from(index_data);
+        let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
             data: data_file,
             cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY))),

@@ -54,7 +54,7 @@ mod tests {
         let mut output: Vec<u8> = Vec::new();
         let skip_index_builder: SkipIndexBuilder = SkipIndexBuilder::new();
         skip_index_builder.write(&mut output)?;
-        let skip_index: SkipIndex = SkipIndex::from(OwnedBytes::new(output));
+        let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         let mut skip_cursor = skip_index.checkpoints();
         assert!(skip_cursor.next().is_none());
         Ok(())
@@ -72,7 +72,7 @@ mod tests {
         };
         skip_index_builder.insert(checkpoint);
         skip_index_builder.write(&mut output)?;
-        let skip_index: SkipIndex = SkipIndex::from(OwnedBytes::new(output));
+        let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         let mut skip_cursor = skip_index.checkpoints();
         assert_eq!(skip_cursor.next(), Some(checkpoint));
         assert_eq!(skip_cursor.next(), None);
@@ -121,7 +121,7 @@ mod tests {
         }
         skip_index_builder.write(&mut output)?;
 
-        let skip_index: SkipIndex = SkipIndex::from(OwnedBytes::new(output));
+        let skip_index: SkipIndex = SkipIndex::open(OwnedBytes::new(output));
         assert_eq!(
             &skip_index.checkpoints().collect::<Vec<_>>()[..],
             &checkpoints[..]
@@ -150,7 +150,7 @@ mod tests {
         }
         skip_index_builder.write(&mut output)?;
         assert_eq!(output.len(), 4035);
-        let resulting_checkpoints: Vec<Checkpoint> = SkipIndex::from(OwnedBytes::new(output))
+        let resulting_checkpoints: Vec<Checkpoint> = SkipIndex::open(OwnedBytes::new(output))
             .checkpoints()
             .collect();
         assert_eq!(&resulting_checkpoints, &checkpoints);
@@ -221,7 +221,7 @@ mod tests {
              }
              let mut buffer = Vec::new();
              skip_index_builder.write(&mut buffer).unwrap();
-             let skip_index = SkipIndex::from(OwnedBytes::new(buffer));
+             let skip_index = SkipIndex::open(OwnedBytes::new(buffer));
              let iter_checkpoints: Vec<Checkpoint> = skip_index.checkpoints().collect();
              assert_eq!(&checkpoints[..], &iter_checkpoints[..]);
              test_skip_index_aux(skip_index, &checkpoints[..]);
