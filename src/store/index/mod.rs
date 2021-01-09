@@ -1,4 +1,4 @@
-const CHECKPOINT_PERIOD: usize = 8;
+const CHECKPOINT_PERIOD: usize = 2;
 
 use std::fmt;
 mod block;

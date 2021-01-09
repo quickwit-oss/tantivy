@@ -35,12 +35,18 @@ fn load_metas(
     inventory: &SegmentMetaInventory,
 ) -> crate::Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
-    let meta_string = String::from_utf8_lossy(&meta_data);
+    let meta_string = String::from_utf8(meta_data)
+        .map_err(|utf8_err| {
+            DataCorruption::new(
+                META_FILEPATH.to_path_buf(),
+                format!("Meta file is not valid utf-8. {:?}", utf8_err)
+            )
+        })?;
     IndexMeta::deserialize(&meta_string, &inventory)
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
-                format!("Meta file cannot be deserialized. {:?}.", e),
+                format!("Meta file cannot be deserialized. {:?}. content = {}", e, meta_string),
             )
         })
         .map_err(From::from)

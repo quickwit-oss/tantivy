@@ -20,6 +20,7 @@ fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
 #[test]
 #[ignore]
 fn test_functional_store() -> crate::Result<()> {
+    env_logger::init();
     let mut schema_builder = Schema::builder();
 
     let id_field = schema_builder.add_u64_field("id", INDEXED | STORED);
@@ -35,8 +36,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut doc_set: Vec<u64> = Vec::new();
 
     let mut doc_id = 0u64;
-    for iteration in 0..500 {
-        dbg!(iteration);
+    for iteration in 0.. {
         let num_docs: usize = rng.gen_range(0..4);
         if doc_set.len() >= 1 {
             let doc_to_remove_id = rng.gen_range(0..doc_set.len());
@@ -51,6 +51,7 @@ fn test_functional_store() -> crate::Result<()> {
         index_writer.commit()?;
         reader.reload()?;
         let searcher = reader.searcher();
+        println!("#{} - {}", iteration, searcher.segment_readers().len());
         check_index_content(&searcher, &doc_set)?;
     }
     Ok(())

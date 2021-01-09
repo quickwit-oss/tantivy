@@ -10,7 +10,7 @@ use crate::store::index::Checkpoint;
 use crate::DocId;
 use std::io::{self, Write};
 
-const BLOCK_SIZE: usize = 16_384;
+const BLOCK_SIZE: usize = 30;
 
 /// Write tantivy's [`Store`](./index.html)
 ///
