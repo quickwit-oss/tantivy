@@ -53,6 +53,7 @@ impl StoreReader {
     pub fn documents(&self) -> Vec<Document>  {
         let mut documents = Vec::new();
         for checkpoint in self.skip_index.checkpoints() {
+            println!("{:?}", checkpoint);
             let block =  self.read_block(&checkpoint).unwrap();
             let mut cursor = &block[..];
             while cursor.len() > 0 {
@@ -119,7 +120,6 @@ impl StoreReader {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
             cursor = &cursor[doc_length..];
         }
-
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
         cursor = &cursor[..doc_length];
         Ok(Document::deserialize(&mut cursor)?)

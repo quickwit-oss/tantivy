@@ -73,7 +73,7 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap"]
+default = ["mmap", "brotli"]
 mmap = ["fs2", "tempfile", "memmap"]
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4"]
