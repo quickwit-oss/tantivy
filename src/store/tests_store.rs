@@ -9,7 +9,7 @@ use super::{StoreReader, StoreWriter};
 #[test]
 fn test_toto2() -> crate::Result<()> {
     let directory = ManagedDirectory::wrap(MmapDirectory::open("src/store/broken_seg")?)?;
-    let path = Path::new("0bf1f1e1a9d748028c1a0996e5e48f94.store");
+    let path = Path::new("b6029ade1b954ea1acad15b432eaacb9.store");
     assert!(directory.validate_checksum(path)?);
     let store_file = directory.open_read(path)?;
     let store = StoreReader::open(store_file)?;
@@ -17,7 +17,7 @@ fn test_toto2() -> crate::Result<()> {
     // for doc in documents {
     //     println!("{:?}", doc);
     // }
-    // let doc= store.get(53)?;
+    let doc= store.get(15_086)?;
     Ok(())
 }
 
