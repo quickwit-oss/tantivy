@@ -44,12 +44,12 @@ impl VecWriter {
 
 impl Drop for VecWriter {
     fn drop(&mut self) {
-        if !self.is_flushed {
-            panic!(
-                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
-                self.path
-            )
-        }
+        // if !self.is_flushed {
+        //     panic!(
+        //         "You forgot to flush {:?} before its writter got Drop. Do not rely on drop.",
+        //         self.path
+        //     )
+        // }
     }
 }
 

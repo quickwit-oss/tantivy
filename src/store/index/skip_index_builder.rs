@@ -1,6 +1,6 @@
 use crate::common::{BinarySerializable, VInt};
 use crate::store::index::block::CheckpointBlock;
-use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
+use crate::store::index::{Checkpoint, SkipIndex, CHECKPOINT_PERIOD};
 use std::io;
 use std::io::Write;
 
@@ -87,7 +87,8 @@ impl SkipIndexBuilder {
         }
     }
 
-    pub fn write<W: Write>(mut self, output: &mut W) -> io::Result<()> {
+    pub fn write<W: Write>(mut self, real_output: &mut W) -> io::Result<()> {
+        let mut output: Vec<u8> = Vec::new();
         let mut last_pointer = None;
         for skip_layer in self.layers.iter_mut() {
             if let Some(checkpoint) = last_pointer {
@@ -108,10 +109,14 @@ impl SkipIndexBuilder {
             layer_offset += layer_buffer.len() as u64;
             layer_sizes.push(VInt(layer_offset));
         }
-        layer_sizes.serialize(output)?;
+        layer_sizes.serialize(&mut output)?;
         for layer_buffer in layer_buffers {
             output.write_all(&layer_buffer[..])?;
         }
+        if !SkipIndex::from_bytes(&output).is_valid() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "about to write invalid skip index"));
+        }
+        real_output.write_all(&output)?;
         Ok(())
     }
 }

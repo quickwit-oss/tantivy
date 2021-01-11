@@ -77,6 +77,28 @@ impl SkipIndex {
         SkipIndex { layers }
     }
 
+    pub fn is_valid(&self) -> bool {
+        let checkpoints: Vec<Checkpoint> = self.checkpoints().collect();
+        let mut prev_checkpoint = Checkpoint {
+            start_doc: 0u32,
+            end_doc: 0u32,
+            start_offset: 0u64,
+            end_offset: 0u64,
+        };
+        for checkpoint in checkpoints {
+            if !checkpoint.follows(&prev_checkpoint) {
+                return false;
+            }
+            prev_checkpoint = checkpoint;
+        }
+        true
+    }
+
+    pub(crate) fn from_bytes(data: &[u8]) -> SkipIndex {
+        let data = OwnedBytes::new(data.to_owned());
+        SkipIndex::open(data)
+    }
+
     pub(crate) fn checkpoints<'a>(&'a self) -> impl Iterator<Item = Checkpoint> + 'a {
         self.layers
             .last()

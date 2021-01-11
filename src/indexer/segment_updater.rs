@@ -25,9 +25,10 @@ use futures::future::Future;
 use futures::future::TryFutureExt;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
-use std::io::Write;
+use std::io::{self, Write};
 use std::ops::Deref;
 use std::path::PathBuf;
+use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -409,6 +410,13 @@ impl SegmentUpdater {
                     let _send_result = merging_future_send.send(segment_meta);
                 }
                 Err(e) => {
+                    if let crate::TantivyError::IOError(ref io_err) = &e {
+                        if io_err.kind() == io::ErrorKind::InvalidData {
+                            println!(" SEGMENTS THAT CAUSE THE BUG {:?}", merge_operation.segment_ids());
+                            error!(" SEGMENTS THAT CAUSE THE BUG {:?}", merge_operation.segment_ids());
+                            process::exit(1);
+                        }
+                    }
                     warn!(
                         "Merge of {:?} was cancelled: {:?}",
                         merge_operation.segment_ids().to_vec(),
@@ -423,7 +431,9 @@ impl SegmentUpdater {
         });
 
         Ok(merging_future_recv
-            .unwrap_or_else(|_| Err(crate::TantivyError::SystemError("Merge failed".to_string()))))
+            .unwrap_or_else(|e| {
+                Err(crate::TantivyError::SystemError("Merge failed".to_string()))
+            }))
     }
 
     async fn consider_merge_options(&self) {
