@@ -28,8 +28,7 @@ pub struct Checkpoint {
 
 impl Checkpoint {
     pub(crate) fn follows(&self, other: &Checkpoint) -> bool {
-        (self.start_doc == other.end_doc) &&
-        (self.start_offset == other.end_offset)
+        (self.start_doc == other.end_doc) && (self.start_offset == other.end_offset)
     }
 }
 
@@ -96,7 +95,7 @@ mod tests {
             Checkpoint {
                 start_doc: 0,
                 end_doc: 3,
-                start_offset: 4,
+                start_offset: 0,
                 end_offset: 9,
             },
             Checkpoint {
@@ -201,19 +200,21 @@ mod tests {
         Ok(())
     }
 
-    fn integrate_delta(mut vals: Vec<u64>) -> Vec<u64> {
+    fn integrate_delta(vals: Vec<u64>) -> Vec<u64> {
+        let mut output = Vec::with_capacity(vals.len() + 1);
+        output.push(0u64);
         let mut prev = 0u64;
-        for val in vals.iter_mut() {
-            let new_val = *val + prev;
+        for val in vals {
+            let new_val = val + prev;
             prev = new_val;
-            *val = new_val;
+            output.push(new_val);
         }
-        vals
+        output
     }
 
     // Generates a sequence of n valid checkpoints, with n < max_len.
     fn monotonic_checkpoints(max_len: usize) -> BoxedStrategy<Vec<Checkpoint>> {
-        (1..max_len)
+        (0..max_len)
             .prop_flat_map(move |len: usize| {
                 (
                     proptest::collection::vec(1u64..20u64, len as usize).prop_map(integrate_delta),
