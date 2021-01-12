@@ -2,7 +2,7 @@ use crate::DocAddress;
 use crate::DocId;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use serde::export::PhantomData;
+use std::marker::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
