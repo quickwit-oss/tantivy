@@ -65,7 +65,7 @@ Tantivy 0.12.0
 ## How to update?
 
 Crates relying on custom tokenizer, or registering tokenizer in the manager will require some 
-minor changes. Check https://github.com/tantivy-search/tantivy/blob/master/examples/custom_tokenizer.rs
+minor changes. Check https://github.com/tantivy-search/tantivy/blob/main/examples/custom_tokenizer.rs
 to check for some code sample.
 
 Tantivy 0.11.3

@@ -96,7 +96,7 @@
 //! A good place for you to get started is to check out
 //! the example code (
 //! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
-//! [source code](https://github.com/tantivy-search/tantivy/blob/master/examples/basic_search.rs))
+//! [source code](https://github.com/tantivy-search/tantivy/blob/main/examples/basic_search.rs))
 
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
