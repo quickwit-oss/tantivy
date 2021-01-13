@@ -1,3 +1,7 @@
+Tantivy 0.13.3
+======================
+Bugfix. Avoid relying on serde's reexport of PhantomData. (#975)
+
 Tantivy 0.13.2
 ===================
 Bugfix. Acquiring a facet reader on a segment that does not contain any 
