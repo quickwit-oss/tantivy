@@ -11,6 +11,8 @@ use crate::query::{
     Union, Weight,
 };
 use crate::{DocId, Score};
+use rayon::iter::IntoParallelRefIterator;
+use std::collections::HashMap;
 
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
@@ -18,7 +20,9 @@ enum SpecializedScorer {
 }
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> SpecializedScorer
-where TScoreCombiner: ScoreCombiner {
+where
+    TScoreCombiner: ScoreCombiner + Send,
+{
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehands
@@ -47,7 +51,9 @@ where TScoreCombiner: ScoreCombiner {
     SpecializedScorer::Other(Box::new(Union::<_, TScoreCombiner>::from(scorers)))
 }
 
-fn into_box_scorer<TScoreCombiner: ScoreCombiner>(scorer: SpecializedScorer) -> Box<dyn Scorer> {
+fn into_box_scorer<TScoreCombiner: ScoreCombiner + Send>(
+    scorer: SpecializedScorer,
+) -> Box<dyn Scorer> {
     match scorer {
         SpecializedScorer::TermUnion(term_scorers) => {
             let union_scorer = Union::<TermScorer, TScoreCombiner>::from(term_scorers);
@@ -75,11 +81,29 @@ impl BooleanWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
+        use rayon::iter::IndexedParallelIterator;
+        use rayon::iter::ParallelIterator;
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-        for &(ref occur, ref subweight) in &self.weights {
-            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
+        let mut items_res: Vec<crate::Result<(Occur, Box<dyn Scorer>)>> = Vec::new();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.weights.len())
+            .build()
+            .unwrap();
+        pool.install(|| {
+            self.weights
+                .iter()
+                .collect::<Vec<_>>()
+                .par_iter()
+                .map(|(occur, subweight)| {
+                    let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
+                    Ok((*occur, sub_scorer))
+                })
+                .collect_into_vec(&mut items_res);
+        });
+        for item_res in items_res {
+            let (occur, sub_scorer) = item_res?;
             per_occur_scorers
-                .entry(*occur)
+                .entry(occur)
                 .or_insert_with(Vec::new)
                 .push(sub_scorer);
         }

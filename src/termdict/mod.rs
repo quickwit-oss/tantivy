@@ -19,8 +19,11 @@
 //! A second datastructure makes it possible to access a
 //! [`TermInfo`](../postings/struct.TermInfo.html).
 
-mod fst_termdict;
-use fst_termdict as termdict;
+// mod fst_termdict;
+// use fst_termdict as termdict;
+
+mod sstable_termdict;
+use sstable_termdict as termdict;
 
 mod merger;
 

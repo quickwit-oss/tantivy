@@ -302,6 +302,7 @@ fn test_stream_range_boundaries_forward() -> crate::Result<()> {
     Ok(())
 }
 
+/*
 #[test]
 fn test_stream_range_boundaries_backward() -> crate::Result<()> {
     let term_dictionary = stream_range_test_dict()?;
@@ -362,6 +363,7 @@ fn test_stream_range_boundaries_backward() -> crate::Result<()> {
     }
     Ok(())
 }
+*/
 
 #[test]
 fn test_ord_to_term() -> crate::Result<()> {
