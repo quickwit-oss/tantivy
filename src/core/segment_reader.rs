@@ -307,7 +307,7 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive<'a>(&'a self) -> impl Iterator<Item = DocId> + 'a {
+    pub fn doc_ids_alive(&self) -> impl Iterator<Item = DocId> + '_ {
         (0u32..self.max_doc).filter(move |doc| !self.is_deleted(*doc))
     }
 

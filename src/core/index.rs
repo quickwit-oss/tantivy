@@ -39,7 +39,7 @@ fn load_metas(
         error!("Meta data is not valid utf8.");
         DataCorruption::new(
             META_FILEPATH.to_path_buf(),
-            format!("Meta file does not contain valid utf8 file."),
+            "Meta file does not contain valid utf8 file.".to_string(),
         )
     })?;
     IndexMeta::deserialize(&meta_string, &inventory)
