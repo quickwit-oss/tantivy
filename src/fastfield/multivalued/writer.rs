@@ -18,7 +18,7 @@ use std::io;
 /// in your schema
 /// - add your document simply by calling `.add_document(...)`.
 ///
-/// The `MultiValueIntFastFieldWriter` can be acquired from the
+/// The `MultiValuedFastFieldWriter` can be acquired from the
 /// fastfield writer, by calling [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
 ///
 /// Once acquired, writing is done by calling calls to
@@ -29,17 +29,17 @@ use std::io;
 /// This makes it possible to push unordered term ids,
 /// during indexing and remap them to their respective
 /// term ids when the segment is getting serialized.
-pub struct MultiValueIntFastFieldWriter {
+pub struct MultiValuedFastFieldWriter {
     field: Field,
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
     is_facet: bool,
 }
 
-impl MultiValueIntFastFieldWriter {
+impl MultiValuedFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
     pub(crate) fn new(field: Field, is_facet: bool) -> Self {
-        MultiValueIntFastFieldWriter {
+        MultiValuedFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
@@ -47,7 +47,7 @@ impl MultiValueIntFastFieldWriter {
         }
     }
 
-    /// Access the field associated to the `MultiValueIntFastFieldWriter`
+    /// Access the field associated to the `MultiValuedFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
     }

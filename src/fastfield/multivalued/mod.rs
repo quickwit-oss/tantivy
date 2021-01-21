@@ -2,7 +2,7 @@ mod reader;
 mod writer;
 
 pub use self::reader::MultiValuedFastFieldReader;
-pub use self::writer::MultiValueIntFastFieldWriter;
+pub use self::writer::MultiValuedFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
