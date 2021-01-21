@@ -7,7 +7,7 @@ use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
-use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -246,7 +246,7 @@ impl IndexMerger {
         for reader in &self.readers {
             let u64_reader: FastFieldReader<u64> = reader
                 .fast_fields()
-                .u64_lenient(field)
+                .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
             if let Some((seg_min_val, seg_max_val)) =
                 compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
@@ -290,7 +290,7 @@ impl IndexMerger {
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
-        let mut u64s_readers: Vec<MultiValueIntFastFieldReader<u64>> = Vec::new();
+        let mut u64s_readers: Vec<MultiValuedFastFieldReader<u64>> = Vec::new();
 
         // In the first pass, we compute the total number of vals.
         //
@@ -298,9 +298,8 @@ impl IndexMerger {
         // what should be the bit length use for bitpacking.
         for reader in &self.readers {
             let u64s_reader = reader.fast_fields()
-                .u64s_lenient(field)
+                .typed_fast_field_multi_reader(field)
                 .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
-
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
@@ -353,7 +352,7 @@ impl IndexMerger {
             for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
                 let term_ordinal_mapping: &[TermOrdinal] =
                     term_ordinal_mappings.get_segment(segment_ord);
-                let ff_reader: MultiValueIntFastFieldReader<u64> = segment_reader
+                let ff_reader: MultiValuedFastFieldReader<u64> = segment_reader
                     .fast_fields()
                     .u64s(field)
                     .expect("Could not find multivalued u64 fast value reader.");
@@ -397,8 +396,10 @@ impl IndexMerger {
         // We go through a complete first pass to compute the minimum and the
         // maximum value and initialize our Serializer.
         for reader in &self.readers {
-            let ff_reader: MultiValueIntFastFieldReader<u64> =
-                reader.fast_fields().u64s_lenient(field).expect(
+            let ff_reader: MultiValuedFastFieldReader<u64> = reader
+                .fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect(
                     "Failed to find multivalued fast field reader. This is a bug in \
                      tantivy. Please report.",
                 );
@@ -445,11 +446,7 @@ impl IndexMerger {
         let mut bytes_readers: Vec<BytesFastFieldReader> = Vec::new();
 
         for reader in &self.readers {
-            let bytes_reader = reader.fast_fields().bytes(field).ok_or_else(|| {
-                crate::TantivyError::InvalidArgument(
-                    "Bytes fast field {:?} not found in segment.".to_string(),
-                )
-            })?;
+            let bytes_reader = reader.fast_fields().bytes(field)?;
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {

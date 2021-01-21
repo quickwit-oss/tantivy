@@ -2,9 +2,9 @@ use crate::DocAddress;
 use crate::DocId;
 use crate::SegmentLocalId;
 use crate::SegmentReader;
-use std::marker::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::marker::PhantomData;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
