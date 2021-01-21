@@ -146,15 +146,14 @@ impl CustomScorer<u64> for ScorerByField {
     type Child = ScorerByFastFieldReader;
 
     fn segment_scorer(&self, segment_reader: &SegmentReader) -> crate::Result<Self::Child> {
-        let ff_reader = segment_reader
+        // We interpret this field as u64, regardless of its type, that way,
+        // we avoid needless conversion. Regardless of the fast field type, the
+        // mapping is monotonic, so it is sufficient to compute our top-K docs.
+        //
+        // The conversion will then happen only on the top-K docs.
+        let ff_reader: FastFieldReader<u64> = segment_reader
             .fast_fields()
-            .u64_lenient(self.field)
-            .ok_or_else(|| {
-                crate::TantivyError::SchemaError(format!(
-                    "Field requested ({:?}) is not a fast field.",
-                    self.field
-                ))
-            })?;
+            .typed_fast_field_reader(self.field)?;
         Ok(ScorerByFastFieldReader { ff_reader })
     }
 }
@@ -232,7 +231,7 @@ impl TopDocs {
     /// #   let title = schema_builder.add_text_field("title", TEXT);
     /// #   let rating = schema_builder.add_u64_field("rating", FAST);
     /// #   let schema = schema_builder.build();
-    /// #  
+    /// #
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64));
@@ -262,7 +261,7 @@ impl TopDocs {
     ///     let top_books_by_rating = TopDocs
     ///                 ::with_limit(10)
     ///                  .order_by_u64_field(rating_field);
-    ///     
+    ///
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `u64` in the pair is the value of our fast field for
     ///     // each documents.
@@ -272,13 +271,13 @@ impl TopDocs {
     ///     // query.
     ///     let resulting_docs: Vec<(u64, DocAddress)> =
     ///          searcher.search(query, &top_books_by_rating)?;
-    ///     
+    ///
     ///     Ok(resulting_docs)
     /// }
     /// ```
     ///
     /// # See also
-    ///  
+    ///
     /// To confortably work with `u64`s, `i64`s, `f64`s, or `date`s, please refer to
     /// [.order_by_fast_field(...)](#method.order_by_fast_field) method.
     pub fn order_by_u64_field(
@@ -290,7 +289,7 @@ impl TopDocs {
 
     /// Set top-K to rank documents by a given fast field.
     ///
-    /// If the field is not a fast field, or its field type does not match the generic type, this method does not panic,  
+    /// If the field is not a fast field, or its field type does not match the generic type, this method does not panic,
     /// but an explicit error will be returned at the moment of collection.
     ///
     /// Note that this method is a generic. The requested fast field type will be often
@@ -314,7 +313,7 @@ impl TopDocs {
     /// #   let title = schema_builder.add_text_field("company", TEXT);
     /// #   let rating = schema_builder.add_i64_field("revenue", FAST);
     /// #   let schema = schema_builder.build();
-    /// #  
+    /// #
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     /// #   index_writer.add_document(doc!(title => "MadCow Inc.", rating => 92_000_000i64));
@@ -343,7 +342,7 @@ impl TopDocs {
     ///     let top_company_by_revenue = TopDocs
     ///                 ::with_limit(2)
     ///                  .order_by_fast_field(revenue_field);
-    ///     
+    ///
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `i64` in the pair is the value of our fast field for
     ///     // each documents.
@@ -353,7 +352,7 @@ impl TopDocs {
     ///     // query.
     ///     let resulting_docs: Vec<(i64, DocAddress)> =
     ///          searcher.search(query, &top_company_by_revenue)?;
-    ///     
+    ///
     ///     Ok(resulting_docs)
     /// }
     /// ```
@@ -392,7 +391,7 @@ impl TopDocs {
     ///
     /// In the following example will will tweak our ranking a bit by
     /// boosting popular products a notch.
-    ///  
+    ///
     /// In more serious application, this tweaking could involved running a
     /// learning-to-rank model over various features
     ///
@@ -523,7 +522,7 @@ impl TopDocs {
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     /// #   let product_name = index.schema().get_field("product_name").unwrap();
-    /// #   
+    /// #
     /// let popularity: Field = index.schema().get_field("popularity").unwrap();
     /// let boosted: Field = index.schema().get_field("boosted").unwrap();
     /// #   index_writer.add_document(doc!(boosted=>1u64, product_name => "The Diary of Muadib", popularity => 1u64));
@@ -557,7 +556,7 @@ impl TopDocs {
     ///                 segment_reader.fast_fields().u64(popularity).unwrap();
     ///             let boosted_reader =
     ///                 segment_reader.fast_fields().u64(boosted).unwrap();
-    ///    
+    ///
     ///             // We can now define our actual scoring function
     ///             move |doc: DocId| {
     ///                 let popularity: u64 = popularity_reader.get(doc);
@@ -994,9 +993,7 @@ mod tests {
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let err = top_collector.for_segment(0, segment).err().unwrap();
-        assert!(
-            matches!(err, crate::TantivyError::SchemaError(msg) if msg == "Field requested (Field(0)) is not a fast field.")
-        );
+        assert!(matches!(err, crate::TantivyError::SchemaError(_)));
         Ok(())
     }
 

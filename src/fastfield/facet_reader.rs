@@ -1,4 +1,4 @@
-use super::MultiValueIntFastFieldReader;
+use super::MultiValuedFastFieldReader;
 use crate::error::DataCorruption;
 use crate::schema::Facet;
 use crate::termdict::TermDictionary;
@@ -20,7 +20,7 @@ use std::str;
 /// list of facets. This ordinal is segment local and
 /// only makes sense for a given segment.
 pub struct FacetReader {
-    term_ords: MultiValueIntFastFieldReader<u64>,
+    term_ords: MultiValuedFastFieldReader<u64>,
     term_dict: TermDictionary,
     buffer: Vec<u8>,
 }
@@ -29,12 +29,12 @@ impl FacetReader {
     /// Creates a new `FacetReader`.
     ///
     /// A facet reader just wraps :
-    /// - a `MultiValueIntFastFieldReader` that makes it possible to
+    /// - a `MultiValuedFastFieldReader` that makes it possible to
     /// access the list of facet ords for a given document.
     /// - a `TermDictionary` that helps associating a facet to
     /// an ordinal and vice versa.
     pub fn new(
-        term_ords: MultiValueIntFastFieldReader<u64>,
+        term_ords: MultiValuedFastFieldReader<u64>,
         term_dict: TermDictionary,
     ) -> FacetReader {
         FacetReader {

@@ -114,12 +114,7 @@ impl SegmentReader {
                 field_entry.name()
             )));
         }
-        let term_ords_reader = self.fast_fields().u64s(field).ok_or_else(|| {
-            DataCorruption::comment_only(format!(
-                "Cannot find data for hierarchical facet {:?}",
-                field_entry.name()
-            ))
-        })?;
+        let term_ords_reader = self.fast_fields().u64s(field)?;
         let termdict = self
             .termdict_composite
             .open_read(field)
@@ -183,8 +178,10 @@ impl SegmentReader {
 
         let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
-        let fast_field_readers =
-            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
+        let fast_field_readers = Arc::new(FastFieldReaders::load_all(
+            schema.clone(),
+            &fast_fields_composite,
+        )?);
 
         let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;

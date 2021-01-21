@@ -42,24 +42,6 @@ impl<Item: FastValue> FastFieldReader<Item> {
         })
     }
 
-    pub(crate) fn into_u64_reader(self) -> FastFieldReader<u64> {
-        FastFieldReader {
-            bit_unpacker: self.bit_unpacker,
-            min_value_u64: self.min_value_u64,
-            max_value_u64: self.max_value_u64,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub(crate) fn cast<TFastValue: FastValue>(self) -> FastFieldReader<TFastValue> {
-        FastFieldReader {
-            bit_unpacker: self.bit_unpacker,
-            min_value_u64: self.min_value_u64,
-            max_value_u64: self.max_value_u64,
-            _phantom: PhantomData,
-        }
-    }
-
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.

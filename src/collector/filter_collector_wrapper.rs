@@ -124,13 +124,7 @@ where
 
         let fast_field_reader = segment_reader
             .fast_fields()
-            .typed_fast_field_reader(self.field)
-            .ok_or_else(|| {
-                TantivyError::SchemaError(format!(
-                    "{:?} is not declared as a fast field in the schema.",
-                    self.field
-                ))
-            })?;
+            .typed_fast_field_reader(self.field)?;
 
         let segment_collector = self
             .collector
