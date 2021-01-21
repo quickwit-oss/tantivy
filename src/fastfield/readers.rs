@@ -11,6 +11,7 @@ use crate::TantivyError;
 ///
 /// Internally, `FastFieldReaders` have preloaded fast field readers,
 /// and just wraps several `HashMap`.
+#[derive(Clone)]
 pub struct FastFieldReaders {
     schema: Schema,
     fast_fields_composite: CompositeFile,
