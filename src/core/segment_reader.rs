@@ -178,9 +178,9 @@ impl SegmentReader {
 
         let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
-        let fast_field_readers = Arc::new(FastFieldReaders::load_all(
+        let fast_field_readers = Arc::new(FastFieldReaders::new(
             schema.clone(),
-            &fast_fields_composite,
+            fast_fields_composite,
         )?);
 
         let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;

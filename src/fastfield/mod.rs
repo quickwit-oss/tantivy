@@ -28,7 +28,7 @@ pub use self::delete::write_delete_bitset;
 pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
-pub use self::multivalued::{MultiValueIntFastFieldWriter, MultiValuedFastFieldReader};
+pub use self::multivalued::{MultiValuedFastFieldReader, MultiValueIntFastFieldWriter};
 pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;

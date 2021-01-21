@@ -43,13 +43,13 @@ fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality
 }
 
 impl FastFieldReaders {
-    pub(crate) fn load_all(
+    pub(crate) fn new(
         schema: Schema,
-        fast_fields_composite: &CompositeFile,
+        fast_fields_composite: CompositeFile,
     ) -> crate::Result<FastFieldReaders> {
         Ok(FastFieldReaders {
-            fast_fields_composite: fast_fields_composite.clone(),
-            schema: schema.clone(),
+            fast_fields_composite,
+            schema,
         })
     }
 
