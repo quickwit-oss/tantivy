@@ -68,6 +68,7 @@ impl SegmentPostings {
     /// It serializes the doc ids using tantivy's codec
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
+    #[cfg(test)]
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut buffer = Vec::new();
         {
