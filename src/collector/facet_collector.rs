@@ -398,6 +398,8 @@ impl<'a> Iterator for FacetChildIterator<'a> {
 }
 
 impl FacetCounts {
+    /// Returns an iterator over all of the facet count pairs inside this result.
+    /// See the documentation for `FacetCollector` for a usage example.
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where
         Facet: From<T>,
@@ -417,6 +419,8 @@ impl FacetCounts {
         FacetChildIterator { underlying }
     }
 
+    /// Returns a vector of top `k` facets with their counts, sorted highest-to-lowest by counts.
+    /// See the documentation for `FacetCollector` for a usage example.
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
     where
         Facet: From<T>,
