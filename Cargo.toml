@@ -33,7 +33,7 @@ levenshtein_automata = "0.2"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 crossbeam = "0.8"
 futures = {version = "0.3",  features=["thread-pool"] }
-tantivy-query-grammar = { version="0.14.0-dev", path="./query-grammar" }
+tantivy-query-grammar = { version="0.14.0", path="./query-grammar" }
 stable_deref_trait = "1"
 rust-stemmers = "1"
 downcast-rs = "1"
