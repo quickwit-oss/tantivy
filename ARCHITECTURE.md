@@ -2,17 +2,17 @@
 
 ## What is tantivy?
 
-Tantivy is a library that is meant to build search engines. While it is by no mean a port of Lucene, its architecture is strongly inspired by it. If you are familiar with Lucene, you might be striked by the overlapping vocabulary.
+Tantivy is a library that is meant to build search engines. Although it is by no mean a port of Lucene, its architecture is strongly inspired by it. If you are familiar with Lucene, you may be struck by the overlapping vocabulary.
 This is not fortuitous.
 
 Tantivy's bread and butter is to address the problem of full-text search :
 
-Given a large set of textual documents, and a text query, return the K-most relevant documents in a very efficient way. In order to execute these queries rapidly, tantivy need to build an index beforehand. The relevance score implemented in tantivy is not configurable. Tantivy uses the same score as the default similarity used in Lucene / Elasticsearch, called [BM25](https://en.wikipedia.org/wiki/Okapi_BM25).
+Given a large set of textual documents, and a text query, return the K-most relevant documents in a very efficient way. In order to execute these queries rapidly, the tantivy need to build an index beforehand. The relevance score implemented in the tantivy is not configurable. Tantivy uses the same score as the default similarity used in Lucene / Elasticsearch, called [BM25](https://en.wikipedia.org/wiki/Okapi_BM25).
 
-But tantivy's scope does not stop there. Numerous features are required to power rich search applications. For instance, one might want to:
+But tantivy's scope does not stop there. Numerous features are required to power rich search applications. For instance, one may want to:
 - compute the count of documents matching a query in the different section of an e-commerce website,
 - display an average price per meter square for a real estate search engine,
-- take in account historical user data to rank documents in specific way,
+- take in account historical user data to rank documents in a specific way,
 - or even use tantivy to power an OLAP database.
 
 A more abstract description of the problem space tantivy is trying to address is the following.
@@ -21,12 +21,12 @@ Ingest a large set of documents, create an index that makes it possible to
 rapidly select all documents matching a given predicate (also known as a query) and
 collect some information about them (See collector).
 
-Roughly speaking the design is coming the following guiding principles:
+Roughly speaking the design is following these guiding principles:
 - Search should be O(1) in memory.
 - Indexing should be O(1) in memory. (In practise it is just sublinear)
 - Search should be as fast as possible
 
-This comes at the cost of the dynamicity of the index : while it is possible to add, and delete documents from our corpus, tantivy's is designed to handle these updates in large batches.
+This comes at the cost of the dynamicity of the index : while it is possible to add, and delete documents from our corpus, the tantivy is designed to handle these updates in large batches.
 
 ## [core/](src/core): Index, segments, searchers.
 
@@ -36,11 +36,11 @@ This is both the most high-level part of tantivy, the least performance sensitiv
 
 ### Index and Segments...
 
-A tantivy index is in fact collection of smaller independent immutable segments.
-Each segments contains its own independent set of datastructures.
+A tantivy index is in fact a collection of smaller independent immutable segments.
+Each segment contains its own independent set of datastructures.
 
 A segment is identified by a segment id that is in fact a UUID.
-The file of a segment then have the format
+The file of a segment has the format
 
  ```segment-id . ext ```
 
@@ -89,7 +89,7 @@ In other words, regardless of commits, file garbage collection, or segment merge
 
 ## [directory/](src/directory): Where should the data be stored?
 
-Tantivy, like Lucene, abstract the place where the data should be stored in a key-trait
+Tantivy, like Lucene, abstracts the place where the data should be stored in a key-trait
 called [`Directory`](src/directory/directory.rs).
 Contrary to Lucene however, "files" are quite different from some kind of `io::Read` object.
 Check out [`src/directory/directory.rs`](src/directory/directory.rs) trait for more details.
@@ -101,7 +101,7 @@ but users can extend tantivy with their own implementation.
 
 Tantivy's document follow a very strict schema , decided before building any index.
 
-The schema defines all of the field that the index's [`Document`](src/schema/document.rs) may and should contain, their types (`text`, `i64`, `u64`, `Date`, ...) as well as how it should be indexed / represented in tantivy.
+The schema defines all of the fields that the indexes [`Document`](src/schema/document.rs) may and should contain, their types (`text`, `i64`, `u64`, `Date`, ...) as well as how it should be indexed / represented in tantivy.
 
 Depending on the type of the field, you can decide to
 - put it in the docstore
