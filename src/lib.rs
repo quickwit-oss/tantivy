@@ -234,6 +234,8 @@ pub mod merge_policy {
 /// A `u32` identifying a document within a segment.
 /// Documents have their `DocId` assigned incrementally,
 /// as they are added in the segment.
+///
+/// At most, a segment can contain 2^31 documents.
 pub type DocId = u32;
 
 /// A u64 assigned to every operation incrementally
