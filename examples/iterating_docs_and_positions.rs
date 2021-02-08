@@ -1,4 +1,4 @@
-// # Iterating docs and positioms.
+// # Iterating docs and positions.
 //
 // At its core of tantivy, relies on a data structure
 // called an inverted index.
