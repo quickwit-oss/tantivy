@@ -99,9 +99,9 @@ impl SegmentPostings {
         fieldnorms: Option<&[u32]>,
     ) -> SegmentPostings {
         use crate::directory::FileSlice;
+        use crate::fieldnorm::FieldNormReader;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
-        use crate::fieldnorm::FieldNormReader;
         use crate::Score;
         let mut buffer: Vec<u8> = Vec::new();
         let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
