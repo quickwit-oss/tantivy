@@ -203,7 +203,7 @@ The document will therefore be registered in the inverted index as containing th
 The role of the inverted index is, when given a term, supply us with a very fast iterator over
 the sorted doc ids that match the term.
 
-Such an iterator is called a posting list. In addition to giving us `DocId`, they can also give us optionnally to the number of occurrence of the term for each document, also called term frequency or TF.
+Such an iterator is called a posting list. In addition to giving us `DocId`, they can also give us optionally to the number of occurrence of the term for each document, also called term frequency or TF.
 
 These iterators being sorted by DocId, one can create an iterator over the document containing `text:tax AND text:payer`, `(text:tax AND text:payer) OR (text:contribuable)` or any boolean expression.
 
