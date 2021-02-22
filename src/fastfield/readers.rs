@@ -128,6 +128,14 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
+    /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the given
+    /// field is effectively of type `u64` or not.
+    ///
+    /// If not, the fastfield reader will returns the u64-value associated to the original FastValue.
+    pub fn u64_lenient(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
+        self.typed_fast_field_reader(field)
+    }
+
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns `None`.
