@@ -665,7 +665,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::TypeError(_)
+                ))
             );
         }
         {
@@ -680,7 +683,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             );
         }
         {
@@ -695,7 +701,10 @@ mod tests {
             );
             assert!(!matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             ));
         }
         {
@@ -710,7 +719,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             );
         }
         {
