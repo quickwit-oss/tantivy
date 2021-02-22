@@ -56,7 +56,7 @@ winapi = "0.3"
 rand = "0.8"
 maplit = "1"
 matches = "0.1.8"
-proptest = "0.10"
+proptest = "1.0"
 criterion = "0.3"
 
 [dev-dependencies.fail]
