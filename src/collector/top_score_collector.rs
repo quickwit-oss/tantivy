@@ -29,7 +29,7 @@ struct FastFieldConvertCollector<
 impl<TCollector, TFastValue> Collector for FastFieldConvertCollector<TCollector, TFastValue>
 where
     TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
-    TFastValue: FastValue + 'static,
+    TFastValue: FastValue,
 {
     type Fruit = Vec<(TFastValue, DocAddress)>;
 
@@ -361,7 +361,7 @@ impl TopDocs {
         fast_field: Field,
     ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
     where
-        TFastValue: FastValue + 'static,
+        TFastValue: FastValue,
     {
         let u64_collector = self.order_by_u64_field(fast_field);
         FastFieldConvertCollector {

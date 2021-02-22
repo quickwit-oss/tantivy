@@ -90,7 +90,7 @@ impl<TCollector, TPredicate, TPredicateValue: FastValue> Collector
 where
     TCollector: Collector + Send + Sync,
     TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
-    TPredicateValue: 'static + FastValue,
+    TPredicateValue: FastValue,
 {
     // That's the type of our result.
     // Our standard deviation will be a float.
@@ -153,7 +153,7 @@ where
 pub struct FilterSegmentCollector<TSegmentCollector, TPredicate, TPredicateValue>
 where
     TPredicate: 'static,
-    TPredicateValue: 'static + FastValue,
+    TPredicateValue: FastValue,
 {
     fast_field_reader: FastFieldReader<TPredicateValue>,
     segment_collector: TSegmentCollector,
@@ -166,7 +166,7 @@ impl<TSegmentCollector, TPredicate, TPredicateValue> SegmentCollector
 where
     TSegmentCollector: SegmentCollector,
     TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
-    TPredicateValue: 'static + FastValue,
+    TPredicateValue: FastValue,
 {
     type Fruit = TSegmentCollector::Fruit;
 
