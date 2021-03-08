@@ -46,7 +46,7 @@ where
 }
 
 /// Logical slice of read only file in tantivy.
-//
+///
 /// It can be cloned and sliced cheaply.
 ///
 #[derive(Clone)]
