@@ -100,20 +100,32 @@ impl<T> Pool<T> {
 
     /// At the exit of this method,
     /// - freshest_generation has a value greater or equal than generation
-    /// - freshest_generation has a value that has been advertised
-    /// - freshest_generation has)
+    /// - freshest_generation has the last value that has been advertised
     fn advertise_generation(&self, generation: usize) {
         // not optimal at all but the easiest to read proof.
+        let mut former_generation = self.freshest_generation.load(Ordering::Acquire);
         loop {
-            let former_generation = self.freshest_generation.load(Ordering::Acquire);
-            if former_generation >= generation {
-                break;
-            }
-            self.freshest_generation.compare_and_swap(
+            match self.freshest_generation.compare_exchange(
                 former_generation,
                 generation,
                 Ordering::SeqCst,
-            );
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => {
+                    // We successfuly updated the value.
+                    return;
+                }
+                Err(current_generation) => {
+                    // The value was updated after we did our load apparently.
+                    // In theory, it is always a value greater than ours, but just to
+                    // simplify the logic, we keep looping until we reach a
+                    // value >= to our target value.
+                    if current_generation >= generation {
+                        return;
+                    }
+                    former_generation = current_generation;
+                }
+            }
         }
     }
 

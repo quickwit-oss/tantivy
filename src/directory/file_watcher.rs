@@ -28,7 +28,11 @@ impl FileWatcher {
     }
 
     pub fn spawn(&self) {
-        if self.state.compare_and_swap(0, 1, Ordering::SeqCst) > 0 {
+        if self
+            .state
+            .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return;
         }
 
