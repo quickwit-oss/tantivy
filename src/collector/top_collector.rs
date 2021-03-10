@@ -120,11 +120,8 @@ where
         &self,
         segment_id: SegmentLocalId,
         _: &SegmentReader,
-    ) -> crate::Result<TopSegmentCollector<F>> {
-        Ok(TopSegmentCollector::new(
-            segment_id,
-            self.limit + self.offset,
-        ))
+    ) -> TopSegmentCollector<F> {
+        TopSegmentCollector::new(segment_id, self.limit + self.offset)
     }
 
     /// Create a new TopCollector with the same limit and offset.

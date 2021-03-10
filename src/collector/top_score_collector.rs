@@ -603,7 +603,7 @@ impl Collector for TopDocs {
         segment_local_id: SegmentLocalId,
         reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let collector = self.0.for_segment(segment_local_id, reader)?;
+        let collector = self.0.for_segment(segment_local_id, reader);
         Ok(TopScoreSegmentCollector(collector))
     }
 

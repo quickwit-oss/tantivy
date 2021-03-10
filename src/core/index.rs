@@ -165,7 +165,8 @@ impl Index {
     fn from_directory(directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
         save_new_metas(schema.clone(), &directory)?;
         let metas = IndexMeta::with_schema(schema);
-        Index::create_from_metas(directory, &metas, SegmentMetaInventory::default())
+        let index = Index::create_from_metas(directory, &metas, SegmentMetaInventory::default());
+        Ok(index)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
@@ -173,15 +174,15 @@ impl Index {
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
-    ) -> crate::Result<Index> {
+    ) -> Index {
         let schema = metas.schema.clone();
-        Ok(Index {
+        Index {
             directory,
             schema,
             tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
             inventory,
-        })
+        }
     }
 
     /// Accessor for the tokenizer manager.
@@ -256,7 +257,8 @@ impl Index {
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
-        Index::create_from_metas(directory, &metas, inventory)
+        let index = Index::create_from_metas(directory, &metas, inventory);
+        Ok(index)
     }
 
     /// Reads the index meta file from the directory.

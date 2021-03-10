@@ -163,8 +163,8 @@ impl MmapDirectoryInner {
         }
     }
 
-    fn watch(&self, callback: WatchCallback) -> crate::Result<WatchHandle> {
-        Ok(self.watcher.watch(callback))
+    fn watch(&self, callback: WatchCallback) -> WatchHandle {
+        self.watcher.watch(callback)
     }
 }
 
@@ -474,7 +474,7 @@ impl Directory for MmapDirectory {
     }
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
-        self.inner.watch(watch_callback)
+        Ok(self.inner.watch(watch_callback))
     }
 }
 

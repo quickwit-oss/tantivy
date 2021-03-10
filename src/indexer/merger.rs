@@ -476,7 +476,7 @@ impl IndexMerger {
             serialize_idx.close_field()?;
         }
 
-        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1)?;
+        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
         for segment_reader in &self.readers {
             let bytes_reader = segment_reader.fast_fields().bytes(field)
                 .expect("Failed to find bytes field in fast field reader. This is a bug in tantivy. Please report.");

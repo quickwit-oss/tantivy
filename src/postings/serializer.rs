@@ -55,33 +55,17 @@ pub struct InvertedIndexSerializer {
 }
 
 impl InvertedIndexSerializer {
-    /// Open a new `InvertedIndexSerializer` for the given segment
-    fn create(
-        terms_write: CompositeWrite<WritePtr>,
-        postings_write: CompositeWrite<WritePtr>,
-        positions_write: CompositeWrite<WritePtr>,
-        positionsidx_write: CompositeWrite<WritePtr>,
-        schema: Schema,
-    ) -> crate::Result<InvertedIndexSerializer> {
-        Ok(InvertedIndexSerializer {
-            terms_write,
-            postings_write,
-            positions_write,
-            positionsidx_write,
-            schema,
-        })
-    }
-
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
         use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
-        InvertedIndexSerializer::create(
-            CompositeWrite::wrap(segment.open_write(TERMS)?),
-            CompositeWrite::wrap(segment.open_write(POSTINGS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
-            segment.schema(),
-        )
+        let inv_index_serializer = InvertedIndexSerializer {
+            terms_write: CompositeWrite::wrap(segment.open_write(TERMS)?),
+            postings_write: CompositeWrite::wrap(segment.open_write(POSTINGS)?),
+            positions_write: CompositeWrite::wrap(segment.open_write(POSITIONS)?),
+            positionsidx_write: CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
+            schema: segment.schema(),
+        };
+        Ok(inv_index_serializer)
     }
 
     /// Must be called before starting pushing terms of

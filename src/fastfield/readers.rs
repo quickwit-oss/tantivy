@@ -44,14 +44,11 @@ fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality
 }
 
 impl FastFieldReaders {
-    pub(crate) fn new(
-        schema: Schema,
-        fast_fields_composite: CompositeFile,
-    ) -> crate::Result<FastFieldReaders> {
-        Ok(FastFieldReaders {
+    pub(crate) fn new(schema: Schema, fast_fields_composite: CompositeFile) -> FastFieldReaders {
+        FastFieldReaders {
             fast_fields_composite,
             schema,
-        })
+        }
     }
 
     pub(crate) fn space_usage(&self) -> PerFieldSpaceUsage {
