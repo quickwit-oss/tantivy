@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::fastfield::{FastFieldReader, FastValue};
 use crate::DocId;
 
@@ -28,24 +30,24 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 
     /// Returns `(start, stop)`, such that the values associated
     /// to the given document are `start..stop`.
-    fn range(&self, doc: DocId) -> (u64, u64) {
+    fn range(&self, doc: DocId) -> Range<u64> {
         let start = self.idx_reader.get(doc);
         let stop = self.idx_reader.get(doc + 1);
-        (start, stop)
+        start..stop
     }
 
     /// Returns the array of values associated to the given `doc`.
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
-        let (start, stop) = self.range(doc);
-        let len = (stop - start) as usize;
+        let range = self.range(doc);
+        let len = (range.end - range.start) as usize;
         vals.resize(len, Item::make_zero());
-        self.vals_reader.get_range_u64(start, &mut vals[..]);
+        self.vals_reader.get_range_u64(range.start, &mut vals[..]);
     }
 
     /// Returns the number of values associated with the document `DocId`.
     pub fn num_vals(&self, doc: DocId) -> usize {
-        let (start, stop) = self.range(doc);
-        (stop - start) as usize
+        let range = self.range(doc);
+        (range.end - range.start) as usize
     }
 
     /// Returns the overall number of values in this field  .

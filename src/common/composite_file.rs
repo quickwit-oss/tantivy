@@ -8,6 +8,8 @@ use crate::space_usage::FieldUsage;
 use crate::space_usage::PerFieldSpaceUsage;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
+use std::iter::ExactSizeIterator;
+use std::ops::Range;
 
 use super::HasLen;
 
@@ -105,7 +107,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 #[derive(Clone)]
 pub struct CompositeFile {
     data: FileSlice,
-    offsets_index: HashMap<FileAddr, (usize, usize)>,
+    offsets_index: HashMap<FileAddr, Range<usize>>,
 }
 
 impl CompositeFile {
@@ -117,7 +119,7 @@ impl CompositeFile {
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
         let footer_start = end - 4 - footer_len;
         let footer_data = data
-            .slice(footer_start, footer_start + footer_len)
+            .slice(footer_start..footer_start + footer_len)
             .read_bytes()?;
         let mut footer_buffer = footer_data.as_slice();
         let num_fields = VInt::deserialize(&mut footer_buffer)?.0 as usize;
@@ -138,7 +140,7 @@ impl CompositeFile {
             let file_addr = file_addrs[i];
             let start_offset = offsets[i];
             let end_offset = offsets[i + 1];
-            field_index.insert(file_addr, (start_offset, end_offset));
+            field_index.insert(file_addr, start_offset..end_offset);
         }
 
         Ok(CompositeFile {
@@ -167,16 +169,16 @@ impl CompositeFile {
     pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<FileSlice> {
         self.offsets_index
             .get(&FileAddr { field, idx })
-            .map(|&(from, to)| self.data.slice(from, to))
+            .map(|byte_range| self.data.slice(byte_range.clone()))
     }
 
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
         let mut fields = HashMap::new();
-        for (&field_addr, &(start, end)) in self.offsets_index.iter() {
+        for (&field_addr, byte_range) in &self.offsets_index {
             fields
                 .entry(field_addr.field)
                 .or_insert_with(|| FieldUsage::empty(field_addr.field))
-                .add_field_idx(field_addr.idx, end - start);
+                .add_field_idx(field_addr.idx, byte_range.len());
         }
         PerFieldSpaceUsage::new(fields)
     }

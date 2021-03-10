@@ -68,18 +68,17 @@ impl TermInfoBlockMeta {
         let doc_freq_addr = posting_start_addr + self.postings_offset_nbits as usize;
         let positions_idx_addr = doc_freq_addr + self.doc_freq_nbits as usize;
 
-        let postings_start_offset = self.ref_term_info.postings_start_offset
-            + extract_bits(data, posting_start_addr, self.postings_offset_nbits);
-        let postings_stop_offset = self.ref_term_info.postings_start_offset
-            + extract_bits(data, posting_stop_addr, self.postings_offset_nbits);
+        let postings_start_offset = self.ref_term_info.postings_range.start
+            + extract_bits(data, posting_start_addr, self.postings_offset_nbits) as usize;
+        let postings_end_offset = self.ref_term_info.postings_range.start
+            + extract_bits(data, posting_stop_addr, self.postings_offset_nbits) as usize;
         let doc_freq = extract_bits(data, doc_freq_addr, self.doc_freq_nbits) as u32;
         let positions_idx = self.ref_term_info.positions_idx
             + extract_bits(data, positions_idx_addr, self.positions_idx_nbits);
 
         TermInfo {
             doc_freq,
-            postings_start_offset,
-            postings_stop_offset,
+            postings_range: postings_start_offset..postings_end_offset,
             positions_idx,
         }
     }
@@ -163,7 +162,7 @@ fn bitpack_serialize<W: Write>(
     term_info: &TermInfo,
 ) -> io::Result<()> {
     bit_packer.write(
-        term_info.postings_start_offset,
+        term_info.postings_range.start as u64,
         term_info_block_meta.postings_offset_nbits,
         write,
     )?;
@@ -200,15 +199,15 @@ impl TermInfoStoreWriter {
         } else {
             return Ok(());
         };
-        let postings_stop_offset =
-            last_term_info.postings_stop_offset - ref_term_info.postings_start_offset;
+        let postings_end_offset =
+            last_term_info.postings_range.end - ref_term_info.postings_range.start;
         for term_info in &mut self.term_infos[1..] {
-            term_info.postings_start_offset -= ref_term_info.postings_start_offset;
+            term_info.postings_range.start -= ref_term_info.postings_range.start;
             term_info.positions_idx -= ref_term_info.positions_idx;
         }
 
         let mut max_doc_freq: u32 = 0u32;
-        let max_postings_offset: u64 = postings_stop_offset;
+        let max_postings_offset: usize = postings_end_offset;
         let max_positions_idx: u64 = last_term_info.positions_idx;
 
         for term_info in &self.term_infos[1..] {
@@ -216,7 +215,7 @@ impl TermInfoStoreWriter {
         }
 
         let max_doc_freq_nbits: u8 = compute_num_bits(u64::from(max_doc_freq));
-        let max_postings_offset_nbits = compute_num_bits(max_postings_offset);
+        let max_postings_offset_nbits = compute_num_bits(max_postings_offset as u64);
         let max_positions_idx_nbits = compute_num_bits(max_positions_idx);
 
         let term_info_block_meta = TermInfoBlockMeta {
@@ -238,7 +237,7 @@ impl TermInfoStoreWriter {
         }
 
         bit_packer.write(
-            postings_stop_offset,
+            postings_end_offset as u64,
             term_info_block_meta.postings_offset_nbits,
             &mut self.buffer_term_infos,
         )?;
@@ -251,7 +250,6 @@ impl TermInfoStoreWriter {
     }
 
     pub fn write_term_info(&mut self, term_info: &TermInfo) -> io::Result<()> {
-        assert!(term_info.postings_stop_offset >= term_info.postings_start_offset);
         self.num_terms += 1u64;
         self.term_infos.push(term_info.clone());
         if self.term_infos.len() >= BLOCK_LEN {
@@ -314,8 +312,7 @@ mod tests {
             offset: 2009u64,
             ref_term_info: TermInfo {
                 doc_freq: 512,
-                postings_start_offset: 51,
-                postings_stop_offset: 57u64,
+                postings_range: 51..57,
                 positions_idx: 3584,
             },
             doc_freq_nbits: 10,
@@ -333,12 +330,11 @@ mod tests {
     fn test_pack() -> crate::Result<()> {
         let mut store_writer = TermInfoStoreWriter::new();
         let mut term_infos = vec![];
-        let offset = |i| (i * 13 + i * i) as u64;
-        for i in 0..1000 {
+        let offset = |i| (i * 13 + i * i);
+        for i in 0usize..1000usize {
             let term_info = TermInfo {
                 doc_freq: i as u32,
-                postings_start_offset: offset(i),
-                postings_stop_offset: offset(i + 1),
+                postings_range: offset(i)..offset(i + 1),
                 positions_idx: (i * 7) as u64,
             };
             store_writer.write_term_info(&term_info)?;

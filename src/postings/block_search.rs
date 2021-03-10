@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::postings::compression::AlignedBuffer;
 
 /// This modules define the logic used to search for a doc in a given
@@ -72,7 +74,7 @@ fn linear_search(arr: &[u32], target: u32) -> usize {
     arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
 }
 
-fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
+fn exponential_search(arr: &[u32], target: u32) -> Range<usize> {
     let end = arr.len();
     let mut begin = 0;
     for &pivot in &[1, 3, 7, 15, 31, 63] {
@@ -80,17 +82,17 @@ fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
             break;
         }
         if arr[pivot] > target {
-            return (begin, pivot);
+            return begin..pivot;
         }
         begin = pivot;
     }
-    (begin, end)
+    begin..end
 }
 
 #[inline(never)]
 fn galloping(block_docs: &[u32], target: u32) -> usize {
-    let (start, end) = exponential_search(&block_docs, target);
-    start + linear_search(&block_docs[start..end], target)
+    let range = exponential_search(&block_docs, target);
+    range.start + linear_search(&block_docs[range], target)
 }
 
 /// Tantivy may rely on SIMD instructions to search for a specific document within
@@ -182,11 +184,11 @@ mod tests {
 
     #[test]
     fn test_exponentiel_search() {
-        assert_eq!(exponential_search(&[1, 2], 0), (0, 1));
-        assert_eq!(exponential_search(&[1, 2], 1), (0, 1));
+        assert_eq!(exponential_search(&[1, 2], 0), 0..1);
+        assert_eq!(exponential_search(&[1, 2], 1), 0..1);
         assert_eq!(
             exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7),
-            (3, 7)
+            3..7
         );
     }
 

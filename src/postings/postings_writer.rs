@@ -16,7 +16,7 @@ use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::DerefMut;
+use std::ops::{DerefMut, Range};
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
@@ -52,7 +52,7 @@ pub struct MultiFieldPostingsWriter {
 
 fn make_field_partition(
     term_offsets: &[(&[u8], Addr, UnorderedTermId)],
-) -> Vec<(Field, usize, usize)> {
+) -> Vec<(Field, Range<usize>)> {
     let term_offsets_it = term_offsets
         .iter()
         .map(|(key, _, _)| Term::wrap(key).field())
@@ -70,7 +70,7 @@ fn make_field_partition(
     offsets.push(term_offsets.len());
     let mut field_offsets = vec![];
     for i in 0..fields.len() {
-        field_offsets.push((fields[i], offsets[i], offsets[i + 1]));
+        field_offsets.push((fields[i], offsets[i]..offsets[i + 1]));
     }
     field_offsets
 }
@@ -138,14 +138,14 @@ impl MultiFieldPostingsWriter {
 
         let field_offsets = make_field_partition(&term_offsets);
 
-        for (field, start, stop) in field_offsets {
+        for (field, byte_offsets) in field_offsets {
             let field_entry = self.schema.get_field_entry(field);
 
             match *field_entry.field_type() {
                 FieldType::Str(_) | FieldType::HierarchicalFacet => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
-                    let unordered_term_ids = term_offsets[start..stop]
+                    let unordered_term_ids = term_offsets[byte_offsets.clone()]
                         .iter()
                         .map(|&(_, _, bucket)| bucket);
                     let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
@@ -169,7 +169,7 @@ impl MultiFieldPostingsWriter {
                 fieldnorm_reader,
             )?;
             postings_writer.serialize(
-                &term_offsets[start..stop],
+                &term_offsets[byte_offsets],
                 &mut field_serializer,
                 &self.term_index.heap,
                 &self.heap,

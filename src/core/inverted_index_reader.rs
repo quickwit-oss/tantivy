@@ -90,9 +90,9 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         block_postings: &mut BlockSegmentPostings,
     ) -> io::Result<()> {
-        let start_offset = term_info.postings_start_offset as usize;
-        let stop_offset = term_info.postings_stop_offset as usize;
-        let postings_slice = self.postings_file_slice.slice(start_offset, stop_offset);
+        let postings_slice = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone());
         block_postings.reset(term_info.doc_freq, postings_slice.read_bytes()?);
         Ok(())
     }
@@ -120,10 +120,9 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
-        let postings_data = self.postings_file_slice.slice(
-            term_info.postings_start_offset as usize,
-            term_info.postings_stop_offset as usize,
-        );
+        let postings_data = self
+            .postings_file_slice
+            .slice(term_info.postings_range.clone());
         BlockSegmentPostings::open(
             term_info.doc_freq,
             postings_data,

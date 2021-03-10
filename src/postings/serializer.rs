@@ -183,10 +183,10 @@ impl<'a> FieldSerializer<'a> {
             } else {
                 0u64
             };
+        let addr = self.postings_serializer.addr() as usize;
         TermInfo {
             doc_freq: 0,
-            postings_start_offset: self.postings_serializer.addr(),
-            postings_stop_offset: 0u64,
+            postings_range: addr..addr,
             positions_idx,
         }
     }
@@ -242,7 +242,7 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
-            self.current_term_info.postings_stop_offset = self.postings_serializer.addr();
+            self.current_term_info.postings_range.end = self.postings_serializer.addr() as usize;
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
             self.term_open = false;

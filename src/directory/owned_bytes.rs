@@ -2,7 +2,7 @@ use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
 use std::convert::TryInto;
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -17,8 +17,8 @@ pub struct OwnedBytes {
 }
 
 impl FileHandle for OwnedBytes {
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
-        Ok(self.slice(from, to))
+    fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
+        Ok(self.slice(range))
     }
 }
 
@@ -42,9 +42,9 @@ impl OwnedBytes {
     }
 
     /// creates a fileslice that is just a view over a slice of the data.
-    pub fn slice(&self, from: usize, to: usize) -> Self {
+    pub fn slice(&self, range: Range<usize>) -> Self {
         OwnedBytes {
-            data: &self.data[from..to],
+            data: &self.data[range],
             box_stable_deref: self.box_stable_deref.clone(),
         }
     }

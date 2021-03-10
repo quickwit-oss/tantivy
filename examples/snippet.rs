@@ -69,12 +69,12 @@ fn highlight(snippet: Snippet) -> String {
     let mut result = String::new();
     let mut start_from = 0;
 
-    for (start, end) in snippet.highlighted().iter().map(|h| h.bounds()) {
-        result.push_str(&snippet.fragments()[start_from..start]);
+    for fragment_range in snippet.highlighted() {
+        result.push_str(&snippet.fragments()[start_from..fragment_range.start]);
         result.push_str(" --> ");
-        result.push_str(&snippet.fragments()[start..end]);
+        result.push_str(&snippet.fragments()[fragment_range.clone()]);
         result.push_str(" <-- ");
-        start_from = end;
+        start_from = fragment_range.end;
     }
 
     result.push_str(&snippet.fragments()[start_from..]);

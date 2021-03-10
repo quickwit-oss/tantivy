@@ -74,7 +74,7 @@ impl StoreWriter {
         }
         assert_eq!(self.first_doc_in_block, self.doc);
         let doc_shift = self.doc;
-        let start_shift = self.writer.written_bytes() as u64;
+        let start_shift = self.writer.written_bytes() as usize;
 
         // just bulk write all of the block of the given reader.
         self.writer
@@ -83,34 +83,32 @@ impl StoreWriter {
         // concatenate the index of the `store_reader`, after translating
         // its start doc id and its start file offset.
         for mut checkpoint in store_reader.block_checkpoints() {
-            checkpoint.start_doc += doc_shift;
-            checkpoint.end_doc += doc_shift;
-            checkpoint.start_offset += start_shift;
-            checkpoint.end_offset += start_shift;
+            checkpoint.doc_range.start += doc_shift;
+            checkpoint.doc_range.end += doc_shift;
+            checkpoint.byte_range.start += start_shift;
+            checkpoint.byte_range.end += start_shift;
             self.register_checkpoint(checkpoint);
         }
         Ok(())
     }
 
     fn register_checkpoint(&mut self, checkpoint: Checkpoint) {
-        self.offset_index_writer.insert(checkpoint);
-        self.first_doc_in_block = checkpoint.end_doc;
-        self.doc = checkpoint.end_doc;
+        self.offset_index_writer.insert(checkpoint.clone());
+        self.first_doc_in_block = checkpoint.doc_range.end;
+        self.doc = checkpoint.doc_range.end;
     }
 
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         assert!(self.doc > 0);
         self.intermediary_buffer.clear();
         compress(&self.current_block[..], &mut self.intermediary_buffer)?;
-        let start_offset = self.writer.written_bytes();
+        let start_offset = self.writer.written_bytes() as usize;
         self.writer.write_all(&self.intermediary_buffer)?;
-        let end_offset = self.writer.written_bytes();
+        let end_offset = self.writer.written_bytes() as usize;
         let end_doc = self.doc;
         self.register_checkpoint(Checkpoint {
-            start_doc: self.first_doc_in_block,
-            end_doc,
-            start_offset,
-            end_offset,
+            doc_range: self.first_doc_in_block..end_doc,
+            byte_range: start_offset..end_offset,
         });
         self.current_block.clear();
         Ok(())
