@@ -2,6 +2,7 @@ use crate::common::VInt;
 use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
 use crate::DocId;
 use std::io;
+use std::ops::Range;
 
 /// Represents a block of checkpoints.
 ///
@@ -24,19 +25,19 @@ impl Default for CheckpointBlock {
 impl CheckpointBlock {
     /// If non-empty returns [start_doc, end_doc)
     /// for the overall block.
-    pub fn doc_interval(&self) -> Option<(DocId, DocId)> {
+    pub fn doc_interval(&self) -> Option<Range<DocId>> {
         let start_doc_opt = self
             .checkpoints
             .first()
             .cloned()
-            .map(|checkpoint| checkpoint.start_doc);
+            .map(|checkpoint| checkpoint.doc_range.start);
         let end_doc_opt = self
             .checkpoints
             .last()
             .cloned()
-            .map(|checkpoint| checkpoint.end_doc);
+            .map(|checkpoint| checkpoint.doc_range.end);
         match (start_doc_opt, end_doc_opt) {
-            (Some(start_doc), Some(end_doc)) => Some((start_doc, end_doc)),
+            (Some(start_doc), Some(end_doc)) => Some(start_doc..end_doc),
             _ => None,
         }
     }
@@ -55,7 +56,7 @@ impl CheckpointBlock {
     }
 
     pub fn get(&self, idx: usize) -> Checkpoint {
-        self.checkpoints[idx]
+        self.checkpoints[idx].clone()
     }
 
     pub fn clear(&mut self) {
@@ -67,12 +68,13 @@ impl CheckpointBlock {
         if self.checkpoints.is_empty() {
             return;
         }
-        VInt(self.checkpoints[0].start_doc as u64).serialize_into_vec(buffer);
-        VInt(self.checkpoints[0].start_offset as u64).serialize_into_vec(buffer);
+        VInt(self.checkpoints[0].doc_range.start as u64).serialize_into_vec(buffer);
+        VInt(self.checkpoints[0].byte_range.start as u64).serialize_into_vec(buffer);
         for checkpoint in &self.checkpoints {
-            let delta_doc = checkpoint.end_doc - checkpoint.start_doc;
+            let delta_doc = checkpoint.doc_range.end - checkpoint.doc_range.start;
             VInt(delta_doc as u64).serialize_into_vec(buffer);
-            VInt(checkpoint.end_offset - checkpoint.start_offset).serialize_into_vec(buffer);
+            VInt((checkpoint.byte_range.end - checkpoint.byte_range.start) as u64)
+                .serialize_into_vec(buffer);
         }
     }
 
@@ -86,15 +88,13 @@ impl CheckpointBlock {
             return Ok(());
         }
         let mut doc = VInt::deserialize_u64(data)? as DocId;
-        let mut start_offset = VInt::deserialize_u64(data)?;
+        let mut start_offset = VInt::deserialize_u64(data)? as usize;
         for _ in 0..len {
             let num_docs = VInt::deserialize_u64(data)? as DocId;
-            let block_num_bytes = VInt::deserialize_u64(data)?;
+            let block_num_bytes = VInt::deserialize_u64(data)? as usize;
             self.checkpoints.push(Checkpoint {
-                start_doc: doc,
-                end_doc: doc + num_docs,
-                start_offset,
-                end_offset: start_offset + block_num_bytes,
+                doc_range: doc..doc + num_docs,
+                byte_range: start_offset..start_offset + block_num_bytes,
             });
             doc += num_docs;
             start_offset += block_num_bytes;
@@ -112,17 +112,15 @@ mod tests {
 
     fn test_aux_ser_deser(checkpoints: &[Checkpoint]) -> io::Result<()> {
         let mut block = CheckpointBlock::default();
-        for &checkpoint in checkpoints {
-            block.push(checkpoint);
+        for checkpoint in checkpoints {
+            block.push(checkpoint.clone());
         }
         let mut buffer = Vec::new();
         block.serialize(&mut buffer);
         let mut block_deser = CheckpointBlock::default();
         let checkpoint = Checkpoint {
-            start_doc: 0,
-            end_doc: 1,
-            start_offset: 2,
-            end_offset: 3,
+            doc_range: 0..1,
+            byte_range: 2..3,
         };
         block_deser.push(checkpoint); // < check that value is erased before deser
         let mut data = &buffer[..];
@@ -140,26 +138,22 @@ mod tests {
     #[test]
     fn test_block_serialize_simple() -> io::Result<()> {
         let checkpoints = vec![Checkpoint {
-            start_doc: 10,
-            end_doc: 12,
-            start_offset: 100,
-            end_offset: 120,
+            doc_range: 10..12,
+            byte_range: 100..120,
         }];
         test_aux_ser_deser(&checkpoints)
     }
 
     #[test]
     fn test_block_serialize() -> io::Result<()> {
-        let offsets: Vec<u64> = (0..11).map(|i| i * i * i).collect();
+        let offsets: Vec<usize> = (0..11).map(|i| i * i * i).collect();
         let mut checkpoints = vec![];
         let mut start_doc = 0;
         for i in 0..10 {
             let end_doc = (i * i) as DocId;
             checkpoints.push(Checkpoint {
-                start_doc,
-                end_doc,
-                start_offset: offsets[i],
-                end_offset: offsets[i + 1],
+                doc_range: start_doc..end_doc,
+                byte_range: offsets[i]..offsets[i + 1],
             });
             start_doc = end_doc;
         }

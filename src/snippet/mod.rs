@@ -8,25 +8,9 @@ use htmlescape::encode_minimal;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::ops::Range;
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
-
-#[derive(Debug)]
-pub struct HighlightSection {
-    start: usize,
-    stop: usize,
-}
-
-impl HighlightSection {
-    fn new(start: usize, stop: usize) -> HighlightSection {
-        HighlightSection { start, stop }
-    }
-
-    /// Returns the bounds of the `HighlightSection`.
-    pub fn bounds(&self) -> (usize, usize) {
-        (self.start, self.stop)
-    }
-}
 
 #[derive(Debug)]
 pub struct FragmentCandidate {
@@ -34,7 +18,7 @@ pub struct FragmentCandidate {
     start_offset: usize,
     stop_offset: usize,
     num_chars: usize,
-    highlighted: Vec<HighlightSection>,
+    highlighted: Vec<Range<usize>>,
 }
 
 impl FragmentCandidate {
@@ -63,8 +47,7 @@ impl FragmentCandidate {
 
         if let Some(&score) = terms.get(&token.text.to_lowercase()) {
             self.score += score;
-            self.highlighted
-                .push(HighlightSection::new(token.offset_from, token.offset_to));
+            self.highlighted.push(token.offset_from..token.offset_to);
         }
     }
 }
@@ -74,7 +57,7 @@ impl FragmentCandidate {
 #[derive(Debug)]
 pub struct Snippet {
     fragments: String,
-    highlighted: Vec<HighlightSection>,
+    highlighted: Vec<Range<usize>>,
 }
 
 const HIGHLIGHTEN_PREFIX: &str = "<b>";
@@ -97,9 +80,9 @@ impl Snippet {
         for item in self.highlighted.iter() {
             html.push_str(&encode_minimal(&self.fragments[start_from..item.start]));
             html.push_str(HIGHLIGHTEN_PREFIX);
-            html.push_str(&encode_minimal(&self.fragments[item.start..item.stop]));
+            html.push_str(&encode_minimal(&self.fragments[item.clone()]));
             html.push_str(HIGHLIGHTEN_POSTFIX);
-            start_from = item.stop;
+            start_from = item.end;
         }
         html.push_str(&encode_minimal(
             &self.fragments[start_from..self.fragments.len()],
@@ -113,7 +96,7 @@ impl Snippet {
     }
 
     /// Returns a list of higlighted positions from the `Snippet`.
-    pub fn highlighted(&self) -> &[HighlightSection] {
+    pub fn highlighted(&self) -> &[Range<usize>] {
         &self.highlighted
     }
 }
@@ -185,12 +168,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
         let highlighted = fragment
             .highlighted
             .iter()
-            .map(|item| {
-                HighlightSection::new(
-                    item.start - fragment.start_offset,
-                    item.stop - fragment.start_offset,
-                )
-            })
+            .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
         Snippet {
             fragments: fragment_text.to_string(),

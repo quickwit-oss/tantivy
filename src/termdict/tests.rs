@@ -9,12 +9,11 @@ use std::str;
 const BLOCK_SIZE: usize = 1_500;
 
 fn make_term_info(term_ord: u64) -> TermInfo {
-    let offset = |term_ord: u64| term_ord * 100 + term_ord * term_ord;
+    let offset = |term_ord: u64| (term_ord * 100 + term_ord * term_ord) as usize;
     TermInfo {
         doc_freq: term_ord as u32,
-        postings_start_offset: offset(term_ord),
-        postings_stop_offset: offset(term_ord + 1),
-        positions_idx: offset(term_ord) * 2u64,
+        postings_range: offset(term_ord)..offset(term_ord + 1),
+        positions_idx: offset(term_ord) as u64 * 2u64,
     }
 }
 

@@ -125,21 +125,18 @@ impl MultiValuedFastFieldWriter {
                         1,
                     )?;
 
-                    let last_interval = (
-                        self.doc_index.last().cloned().unwrap(),
-                        self.vals.len() as u64,
-                    );
+                    let last_interval =
+                        self.doc_index.last().cloned().unwrap() as usize..self.vals.len();
 
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
-                    for (start, stop) in self
+                    for range in self
                         .doc_index
                         .windows(2)
-                        .map(|interval| (interval[0], interval[1]))
+                        .map(|interval| interval[0] as usize..interval[1] as usize)
                         .chain(Some(last_interval).into_iter())
-                        .map(|(start, stop)| (start as usize, stop as usize))
                     {
                         doc_vals.clear();
-                        let remapped_vals = self.vals[start..stop]
+                        let remapped_vals = self.vals[range]
                             .iter()
                             .map(|val| *mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);

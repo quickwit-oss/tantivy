@@ -17,7 +17,7 @@ const LRU_CACHE_CAPACITY: usize = 100;
 
 type Block = Arc<Vec<u8>>;
 
-type BlockCache = Arc<Mutex<LruCache<u64, Block>>>;
+type BlockCache = Arc<Mutex<LruCache<usize, Block>>>;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
@@ -59,16 +59,11 @@ impl StoreReader {
     }
 
     fn compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
-        self.data
-            .slice(
-                checkpoint.start_offset as usize,
-                checkpoint.end_offset as usize,
-            )
-            .read_bytes()
+        self.data.slice(checkpoint.byte_range.clone()).read_bytes()
     }
 
     fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.start_offset) {
+        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
             return Ok(block.clone());
         }
@@ -83,7 +78,7 @@ impl StoreReader {
         self.cache
             .lock()
             .unwrap()
-            .put(checkpoint.start_offset, block.clone());
+            .put(checkpoint.byte_range.start, block.clone());
 
         Ok(block)
     }
@@ -100,7 +95,7 @@ impl StoreReader {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
         let mut cursor = &self.read_block(&checkpoint)?[..];
-        for _ in checkpoint.start_doc..doc_id {
+        for _ in checkpoint.doc_range.start..doc_id {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
             cursor = &cursor[doc_length..];
         }

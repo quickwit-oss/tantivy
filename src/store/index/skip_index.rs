@@ -36,21 +36,21 @@ struct Layer {
 
 impl Layer {
     fn cursor(&self) -> impl Iterator<Item = Checkpoint> + '_ {
-        self.cursor_at_offset(0u64)
+        self.cursor_at_offset(0)
     }
 
-    fn cursor_at_offset(&self, start_offset: u64) -> impl Iterator<Item = Checkpoint> + '_ {
+    fn cursor_at_offset(&self, start_offset: usize) -> impl Iterator<Item = Checkpoint> + '_ {
         let data = &self.data.as_slice();
         LayerCursor {
-            remaining: &data[start_offset as usize..],
+            remaining: &data[start_offset..],
             block: CheckpointBlock::default(),
             cursor: 0,
         }
     }
 
-    fn seek_start_at_offset(&self, target: DocId, offset: u64) -> Option<Checkpoint> {
+    fn seek_start_at_offset(&self, target: DocId, offset: usize) -> Option<Checkpoint> {
         self.cursor_at_offset(offset)
-            .find(|checkpoint| checkpoint.end_doc > target)
+            .find(|checkpoint| checkpoint.doc_range.end > target)
     }
 }
 
@@ -69,7 +69,7 @@ impl SkipIndex {
         let mut layers = Vec::new();
         for end_offset in offsets {
             let layer = Layer {
-                data: data.slice(start_offset as usize, end_offset as usize),
+                data: data.slice(start_offset as usize..end_offset as usize),
             };
             layers.push(layer);
             start_offset = end_offset;
@@ -88,17 +88,15 @@ impl SkipIndex {
         let first_layer_len = self
             .layers
             .first()
-            .map(|layer| layer.data.len() as u64)
-            .unwrap_or(0u64);
+            .map(|layer| layer.data.len())
+            .unwrap_or(0);
         let mut cur_checkpoint = Checkpoint {
-            start_doc: 0u32,
-            end_doc: 1u32,
-            start_offset: 0u64,
-            end_offset: first_layer_len,
+            doc_range: 0u32..1u32,
+            byte_range: 0..first_layer_len,
         };
         for layer in &self.layers {
             if let Some(checkpoint) =
-                layer.seek_start_at_offset(target, cur_checkpoint.start_offset)
+                layer.seek_start_at_offset(target, cur_checkpoint.byte_range.start)
             {
                 cur_checkpoint = checkpoint;
             } else {

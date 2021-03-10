@@ -17,10 +17,6 @@ pub fn compute_table_size(num_bits: usize) -> usize {
 /// `KeyValue` is the item stored in the hash table.
 /// The key is actually a `BytesRef` object stored in an external heap.
 /// The `value_addr` also points to an address in the heap.
-///
-/// The key and the value are actually stored contiguously.
-/// For this reason, the (start, stop) information is actually redundant
-/// and can be simplified in the future
 #[derive(Copy, Clone)]
 struct KeyValue {
     key_value_addr: Addr,
