@@ -193,6 +193,61 @@ pub trait Collector: Sync + Send {
     }
 }
 
+impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {
+    type Fruit = Option<TSegmentCollector::Fruit>;
+
+    fn collect(&mut self, doc: DocId, score: Score) {
+        if let Some(segment_collector) = self {
+            segment_collector.collect(doc, score);
+        }
+    }
+
+    fn harvest(self) -> Self::Fruit {
+        self.map(|segment_collector| segment_collector.harvest())
+    }
+}
+
+impl<TCollector: Collector> Collector for Option<TCollector> {
+    type Fruit = Option<TCollector::Fruit>;
+
+    type Child = Option<<TCollector as Collector>::Child>;
+
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        Ok(if let Some(inner) = self {
+            let inner_segment_collector = inner.for_segment(segment_local_id, segment)?;
+            Some(inner_segment_collector)
+        } else {
+            None
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.as_ref()
+            .map(|inner| inner.requires_scoring())
+            .unwrap_or(false)
+    }
+
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
+        if let Some(inner) = self.as_ref() {
+            let inner_segment_fruits: Vec<_> = segment_fruits
+                .into_iter()
+                .flat_map(|fruit_opt| fruit_opt.into_iter())
+                .collect();
+            let fruit = inner.merge_fruits(inner_segment_fruits)?;
+            Ok(Some(fruit))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 /// The `SegmentCollector` is the trait in charge of defining the
 /// collect operation at the scale of the segment.
 ///

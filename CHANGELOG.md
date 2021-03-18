@@ -3,6 +3,7 @@ Tantivy 0.15.0
 - API Changes. Using Range instead of (start, end) in the API and internals (`FileSlice`, `OwnedBytes`, `Snippets`, ...)
   This change is breaking but migration is trivial.
 - Added an Histogram collector. (@fulmicoton) #994
+- Added support for Option<TCollector>.  (@fulmicoton) 
 
 
 Tantivy 0.14.0

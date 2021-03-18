@@ -3,13 +3,13 @@ use crate::core::SegmentReader;
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
-use crate::DocAddress;
 use crate::DocId;
 use crate::Score;
 use crate::SegmentLocalId;
+use crate::{DocAddress, Document, Searcher};
 
-use crate::collector::{FilterCollector, TopDocs};
-use crate::query::QueryParser;
+use crate::collector::{Count, FilterCollector, TopDocs};
+use crate::query::{AllQuery, QueryParser};
 use crate::schema::{Schema, FAST, TEXT};
 use crate::DateTime;
 use crate::{doc, Index};
@@ -267,4 +267,31 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
         self.vals
     }
+}
+
+fn make_test_searcher() -> crate::Result<crate::LeasedItem<Searcher>> {
+    let schema = Schema::builder().build();
+    let index = Index::create_in_ram(schema);
+    let mut index_writer = index.writer_for_tests()?;
+    index_writer.add_document(Document::default());
+    index_writer.add_document(Document::default());
+    index_writer.commit()?;
+    Ok(index.reader()?.searcher())
+}
+
+#[test]
+fn test_option_collector_some() -> crate::Result<()> {
+    let searcher = make_test_searcher()?;
+    let counts = searcher.search(&AllQuery, &Some(Count))?;
+    assert_eq!(counts, Some(2));
+    Ok(())
+}
+
+#[test]
+fn test_option_collector_none() -> crate::Result<()> {
+    let searcher = make_test_searcher()?;
+    let none_collector: Option<Count> = None;
+    let counts = searcher.search(&AllQuery, &none_collector)?;
+    assert_eq!(counts, None);
+    Ok(())
 }

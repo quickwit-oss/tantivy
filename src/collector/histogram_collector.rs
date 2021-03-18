@@ -1,8 +1,8 @@
-use fastdivide::DividerU64;
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::{FastFieldReader, FastValue};
 use crate::schema::{Field, Type};
 use crate::{DocId, Score};
+use fastdivide::DividerU64;
 
 /// Histogram builds an histogram of the values of a fastfield for the
 /// collected DocSet.
@@ -147,12 +147,12 @@ fn add_vecs(mut vals_list: Vec<Vec<u64>>, len: usize) -> Vec<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{add_vecs, HistogramComputer, HistogramCollector};
-    use fastdivide::DividerU64;
-    use query::AllQuery;
+    use super::{add_vecs, HistogramCollector, HistogramComputer};
     use crate::chrono::{TimeZone, Utc};
     use crate::schema::{Schema, FAST};
-    use crate::{Index, doc, query};
+    use crate::{doc, query, Index};
+    use fastdivide::DividerU64;
+    use query::AllQuery;
 
     #[test]
     fn test_add_histograms_simple() {
