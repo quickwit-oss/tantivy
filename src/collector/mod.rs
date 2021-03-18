@@ -93,6 +93,9 @@ use downcast_rs::impl_downcast;
 mod count_collector;
 pub use self::count_collector::Count;
 
+mod histogram_collector;
+pub use histogram_collector::HistogramCollector;
+
 mod multi_collector;
 pub use self::multi_collector::MultiCollector;
 
