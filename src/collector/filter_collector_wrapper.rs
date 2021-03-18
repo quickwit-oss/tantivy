@@ -56,11 +56,11 @@ use crate::{Score, SegmentReader, TantivyError};
 /// ```
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
 where
-    TPredicate: 'static,
+    TPredicate: 'static + Clone,
 {
     field: Field,
     collector: TCollector,
-    predicate: &'static TPredicate,
+    predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
 }
 
@@ -68,12 +68,12 @@ impl<TCollector, TPredicate, TPredicateValue: FastValue>
     FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
-    TPredicate: Fn(TPredicateValue) -> bool + Send + Sync,
+    TPredicate: Fn(TPredicateValue) -> bool + Send + Sync + Clone,
 {
     /// Create a new FilterCollector.
     pub fn new(
         field: Field,
-        predicate: &'static TPredicate,
+        predicate: TPredicate,
         collector: TCollector,
     ) -> FilterCollector<TCollector, TPredicate, TPredicateValue> {
         FilterCollector {
@@ -89,7 +89,7 @@ impl<TCollector, TPredicate, TPredicateValue: FastValue> Collector
     for FilterCollector<TCollector, TPredicate, TPredicateValue>
 where
     TCollector: Collector + Send + Sync,
-    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync,
+    TPredicate: 'static + Fn(TPredicateValue) -> bool + Send + Sync + Clone,
     TPredicateValue: FastValue,
 {
     // That's the type of our result.
@@ -133,7 +133,7 @@ where
         Ok(FilterSegmentCollector {
             fast_field_reader,
             segment_collector,
-            predicate: self.predicate,
+            predicate: self.predicate.clone(),
             t_predicate_value: PhantomData,
         })
     }
@@ -157,7 +157,7 @@ where
 {
     fast_field_reader: FastFieldReader<TPredicateValue>,
     segment_collector: TSegmentCollector,
-    predicate: &'static TPredicate,
+    predicate: TPredicate,
     t_predicate_value: PhantomData<TPredicateValue>,
 }
 
