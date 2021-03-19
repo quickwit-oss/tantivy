@@ -3,7 +3,7 @@ use crate::query::ConstScorer;
 use crate::query::{BitSetDocSet, Explanation};
 use crate::query::{Scorer, Weight};
 use crate::schema::{Field, IndexRecordOption};
-use crate::termdict::{TermDictionary, TermStreamer};
+use crate::termdict::{TermDictionary, TermWithStateStreamer};
 use crate::TantivyError;
 use crate::{DocId, Score};
 use common::BitSet;
@@ -33,9 +33,9 @@ where
     fn automaton_stream<'a>(
         &'a self,
         term_dict: &'a TermDictionary,
-    ) -> io::Result<TermStreamer<'a, &'a A>> {
+    ) -> io::Result<TermWithStateStreamer<'a, &'a A>> {
         let automaton: &A = &*self.automaton;
-        let term_stream_builder = term_dict.search(automaton);
+        let term_stream_builder = term_dict.search_with_state(automaton);
         term_stream_builder.into_stream()
     }
 }
@@ -51,8 +51,7 @@ where
         let inverted_index = reader.inverted_index(self.field)?;
         let term_dict = inverted_index.terms();
         let mut term_stream = self.automaton_stream(term_dict)?;
-        while term_stream.advance() {
-            let term_info = term_stream.value();
+        while let Some((_term, term_info, _state)) = term_stream.next() {
             let mut block_segment_postings = inverted_index
                 .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
             loop {
