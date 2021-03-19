@@ -12,8 +12,8 @@ use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::BinaryHeap;
-use std::collections::Bound;
 use std::iter::Peekable;
+use std::ops::Bound;
 use std::{u64, usize};
 
 struct Hit<'a> {

@@ -10,9 +10,8 @@ use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
-use std::collections::Bound;
 use std::io;
-use std::ops::Range;
+use std::ops::{Bound, Range};
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -276,7 +275,7 @@ pub struct RangeWeight {
 
 impl RangeWeight {
     fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> io::Result<TermStreamer<'a>> {
-        use std::collections::Bound::*;
+        use std::ops::Bound::*;
         let mut term_stream_builder = term_dict.range();
         term_stream_builder = match self.left_bound {
             Included(ref term_val) => term_stream_builder.ge(term_val),
@@ -336,7 +335,7 @@ mod tests {
     use crate::query::QueryParser;
     use crate::schema::{Document, Field, Schema, INDEXED, TEXT};
     use crate::Index;
-    use std::collections::Bound;
+    use std::ops::Bound;
 
     #[test]
     fn test_range_query_simple() {
