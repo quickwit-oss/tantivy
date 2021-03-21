@@ -6,6 +6,7 @@ use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
 use fnv::FnvHashMap;
+use std::iter::once;
 use std::io;
 
 /// Writer for multi-valued (as in, more than one value per document)
@@ -133,7 +134,7 @@ impl MultiValuedFastFieldWriter {
                         .doc_index
                         .windows(2)
                         .map(|interval| interval[0] as usize..interval[1] as usize)
-                        .chain(Some(last_interval).into_iter())
+                        .chain(once(last_interval))
                     {
                         doc_vals.clear();
                         let remapped_vals = self.vals[range]
