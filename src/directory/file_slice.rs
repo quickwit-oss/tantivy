@@ -2,6 +2,7 @@ use stable_deref_trait::StableDeref;
 
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
+use std::fmt;
 use std::ops::Range;
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
@@ -17,7 +18,7 @@ pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 /// The underlying behavior is therefore specific to the `Directory` that created it.
 /// Despite its name, a `FileSlice` may or may not directly map to an actual file
 /// on the filesystem.
-pub trait FileHandle: 'static + Send + Sync + HasLen {
+pub trait FileHandle: 'static + Send + Sync + HasLen + fmt::Debug {
     /// Reads a slice of bytes.
     ///
     /// This method may panic if the range requested is invalid.
@@ -54,6 +55,12 @@ where
 pub struct FileSlice {
     data: Arc<dyn FileHandle>,
     range: Range<usize>,
+}
+
+impl fmt::Debug for FileSlice {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FileSlice({:?}, {:?})", &self.data, self.range)
+    }
 }
 
 impl FileSlice {
