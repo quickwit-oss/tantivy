@@ -14,6 +14,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
     Ok(())
 }
 
+/// Decompress the given block payload.
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
     decompressed.clear();
     let mut decoder = lz4::Decoder::new(compressed)?;

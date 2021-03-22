@@ -36,10 +36,26 @@ and should rely on either
 mod index;
 mod reader;
 mod writer;
+use std::io;
+
+use crate::store::reader::extract_document;
+use crate::Document;
+
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-// compile_error doesn't scale very well, enum like feature flags would be great to have in Rust
+/// Given a compressed block bytes, and a document offset, return the document.
+#[doc(hidden)]
+pub fn extract_document_from_compressed_block(
+    compressed_block: &[u8],
+    offset_in_block: u32,
+) -> io::Result<Document> {
+    let mut decompressed = Vec::new();
+    decompress(compressed_block, &mut decompressed)?;
+    let doc = extract_document(&decompressed[..], offset_in_block)?;
+    Ok(doc)
+}
+
 #[cfg(all(feature = "lz4", feature = "brotli"))]
 compile_error!("feature `lz4` or `brotli` must not be enabled together.");
 

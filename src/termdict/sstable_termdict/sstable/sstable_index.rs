@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::io;
+use std::ops::Range;
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct SSTableIndex {
@@ -16,14 +17,13 @@ impl SSTableIndex {
         self.blocks
             .iter()
             .find(|block| &block.last_key[..] >= key)
-            .map(|block| block.block_addr)
+            .map(|block| block.block_addr.clone())
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Copy, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct BlockAddr {
-    pub start_offset: u64,
-    pub end_offset: u64,
+    pub byte_range: Range<usize>,
     pub first_ordinal: u64,
 }
 
@@ -39,18 +39,11 @@ pub struct SSTableIndexBuilder {
 }
 
 impl SSTableIndexBuilder {
-    pub fn add_block(
-        &mut self,
-        last_key: &[u8],
-        start_offset: u64,
-        stop_offset: u64,
-        first_ordinal: u64,
-    ) {
+    pub fn add_block(&mut self, last_key: &[u8], byte_range: Range<usize>, first_ordinal: u64) {
         self.index.blocks.push(BlockMeta {
             last_key: last_key.to_vec(),
             block_addr: BlockAddr {
-                start_offset,
-                end_offset: stop_offset,
+                byte_range,
                 first_ordinal,
             },
         })
@@ -69,10 +62,10 @@ mod tests {
     #[test]
     fn test_sstable_index() {
         let mut sstable_builder = SSTableIndexBuilder::default();
-        sstable_builder.add_block(b"aaa", 10u64, 20u64, 0u64);
-        sstable_builder.add_block(b"bbbbbbb", 20u64, 30u64, 564);
-        sstable_builder.add_block(b"ccc", 30u64, 40u64, 10u64);
-        sstable_builder.add_block(b"dddd", 40u64, 50u64, 15u64);
+        sstable_builder.add_block(b"aaa", 10..20, 0u64);
+        sstable_builder.add_block(b"bbbbbbb", 20..30, 564);
+        sstable_builder.add_block(b"ccc", 30..40, 10u64);
+        sstable_builder.add_block(b"dddd", 40..50, 15u64);
         let mut buffer: Vec<u8> = Vec::new();
         sstable_builder.serialize(&mut buffer).unwrap();
         let sstable = SSTableIndex::load(&buffer[..]);
@@ -80,8 +73,7 @@ mod tests {
             sstable.search(b"bbbde"),
             Some(BlockAddr {
                 first_ordinal: 10u64,
-                start_offset: 30u64,
-                end_offset: 40u64
+                byte_range: 30..40
             })
         );
     }

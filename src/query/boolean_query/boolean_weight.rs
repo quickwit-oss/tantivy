@@ -13,7 +13,6 @@ use crate::query::Union;
 use crate::query::Weight;
 use crate::query::{intersect_scorers, Explanation};
 use crate::{DocId, Score};
-use rayon::iter::IntoParallelRefIterator;
 use std::collections::HashMap;
 
 enum SpecializedScorer {
@@ -83,27 +82,9 @@ impl BooleanWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
-        use rayon::iter::IndexedParallelIterator;
-        use rayon::iter::ParallelIterator;
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
-        let mut items_res: Vec<crate::Result<(Occur, Box<dyn Scorer>)>> = Vec::new();
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.weights.len())
-            .build()
-            .unwrap();
-        pool.install(|| {
-            self.weights
-                .iter()
-                .collect::<Vec<_>>()
-                .par_iter()
-                .map(|(occur, subweight)| {
-                    let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
-                    Ok((*occur, sub_scorer))
-                })
-                .collect_into_vec(&mut items_res);
-        });
-        for item_res in items_res {
-            let (occur, sub_scorer) = item_res?;
+        for &(occur, ref subweight) in &self.weights {
+            let sub_scorer: Box<dyn Scorer> = subweight.scorer(reader, boost)?;
             per_occur_scorers
                 .entry(occur)
                 .or_insert_with(Vec::new)

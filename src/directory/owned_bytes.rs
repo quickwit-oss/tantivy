@@ -1,4 +1,5 @@
 use crate::directory::FileHandle;
+use crate::{AsyncIoError, AsyncIoResult};
 use stable_deref_trait::StableDeref;
 use std::convert::TryInto;
 use std::mem;
@@ -16,9 +17,14 @@ pub struct OwnedBytes {
     box_stable_deref: Arc<dyn Deref<Target = [u8]> + Sync + Send>,
 }
 
+#[async_trait::async_trait]
 impl FileHandle for OwnedBytes {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         Ok(self.slice(range))
+    }
+
+    async fn read_bytes_async(&self, range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
+        self.read_bytes(range).map_err(AsyncIoError::from)
     }
 }
 

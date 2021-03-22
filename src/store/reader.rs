@@ -53,8 +53,10 @@ impl StoreReader {
         self.skip_index.checkpoints()
     }
 
-    fn block_checkpoint(&self, doc_id: DocId) -> Option<Checkpoint> {
-        self.skip_index.seek(doc_id)
+    fn block_checkpoint(&self, doc_id: DocId) -> crate::Result<Checkpoint> {
+        self.skip_index.seek(doc_id).ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
+        })
     }
 
     pub(crate) fn block_data(&self) -> io::Result<OwnedBytes> {
@@ -109,9 +111,7 @@ impl StoreReader {
     /// For that reason a store reader should be kept and reused.
     ///
     pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
-        let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
-            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
-        })?;
+        let checkpoint = self.block_checkpoint(doc_id)?;
         let block = self.read_block(&checkpoint)?;
         let mut cursor = &block[..];
         let cursor_len_before = cursor.len();
@@ -224,10 +224,30 @@ impl StoreReader {
             })
     }
 
+    #[doc(hidden)]
+    pub fn get_physical_address(&self, doc_id: DocId) -> crate::Result<Option<String>> {
+        let checkpoint = self.block_checkpoint(doc_id)?;
+        let doc_offset = doc_id - checkpoint.doc_range.start;
+        Ok(self
+            .data
+            .get_physical_address(checkpoint.byte_range)
+            .map(|block_physical_address| format!("{}:{}", block_physical_address, doc_offset)))
+    }
+
     /// Summarize total space usage of this store reader.
     pub fn space_usage(&self) -> StoreSpaceUsage {
         self.space_usage.clone()
     }
+}
+
+pub(crate) fn extract_document(mut block: &[u8], offset_in_block: u32) -> io::Result<Document> {
+    for _ in 0..offset_in_block {
+        let doc_length = VInt::deserialize(&mut block)?.val() as usize;
+        block = &block[doc_length..];
+    }
+    let doc_length = VInt::deserialize(&mut block)?.val() as usize;
+    block = &block[..doc_length];
+    Document::deserialize(&mut block)
 }
 
 fn split_file(data: FileSlice) -> io::Result<(FileSlice, FileSlice)> {
