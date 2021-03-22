@@ -104,6 +104,7 @@ let schema = schema_builder.build();
 
 mod document;
 mod facet;
+mod facet_options;
 mod schema;
 mod term;
 
@@ -128,6 +129,7 @@ pub use self::value::Value;
 
 pub use self::facet::Facet;
 pub(crate) use self::facet::FACET_SEP_BYTE;
+pub use self::facet_options::FacetOptions;
 
 pub use self::document::Document;
 pub use self::field::Field;

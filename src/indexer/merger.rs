@@ -195,7 +195,7 @@ impl IndexMerger {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match field_type {
-                FieldType::HierarchicalFacet => {
+                FieldType::HierarchicalFacet(_) => {
                     let term_ordinal_mapping = term_ord_mappings
                         .remove(&field)
                         .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have required a\
@@ -515,10 +515,9 @@ impl IndexMerger {
             max_term_ords.push(terms.num_terms() as u64);
         }
 
-        let mut term_ord_mapping_opt = if *field_type == FieldType::HierarchicalFacet {
-            Some(TermOrdinalMapping::new(max_term_ords))
-        } else {
-            None
+        let mut term_ord_mapping_opt = match field_type {
+            FieldType::HierarchicalFacet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
+            _ => None,
         };
 
         let mut merged_terms = TermMerger::new(field_term_streams);
@@ -1179,7 +1178,7 @@ mod tests {
     #[test]
     fn test_merge_facets() {
         let mut schema_builder = schema::Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader().unwrap();
         {

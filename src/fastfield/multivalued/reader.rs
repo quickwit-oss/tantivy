@@ -60,12 +60,12 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 mod tests {
 
     use crate::core::Index;
-    use crate::schema::{Facet, Schema};
+    use crate::schema::{Facet, Schema, INDEXED};
 
     #[test]
     fn test_multifastfield_reader() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets");
+        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index
