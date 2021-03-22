@@ -6,8 +6,8 @@ use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
 use fnv::FnvHashMap;
-use std::iter::once;
 use std::io;
+use std::iter::once;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
