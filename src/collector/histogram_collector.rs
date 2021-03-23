@@ -14,7 +14,7 @@ use fastdivide::DividerU64;
 /// An histogram is then defined as a `Vec<u64>` of length `num_buckets`, that contains a count of
 /// documents for each value bucket.
 ///
-/// See [`Histogram::new()`].
+/// See also [`HistogramCollector::new()`].
 ///
 /// # Warning
 ///
