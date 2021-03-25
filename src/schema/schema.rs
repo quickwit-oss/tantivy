@@ -146,8 +146,12 @@ impl SchemaBuilder {
     }
 
     /// Adds a facet field to the schema.
-    pub fn add_facet_field(&mut self, field_name: &str) -> Field {
-        let field_entry = FieldEntry::new_facet(field_name.to_string());
+    pub fn add_facet_field<T: Into<FacetOptions>>(
+        &mut self,
+        field_name: &str,
+        facet_options: T,
+    ) -> Field {
+        let field_entry = FieldEntry::new_facet(field_name.to_string(), facet_options.into());
         self.add_field(field_entry)
     }
 

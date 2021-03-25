@@ -96,7 +96,7 @@ impl FastValue for u64 {
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
         match *field_type {
             FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
-            FieldType::HierarchicalFacet => Some(Cardinality::MultiValues),
+            FieldType::HierarchicalFacet(_) => Some(Cardinality::MultiValues),
             _ => None,
         }
     }

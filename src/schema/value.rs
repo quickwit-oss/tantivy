@@ -137,6 +137,16 @@ impl Value {
         }
     }
 
+    /// Returns the path value, provided the value is of the `Facet` type.
+    /// (Returns None if the value is not of the `Facet` type).
+    pub fn path(&self) -> Option<String> {
+        if let Value::Facet(facet) = self {
+            Some(facet.to_path_string())
+        } else {
+            None
+        }
+    }
+
     /// Returns the tokenized text, provided the value is of the `PreTokStr` type.
     ///
     /// Returns None if the value is not of the `PreTokStr` type.

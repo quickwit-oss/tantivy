@@ -39,7 +39,9 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::F64(_)
         | FieldType::Date(_)
         | FieldType::Bytes(_)
-        | FieldType::HierarchicalFacet => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
+        | FieldType::HierarchicalFacet(_) => {
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
+        }
     }
 }
 
@@ -142,7 +144,7 @@ impl MultiFieldPostingsWriter {
             let field_entry = self.schema.get_field_entry(field);
 
             match *field_entry.field_type() {
-                FieldType::Str(_) | FieldType::HierarchicalFacet => {
+                FieldType::Str(_) | FieldType::HierarchicalFacet(_) => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
                     let unordered_term_ids = term_offsets[byte_offsets.clone()]

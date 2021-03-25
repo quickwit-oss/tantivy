@@ -108,19 +108,22 @@ impl SegmentReader {
     /// Accessor to the `FacetReader` associated to a given `Field`.
     pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
-        if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(crate::TantivyError::InvalidArgument(format!(
+
+        match field_entry.field_type() {
+            FieldType::HierarchicalFacet(_) => {
+                let term_ords_reader = self.fast_fields().u64s(field)?;
+                let termdict = self
+                    .termdict_composite
+                    .open_read(field)
+                    .map(TermDictionary::open)
+                    .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
+                Ok(FacetReader::new(term_ords_reader, termdict))
+            }
+            _ => Err(crate::TantivyError::InvalidArgument(format!(
                 "Field {:?} is not a facet field.",
                 field_entry.name()
-            )));
+            ))),
         }
-        let term_ords_reader = self.fast_fields().u64s(field)?;
-        let termdict = self
-            .termdict_composite
-            .open_read(field)
-            .map(TermDictionary::open)
-            .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
-        Ok(FacetReader::new(term_ords_reader, termdict))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.

@@ -13,6 +13,7 @@ mod tests {
     use crate::schema::Facet;
     use crate::schema::IntOptions;
     use crate::schema::Schema;
+    use crate::schema::INDEXED;
     use crate::Index;
     use chrono::Duration;
 
@@ -212,7 +213,7 @@ mod tests {
     #[ignore]
     fn test_many_facets() {
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_facet_field("facetfield");
+        let field = schema_builder.add_facet_field("facetfield", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
