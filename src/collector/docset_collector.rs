@@ -36,7 +36,7 @@ impl Collector for DocSetCollector {
         let mut result = HashSet::with_capacity(len);
         for (segment_local_id, docs) in segment_fruits {
             for doc in docs {
-                result.insert(DocAddress(segment_local_id, doc));
+                result.insert(DocAddress::new(segment_local_id, doc));
             }
         }
         Ok(result)

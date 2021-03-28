@@ -54,9 +54,8 @@ impl Searcher {
     /// The searcher uses the segment ordinal to route the
     /// the request to the right `Segment`.
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
-        let DocAddress(segment_local_id, doc_id) = doc_address;
-        let store_reader = &self.store_readers[segment_local_id as usize];
-        store_reader.get(doc_id)
+        let store_reader = &self.store_readers[doc_address.segment_ord as usize];
+        store_reader.get(doc_address.doc_id)
     }
 
     /// Access the schema associated to the index of this searcher.

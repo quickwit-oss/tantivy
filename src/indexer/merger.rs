@@ -798,49 +798,53 @@ mod tests {
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "a")])?,
-                    vec![DocAddress(0, 1), DocAddress(0, 2), DocAddress(0, 4)]
+                    vec![
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 4)
+                    ]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "af")])?,
-                    vec![DocAddress(0, 0), DocAddress(0, 3)]
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "g")])?,
-                    vec![DocAddress(0, 4)]
+                    vec![DocAddress::new(0, 4)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "b")])?,
                     vec![
-                        DocAddress(0, 0),
-                        DocAddress(0, 1),
-                        DocAddress(0, 2),
-                        DocAddress(0, 3),
-                        DocAddress(0, 4)
+                        DocAddress::new(0, 0),
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 3),
+                        DocAddress::new(0, 4)
                     ]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)])?,
-                    vec![DocAddress(0, 0), DocAddress(0, 3)]
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
             }
             {
-                let doc = searcher.doc(DocAddress(0, 0))?;
+                let doc = searcher.doc(DocAddress::new(0, 0))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 1))?;
+                let doc = searcher.doc(DocAddress::new(0, 1))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 2))?;
+                let doc = searcher.doc(DocAddress::new(0, 2))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 3))?;
+                let doc = searcher.doc(DocAddress::new(0, 3))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 4))?;
+                let doc = searcher.doc(DocAddress::new(0, 4))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c g"));
             }
             {

@@ -192,7 +192,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
             Name,
             Type,
             Options,
-        };
+        }
 
         const FIELDS: &[&str] = &["name", "type", "options"];
 

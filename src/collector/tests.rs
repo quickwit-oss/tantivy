@@ -53,7 +53,7 @@ pub fn test_filter_collector() {
     let top_docs = searcher.search(&query, &filter_some_collector).unwrap();
 
     assert_eq!(top_docs.len(), 1);
-    assert_eq!(top_docs[0].1, DocAddress(0, 1));
+    assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 
     let filter_all_collector: FilterCollector<_, _, u64> =
         FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
@@ -126,7 +126,7 @@ impl Collector for TestCollector {
             if fruit.docs().is_empty() {
                 0
             } else {
-                fruit.docs()[0].segment_ord()
+                fruit.docs()[0].segment_ord
             }
         });
         let mut docs = vec![];
@@ -143,7 +143,7 @@ impl SegmentCollector for TestSegmentCollector {
     type Fruit = TestFruit;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        self.fruit.docs.push(DocAddress(self.segment_id, doc));
+        self.fruit.docs.push(DocAddress::new(self.segment_id, doc));
         self.fruit.scores.push(score);
     }
 

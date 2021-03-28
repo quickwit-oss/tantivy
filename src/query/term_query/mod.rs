@@ -196,18 +196,18 @@ mod tests {
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
         let searcher = index.reader()?.searcher();
         {
-            let explanation = term_query.explain(&searcher, DocAddress(0u32, 1u32))?;
+            let explanation = term_query.explain(&searcher, DocAddress::new(0u32, 1u32))?;
             assert_nearly_equals!(explanation.value(), 0.6931472);
         }
         {
-            let explanation_err = term_query.explain(&searcher, DocAddress(0u32, 0u32));
+            let explanation_err = term_query.explain(&searcher, DocAddress::new(0u32, 0u32));
             assert!(matches!(
                 explanation_err,
                 Err(crate::TantivyError::InvalidArgument(_msg))
             ));
         }
         {
-            let explanation_err = term_query.explain(&searcher, DocAddress(0u32, 3u32));
+            let explanation_err = term_query.explain(&searcher, DocAddress::new(0u32, 3u32));
             assert!(matches!(
                 explanation_err,
                 Err(crate::TantivyError::InvalidArgument(_msg))

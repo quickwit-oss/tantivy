@@ -56,7 +56,7 @@ mod tests {
     fn test_stored_bytes() -> crate::Result<()> {
         let searcher = create_index_for_test(STORED)?;
         assert_eq!(searcher.num_docs(), 1);
-        let retrieved_doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let retrieved_doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let field = searcher.schema().get_field("string_bytes").unwrap();
         let values: Vec<&Value> = retrieved_doc.get_all(field).collect();
         assert_eq!(values.len(), 2);
@@ -72,7 +72,7 @@ mod tests {
     fn test_non_stored_bytes() -> crate::Result<()> {
         let searcher = create_index_for_test(INDEXED)?;
         assert_eq!(searcher.num_docs(), 1);
-        let retrieved_doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let retrieved_doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let field = searcher.schema().get_field("string_bytes").unwrap();
         assert!(retrieved_doc.get_first(field).is_none());
         Ok(())

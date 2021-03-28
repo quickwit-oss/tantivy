@@ -154,7 +154,7 @@ mod tests {
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 30);
         for i in 0..searcher.num_docs() as u32 {
-            let _doc = searcher.doc(DocAddress(0u32, i))?;
+            let _doc = searcher.doc(DocAddress::new(0u32, i))?;
         }
         Ok(())
     }

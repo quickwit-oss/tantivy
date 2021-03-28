@@ -169,7 +169,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
-                    DocAddress(segment_id, comparable_doc.doc),
+                    DocAddress::new(segment_id, comparable_doc.doc),
                 )
             })
             .collect()
@@ -220,9 +220,9 @@ mod tests {
         assert_eq!(
             top_collector.harvest(),
             vec![
-                (0.8, DocAddress(0, 1)),
-                (0.3, DocAddress(0, 5)),
-                (0.2, DocAddress(0, 3))
+                (0.8, DocAddress::new(0, 1)),
+                (0.3, DocAddress::new(0, 5)),
+                (0.2, DocAddress::new(0, 3))
             ]
         );
     }
@@ -238,10 +238,10 @@ mod tests {
         assert_eq!(
             top_collector.harvest(),
             vec![
-                (0.9, DocAddress(0, 7)),
-                (0.8, DocAddress(0, 1)),
-                (0.3, DocAddress(0, 5)),
-                (0.2, DocAddress(0, 3))
+                (0.9, DocAddress::new(0, 7)),
+                (0.8, DocAddress::new(0, 1)),
+                (0.3, DocAddress::new(0, 5)),
+                (0.2, DocAddress::new(0, 3))
             ]
         );
     }
@@ -276,17 +276,17 @@ mod tests {
 
         let results = collector
             .merge_fruits(vec![vec![
-                (0.9, DocAddress(0, 1)),
-                (0.8, DocAddress(0, 2)),
-                (0.7, DocAddress(0, 3)),
-                (0.6, DocAddress(0, 4)),
-                (0.5, DocAddress(0, 5)),
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+                (0.7, DocAddress::new(0, 3)),
+                (0.6, DocAddress::new(0, 4)),
+                (0.5, DocAddress::new(0, 5)),
             ]])
             .unwrap();
 
         assert_eq!(
             results,
-            vec![(0.8, DocAddress(0, 2)), (0.7, DocAddress(0, 3)),]
+            vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
         );
     }
 
@@ -295,10 +295,13 @@ mod tests {
         let collector = TopCollector::with_limit(2).and_offset(1);
 
         let results = collector
-            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+            ]])
             .unwrap();
 
-        assert_eq!(results, vec![(0.8, DocAddress(0, 2)),]);
+        assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
     }
 
     #[test]
@@ -306,7 +309,10 @@ mod tests {
         let collector = TopCollector::with_limit(2).and_offset(20);
 
         let results = collector
-            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+            ]])
             .unwrap();
 
         assert_eq!(results, vec![]);

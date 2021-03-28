@@ -105,7 +105,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert_eq!(&facet_ords, &[2u64]);
-        let doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value = doc.get_first(facet_field).and_then(Value::path);
         assert_eq!(value, None);
         Ok(())
@@ -128,7 +128,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert!(facet_ords.is_empty());
-        let doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value = doc.get_first(facet_field).and_then(Value::path);
         assert_eq!(value, Some("/a/b".to_string()));
         Ok(())
@@ -151,7 +151,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert_eq!(&facet_ords, &[2u64]);
-        let doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value = doc.get_first(facet_field).and_then(Value::path);
         assert_eq!(value, Some("/a/b".to_string()));
         Ok(())
@@ -174,7 +174,7 @@ mod tests {
         let mut facet_ords = Vec::new();
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert!(facet_ords.is_empty());
-        let doc = searcher.doc(DocAddress(0u32, 0u32))?;
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
         let value = doc.get_first(facet_field).and_then(Value::path);
         assert_eq!(value, None);
         Ok(())

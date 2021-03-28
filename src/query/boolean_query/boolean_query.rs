@@ -238,9 +238,9 @@ mod tests {
         assert_eq!(
             docs,
             vec![
-                DocAddress(0u32, 1u32),
-                DocAddress(0u32, 2u32),
-                DocAddress(0u32, 3u32)
+                DocAddress::new(0u32, 1u32),
+                DocAddress::new(0u32, 2u32),
+                DocAddress::new(0u32, 3u32)
             ]
             .into_iter()
             .collect()
@@ -264,15 +264,24 @@ mod tests {
             BooleanQuery::intersection(vec![term_b.box_clone(), term_c.box_clone()]);
         {
             let docs = searcher.search(&intersection_ab, &DocSetCollector)?;
-            assert_eq!(docs, vec![DocAddress(0u32, 2u32)].into_iter().collect());
+            assert_eq!(
+                docs,
+                vec![DocAddress::new(0u32, 2u32)].into_iter().collect()
+            );
         }
         {
             let docs = searcher.search(&intersection_ac, &DocSetCollector)?;
-            assert_eq!(docs, vec![DocAddress(0u32, 1u32)].into_iter().collect());
+            assert_eq!(
+                docs,
+                vec![DocAddress::new(0u32, 1u32)].into_iter().collect()
+            );
         }
         {
             let docs = searcher.search(&intersection_bc, &DocSetCollector)?;
-            assert_eq!(docs, vec![DocAddress(0u32, 0u32)].into_iter().collect());
+            assert_eq!(
+                docs,
+                vec![DocAddress::new(0u32, 0u32)].into_iter().collect()
+            );
         }
         Ok(())
     }

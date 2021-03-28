@@ -113,8 +113,8 @@ where
 /// let query = query_parser.parse_query("diary").unwrap();
 /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2)).unwrap();
 ///
-/// assert_eq!(top_docs[0].1, DocAddress(0, 1));
-/// assert_eq!(top_docs[1].1, DocAddress(0, 3));
+/// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
+/// assert_eq!(top_docs[1].1, DocAddress::new(0, 3));
 /// ```
 pub struct TopDocs(TopCollector<Score>);
 
@@ -201,8 +201,8 @@ impl TopDocs {
     /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1)).unwrap();
     ///
     /// assert_eq!(top_docs.len(), 2);
-    /// assert_eq!(top_docs[0].1, DocAddress(0, 4));
-    /// assert_eq!(top_docs[1].1, DocAddress(0, 3));
+    /// assert_eq!(top_docs[0].1, DocAddress::new(0, 4));
+    /// assert_eq!(top_docs[1].1, DocAddress::new(0, 3));
     /// ```
     pub fn and_offset(self, offset: usize) -> TopDocs {
         TopDocs(self.0.and_offset(offset))
@@ -243,8 +243,8 @@ impl TopDocs {
     /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
     /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
     /// #   assert_eq!(top_docs,
-    /// #            vec![(97u64, DocAddress(0u32, 1)),
-    /// #                 (80u64, DocAddress(0u32, 3))]);
+    /// #            vec![(97u64, DocAddress::new(0u32, 1)),
+    /// #                 (80u64, DocAddress::new(0u32, 3))]);
     /// #   Ok(())
     /// # }
     /// /// Searches the document matching the given query, and
@@ -323,8 +323,8 @@ impl TopDocs {
     /// #   let reader = index.reader()?;
     /// #   let top_docs = docs_sorted_by_revenue(&reader.searcher(), &AllQuery, rating)?;
     /// #   assert_eq!(top_docs,
-    /// #            vec![(119_000_000i64, DocAddress(0, 1)),
-    /// #                 (92_000_000i64, DocAddress(0, 0))]);
+    /// #            vec![(119_000_000i64, DocAddress::new(0, 1)),
+    /// #                 (92_000_000i64, DocAddress::new(0, 0))]);
     /// #   Ok(())
     /// # }
     /// /// Searches the document matching the given query, and
@@ -671,7 +671,7 @@ impl Collector for TopDocs {
         let fruit = heap
             .into_sorted_vec()
             .into_iter()
-            .map(|cid| (cid.feature, DocAddress(segment_ord, cid.doc)))
+            .map(|cid| (cid.feature, DocAddress::new(segment_ord, cid.doc)))
             .collect();
         Ok(fruit)
     }
@@ -741,9 +741,9 @@ mod tests {
         assert_results_equals(
             &score_docs,
             &[
-                (0.81221175, DocAddress(0u32, 1)),
-                (0.5376842, DocAddress(0u32, 2)),
-                (0.48527452, DocAddress(0, 0)),
+                (0.81221175, DocAddress::new(0u32, 1)),
+                (0.5376842, DocAddress::new(0u32, 2)),
+                (0.48527452, DocAddress::new(0, 0)),
             ],
         );
     }
@@ -760,7 +760,7 @@ mod tests {
             .searcher()
             .search(&text_query, &TopDocs::with_limit(4).and_offset(2))
             .unwrap();
-        assert_results_equals(&score_docs[..], &[(0.48527452, DocAddress(0, 0))]);
+        assert_results_equals(&score_docs[..], &[(0.48527452, DocAddress::new(0, 0))]);
     }
 
     #[test]
@@ -778,8 +778,8 @@ mod tests {
         assert_results_equals(
             &score_docs,
             &[
-                (0.81221175, DocAddress(0u32, 1)),
-                (0.5376842, DocAddress(0u32, 2)),
+                (0.81221175, DocAddress::new(0u32, 1)),
+                (0.5376842, DocAddress::new(0u32, 2)),
             ],
         );
     }
@@ -799,8 +799,8 @@ mod tests {
         assert_results_equals(
             &score_docs[..],
             &[
-                (0.5376842, DocAddress(0u32, 2)),
-                (0.48527452, DocAddress(0, 0)),
+                (0.5376842, DocAddress::new(0u32, 2)),
+                (0.48527452, DocAddress::new(0, 0)),
             ],
         );
     }
@@ -864,9 +864,9 @@ mod tests {
         assert_eq!(
             &top_docs[..],
             &[
-                (64, DocAddress(0, 1)),
-                (16, DocAddress(0, 2)),
-                (12, DocAddress(0, 0))
+                (64, DocAddress::new(0, 1)),
+                (16, DocAddress::new(0, 2)),
+                (12, DocAddress::new(0, 0))
             ]
         );
     }
@@ -898,8 +898,8 @@ mod tests {
         assert_eq!(
             &top_docs[..],
             &[
-                (mr_birthday, DocAddress(0, 1)),
-                (pr_birthday, DocAddress(0, 0)),
+                (mr_birthday, DocAddress::new(0, 1)),
+                (pr_birthday, DocAddress::new(0, 0)),
             ]
         );
         Ok(())
@@ -927,7 +927,10 @@ mod tests {
         let top_docs: Vec<(i64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
-            &[(40i64, DocAddress(0, 1)), (-1i64, DocAddress(0, 0)),]
+            &[
+                (40i64, DocAddress::new(0, 1)),
+                (-1i64, DocAddress::new(0, 0)),
+            ]
         );
         Ok(())
     }
@@ -954,7 +957,10 @@ mod tests {
         let top_docs: Vec<(f64, DocAddress)> = searcher.search(&AllQuery, &top_collector)?;
         assert_eq!(
             &top_docs[..],
-            &[(40f64, DocAddress(0, 1)), (-1.0f64, DocAddress(0, 0)),]
+            &[
+                (40f64, DocAddress::new(0, 1)),
+                (-1.0f64, DocAddress::new(0, 0)),
+            ]
         );
         Ok(())
     }
@@ -1034,7 +1040,7 @@ mod tests {
 
         assert_eq!(
             score_docs,
-            vec![(1, DocAddress(0, 1)), (0, DocAddress(0, 0)),]
+            vec![(1, DocAddress::new(0, 1)), (0, DocAddress::new(0, 0)),]
         );
     }
 
@@ -1056,7 +1062,7 @@ mod tests {
 
         assert_eq!(
             score_docs,
-            vec![(1, DocAddress(0, 1)), (0, DocAddress(0, 0)),]
+            vec![(1, DocAddress::new(0, 1)), (0, DocAddress::new(0, 0)),]
         );
     }
 
