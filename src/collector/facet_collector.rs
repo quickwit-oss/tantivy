@@ -5,7 +5,7 @@ use crate::schema::Facet;
 use crate::schema::Field;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use std::cmp::Ordering;
 use std::collections::btree_map;
@@ -262,7 +262,7 @@ impl Collector for FacetCollector {
 
     fn for_segment(
         &self,
-        _: SegmentLocalId,
+        _: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;

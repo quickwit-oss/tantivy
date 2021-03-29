@@ -10,7 +10,7 @@ use crate::schema::Field;
 use crate::DocAddress;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use crate::{collector::custom_score_top_collector::CustomScoreTopCollector, fastfield::FastValue};
 use crate::{collector::top_collector::TopSegmentCollector, TantivyError};
@@ -37,7 +37,7 @@ where
 
     fn for_segment(
         &self,
-        segment_local_id: crate::SegmentLocalId,
+        segment_local_id: crate::SegmentOrdinal,
         segment: &SegmentReader,
     ) -> crate::Result<Self::Child> {
         let schema = segment.schema();
@@ -600,7 +600,7 @@ impl Collector for TopDocs {
 
     fn for_segment(
         &self,
-        segment_local_id: SegmentLocalId,
+        segment_local_id: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
         let collector = self.0.for_segment(segment_local_id, reader);
@@ -671,7 +671,10 @@ impl Collector for TopDocs {
         let fruit = heap
             .into_sorted_vec()
             .into_iter()
-            .map(|cid| (cid.feature, DocAddress::new(segment_ord, cid.doc)))
+            .map(|cid| (cid.feature, DocAddress {
+                segment_ord,
+                doc_id: cid.doc,
+            }))
             .collect();
         Ok(fruit)
     }

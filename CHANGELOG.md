@@ -4,6 +4,7 @@ Tantivy 0.15.0
   This change is breaking but migration is trivial.
 - Added an Histogram collector. (@fulmicoton) #994
 - Added support for Option<TCollector>.  (@fulmicoton) 
+- DocAddress is now a struct (@scampi) #987
 
 
 Tantivy 0.14.0

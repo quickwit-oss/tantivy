@@ -3,7 +3,7 @@ use super::SegmentCollector;
 use crate::collector::Fruit;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use crate::TantivyError;
 use std::marker::PhantomData;
@@ -175,7 +175,7 @@ impl<'a> Collector for MultiCollector<'a> {
 
     fn for_segment(
         &self,
-        segment_local_id: SegmentLocalId,
+        segment_local_id: SegmentOrdinal,
         segment: &SegmentReader,
     ) -> crate::Result<MultiCollectorChild> {
         let children = self

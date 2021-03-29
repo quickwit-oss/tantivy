@@ -5,7 +5,7 @@ use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::{DocAddress, Document, Searcher};
 
 use crate::collector::{Count, FilterCollector, TopDocs};
@@ -82,7 +82,7 @@ pub struct TestCollector {
 }
 
 pub struct TestSegmentCollector {
-    segment_id: SegmentLocalId,
+    segment_id: SegmentOrdinal,
     fruit: TestFruit,
 }
 
@@ -108,7 +108,7 @@ impl Collector for TestCollector {
 
     fn for_segment(
         &self,
-        segment_id: SegmentLocalId,
+        segment_id: SegmentOrdinal,
         _reader: &SegmentReader,
     ) -> crate::Result<TestSegmentCollector> {
         Ok(TestSegmentCollector {
@@ -177,7 +177,7 @@ impl Collector for FastFieldTestCollector {
 
     fn for_segment(
         &self,
-        _: SegmentLocalId,
+        _: SegmentOrdinal,
         segment_reader: &SegmentReader,
     ) -> crate::Result<FastFieldSegmentCollector> {
         let reader = segment_reader

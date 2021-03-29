@@ -106,7 +106,7 @@ impl Collector for HistogramCollector {
 
     fn for_segment(
         &self,
-        _segment_local_id: crate::SegmentLocalId,
+        _segment_local_id: crate::SegmentOrdinal,
         segment: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         let ff_reader = segment.fast_fields().u64_lenient(self.field)?;

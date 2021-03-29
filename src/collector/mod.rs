@@ -86,7 +86,7 @@ See the `custom_collector` example.
 
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use downcast_rs::impl_downcast;
 
@@ -155,7 +155,7 @@ pub trait Collector: Sync + Send {
     /// on this segment.
     fn for_segment(
         &self,
-        segment_local_id: SegmentLocalId,
+        segment_local_id: SegmentOrdinal,
         segment: &SegmentReader,
     ) -> crate::Result<Self::Child>;
 
@@ -214,7 +214,7 @@ impl<TCollector: Collector> Collector for Option<TCollector> {
 
     fn for_segment(
         &self,
-        segment_local_id: SegmentLocalId,
+        segment_local_id: SegmentOrdinal,
         segment: &SegmentReader,
     ) -> crate::Result<Self::Child> {
         Ok(if let Some(inner) = self {

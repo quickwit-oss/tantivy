@@ -254,13 +254,12 @@ pub type Opstamp = u64;
 /// the document to the search query.
 pub type Score = f32;
 
-/// A `SegmentLocalId` identifies a segment.
-/// It only makes sense for a given searcher.
-pub type SegmentLocalId = u32;
+/// A `SegmentOrdinal` identifies a segment, within a `Searcher`.
+pub type SegmentOrdinal = u32;
 
 impl DocAddress {
     /// Creates a new DocAddress from the segment/docId pair.
-    pub fn new(segment_ord: SegmentLocalId, doc_id: DocId) -> DocAddress {
+    pub fn new(segment_ord: SegmentOrdinal, doc_id: DocId) -> DocAddress {
         DocAddress {
             segment_ord,
             doc_id,
@@ -280,7 +279,7 @@ impl DocAddress {
 pub struct DocAddress {
     /// The segment ordinal id that identifies the segment
     /// hosting the document in the `Searcher` it is called from.
-    pub segment_ord: SegmentLocalId,
+    pub segment_ord: SegmentOrdinal,
     /// The segment-local `DocId`.
     pub doc_id: DocId,
 }

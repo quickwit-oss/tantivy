@@ -1,6 +1,6 @@
 use crate::DocAddress;
 use crate::DocId;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -118,7 +118,7 @@ where
 
     pub(crate) fn for_segment<F: PartialOrd>(
         &self,
-        segment_id: SegmentLocalId,
+        segment_id: SegmentOrdinal,
         _: &SegmentReader,
     ) -> TopSegmentCollector<F> {
         TopSegmentCollector::new(segment_id, self.limit + self.offset)
@@ -147,29 +147,32 @@ where
 pub(crate) struct TopSegmentCollector<T> {
     limit: usize,
     heap: BinaryHeap<ComparableDoc<T, DocId>>,
-    segment_id: u32,
+    segment_ord: u32,
 }
 
 impl<T: PartialOrd> TopSegmentCollector<T> {
-    fn new(segment_id: SegmentLocalId, limit: usize) -> TopSegmentCollector<T> {
+    fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
         TopSegmentCollector {
             limit,
             heap: BinaryHeap::with_capacity(limit),
-            segment_id,
+            segment_ord,
         }
     }
 }
 
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
-        let segment_id = self.segment_id;
+        let segment_ord = self.segment_ord;
         self.heap
             .into_sorted_vec()
             .into_iter()
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
-                    DocAddress::new(segment_id, comparable_doc.doc),
+                    DocAddress {
+                        segment_ord,
+                        doc_id: comparable_doc.doc,
+                    },
                 )
             })
             .collect()
