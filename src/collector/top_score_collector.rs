@@ -1,3 +1,4 @@
+
 use super::Collector;
 use crate::collector::top_collector::{ComparableDoc, TopCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
@@ -671,10 +672,15 @@ impl Collector for TopDocs {
         let fruit = heap
             .into_sorted_vec()
             .into_iter()
-            .map(|cid| (cid.feature, DocAddress {
-                segment_ord,
-                doc_id: cid.doc,
-            }))
+            .map(|cid| {
+                (
+                    cid.feature,
+                    DocAddress {
+                        segment_ord,
+                        doc_id: cid.doc,
+                    },
+                )
+            })
             .collect();
         Ok(fruit)
     }
