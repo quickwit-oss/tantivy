@@ -192,7 +192,7 @@ impl SchemaBuilder {
         }))
     }
 }
-
+#[derive(Debug)]
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
@@ -226,7 +226,7 @@ impl Eq for InnerSchema {}
 /// let schema = schema_builder.build();
 ///
 /// ```
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {
