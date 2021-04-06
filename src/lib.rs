@@ -163,6 +163,7 @@ pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
+pub use crate::indexer::merge_segments;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;

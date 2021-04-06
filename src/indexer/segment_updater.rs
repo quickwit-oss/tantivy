@@ -142,23 +142,29 @@ fn merge(
 }
 
 /// Merges a list of segments from different indices.
-/// It wont performe any merge if the indices schema don't match
-pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Result<()> {
-    //validate schema ?
+///
+/// Returns `TantivyError` if the the indices list is empty or their
+/// schemas don't match.
+pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Result<Index> {
+    // validate schema
     let schemas: Vec<Schema> = indices.iter().map(|index| index.schema()).collect();
-    let schema = is_same_schema(&schemas[..])?;
+    let is_not_valid = match schemas.first() {
+        Some(first) => schemas.iter().skip(1).any(|next| next != first),
+        None => true,
+    };
 
-    let mut merged_index = Index::create_in_dir(output_directory, schema.clone())?;
+    if is_not_valid {
+        return Err(crate::TantivyError::InvalidArgument(
+            "Attempt to merge empty or different schema indices".to_string(),
+        ));
+    }
+
+    let mut merged_index = Index::create_in_dir(output_directory, schemas[0].clone())?;
     let merged_segment = merged_index.new_segment();
 
     let mut segments: Vec<Segment> = vec![];
     for index in indices {
-        segments.extend(
-            index
-                .searchable_segments()?
-                .iter()
-                .map(|segment| merged_index.segment(segment.meta().clone())),
-        );
+        segments.extend(index.searchable_segments()?);
     }
 
     let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
@@ -168,44 +174,29 @@ pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Re
     let merged_segment_id = merged_segment.id();
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 
-    let mut segment_metas: Vec<SegmentMeta> = segments
-        .iter()
-        .map(|segment| segment.meta().clone())
-        .collect();
-    segment_metas.push(segment_meta);
+    let stats = format!(
+        "Segments Merge: [{}]",
+        segments
+            .iter()
+            .fold(String::new(), |sum, current| format!(
+                "{}{} ",
+                sum,
+                current.meta().id().uuid_string()
+            ))
+            .trim_end()
+    );
 
-    let opstamp = 0u64; //? should be set
     let index_meta = IndexMeta {
-        segments: segment_metas,
+        segments: vec![segment_meta],
         schema: merged_index.schema(),
-        opstamp,
-        payload: None,
+        opstamp: 0u64,
+        payload: Some(stats),
     };
 
-    //? need discussion && add tests
+    // save the meta.json
     save_metas(&index_meta, merged_index.directory_mut())?;
 
-    Ok(())
-}
-
-fn is_same_schema(schemas: &[Schema]) -> crate::Result<Schema> {
-    let first = schemas.first().ok_or(crate::TantivyError::InvalidArgument(
-        "Empty schema set provided".to_string(),
-    ))?;
-
-    let first_json = serde_json::to_string(&first)?;
-
-    let is_not_same = schemas
-        .iter()
-        .skip(1)
-        .any(|next| serde_json::to_string(next).map_or(true, |next_json| next_json != first_json));
-
-    match is_not_same {
-        true => Err(crate::TantivyError::InvalidArgument(
-            "Attempt to merge different schema indices".to_string(),
-        )),
-        false => Ok(first.clone()),
-    }
+    Ok(merged_index)
 }
 
 pub(crate) struct InnerSegmentUpdater {
@@ -607,11 +598,11 @@ impl SegmentUpdater {
 
 #[cfg(test)]
 mod tests {
-
-    use super::is_same_schema;
+    use super::merge_segments;
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::schema::*;
     use crate::Index;
+    use std::path::PathBuf;
 
     #[test]
     fn test_delete_during_merge() {
@@ -764,40 +755,76 @@ mod tests {
     }
 
     #[test]
-    fn test_is_same_schema() {
-        //test empty list
-        assert!(is_same_schema(&vec![]).is_err());
-
-        //test same schemas
-        let mut list = vec![];
+    fn test_merge_segements() {
+        let mut indices = vec![];
         let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("name", TEXT);
-        schema_builder.add_text_field("body", STORED | TEXT);
-        list.push(schema_builder.build());
-
-        let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("name", TEXT);
-        schema_builder.add_text_field("body", STORED | TEXT);
+        let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
-        list.push(schema.clone());
 
-        let result = is_same_schema(&list);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), schema);
+        for _ in 0..3 {
+            let index = Index::create_in_ram(schema.clone());
 
-        //test different schemas
-        let mut list = vec![];
+            // writing the segment
+            let mut index_writer = index.writer_for_tests().unwrap();
+            {
+                for _ in 0..100 {
+                    index_writer.add_document(doc!(text_field=>"fizz"));
+                    index_writer.add_document(doc!(text_field=>"buzz"));
+                }
+                assert!(index_writer.commit().is_ok());
+
+                for _ in 0..1000 {
+                    index_writer.add_document(doc!(text_field=>"foo"));
+                    index_writer.add_document(doc!(text_field=>"bar"));
+                }
+                assert!(index_writer.commit().is_ok());
+            }
+            indices.push(index);
+        }
+
+        assert_eq!(indices.len(), 3);
+        let out_dir = tempfile::tempdir().unwrap();
+        let index = merge_segments(&indices, PathBuf::from(out_dir.path())).unwrap();
+
+        assert_eq!(index.schema(), schema);
+
+        let segments = index.searchable_segments().unwrap();
+        assert_eq!(segments.len(), 1);
+
+        let segement_metas = segments[0].meta();
+        assert_eq!(segement_metas.num_deleted_docs(), 0);
+        assert_eq!(segement_metas.num_docs(), 6600);
+    }
+
+    #[test]
+    fn test_merge_mismatched_schema() {
+        let mut schemas = vec![];
         let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("name", TEXT);
-        schema_builder.add_text_field("body", STORED | TEXT);
-        list.push(schema_builder.build());
-
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        schemas.push(schema_builder.build());
         let mut schema_builder = Schema::builder();
-        schema_builder.add_text_field("name", TEXT);
-        schema_builder.add_text_field("body", STORED | TEXT);
-        schema_builder.add_f64_field("weight", FAST);
-        list.push(schema_builder.build());
+        let text_field = schema_builder.add_text_field("body", TEXT);
+        schemas.push(schema_builder.build());
 
-        assert!(is_same_schema(&list).is_err());
+        let mut indices = vec![];
+        for schema in schemas {
+            let index = Index::create_in_ram(schema.clone());
+            let mut index_writer = index.writer_for_tests().unwrap();
+            for _ in 0..100 {
+                index_writer.add_document(doc!(text_field=>"fizz"));
+                index_writer.add_document(doc!(text_field=>"buzz"));
+            }
+            assert!(index_writer.commit().is_ok());
+            indices.push(index);
+        }
+
+        // mismatched schema index list
+        let out_dir = tempfile::tempdir().unwrap();
+        let result = merge_segments(&indices, PathBuf::from(out_dir.path()));
+        assert!(result.is_err());
+
+        // empty index list
+        let result = merge_segments(&vec![], PathBuf::from(out_dir.path()));
+        assert!(result.is_err());
     }
 }
