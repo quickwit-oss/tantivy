@@ -154,9 +154,10 @@ pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Re
     let mut segments: Vec<Segment> = vec![];
     for index in indices {
         segments.extend(
-            index.searchable_segments()?
+            index
+                .searchable_segments()?
                 .iter()
-                .map(|segment| merged_index.segment(segment.meta().clone()))
+                .map(|segment| merged_index.segment(segment.meta().clone())),
         );
     }
 
@@ -169,7 +170,8 @@ pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Re
 
     let mut segment_metas: Vec<SegmentMeta> = segments
         .iter()
-        .map(|segment| segment.meta().clone()).collect();
+        .map(|segment| segment.meta().clone())
+        .collect();
     segment_metas.push(segment_meta);
 
     let opstamp = 0u64; //? should be set
@@ -187,20 +189,22 @@ pub fn merge_segments(indices: &[Index], output_directory: PathBuf) -> crate::Re
 }
 
 fn is_same_schema(schemas: &[Schema]) -> crate::Result<Schema> {
-    let first = schemas
-        .first()
-        .ok_or(crate::TantivyError::InvalidArgument("Empty schema set provided".to_string()))?;
-    
+    let first = schemas.first().ok_or(crate::TantivyError::InvalidArgument(
+        "Empty schema set provided".to_string(),
+    ))?;
+
     let first_json = serde_json::to_string(&first)?;
 
-    let is_not_same = schemas.iter().skip(1).any(|next| {
-        serde_json::to_string(next)
-        .map_or(true, |next_json| next_json != first_json)
-    });
+    let is_not_same = schemas
+        .iter()
+        .skip(1)
+        .any(|next| serde_json::to_string(next).map_or(true, |next_json| next_json != first_json));
 
     match is_not_same {
-        true => Err(crate::TantivyError::InvalidArgument("Attempt to merge different schema indices".to_string())),
-        false => Ok(first.clone())
+        true => Err(crate::TantivyError::InvalidArgument(
+            "Attempt to merge different schema indices".to_string(),
+        )),
+        false => Ok(first.clone()),
     }
 }
 
@@ -604,10 +608,10 @@ impl SegmentUpdater {
 #[cfg(test)]
 mod tests {
 
+    use super::is_same_schema;
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::schema::*;
     use crate::Index;
-    use super::is_same_schema;
 
     #[test]
     fn test_delete_during_merge() {
