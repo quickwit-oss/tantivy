@@ -692,10 +692,7 @@ mod tests {
             let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 2);
             assert_eq!(
                 facets,
-                vec![
-                    (&Facet::from("/facet/c"), 4),
-                    (&Facet::from("/facet/a"), 2),
-                ]
+                vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
             );
         }
     }
