@@ -657,6 +657,45 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_facet_collector_topk_tie_break() {
+        let mut schema_builder = Schema::builder();
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let docs: Vec<Document> = vec![("b", 2), ("a", 2), ("c", 4)]
+            .into_iter()
+            .flat_map(|(c, count)| {
+                let facet = Facet::from(&format!("/facet/{}", c));
+                let doc = doc!(facet_field => facet);
+                iter::repeat(doc).take(count)
+            })
+            .collect();
+
+        let mut index_writer = index.writer_for_tests().unwrap();
+        for doc in docs {
+            index_writer.add_document(doc);
+        }
+        index_writer.commit().unwrap();
+        let searcher = index.reader().unwrap().searcher();
+
+        let mut facet_collector = FacetCollector::for_field(facet_field);
+        facet_collector.add_facet("/facet");
+        let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector).unwrap();
+
+        {
+            let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 2);
+            assert_eq!(
+                facets,
+                vec![
+                    (&Facet::from("/facet/c"), 4),
+                    (&Facet::from("/facet/a"), 2),
+                ]
+            );
+        }
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
