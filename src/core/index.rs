@@ -239,7 +239,7 @@ impl Index {
     /// Such segments can of course be part of the index,
     /// but also they could be segments being currently built or in the middle of a merge
     /// operation.
-    pub fn list_all_segment_metas(&self) -> Vec<SegmentMeta> {
+    pub(crate) fn list_all_segment_metas(&self) -> Vec<SegmentMeta> {
         self.inventory.all()
     }
 
