@@ -37,10 +37,10 @@ impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
 
 impl<'a> Ord for Hit<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
-        match other.count.cmp(&self.count) {
-            Ordering::Equal => self.facet.cmp(other.facet),
-            x => x,
-        }
+        other
+            .count
+            .cmp(&self.count)
+            .then(self.facet.cmp(other.facet))
     }
 }
 
