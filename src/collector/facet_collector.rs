@@ -662,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    fn test_facet_collector_topk_tie_break() {
+    fn test_facet_collector_topk_tie_break() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
@@ -677,24 +677,23 @@ mod tests {
             })
             .collect();
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         for doc in docs {
             index_writer.add_document(doc);
         }
-        index_writer.commit().unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        index_writer.commit()?;
 
+        let searcher = index.reader()?.searcher();
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/facet");
-        let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector).unwrap();
+        let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector)?;
 
-        {
-            let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 2);
-            assert_eq!(
-                facets,
-                vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
-            );
-        }
+        let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 2);
+        assert_eq!(
+            facets,
+            vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
+        );
+        Ok(())
     }
 }
 
