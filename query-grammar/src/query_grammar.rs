@@ -1,11 +1,11 @@
 use super::user_input_ast::{UserInputAST, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
-use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, letter, space, spaces, string};
 use combine::parser::Parser;
 use combine::{
     attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
+use combine::{error::StringStreamError, parser::combinator::recognize};
 
 fn field<'a>() -> impl Parser<&'a str, Output = String> {
     (
@@ -34,6 +34,64 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
             _ => Ok(s),
         })
 }
+
+fn two_digits<'a>() -> impl Parser<&'a str, Output = String> {
+    recognize((digit(), digit()))
+}
+
+/// Parses a time zone
+/// +0012
+/// -06:30
+/// -01
+/// Z
+fn time_zone<'a>() -> impl Parser<&'a str, Output = String> {
+    let utc = recognize(char('Z'));
+    let offset = recognize((
+        choice([char('-'), char('+')]),
+        two_digits(),
+        optional((optional(char(':')), two_digits())),
+    ));
+
+    utc.or(offset)
+}
+
+/// Parses a date
+/// 2010-01-30
+fn date<'a>() -> impl Parser<&'a str, Output = String> {
+    recognize((
+        many1::<String, _, _>(digit()),
+        char('-'),
+        two_digits(),
+        char('-'),
+        two_digits(),
+    ))
+}
+
+/// Parses a time
+/// 12:30:02
+/// 19:46:26.266051969
+fn time<'a>() -> impl Parser<&'a str, Output = String> {
+    recognize((
+        two_digits(),
+        char(':'),
+        two_digits(),
+        char(':'),
+        two_digits(),
+        optional((char('.'), many1::<String, _, _>(digit()))), // prob to many digits
+        time_zone(),
+    ))
+}
+
+/// Parses a date time according to ISO8601
+/// 2015-08-02T18:54:42+02
+/// 2021-04-13T19:46:26.266051969+00:00
+fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
+    recognize((date(), char('T'), time()))
+}
+
+// fn date<'a>() -> impl Parser<&'a str, Output = String> {
+//     todo!()
+// }
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
     let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
@@ -83,7 +141,8 @@ fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
 /// [a TO *], [a TO c], [abc TO bcd}
 fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let range_term_val = || {
-        word()
+        attempt(date_time())
+            .or(word())
             .or(negative_number())
             .or(char('*').with(value("*".to_string())))
     };
@@ -111,6 +170,7 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
         );
     let lower_bound = (one_of("{[".chars()), range_term_val()).map(
         |(boundary_char, lower_bound): (char, String)| {
+            // println!("AAAA {} {}", boundary_char, lower_bound);
             if lower_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '{' {
@@ -122,6 +182,7 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     );
     let upper_bound = (range_term_val(), one_of("}]".chars())).map(
         |(higher_bound, boundary_char): (String, char)| {
+            // println!("AAAA {} {}", higher_bound, boundary_char);
             if higher_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '}' {
@@ -324,6 +385,22 @@ mod test {
         error_parse("-1.");
     }
 
+    #[test]
+    fn test_date_time() {
+        let (val, remaining) = date_time()
+            .parse("2015-08-02T18:54:42+02")
+            .expect("cannot parse date");
+        assert_eq!(val, "2015-08-02T18:54:42+02");
+        assert_eq!(remaining, "");
+        assert!(date_time().parse("2015-08-02A18:54:42+02").is_err());
+
+        let (val, remaining) = date_time()
+            .parse("2021-04-13T19:46:26.266051969+00:00")
+            .expect("cannot parse complicated date");
+        assert_eq!(val, "2021-04-13T19:46:26.266051969+00:00");
+        assert_eq!(remaining, "");
+    }
+
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
         let query = parse_to_ast().parse(query).unwrap().0;
         let query_str = format!("{:?}", query);
@@ -437,25 +514,48 @@ mod test {
     #[test]
     fn test_range_parser() {
         // testing the range() parser separately
-        let res = range().parse("title: <hello").unwrap().0;
+        let res = range()
+            .parse("title: <hello")
+            .expect("Cannot parse felxible bound word")
+            .0;
         let expected = UserInputLeaf::Range {
             field: Some("title".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Exclusive("hello".to_string()),
         };
-        let res2 = range().parse("title:{* TO hello}").unwrap().0;
+        let res2 = range()
+            .parse("title:{* TO hello}")
+            .expect("Cannot parse ununbounded to word")
+            .0;
         assert_eq!(res, expected);
         assert_eq!(res2, expected);
+
         let expected_weight = UserInputLeaf::Range {
             field: Some("weight".to_string()),
             lower: UserInputBound::Inclusive("71.2".to_string()),
             upper: UserInputBound::Unbounded,
         };
-
-        let res3 = range().parse("weight: >=71.2").unwrap().0;
-        let res4 = range().parse("weight:[71.2 TO *}").unwrap().0;
+        let res3 = range()
+            .parse("weight: >=71.2")
+            .expect("Cannot parse flexible bound float")
+            .0;
+        let res4 = range()
+            .parse("weight:[71.2 TO *}")
+            .expect("Cannot parse float to unbounded")
+            .0;
         assert_eq!(res3, expected_weight);
         assert_eq!(res4, expected_weight);
+
+        let expected_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02".to_string()),
+        };
+        let res5 = range()
+            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02]")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res5, expected_dates);
     }
 
     #[test]
