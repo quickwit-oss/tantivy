@@ -170,7 +170,7 @@ pub fn merge_segments<Dir: Directory>(
     if indices
         .iter()
         .skip(1)
-        .any(|index| &index.schema() != &target_schema)
+        .any(|index| index.schema() != target_schema)
     {
         return Err(crate::TantivyError::InvalidArgument(
             "Attempt to merge different schema indices".to_string(),
