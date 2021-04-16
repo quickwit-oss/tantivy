@@ -39,8 +39,39 @@ mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
+// compile_error doesn't scale very well, enum like feature flags would be great to have in Rust
 #[cfg(all(feature = "lz4", feature = "brotli"))]
 compile_error!("feature `lz4` or `brotli` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "brotli"))]
+compile_error!("feature `lz4_block` or `brotli` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "lz4"))]
+compile_error!("feature `lz4_block` or `lz4` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "snap"))]
+compile_error!("feature `lz4_block` or `snap` must not be enabled together.");
+
+#[cfg(all(feature = "lz4", feature = "snap"))]
+compile_error!("feature `lz4` or `snap` must not be enabled together.");
+
+#[cfg(all(feature = "brotli", feature = "snap"))]
+compile_error!("feature `brotli` or `snap` must not be enabled together.");
+
+#[cfg(not(any(
+    feature = "lz4",
+    feature = "brotli",
+    feature = "lz4_flex",
+    feature = "snap"
+)))]
+compile_error!("all compressors are deactivated via feature-flags, check Cargo.toml for available decompressors.");
+
+#[cfg(feature = "lz4_flex")]
+mod compression_lz4_block;
+#[cfg(feature = "lz4_flex")]
+pub use self::compression_lz4_block::COMPRESSION;
+#[cfg(feature = "lz4_flex")]
+use self::compression_lz4_block::{compress, decompress};
 
 #[cfg(feature = "lz4")]
 mod compression_lz4;
@@ -56,11 +87,11 @@ pub use self::compression_brotli::COMPRESSION;
 #[cfg(feature = "brotli")]
 use self::compression_brotli::{compress, decompress};
 
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 mod compression_snap;
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 pub use self::compression_snap::COMPRESSION;
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 use self::compression_snap::{compress, decompress};
 
 #[cfg(test)]
