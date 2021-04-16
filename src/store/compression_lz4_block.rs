@@ -33,6 +33,7 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
     unsafe {
         decompressed.set_len(uncompressed_size);
     }
-    decompress_into(&compressed[4..], decompressed).map_err(|_err| io::ErrorKind::InvalidData)?;
+    decompress_into(&compressed[4..], decompressed)
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     Ok(())
 }
