@@ -35,63 +35,57 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
         })
 }
 
-fn two_digits<'a>() -> impl Parser<&'a str, Output = String> {
-    recognize((digit(), digit()))
-}
-
-/// Parses a time zone
-/// +0012
-/// -06:30
-/// -01
-/// Z
-fn time_zone<'a>() -> impl Parser<&'a str, Output = String> {
-    let utc = recognize(char('Z'));
-    let offset = recognize((
-        choice([char('-'), char('+')]),
-        two_digits(),
-        optional((optional(char(':')), two_digits())),
-    ));
-
-    utc.or(offset)
-}
-
-/// Parses a date
-/// 2010-01-30
-fn date<'a>() -> impl Parser<&'a str, Output = String> {
-    recognize((
-        many1::<String, _, _>(digit()),
-        char('-'),
-        two_digits(),
-        char('-'),
-        two_digits(),
-    ))
-}
-
-/// Parses a time
-/// 12:30:02
-/// 19:46:26.266051969
-fn time<'a>() -> impl Parser<&'a str, Output = String> {
-    recognize((
-        two_digits(),
-        char(':'),
-        two_digits(),
-        char(':'),
-        two_digits(),
-        optional((char('.'), many1::<String, _, _>(digit()))), // prob to many digits
-        time_zone(),
-    ))
-}
-
 /// Parses a date time according to ISO8601
 /// 2015-08-02T18:54:42+02
 /// 2021-04-13T19:46:26.266051969+00:00
 fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
-    recognize((date(), char('T'), time()))
-}
+    let two_digits = || recognize::<String, _, _>((digit(), digit()));
 
-// fn date<'a>() -> impl Parser<&'a str, Output = String> {
-//     todo!()
-// }
+    // Parses a time zone
+    // +0012
+    // -06:30
+    // -01
+    // Z
+    let time_zone = {
+        let utc = recognize::<String, _, _>(char('Z'));
+        let offset = recognize((
+            choice([char('-'), char('+')]),
+            two_digits(),
+            optional((optional(char(':')), two_digits())),
+        ));
+
+        utc.or(offset)
+    };
+
+    // Parses a date
+    // 2010-01-30
+    let date = {
+        recognize::<String, _, _>((
+            many1::<String, _, _>(digit()),
+            char('-'),
+            two_digits(),
+            char('-'),
+            two_digits(),
+        ))
+    };
+
+    // Parses a time
+    // 12:30:02
+    // 19:46:26.266051969
+    let time = {
+        recognize::<String, _, _>((
+            two_digits(),
+            char(':'),
+            two_digits(),
+            char(':'),
+            two_digits(),
+            optional((char('.'), many1::<String, _, _>(digit()))),
+            time_zone,
+        ))
+    };
+
+    recognize((date, char('T'), time))
+}
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
     let phrase = char('"').with(many1(satisfy(|c| c != '"'))).skip(char('"'));
