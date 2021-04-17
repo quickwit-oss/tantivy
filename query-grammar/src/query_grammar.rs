@@ -168,7 +168,6 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
         );
     let lower_bound = (one_of("{[".chars()), range_term_val()).map(
         |(boundary_char, lower_bound): (char, String)| {
-            // println!("AAAA {} {}", boundary_char, lower_bound);
             if lower_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '{' {
@@ -180,7 +179,6 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     );
     let upper_bound = (range_term_val(), one_of("}]".chars())).map(
         |(higher_bound, boundary_char): (String, char)| {
-            // println!("AAAA {} {}", higher_bound, boundary_char);
             if higher_bound == "*" {
                 UserInputBound::Unbounded
             } else if boundary_char == '}' {
