@@ -35,23 +35,27 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
         })
 }
 
-/// Parses a date time according to ISO8601
+/// Parses a date time according to rfc3339
 /// 2015-08-02T18:54:42+02
 /// 2021-04-13T19:46:26.266051969+00:00
+///
+/// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
+/// We delegate rejecting such invalid dates to the logical AST compuation code
+/// which invokes chrono::DateTime::parse_from_rfc3339 on the value to actually parse
+/// it (instead of merely extracting the datetime value as string as done here).
 fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
     let two_digits = || recognize::<String, _, _>((digit(), digit()));
 
     // Parses a time zone
-    // +0012
     // -06:30
-    // -01
     // Z
     let time_zone = {
         let utc = recognize::<String, _, _>(char('Z'));
         let offset = recognize((
             choice([char('-'), char('+')]),
             two_digits(),
-            optional((optional(char(':')), two_digits())),
+            char(':'),
+            two_digits(),
         ));
 
         utc.or(offset)
@@ -382,15 +386,15 @@ mod test {
     #[test]
     fn test_date_time() {
         let (val, remaining) = date_time()
-            .parse("2015-08-02T18:54:42+02")
+            .parse("2015-08-02T18:54:42+02:30")
             .expect("cannot parse date");
-        assert_eq!(val, "2015-08-02T18:54:42+02");
+        assert_eq!(val, "2015-08-02T18:54:42+02:30");
         assert_eq!(remaining, "");
-        assert!(date_time().parse("2015-08-02A18:54:42+02").is_err());
+        assert!(date_time().parse("2015-08-02T18:54:42+02").is_err());
 
         let (val, remaining) = date_time()
             .parse("2021-04-13T19:46:26.266051969+00:00")
-            .expect("cannot parse complicated date");
+            .expect("cannot parse fractional date");
         assert_eq!(val, "2021-04-13T19:46:26.266051969+00:00");
         assert_eq!(remaining, "");
     }
@@ -543,10 +547,10 @@ mod test {
         let expected_dates = UserInputLeaf::Range {
             field: Some("date_field".to_string()),
             lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
-            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
         };
         let res5 = range()
-            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02]")
+            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
             .expect("Cannot parse date range")
             .0;
         assert_eq!(res5, expected_dates);
