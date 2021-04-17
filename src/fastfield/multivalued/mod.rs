@@ -164,7 +164,7 @@ mod tests {
                 let retrieved_doc = searcher.doc(doc_pair.1).expect("cannot fetch doc");
                 let offset_sec = match i {
                     0 => 1,
-                    1 => 2, // TODO! changed so that the test passes
+                    1 => 2,
                     _ => panic!("should not have more than 2 docs"),
                 };
                 let time_i_val = match i {
