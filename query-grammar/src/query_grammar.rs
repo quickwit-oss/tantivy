@@ -552,6 +552,18 @@ mod test {
             .expect("Cannot parse date range")
             .0;
         assert_eq!(res5, expected_dates);
+
+        let expected_flexible_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
+        };
+
+        let res6 = range()
+            .parse("date_field: <=2021-08-02T18:54:42.12345+02:30")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res6, expected_flexible_dates);
     }
 
     #[test]
