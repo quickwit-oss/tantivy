@@ -157,7 +157,8 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 ///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
 ///   Inclusive bounds are `[]`, exclusive are `{}`.
 ///
-/// * date values: The query parser supports rfc3339 formatted dates. For example "2002-10-02T15:00:00.05Z"
+/// * date values: The query parser supports rfc3339 formatted dates. For example `"2002-10-02T15:00:00.05Z"`
+///   or `some_date_field:[2002-10-02T15:00:00Z TO 2002-10-02T18:00:00Z}`
 ///
 /// *  all docs query: A plain `*` will match all documents in the index.
 ///
