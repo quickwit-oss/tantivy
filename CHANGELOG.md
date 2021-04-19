@@ -7,6 +7,7 @@ Tantivy 0.15.0
 - DocAddress is now a struct (@scampi) #987
 - Bugfix consistent tie break handling in facet's topk (@hardikpnsp) #357
 - Date field support for range queries (@rihardsk) #516
+- Added lz4-flex as the default compression scheme in tantivy (@PSeitz) #1009
 
 Tantivy 0.14.0
 =========================
