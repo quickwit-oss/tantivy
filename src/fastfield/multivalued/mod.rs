@@ -78,7 +78,8 @@ mod tests {
         let two_secs_ahead = first_time_stamp + Duration::seconds(2);
         index_writer.add_document(doc!(date_field=>two_secs_ahead, date_field=>two_secs_ahead,date_field=>two_secs_ahead, time_i=>3i64));
         // add three seconds
-        index_writer.add_document(doc!(date_field=>first_time_stamp + Duration::seconds(3), time_i=>4i64));
+        index_writer
+            .add_document(doc!(date_field=>first_time_stamp + Duration::seconds(3), time_i=>4i64));
         assert!(index_writer.commit().is_ok());
 
         let reader = index.reader().unwrap();
