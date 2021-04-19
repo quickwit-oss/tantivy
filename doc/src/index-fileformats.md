@@ -38,6 +38,22 @@ For a given index, Tantivy stores the following metadata in a json file `meta.js
 ```
 
 
+## Endianness
+All integers and floats are serialiazed in litte indian order.
+
+## Composite file structure
+For each file where we need to store data for each field, a footer is added to store the offset that indicate the starting point of the data related to each field.
+
+The composite file footer can be divided into two main parts:
+- on the last 4 bytes, the `footer_len` is stored as an **u32**
+- on the last [`footer_len` - 4.. end - 4] bytes, the following data is stored:
+  - the number of fields stored as a variable int
+  - for each field:
+    - offset stored as variable integer
+    - a file address composed by the field id in u32 and an index encoded as a variable integer
+
+
+
 ## Summary of segment file extensions
 For a given segment, Tantivy stores a bunch of files whose name is set by segment uuid and whose extension defines the datastructure.
 
@@ -50,12 +66,20 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Document store | `.store` | Row-oriented, compressed storage of the documents |
 | Fast fields | `.fast` | Column-oriented random-access storage of fields |
 | Fieldnorm | `.fieldnorm` | Stores the sum  of the length (in terms) of each field for each document ? |
-| Tombstone | `.del` | Bitset describing which document of the segment is  |
+| Tombstone | `.del` | Bitset describing which document of the segment is deleted  |
 
 ### Posting list `.idx`
+Posting list file is a composite file so it contains the footer data as described in composite file section.
 
-**Questions**
-- what happens if there are no position to store ? Does the file exist ?
+The posting list is composed of blocks of 128 documents where the following data is stored:
+- last doc id encoded stored as **u32**
+- number of bytes used to decompress bitpacked doc ids stored as **u8**
+- if field has frequency: 
+  - number of bytes used to decompress bitpacked term frequencies stored as **u8**
+  - fieldnorm_id as **u8**
+  - block_wand_max as **u8**
+- delta encoded and bitpacked doc ids
+- bitpacked term frequencies if field has frequency
 
 
 ### Term dictionnary `.term`
