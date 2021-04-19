@@ -77,12 +77,14 @@ mod tests {
         // add another second
         let two_secs_ahead = first_time_stamp + Duration::seconds(2);
         index_writer.add_document(doc!(date_field=>two_secs_ahead, date_field=>two_secs_ahead,date_field=>two_secs_ahead, time_i=>3i64));
+        // add three seconds
+        index_writer.add_document(doc!(date_field=>first_time_stamp + Duration::seconds(3), time_i=>4i64));
         assert!(index_writer.commit().is_ok());
 
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let reader = searcher.segment_reader(0);
-        assert_eq!(reader.num_docs(), 4);
+        assert_eq!(reader.num_docs(), 5);
 
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
@@ -150,7 +152,7 @@ mod tests {
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
             let range_q = format!(
-                "[{} TO {}]",
+                "[{} TO {}}}",
                 (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
                 (first_time_stamp + Duration::seconds(3)).to_rfc3339()
             );
