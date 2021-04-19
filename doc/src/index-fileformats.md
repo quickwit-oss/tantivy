@@ -69,6 +69,8 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Tombstone | `.del` | Bitset describing which document of the segment is deleted  |
 
 ### Posting list `.idx`
+[Ref](../../src/postings/serializer.rs)
+
 Posting list file is a composite file so it contains the footer data as described in composite file section.
 
 The posting list is composed of blocks of 128 documents where the following data is stored:
@@ -85,6 +87,9 @@ The posting list is composed of blocks of 128 documents where the following data
 ### Term dictionnary `.term`
 
 ### Token positions in documents `.pos` and `.posidx`
+[Ref](../../src/positions/serializer.rs)
+
+
 Token positions are stored in three parts and over two files:
 - File `.pos`: contains bitpacked of the positions delta
 - File `.posidx`: contains bytes and long skip index
@@ -97,7 +102,7 @@ Positions are bitpacked by block of size 1024, each position is stored as an **u
 
 #### File `.posidx`
 This file is organized in 3 parts:
-- Part 1: list of number of bytes used to decompress bitpacked blocks. Number of bytes is stored as an **usize**. There is one usize per compressed block.
+- Part 1: list of number of bytes used to decompress bitpacked blocks, stored as an **u8**. There is one usize per compressed block.
 - Part 2: list of offsets for every 1024 compression blocks. An offset is stored as an **u64**.  
 - Footer: number of long splits stored as an **u32**  
 
