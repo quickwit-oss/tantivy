@@ -6,7 +6,7 @@ Tantivy 0.15.0
 - Added support for Option<TCollector>.  (@fulmicoton)
 - DocAddress is now a struct (@scampi) #987
 - Bugfix consistent tie break handling in facet's topk (@hardikpnsp) #357
-
+- Date field support for range queries (@rihardsk) #516
 
 Tantivy 0.14.0
 =========================
