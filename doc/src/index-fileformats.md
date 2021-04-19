@@ -1,10 +1,7 @@
 # Tantivy index file formats
 This document defines the index file formats used in Tantivy. 
 
-## Definitions
-### Index and segments
-Tantivy indexes is composed of multiple sub-indexes called segments.
-
+Tantivy has one metadata json file for each index and a few files for each segment, each file storing a specific datastructure.
 
 ## Index metadata json
 For a given index, Tantivy stores the following metadata in a json file `meta.json` :
@@ -49,7 +46,7 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Posting list | `.idx` | Sorted lists of document ids, associated to terms |
 | Term dictionnary | `.term` | Dictionary associating `Term`s to an address into the `postings` file and the `positions` file |
 | Term positions | `.pos` | Positions of terms in each document |
-| Position file index | `.posidx` | Index to seek within the position file |
+| Term positions file index | `.posidx` | Index to seek within the position file |
 | Document store | `.store` | Row-oriented, compressed storage of the documents |
 | Fast fields | `.fast` | Column-oriented random-access storage of fields |
 | Fieldnorm | `.fieldnorm` | Stores the sum  of the length (in terms) of each field for each document ? |
