@@ -297,8 +297,10 @@ mod tests {
         assert!(footer_proxy.terminate().is_ok());
         if crate::store::COMPRESSION == "lz4" {
             assert_eq!(vec.len(), 158);
-        } else {
+        } else if crate::store::COMPRESSION == "snappy" {
             assert_eq!(vec.len(), 167);
+        } else if crate::store::COMPRESSION == "lz4_block" {
+            assert_eq!(vec.len(), 176);
         }
         let footer = Footer::deserialize(&mut &vec[..]).unwrap();
         assert!(matches!(
