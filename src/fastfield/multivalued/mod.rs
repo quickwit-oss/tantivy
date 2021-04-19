@@ -147,37 +147,50 @@ mod tests {
             }
         }
 
-        // TODO: support Date range queries
-        //        {
-        //            let parser = QueryParser::for_index(&index, vec![date_field]);
-        //            let range_q = format!("\"{}\"..\"{}\"",
-        //                                  (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
-        //                                  (first_time_stamp + Duration::seconds(3)).to_rfc3339()
-        //            );
-        //            let query = parser.parse_query(&range_q)
-        //                .expect("could not parse query");
-        //            let results = searcher.search(&query, &TopDocs::with_limit(5))
-        //                .expect("could not query index");
-        //
-        //
-        //            assert_eq!(results.len(), 2);
-        //            for (i, doc_pair) in results.iter().enumerate() {
-        //                let retrieved_doc = searcher.doc(doc_pair.1).expect("cannot fetch doc");
-        //                let offset_sec = match i {
-        //                    0 => 1,
-        //                    1 => 3,
-        //                    _ => panic!("should not have more than 2 docs")
-        //                };
-        //                let time_i_val = match i {
-        //                    0 => 2,
-        //                    1 => 3,
-        //                    _ => panic!("should not have more than 2 docs")
-        //                };
-        //                assert_eq!(retrieved_doc.get_first(date_field).expect("cannot find value").date_value().timestamp(),
-        //                           (first_time_stamp + Duration::seconds(offset_sec)).timestamp());
-        //                assert_eq!(retrieved_doc.get_first(time_i).expect("cannot find value").i64_value(), time_i_val);
-        //            }
-        //        }
+        {
+            let parser = QueryParser::for_index(&index, vec![date_field]);
+            let range_q = format!(
+                "[{} TO {}]",
+                (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
+                (first_time_stamp + Duration::seconds(3)).to_rfc3339()
+            );
+            let query = parser.parse_query(&range_q).expect("could not parse query");
+            let results = searcher
+                .search(&query, &TopDocs::with_limit(5))
+                .expect("could not query index");
+
+            assert_eq!(results.len(), 2);
+            for (i, doc_pair) in results.iter().enumerate() {
+                let retrieved_doc = searcher.doc(doc_pair.1).expect("cannot fetch doc");
+                let offset_sec = match i {
+                    0 => 1,
+                    1 => 2,
+                    _ => panic!("should not have more than 2 docs"),
+                };
+                let time_i_val = match i {
+                    0 => 2,
+                    1 => 3,
+                    _ => panic!("should not have more than 2 docs"),
+                };
+                assert_eq!(
+                    retrieved_doc
+                        .get_first(date_field)
+                        .expect("cannot find value")
+                        .date_value()
+                        .expect("value not of Date type")
+                        .timestamp(),
+                    (first_time_stamp + Duration::seconds(offset_sec)).timestamp()
+                );
+                assert_eq!(
+                    retrieved_doc
+                        .get_first(time_i)
+                        .expect("cannot find value")
+                        .i64_value()
+                        .expect("value not of i64 type"),
+                    time_i_val
+                );
+            }
+        }
     }
 
     #[test]

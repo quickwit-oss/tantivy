@@ -1,11 +1,11 @@
 use super::user_input_ast::{UserInputAST, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
-use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, letter, space, spaces, string};
 use combine::parser::Parser;
 use combine::{
     attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
+use combine::{error::StringStreamError, parser::combinator::recognize};
 
 fn field<'a>() -> impl Parser<&'a str, Output = String> {
     (
@@ -33,6 +33,62 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
             "OR" | "AND " | "NOT" => Err(StringStreamError::UnexpectedParse),
             _ => Ok(s),
         })
+}
+
+/// Parses a date time according to rfc3339
+/// 2015-08-02T18:54:42+02
+/// 2021-04-13T19:46:26.266051969+00:00
+///
+/// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
+/// We delegate rejecting such invalid dates to the logical AST compuation code
+/// which invokes chrono::DateTime::parse_from_rfc3339 on the value to actually parse
+/// it (instead of merely extracting the datetime value as string as done here).
+fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
+    let two_digits = || recognize::<String, _, _>((digit(), digit()));
+
+    // Parses a time zone
+    // -06:30
+    // Z
+    let time_zone = {
+        let utc = recognize::<String, _, _>(char('Z'));
+        let offset = recognize((
+            choice([char('-'), char('+')]),
+            two_digits(),
+            char(':'),
+            two_digits(),
+        ));
+
+        utc.or(offset)
+    };
+
+    // Parses a date
+    // 2010-01-30
+    let date = {
+        recognize::<String, _, _>((
+            many1::<String, _, _>(digit()),
+            char('-'),
+            two_digits(),
+            char('-'),
+            two_digits(),
+        ))
+    };
+
+    // Parses a time
+    // 12:30:02
+    // 19:46:26.266051969
+    let time = {
+        recognize::<String, _, _>((
+            two_digits(),
+            char(':'),
+            two_digits(),
+            char(':'),
+            two_digits(),
+            optional((char('.'), many1::<String, _, _>(digit()))),
+            time_zone,
+        ))
+    };
+
+    recognize((date, char('T'), time))
 }
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
@@ -83,7 +139,8 @@ fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
 /// [a TO *], [a TO c], [abc TO bcd}
 fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let range_term_val = || {
-        word()
+        attempt(date_time())
+            .or(word())
             .or(negative_number())
             .or(char('*').with(value("*".to_string())))
     };
@@ -324,6 +381,22 @@ mod test {
         error_parse("-1.");
     }
 
+    #[test]
+    fn test_date_time() {
+        let (val, remaining) = date_time()
+            .parse("2015-08-02T18:54:42+02:30")
+            .expect("cannot parse date");
+        assert_eq!(val, "2015-08-02T18:54:42+02:30");
+        assert_eq!(remaining, "");
+        assert!(date_time().parse("2015-08-02T18:54:42+02").is_err());
+
+        let (val, remaining) = date_time()
+            .parse("2021-04-13T19:46:26.266051969+00:00")
+            .expect("cannot parse fractional date");
+        assert_eq!(val, "2021-04-13T19:46:26.266051969+00:00");
+        assert_eq!(remaining, "");
+    }
+
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
         let query = parse_to_ast().parse(query).unwrap().0;
         let query_str = format!("{:?}", query);
@@ -437,25 +510,60 @@ mod test {
     #[test]
     fn test_range_parser() {
         // testing the range() parser separately
-        let res = range().parse("title: <hello").unwrap().0;
+        let res = range()
+            .parse("title: <hello")
+            .expect("Cannot parse felxible bound word")
+            .0;
         let expected = UserInputLeaf::Range {
             field: Some("title".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Exclusive("hello".to_string()),
         };
-        let res2 = range().parse("title:{* TO hello}").unwrap().0;
+        let res2 = range()
+            .parse("title:{* TO hello}")
+            .expect("Cannot parse ununbounded to word")
+            .0;
         assert_eq!(res, expected);
         assert_eq!(res2, expected);
+
         let expected_weight = UserInputLeaf::Range {
             field: Some("weight".to_string()),
             lower: UserInputBound::Inclusive("71.2".to_string()),
             upper: UserInputBound::Unbounded,
         };
-
-        let res3 = range().parse("weight: >=71.2").unwrap().0;
-        let res4 = range().parse("weight:[71.2 TO *}").unwrap().0;
+        let res3 = range()
+            .parse("weight: >=71.2")
+            .expect("Cannot parse flexible bound float")
+            .0;
+        let res4 = range()
+            .parse("weight:[71.2 TO *}")
+            .expect("Cannot parse float to unbounded")
+            .0;
         assert_eq!(res3, expected_weight);
         assert_eq!(res4, expected_weight);
+
+        let expected_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
+        };
+        let res5 = range()
+            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res5, expected_dates);
+
+        let expected_flexible_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
+        };
+
+        let res6 = range()
+            .parse("date_field: <=2021-08-02T18:54:42.12345+02:30")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res6, expected_flexible_dates);
     }
 
     #[test]
