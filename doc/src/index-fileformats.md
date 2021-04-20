@@ -4,6 +4,8 @@ This document defines the index file formats used in Tantivy.
 Tantivy has one metadata json file for each index and a bunch of files for each segment, each file storing a specific datastructure.
 
 ## Index metadata
+[Source](../../src/core/index_meta.rs)
+
 For a given index, Tantivy stores the following metadata in a json file `meta.json` :
 - the list of segments with its metadata id, max_doc, deletes
 - the index schema represented by the list of fields with name, type and option data
