@@ -1,9 +1,9 @@
 # Tantivy index file formats
 This document defines the index file formats used in Tantivy. 
 
-Tantivy has one metadata json file for each index and a few files for each segment, each file storing a specific datastructure.
+Tantivy has one metadata json file for each index and a bunch of files for each segment, each file storing a specific datastructure.
 
-## Index metadata json
+## Index metadata
 For a given index, Tantivy stores the following metadata in a json file `meta.json` :
 - the list of segments with its metadata id, max_doc, deletes ;
 - the index schema represented by the list of fields with name, type and option data ;
@@ -37,11 +37,6 @@ For a given index, Tantivy stores the following metadata in a json file `meta.js
 }
 ```
 
-
-## Endianness
-By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates it in this case.
-
-
 ## Summary of segment file extensions
 For a given segment, Tantivy stores a bunch of files whose name is set by segment uuid and whose extension defines the datastructure.
 
@@ -55,6 +50,10 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Fast fields | `.fast` | Column-oriented random-access storage of fields |
 | Fieldnorm | `.fieldnorm` | Stores the sum  of the length (in terms) of each field for each document ? |
 | Tombstone | `.del` | Bitset describing which document of the segment is deleted  |
+
+
+### Endianness
+By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates it in this case.
 
 
 ### Composite file structure
@@ -71,20 +70,28 @@ num_field-->VInt
 footer_len-->u32
 
 
-### Posting list `.idx`
-[Ref](../../src/postings/serializer.rs)
+### Posting list
+[Source](../../src/postings/serializer.rs)
 
-Posting list file is a composite file so it contains the footer data as described in composite file section.
+Posting list is a composite file and has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit the num_field dimension for clarity.
 
-The posting list is composed of blocks of 128 documents where the following data is stored:
-- last doc id encoded stored as **u32**
-- number of bytes used to decompress bitpacked doc ids stored as **u8**
-- if field has frequency: 
-  - number of bytes used to decompress bitpacked term frequencies stored as **u8**
-  - fieldnorm_id as **u8**
-  - block_wand_max as **u8**
-- delta encoded and bitpacked doc ids
-- bitpacked term frequencies if field has frequency
+Posting list (.idx) is divided into 2 parts:
+- skip list and meta data used to decompress
+- posting list
+
+skip list --> {last_doc_id_encoded, decompress_doc_id_num_bits, decompress_termfreq_num_bits, total_term_freq, fieldnorm_id, block_wand_max}<sup>num_doc/128</sup>
+last_doc_id_encoded --> u32
+decompress_doc_id_num_bits --> u8
+decompress_termfreq_num_bits --> u8
+total_term_freq --> u32
+fieldnorm_id --> u8
+block_wand_max --> u8
+
+posting list-->{bitpacked_docids, bitpacked_termfreq}<sup>num_doc/128</sup>{{vintencoded_docids, vintencoded_termfreq}<sup>num_doc % 128</sup>}
+bitpacked_docids-->bitpacked delta encoded of 128 doc ids  
+bitpacked_termfreq-->bitpacked term frequency of 128 term frequencies
+vintencoded_docids-->doc_ids variable int and delta encoded num_doc % 128 doc ids
+vintencoded_termfreq-->term freq variable int encoded num_doc % 128 term frequencies
 
 
 ### Term dictionnary `.term`
