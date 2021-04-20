@@ -28,7 +28,7 @@ pub enum QueryParserError {
     SyntaxError,
     /// `FieldDoesNotExist(field_name: String)`
     /// The query references a field that is not in the schema
-    #[error("File does not exists: '{0:?}'")]
+    #[error("Field does not exists: '{0:?}'")]
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64` or `i64`-field, but the value
     /// is neither.
