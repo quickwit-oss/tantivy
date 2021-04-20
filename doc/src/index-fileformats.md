@@ -42,7 +42,7 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 
 | Name | Extension | Description |
 | --- | --- | --- |
-| Posting list | `.idx` | Sorted lists of document ids, associated to terms |
+| Posting list | `.idx` | List of sorted doc ids associated to each term |
 | Term dictionnary | `.term` | Dictionary associating `Term`s to an address into the `postings` file and the `positions` file |
 | Term positions | `.pos` | Positions of terms in each document |
 | Term positions file index | `.posidx` | Index to seek within the position file |
