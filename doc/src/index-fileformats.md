@@ -61,9 +61,9 @@ By default integers and floats are serialized with little indian order. In some 
 
 All segment files needs to store data for each field except for tomstone file (.del). In this case, a footer is added which stores for each field an offset that indicates the starting point (or file address) of its data.
 
-Footer-->{{offset, file_address}<sup>num_field</sup>, num_field, footer_len}
-offset--> VInt
-file_address-->{field_id, idx}
+Footer-->{{field_offset, field_file_address}<sup>num_field</sup>, num_field, footer_len}
+field_offset--> VInt
+field_file_address-->{field_id, idx}
 field_id-->u32
 idx-->VInt
 num_field-->VInt
