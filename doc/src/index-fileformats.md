@@ -39,19 +39,7 @@ For a given index, Tantivy stores the following metadata in a json file `meta.js
 
 
 ## Endianness
-All integers and floats are serialiazed in litte indian order.
-
-## Composite file structure
-For each file where we need to store data for each field, a footer is added to store the offset that indicate the starting point of the data related to each field.
-
-The composite file footer can be divided into two main parts:
-- on the last 4 bytes, the `footer_len` is stored as an **u32**
-- on the last [`footer_len` - 4.. end - 4] bytes, the following data is stored:
-  - the number of fields stored as a variable int
-  - for each field:
-    - offset stored as variable integer
-    - a file address composed by the field id in u32 and an index encoded as a variable integer
-
+By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates it in this case.
 
 
 ## Summary of segment file extensions
@@ -67,6 +55,21 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Fast fields | `.fast` | Column-oriented random-access storage of fields |
 | Fieldnorm | `.fieldnorm` | Stores the sum  of the length (in terms) of each field for each document ? |
 | Tombstone | `.del` | Bitset describing which document of the segment is deleted  |
+
+
+### Composite file structure
+[Source](../../src/common/composite_file.rs)
+
+All segment files needs to store data for each field except for tomstone file (.del). In this case, a footer is added which stores for each field an offset that indicates the starting point (or file address) of its data.
+
+Footer-->{{offset, file_address}<sup>num_field</sup>, num_field, footer_len}
+offset--> VInt
+file_address-->{field_id, idx}
+field_id-->u32
+idx-->VInt
+num_field-->VInt
+footer_len-->u32
+
 
 ### Posting list `.idx`
 [Ref](../../src/postings/serializer.rs)
