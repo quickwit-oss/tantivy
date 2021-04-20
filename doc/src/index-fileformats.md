@@ -5,9 +5,9 @@ Tantivy has one metadata json file for each index and a bunch of files for each 
 
 ## Index metadata
 For a given index, Tantivy stores the following metadata in a json file `meta.json` :
-- the list of segments with its metadata id, max_doc, deletes ;
-- the index schema represented by the list of fields with name, type and option data ;
-- the opstamp or timestamp of the operation (commit).
+- the list of segments with its metadata id, max_doc, deletes
+- the index schema represented by the list of fields with name, type and option data
+- the opstamp or timestamp of the operation (commit)
 
 ```
 {
@@ -53,7 +53,7 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 
 
 ### Endianness
-By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates it in this case.
+By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, in this case the documentation will explicitely indicates that.
 
 
 ### Composite file structure
@@ -61,24 +61,27 @@ By default integers and floats are serialized with little indian order. In some 
 
 All segment files needs to store data for each field except for tomstone file (.del). In this case, a footer is added which stores for each field an offset that indicates the starting point (or file address) of its data.
 
-Footer-->{{field_offset, field_file_address}<sup>num_field</sup>, num_field, footer_len}
-field_offset--> VInt
-field_file_address-->{field_id, idx}
-field_id-->u32
-idx-->VInt
-num_field-->VInt
-footer_len-->u32
+```
+Footer --> {{field_offset, field_file_address}^num_field, num_field, footer_len}
+field_offset --> VInt
+field_file_address --> {field_id, idx}
+field_id --> u32
+idx --> VInt
+num_field --> VInt
+footer_len --> u32
+```
 
 
 ### Posting list
 [Source](../../src/postings/serializer.rs)
 
-Posting list is a composite file and has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit the num_field dimension for clarity.
+Posting list stores data for each field (it's a [composite file](#composite-file-structure)) and thus has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit the num_field dimension for clarity.
 
 Posting list (.idx) is divided into 2 parts:
 - skip list and meta data used to decompress
 - posting list
 
+```
 skip list --> {last_doc_id_encoded, decompress_doc_id_num_bits, decompress_termfreq_num_bits, total_term_freq, fieldnorm_id, block_wand_max}<sup>num_doc/128</sup>
 last_doc_id_encoded --> u32
 decompress_doc_id_num_bits --> u8
@@ -86,17 +89,19 @@ decompress_termfreq_num_bits --> u8
 total_term_freq --> u32
 fieldnorm_id --> u8
 block_wand_max --> u8
+```
 
-posting list-->{bitpacked_docids, bitpacked_termfreq}<sup>num_doc/128</sup>{{vintencoded_docids, vintencoded_termfreq}<sup>num_doc % 128</sup>}
-bitpacked_docids-->bitpacked delta encoded of 128 doc ids  
-bitpacked_termfreq-->bitpacked term frequency of 128 term frequencies
-vintencoded_docids-->doc_ids variable int and delta encoded num_doc % 128 doc ids
-vintencoded_termfreq-->term freq variable int encoded num_doc % 128 term frequencies
+```
+posting list --> {bitpacked_doc_ids, bitpacked_term_freq}^{num_doc/128}{{vintencoded_doc_ids, vintencoded_term_freq}^{num_doc % 128}}
+bitpacked_doc_ids --> bitpacked delta encoded of 128 doc_id
+bitpacked_term_freq --> bitpacked term frequency of 128 term_freq
+vintencoded_doc_ids --> variable int encoded and delta encoded of num_doc % 128 doc_ids
+vintencoded_term_freq --> variable int encoded num_doc % 128 term_freq
+```
 
+### Term dictionnary
 
-### Term dictionnary `.term`
-
-### Token positions in documents `.pos` and `.posidx`
+### Token positions in documents
 [Ref](../../src/positions/serializer.rs)
 
 
