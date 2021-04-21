@@ -103,6 +103,24 @@ vintencoded_term_freq --> variable int encoded num_doc % 128 term_freq, present 
 
 ### Term dictionnary
 
+```
+Term dictionnary file (.term) --> {fst_index, term_info_store, footer_len_bytes}
+fst_index --> finite state transducer data structure
+term_info_store --> term store data structure
+footer_len_bytes --> u64
+```
+
+#### Finiste state transducer
+
+#### Term store
+```
+Term store --> {len, num_terms, block_meta_file, term_info_file}
+len --> u64
+num_terms --> u64
+block_meta_file --> (on len bytes) 
+term_info_file --> 
+```
+
 
 
 ### Token positions in documents
@@ -132,13 +150,13 @@ skip_len --> u32
 ```
 
 
-### Doc store `.pos`
+### Doc store
 
-### Fast fields `.pos`
+### Fast fields
 
-### Fieldnorm `.pos`
+### Fieldnorm
 
-### Delete documents `.del`
+### Delete documents
 
 
 
