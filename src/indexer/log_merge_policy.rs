@@ -57,8 +57,8 @@ impl MergePolicy for LogMergePolicy {
         let mut size_sorted_tuples = segments
             .iter()
             .map(SegmentMeta::num_docs)
-            .filter(|s| s <= &(self.max_merge_size as u32))
             .enumerate()
+            .filter(|(_, s)| s <= &(self.max_merge_size as u32))
             .collect::<Vec<(usize, u32)>>();
 
         size_sorted_tuples.sort_by(|x, y| y.1.cmp(&(x.1)));
@@ -216,12 +216,20 @@ mod tests {
             create_random_segment_meta(1_000_000),
             create_random_segment_meta(100_001),
             create_random_segment_meta(100_000),
+            create_random_segment_meta(1_000_001),
             create_random_segment_meta(100_000),
             create_random_segment_meta(100_000),
+            create_random_segment_meta(1_500_000),
         ];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         // Do not include large segments
         assert_eq!(result_list.len(), 1);
-        assert_eq!(result_list[0].0.len(), 3)
+        assert_eq!(result_list[0].0.len(), 3);
+        
+        // Making sure merge policy points to the correct index of the original input
+        assert_eq!(result_list[0].0[0], test_input[2].id());
+        assert_eq!(result_list[0].0[1], test_input[4].id());
+        assert_eq!(result_list[0].0[2], test_input[5].id());
     }
+
 }
