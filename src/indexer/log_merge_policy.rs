@@ -225,11 +225,10 @@ mod tests {
         // Do not include large segments
         assert_eq!(result_list.len(), 1);
         assert_eq!(result_list[0].0.len(), 3);
-        
+
         // Making sure merge policy points to the correct index of the original input
         assert_eq!(result_list[0].0[0], test_input[2].id());
         assert_eq!(result_list[0].0[1], test_input[4].id());
         assert_eq!(result_list[0].0[2], test_input[5].id());
     }
-
 }
