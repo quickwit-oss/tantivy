@@ -55,7 +55,7 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 
 
 ### Endianness
-By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, in this case the documentation will explicitely indicates that.
+By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates when big indian is used.
 
 
 ### Composite file structure
@@ -77,18 +77,18 @@ footer_len --> u32
 ### Posting list
 [Source](../../src/postings/serializer.rs)
 
-Posting list stores data for each field (it's a [composite file](#composite-file-structure)) and thus has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit the num_field dimension for clarity.
+Posting list file (.idx) stores data for each field (it's a [composite file](#composite-file-structure)) and thus has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit that repetition for clarity.
 
 Posting list (.idx) is divided into 2 parts:
 - skip list and meta data used to decompress
 - posting list
 
 ```
-skip list --> {last_doc_id_encoded, decompress_doc_id_num_bits, decompress_termfreq_num_bits, total_term_freq, fieldnorm_id, block_wand_max}<sup>num_doc/128</sup>
+skip list --> {last_doc_id_encoded, decompress_doc_id_num_bits, decompress_termfreq_num_bits, total_term_freq, fieldnorm_id, block_wand_max}^num_doc/128
 last_doc_id_encoded --> u32
 decompress_doc_id_num_bits --> u8
-decompress_termfreq_num_bits --> u8
-total_term_freq --> u32
+decompress_termfreq_num_bits --> u8, present only if field index record option has freq
+total_term_freq --> u32, present only if field index record option has positions
 fieldnorm_id --> u8
 block_wand_max --> u8
 ```
@@ -96,12 +96,14 @@ block_wand_max --> u8
 ```
 posting list --> {bitpacked_doc_ids, bitpacked_term_freq}^{num_doc/128}{{vintencoded_doc_ids, vintencoded_term_freq}^{num_doc % 128}}
 bitpacked_doc_ids --> bitpacked delta encoded of 128 doc_id
-bitpacked_term_freq --> bitpacked term frequency of 128 term_freq
+bitpacked_term_freq --> bitpacked term frequency of 128 term_freq, present only if field index record option has freq
 vintencoded_doc_ids --> variable int encoded and delta encoded of num_doc % 128 doc_ids
-vintencoded_term_freq --> variable int encoded num_doc % 128 term_freq
+vintencoded_term_freq --> variable int encoded num_doc % 128 term_freq, present only if field index record option has freq
 ```
 
 ### Term dictionnary
+
+
 
 ### Token positions in documents
 [Ref](../../src/positions/serializer.rs)
@@ -112,16 +114,22 @@ Token positions are stored in three parts and over two files:
 - File `.posidx`: contains bytes and long skip index
 
 
-#### Position file `.pos`
-The position file contains bitpacked positions delta (the positions are already delta encoded before writing) for all terms of a given field, one term after the other. 
-Positions are bitpacked by block of size 1024, each position is stored as an **u32**.
+#### Position file
+The position file (.pos) stores data for each field (it's a [composite file](#composite-file-structure)) and thus has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit that repetition for clarity.
 
+```
+Position file (.pos) --> {bitpacked_delta_positions}^{N/1024}{0}^{N%1024}
+bitpacked_delta_positions --> u32
+```
 
-#### File `.posidx`
-This file is organized in 3 parts:
-- Part 1: list of number of bytes used to decompress bitpacked blocks, stored as an **u8**. There is one usize per compressed block.
-- Part 2: list of offsets for every 1024 compression blocks. An offset is stored as an **u64**.  
-- Footer: number of long splits stored as an **u32**  
+#### Skip positions file
+
+```
+Skip positions file ( `.posidx`) --> {{decompress_num_bits}^{num_doc/128}, {total_bits_from_start}^{num_doc/(1024 * k)}, skip_len}
+decompress_num_bits --> u8
+total_bits_from_start --> u64
+skip_len --> u32
+```
 
 
 ### Doc store `.pos`
