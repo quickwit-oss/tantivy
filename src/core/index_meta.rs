@@ -194,6 +194,10 @@ impl InnerSegmentMeta {
     }
 }
 
+/// Search Index Settings
+#[derive(Clone, Default, Serialize)]
+pub struct IndexSettings {}
+
 /// Meta information about the `Index`.
 ///
 /// This object is serialized on disk in the `meta.json` file.
@@ -204,6 +208,8 @@ impl InnerSegmentMeta {
 ///
 #[derive(Clone, Serialize)]
 pub struct IndexMeta {
+    /// `IndexSettings` to configure index options.
+    pub index_settings: IndexSettings,
     /// List of `SegmentMeta` informations associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
@@ -231,6 +237,7 @@ struct UntrackedIndexMeta {
 impl UntrackedIndexMeta {
     pub fn track(self, inventory: &SegmentMetaInventory) -> IndexMeta {
         IndexMeta {
+            index_settings: IndexSettings::default(),
             segments: self
                 .segments
                 .into_iter()
@@ -251,6 +258,7 @@ impl IndexMeta {
     /// Opstamp will the value `0u64`.
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
+            index_settings: IndexSettings::default(),
             segments: vec![],
             schema,
             opstamp: 0u64,
@@ -282,6 +290,7 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
+    use super::IndexSettings;
     use crate::schema::{Schema, TEXT};
     use serde_json;
 
@@ -293,6 +302,7 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
+            index_settings: IndexSettings::default(),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -301,7 +311,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"index_settings":{},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }

@@ -1,5 +1,4 @@
-use super::segment::Segment;
-use crate::core::Executor;
+use super::{segment::Segment, IndexSettings};
 use crate::core::IndexMeta;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
@@ -22,6 +21,7 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
+use crate::{core::Executor, schema::SchemaBuilder};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -55,6 +55,66 @@ fn load_metas(
         .map_err(From::from)
 }
 
+/// IndexBuilder can be used to create an index.
+///
+/// Use in conjunction with `SchemaBuilder`. Global index settings
+/// can be configured with `IndexSettings`
+///
+/// # Examples
+///
+/// ```
+/// use tantivy::schema::*;
+/// use tantivy::{Index, IndexSettings};
+///
+/// let mut schema_builder = Schema::builder();
+/// let id_field = schema_builder.add_text_field("id", STRING);
+/// let title_field = schema_builder.add_text_field("title", TEXT);
+/// let body_field = schema_builder.add_text_field("body", TEXT);
+/// let schema = schema_builder.build();
+/// let settings = IndexSettings::default();
+/// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
+///
+/// ```
+pub struct IndexBuilder {
+    index_meta: IndexMeta,
+}
+impl Default for IndexBuilder {
+    fn default() -> Self {
+        Self {
+            index_meta: IndexMeta::with_schema(SchemaBuilder::new().build()),
+        }
+    }
+}
+impl IndexBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn settings(mut self, settings: IndexSettings) -> Self {
+        self.index_meta.index_settings = settings;
+        self
+    }
+    pub fn schema(mut self, schema: Schema) -> Self {
+        self.index_meta.schema = schema;
+        self
+    }
+    /// Creates a new index using the `RAMDirectory`.
+    ///
+    /// The index will be allocated in anonymous memory.
+    /// This should only be used for unit tests.
+    pub fn create_in_ram(self) -> Index {
+        Index::create_in_ram(self.index_meta.schema)
+    }
+    /// Creates a new index in a given filepath.
+    /// The index will use the `MMapDirectory`.
+    ///
+    /// If a previous index was in this directory, then its meta file will be destroyed.
+    #[cfg(feature = "mmap")]
+    pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
+        Index::create_in_dir(directory_path, self.index_meta.schema)
+    }
+    // todo add rest, change Index methods to accept IndexMeta or schema + IndexSettings
+}
+
 /// Search Index
 #[derive(Clone)]
 pub struct Index {
@@ -66,6 +126,10 @@ pub struct Index {
 }
 
 impl Index {
+    /// Creates a new builder.
+    pub fn builder() -> IndexBuilder {
+        IndexBuilder::new()
+    }
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
