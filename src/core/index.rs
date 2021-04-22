@@ -78,21 +78,18 @@ fn load_metas(
 pub struct IndexBuilder {
     index_meta: IndexMeta,
 }
-impl Default for IndexBuilder {
-    fn default() -> Self {
+impl IndexBuilder {
+    pub fn new() -> Self {
         Self {
             index_meta: IndexMeta::with_schema(SchemaBuilder::new().build()),
         }
     }
-}
-impl IndexBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    /// Set the settings
     pub fn settings(mut self, settings: IndexSettings) -> Self {
         self.index_meta.index_settings = settings;
         self
     }
+    /// Set the schema
     pub fn schema(mut self, schema: Schema) -> Self {
         self.index_meta.schema = schema;
         self
@@ -102,7 +99,13 @@ impl IndexBuilder {
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(self) -> Index {
-        Index::create_in_ram(self.index_meta.schema)
+        let ram_directory = RAMDirectory::create();
+        Index::create(
+            ram_directory,
+            self.index_meta.schema,
+            self.index_meta.index_settings,
+        )
+        .expect("Creating a RAMDirectory should never fail")
     }
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
@@ -110,9 +113,33 @@ impl IndexBuilder {
     /// If a previous index was in this directory, then its meta file will be destroyed.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
-        Index::create_in_dir(directory_path, self.index_meta.schema)
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        if Index::exists(&mmap_directory)? {
+            return Err(TantivyError::IndexAlreadyExists);
+        }
+        Index::create(
+            mmap_directory,
+            self.index_meta.schema,
+            self.index_meta.index_settings,
+        )
     }
-    // todo add rest, change Index methods to accept IndexMeta or schema + IndexSettings
+    /// Creates a new index in a temp directory.
+    ///
+    /// The index will use the `MMapDirectory` in a newly created directory.
+    /// The temp directory will be destroyed automatically when the `Index` object
+    /// is destroyed.
+    ///
+    /// The temp directory is only used for testing the `MmapDirectory`.
+    /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
+    #[cfg(feature = "mmap")]
+    pub fn create_from_tempdir(self) -> crate::Result<Index> {
+        let mmap_directory = MmapDirectory::create_from_tempdir()?;
+        Index::create(
+            mmap_directory,
+            self.index_meta.schema,
+            self.index_meta.index_settings,
+        )
+    }
 }
 
 /// Search Index
@@ -120,6 +147,7 @@ impl IndexBuilder {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
+    settings: IndexSettings,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
@@ -166,8 +194,7 @@ impl Index {
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
-        let ram_directory = RAMDirectory::create();
-        Index::create(ram_directory, schema).expect("Creating a RAMDirectory should never fail")
+        IndexBuilder::new().schema(schema).create_in_ram()
     }
 
     /// Creates a new index in a given filepath.
@@ -179,17 +206,15 @@ impl Index {
         directory_path: P,
         schema: Schema,
     ) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::open(directory_path)?;
-        if Index::exists(&mmap_directory)? {
-            return Err(TantivyError::IndexAlreadyExists);
-        }
-        Index::create(mmap_directory, schema)
+        IndexBuilder::new()
+            .schema(schema)
+            .create_in_dir(directory_path)
     }
 
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
         if !Index::exists(&dir)? {
-            return Index::create(dir, schema);
+            return Index::create(dir, schema, IndexSettings::default());
         }
         let index = Index::open(dir)?;
         if index.schema() == schema {
@@ -211,24 +236,32 @@ impl Index {
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::create_from_tempdir()?;
-        Index::create(mmap_directory, schema)
+        IndexBuilder::new().schema(schema).create_from_tempdir()
     }
 
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
+    pub fn create<Dir: Directory>(
+        dir: Dir,
+        schema: Schema,
+        settings: IndexSettings,
+    ) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(dir)?;
-        Index::from_directory(directory, schema)
+        Index::from_directory(directory, schema, settings)
     }
 
     /// Create a new index from a directory.
     ///
     /// This will overwrite existing meta.json
-    fn from_directory(directory: ManagedDirectory, schema: Schema) -> crate::Result<Index> {
-        save_new_metas(schema.clone(), &directory)?;
-        let metas = IndexMeta::with_schema(schema);
+    fn from_directory(
+        directory: ManagedDirectory,
+        schema: Schema,
+        settings: IndexSettings,
+    ) -> crate::Result<Index> {
+        save_new_metas(schema.clone(), settings.clone(), &directory)?;
+        let mut metas = IndexMeta::with_schema(schema);
+        metas.index_settings = settings;
         let index = Index::create_from_metas(directory, &metas, SegmentMetaInventory::default());
         Ok(index)
     }
@@ -241,6 +274,7 @@ impl Index {
     ) -> Index {
         let schema = metas.schema.clone();
         Index {
+            settings: metas.index_settings.clone(),
             directory,
             schema,
             tokenizers: TokenizerManager::default(),
@@ -407,6 +441,11 @@ impl Index {
         self.writer_with_num_threads(num_threads, overall_heap_size_in_bytes)
     }
 
+    /// Accessor to the index settings
+    ///
+    pub fn settings(&self) -> &IndexSettings {
+        &self.settings
+    }
     /// Accessor to the index schema
     ///
     /// The schema is actually cloned.
@@ -479,6 +518,7 @@ mod tests {
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
     use crate::IndexReader;
+    use crate::IndexSettings;
     use crate::ReloadPolicy;
     use crate::{Directory, Index};
 
@@ -500,7 +540,12 @@ mod tests {
     fn test_index_exists() {
         let directory = RAMDirectory::create();
         assert!(!Index::exists(&directory).unwrap());
-        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
     }
 
@@ -515,7 +560,12 @@ mod tests {
     #[test]
     fn open_or_create_should_open() {
         let directory = RAMDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
@@ -523,15 +573,30 @@ mod tests {
     #[test]
     fn create_should_wipeoff_existing() {
         let directory = RAMDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
-        assert!(Index::create(directory.clone(), Schema::builder().build()).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            Schema::builder().build(),
+            IndexSettings::default()
+        )
+        .is_ok());
     }
 
     #[test]
     fn open_or_create_exists_but_schema_does_not_match() {
         let directory = RAMDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
         let err = Index::open_or_create(directory, Schema::builder().build());
@@ -666,7 +731,7 @@ mod tests {
         let directory = RAMDirectory::create();
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
-        let index = Index::create(directory.clone(), schema).unwrap();
+        let index = Index::create(directory.clone(), schema, IndexSettings::default()).unwrap();
 
         let mut writer = index.writer_with_num_threads(8, 24_000_000).unwrap();
         for i in 0u64..8_000u64 {
