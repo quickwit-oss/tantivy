@@ -74,7 +74,7 @@ pub mod tests {
         mem::drop(field_serializer);
         posting_serializer.close()?;
         let read = segment.open_read(SegmentComponent::Positions)?;
-        assert!(read.len() <= 140);
+        assert_eq!(read.len(), 207);
         Ok(())
     }
 

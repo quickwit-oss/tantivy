@@ -46,7 +46,6 @@ pub struct SegmentReader {
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
-    positions_idx_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
 
@@ -169,14 +168,6 @@ impl SegmentReader {
             }
         };
 
-        let positions_idx_composite = {
-            if let Ok(positions_skip_file) = segment.open_read(SegmentComponent::PositionsSkip) {
-                CompositeFile::open(&positions_skip_file)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
         let schema = segment.schema();
 
         let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
@@ -207,7 +198,6 @@ impl SegmentReader {
             store_file,
             delete_bitset_opt,
             positions_composite,
-            positions_idx_composite,
             schema,
         })
     }
@@ -263,18 +253,15 @@ impl SegmentReader {
         let positions_file = self
             .positions_composite
             .open_read(field)
-            .expect("Index corrupted. Failed to open field positions in composite file.");
-
-        let positions_idx_file = self
-            .positions_idx_composite
-            .open_read(field)
-            .expect("Index corrupted. Failed to open field positions in composite file.");
+            .ok_or_else(|| {
+                let error_msg = format!("Failed to open field {:?}'s positions in the composite file. Has the schema been modified?", field_entry.name());
+               DataCorruption::comment_only(error_msg)
+            })?;
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::open(termdict_file)?,
             postings_file,
             positions_file,
-            positions_idx_file,
             record_option,
         )?);
 
@@ -319,7 +306,6 @@ impl SegmentReader {
             self.termdict_composite.space_usage(),
             self.postings_composite.space_usage(),
             self.positions_composite.space_usage(),
-            self.positions_idx_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
             self.get_store_reader()?.space_usage(),

@@ -50,19 +50,17 @@ pub struct InvertedIndexSerializer {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
-    positionsidx_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{Positions, PositionsSkip, Postings, Terms};
+        use crate::SegmentComponent::{Positions, Postings, Terms};
         let inv_index_serializer = InvertedIndexSerializer {
             terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
             postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
             positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
-            positionsidx_write: CompositeWrite::wrap(segment.open_write(PositionsSkip)?),
             schema: segment.schema(),
         };
         Ok(inv_index_serializer)
@@ -82,7 +80,6 @@ impl InvertedIndexSerializer {
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
-        let positionsidx_write = self.positionsidx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::create(
             &field_type,
@@ -90,7 +87,6 @@ impl InvertedIndexSerializer {
             term_dictionary_write,
             postings_write,
             positions_write,
-            positionsidx_write,
             fieldnorm_reader,
         )
     }
@@ -100,7 +96,6 @@ impl InvertedIndexSerializer {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
-        self.positionsidx_write.close()?;
         Ok(())
     }
 }
@@ -123,7 +118,6 @@ impl<'a> FieldSerializer<'a> {
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
-        positionsidx_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
         total_num_tokens.serialize(postings_write)?;
@@ -145,7 +139,7 @@ impl<'a> FieldSerializer<'a> {
         let postings_serializer =
             PostingsSerializer::new(postings_write, average_fieldnorm, mode, fieldnorm_reader);
         let positions_serializer_opt = if mode.has_positions() {
-            Some(PositionSerializer::new(positions_write, positionsidx_write))
+            Some(PositionSerializer::new(positions_write))
         } else {
             None
         };
@@ -161,17 +155,17 @@ impl<'a> FieldSerializer<'a> {
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let positions_idx =
+        let positions_start =
             if let Some(positions_serializer) = self.positions_serializer_opt.as_ref() {
-                positions_serializer.positions_idx()
+                positions_serializer.offset()
             } else {
                 0u64
-            };
+            } as usize;
         let addr = self.postings_serializer.addr() as usize;
         TermInfo {
             doc_freq: 0,
             postings_range: addr..addr,
-            positions_idx,
+            positions_range: positions_start..positions_start,
         }
     }
 
@@ -226,7 +220,11 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
+            if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
+                positions_serializer.close_term()?;
+            }
             self.current_term_info.postings_range.end = self.postings_serializer.addr() as usize;
+            self.current_term_info.positions_range.end = self.postings_serializer.addr() as usize;
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
             self.term_open = false;

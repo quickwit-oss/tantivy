@@ -31,38 +31,34 @@ pub use self::serializer::PositionSerializer;
 use bitpacking::{BitPacker, BitPacker4x};
 
 const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
-const LONG_SKIP_IN_BLOCKS: usize = 1_024;
-const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) as u64;
 
 #[cfg(test)]
 pub mod tests {
 
     use super::PositionSerializer;
+    use crate::directory::OwnedBytes;
     use crate::positions::reader::PositionReader;
-    use crate::{common::HasLen, directory::FileSlice};
     use std::iter;
 
-    fn create_stream_buffer(vals: &[u32]) -> (FileSlice, FileSlice) {
-        let mut skip_buffer = vec![];
-        let mut stream_buffer = vec![];
+    fn create_positions_data(vals: &[u32]) -> OwnedBytes {
+        let mut positions_buffer = vec![];
         {
-            let mut serializer = PositionSerializer::new(&mut stream_buffer, &mut skip_buffer);
-            for (i, &val) in vals.iter().enumerate() {
-                assert_eq!(serializer.positions_idx(), i as u64);
+            let mut serializer = PositionSerializer::new(&mut positions_buffer);
+            for &val in vals {
                 serializer.write_all(&[val]).unwrap();
             }
+            serializer.close_term().unwrap();
             serializer.close().unwrap();
         }
-        (FileSlice::from(stream_buffer), FileSlice::from(skip_buffer))
+        OwnedBytes::new(positions_buffer)
     }
 
     #[test]
     fn test_position_read() {
         let v: Vec<u32> = (0..1000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 12);
-        assert_eq!(stream.len(), 1168);
-        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
+        let positions_data = create_positions_data(&v[..]);
+        assert_eq!(positions_data.len(), 1224);
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         for &n in &[1, 10, 127, 128, 130, 312] {
             let mut v = vec![0u32; n];
             position_reader.read(0, &mut v[..]);
@@ -75,10 +71,9 @@ pub mod tests {
     #[test]
     fn test_position_read_with_offset() {
         let v: Vec<u32> = (0..1000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 12);
-        assert_eq!(stream.len(), 1168);
-        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
+        let positions_data = create_positions_data(&v[..]);
+        assert_eq!(positions_data.len(), 1224);
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         for &offset in &[1u64, 10u64, 127u64, 128u64, 130u64, 312u64] {
             for &len in &[1, 10, 130, 500] {
                 let mut v = vec![0u32; len];
@@ -93,11 +88,10 @@ pub mod tests {
     #[test]
     fn test_position_read_after_skip() {
         let v: Vec<u32> = (0..1_000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 12);
-        assert_eq!(stream.len(), 1168);
+        let positions_data = create_positions_data(&v[..]);
+        assert_eq!(positions_data.len(), 1224);
 
-        let mut position_reader = PositionReader::new(stream, skip, 0u64).unwrap();
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         let mut buf = [0u32; 7];
         let mut c = 0;
 
@@ -115,11 +109,10 @@ pub mod tests {
 
     #[test]
     fn test_position_reread_anchor_different_than_block() {
-        let v: Vec<u32> = (0..2_000_000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 15_749);
-        assert_eq!(stream.len(), 4_987_872);
-        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0).unwrap();
+        let positions_delta: Vec<u32> = (0..2_000_000).collect();
+        let positions_data = create_positions_data(&positions_delta[..]);
+        assert_eq!(positions_data.len(), 5003499);
+        let mut position_reader = PositionReader::new(positions_data.clone()).unwrap();
         let mut buf = [0u32; 256];
         position_reader.read(128, &mut buf);
         for i in 0..256 {
@@ -134,57 +127,53 @@ pub mod tests {
     #[test]
     #[should_panic(expected = "offset arguments should be increasing.")]
     fn test_position_panic_if_called_previous_anchor() {
-        let v: Vec<u32> = (0..2_000_000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 15_749);
-        assert_eq!(stream.len(), 4_987_872);
+        let positions_delta: Vec<u32> = (0..2_000_000).collect();
+        let positions_data = create_positions_data(&positions_delta[..]);
+        assert_eq!(positions_data.len(), 5_003_499);
         let mut buf = [0u32; 1];
-        let mut position_reader =
-            PositionReader::new(stream.clone(), skip.clone(), 200_000).unwrap();
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         position_reader.read(230, &mut buf);
         position_reader.read(9, &mut buf);
     }
 
     #[test]
     fn test_positions_bug() {
-        let mut v: Vec<u32> = vec![];
+        let mut positions_delta: Vec<u32> = vec![];
         for i in 1..200 {
             for j in 0..i {
-                v.push(j);
+                positions_delta.push(j);
             }
         }
-        let (stream, skip) = create_stream_buffer(&v[..]);
+        let positions_data = create_positions_data(&positions_delta[..]);
         let mut buf = Vec::new();
-        let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), 0).unwrap();
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         let mut offset = 0;
         for i in 1..24 {
             buf.resize(i, 0);
-            position_reader.read(offset, &mut buf[..]);
             offset += i as u64;
-            let r: Vec<u32> = (0..i).map(|el| el as u32).collect();
-            assert_eq!(buf, &r[..]);
+            position_reader.read(offset, &mut buf[..]);
+            let expected_positions_delta: Vec<u32> = (0..i as u32).collect();
+            assert_eq!(buf, &expected_positions_delta[..], "Failed for offset={},i={}", offset, i);
         }
     }
 
     #[test]
-    fn test_position_long_skip_const() {
+    fn test_position() {
         const CONST_VAL: u32 = 9u32;
-        let v: Vec<u32> = iter::repeat(CONST_VAL).take(2_000_000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 15_749);
-        assert_eq!(stream.len(), 1_000_000);
-        let mut position_reader = PositionReader::new(stream, skip, 128 * 1024).unwrap();
+        let positions_delta: Vec<u32> = iter::repeat(CONST_VAL).take(2_000_000).collect();
+        let positions_data = create_positions_data(&positions_delta[..]);
+        assert_eq!(positions_data.len(), 1_015_627);
+        let mut position_reader = PositionReader::new(positions_data).unwrap();
         let mut buf = [0u32; 1];
         position_reader.read(0, &mut buf);
         assert_eq!(buf[0], CONST_VAL);
     }
 
     #[test]
-    fn test_position_long_skip_2() {
-        let v: Vec<u32> = (0..2_000_000).collect();
-        let (stream, skip) = create_stream_buffer(&v[..]);
-        assert_eq!(skip.len(), 15_749);
-        assert_eq!(stream.len(), 4_987_872);
+    fn test_position_advance() {
+        let positions_delta: Vec<u32> = (0..2_000_000).collect();
+        let positions_data = create_positions_data(&positions_delta[..]);
+        assert_eq!(positions_data.len(), 5_003_499);
         for &offset in &[
             10,
             128 * 1024,
@@ -192,10 +181,9 @@ pub mod tests {
             128 * 1024 + 7,
             128 * 10 * 1024 + 10,
         ] {
-            let mut position_reader =
-                PositionReader::new(stream.clone(), skip.clone(), offset).unwrap();
+            let mut position_reader = PositionReader::new(positions_data.clone()).unwrap();
             let mut buf = [0u32; 1];
-            position_reader.read(0, &mut buf);
+            position_reader.read(offset, &mut buf);
             assert_eq!(buf[0], offset as u32);
         }
     }
