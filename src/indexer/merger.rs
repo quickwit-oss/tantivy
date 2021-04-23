@@ -628,7 +628,7 @@ impl IndexMerger {
                         segment_postings.positions(&mut positions_buffer);
 
                         let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions)?;
+                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
                     }
 
                     doc = segment_postings.advance();

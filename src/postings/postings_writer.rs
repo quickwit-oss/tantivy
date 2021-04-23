@@ -313,7 +313,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
             let recorder: Rec = termdict_heap.read(addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(&term_bytes[4..], term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap)?;
+            recorder.serialize(&mut buffer_lender, serializer, heap);
             serializer.close_term()?;
         }
         Ok(())

@@ -614,8 +614,9 @@ mod tests {
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
+            let num_components_except_deletes = crate::core::SegmentComponent::iterator().len() - 1;
             assert_eq!(
-                num_segments * 7,
+                num_segments * num_components_except_deletes,
                 mmap_directory.get_cache_info().mmapped.len()
             );
         }

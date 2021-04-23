@@ -347,7 +347,7 @@ mod tests {
             let term_info = TermInfo {
                 doc_freq: i as u32,
                 postings_range: offset(i)..offset(i + 1),
-                positions_range: offset(i) * 3..offset(i + 1) * 3
+                positions_range: offset(i) * 3..offset(i + 1) * 3,
             };
             store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);

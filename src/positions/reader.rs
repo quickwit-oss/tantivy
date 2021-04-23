@@ -31,21 +31,38 @@ pub struct PositionReader {
     //
     // As we advance, anchor increases simultaneously with bit_widths and positions get consumed.
     anchor_offset: u64,
+
+    // These are just copies used for .reset().
+    original_bit_widths: OwnedBytes,
+    original_positions: OwnedBytes,
 }
 
 impl PositionReader {
-    pub fn new(mut positions_data: OwnedBytes) -> io::Result<PositionReader> {
+    /// Open and reads the term positions encoded into the positions_data owned bytes.
+    pub fn open(mut positions_data: OwnedBytes) -> io::Result<PositionReader> {
         let num_positions_bitpacked_blocks = VInt::deserialize(&mut positions_data)?.0 as usize;
         let (bit_widths, positions) = positions_data.split(num_positions_bitpacked_blocks);
         Ok(PositionReader {
-            bit_widths,
-            positions,
+            bit_widths: bit_widths.clone(),
+            positions: positions.clone(),
             block_decoder: BlockDecoder::default(),
             block_offset: std::i64::MAX as u64,
             anchor_offset: 0u64,
+            original_bit_widths: bit_widths,
+            original_positions: positions,
         })
     }
 
+    fn reset(&mut self) {
+        self.positions = self.original_positions.clone();
+        self.bit_widths = self.original_bit_widths.clone();
+        self.block_offset = std::i64::MAX as u64;
+        self.anchor_offset = 0u64;
+    }
+
+    /// Advance from num_blocks bitpacked blocks.
+    ///
+    /// Panics if there are not that many remaining blocks.
     fn advance_num_blocks(&mut self, num_blocks: usize) {
         let num_bits: usize = self.bit_widths.as_ref()[..num_blocks]
             .iter()
@@ -63,29 +80,33 @@ impl PositionReader {
     /// block_rel_id = i means the ith block after the anchor block.
     fn load_block(&mut self, block_rel_id: usize) {
         let bit_widths = self.bit_widths.as_slice();
-        let byte_offset: usize = bit_widths[0..block_rel_id].iter().map(|&b| b as usize).sum::<usize>() * COMPRESSION_BLOCK_SIZE / 8;
+        let byte_offset: usize = bit_widths[0..block_rel_id]
+            .iter()
+            .map(|&b| b as usize)
+            .sum::<usize>()
+            * COMPRESSION_BLOCK_SIZE
+            / 8;
         let compressed_data = &self.positions.as_slice()[byte_offset..];
         if bit_widths.len() > block_rel_id {
             // that block is bitpacked.
             let bit_width = bit_widths[block_rel_id];
-            self.block_decoder.uncompress_block_unsorted(compressed_data, bit_width);
+            self.block_decoder
+                .uncompress_block_unsorted(compressed_data, bit_width);
         } else {
             // that block is vint encoded.
-            unimplemented!();
-            // self.block_decoder.uncompress_vint_unsorted(compressed_data);
+            self.block_decoder
+                .uncompress_vint_unsorted_until_end(compressed_data);
         }
         self.block_offset = self.anchor_offset + (block_rel_id * COMPRESSION_BLOCK_SIZE) as u64;
-   }
+    }
 
     /// Fills a buffer with the positions `[offset..offset+output.len())` integers.
     ///
-    /// `offset` is required to have a value >= to the offsets given in previous calls
-    /// for the given `PositionReaderAbsolute` instance.
+    /// This function is optimized to be called with increasing values of `offset`.
     pub fn read(&mut self, mut offset: u64, mut output: &mut [u32]) {
-        assert!(
-            offset >= self.anchor_offset,
-            "offset arguments should be increasing."
-        );
+        if offset < self.anchor_offset {
+            self.reset();
+        }
         let delta_to_block_offset = offset as i64 - self.block_offset as i64;
         if !(0..128).contains(&delta_to_block_offset) {
             // The first position is not within the first block.
@@ -111,10 +132,13 @@ impl PositionReader {
             let offset_in_block = (offset as usize) % COMPRESSION_BLOCK_SIZE;
             let remaining_in_block = COMPRESSION_BLOCK_SIZE - offset_in_block;
             if remaining_in_block >= output.len() {
-                output.copy_from_slice(&self.block_decoder.output_array()[offset_in_block..][..output.len()]);
+                output.copy_from_slice(
+                    &self.block_decoder.output_array()[offset_in_block..][..output.len()],
+                );
                 break;
             }
-            output[..remaining_in_block].copy_from_slice(&self.block_decoder.output_array()[offset_in_block..]);
+            output[..remaining_in_block]
+                .copy_from_slice(&self.block_decoder.output_array()[offset_in_block..]);
             output = &mut output[remaining_in_block..];
             // we load block #i if necessary.
             offset += remaining_in_block as u64;

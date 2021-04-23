@@ -157,11 +157,11 @@ impl<'a> FieldSerializer<'a> {
     fn current_term_info(&self) -> TermInfo {
         let positions_start =
             if let Some(positions_serializer) = self.positions_serializer_opt.as_ref() {
-                positions_serializer.offset()
+                positions_serializer.written_bytes()
             } else {
                 0u64
             } as usize;
-        let addr = self.postings_serializer.addr() as usize;
+        let addr = self.postings_serializer.written_bytes() as usize;
         TermInfo {
             doc_freq: 0,
             postings_range: addr..addr,
@@ -198,18 +198,12 @@ impl<'a> FieldSerializer<'a> {
     ///
     /// Term frequencies and positions may be ignored by the serializer depending
     /// on the configuration of the field in the `Schema`.
-    pub fn write_doc(
-        &mut self,
-        doc_id: DocId,
-        term_freq: u32,
-        position_deltas: &[u32],
-    ) -> io::Result<()> {
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
-            positions_serializer.write_all(position_deltas)?;
+            positions_serializer.write_positions_delta(position_deltas);
         }
-        Ok(())
     }
 
     /// Finish the serialization for this term postings.
@@ -220,11 +214,14 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
+            self.current_term_info.postings_range.end =
+                self.postings_serializer.written_bytes() as usize;
+
             if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
                 positions_serializer.close_term()?;
+                self.current_term_info.positions_range.end =
+                    positions_serializer.written_bytes() as usize;
             }
-            self.current_term_info.postings_range.end = self.postings_serializer.addr() as usize;
-            self.current_term_info.positions_range.end = self.postings_serializer.addr() as usize;
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
             self.term_open = false;
@@ -455,7 +452,13 @@ impl<W: Write> PostingsSerializer<W> {
         Ok(())
     }
 
-    fn addr(&self) -> u64 {
+    /// Returns the number of bytes written in the postings write object
+    /// at this point.
+    /// When called before writing the postings of a term, this value is used as
+    /// start offset.
+    /// When called after writing the postings of a term, this value is used as a
+    /// end offset.
+    fn written_bytes(&self) -> u64 {
         self.output_write.written_bytes() as u64
     }
 
