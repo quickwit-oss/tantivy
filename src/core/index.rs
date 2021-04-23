@@ -102,12 +102,9 @@ impl IndexBuilder {
     /// This should only be used for unit tests.
     pub fn create_in_ram(self) -> Result<Index, TantivyError> {
         let ram_directory = RAMDirectory::create();
-        Ok(Index::create(
-            ram_directory,
-            self.get_expect_schema()?,
-            self.get_settings_or_default(),
-        )
-        .expect("Creating a RAMDirectory should never fail"))
+        Ok(self
+            .create(ram_directory)
+            .expect("Creating a RAMDirectory should never fail"))
     }
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
@@ -119,11 +116,7 @@ impl IndexBuilder {
         if Index::exists(&mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
-        Index::create(
-            mmap_directory,
-            self.get_expect_schema()?,
-            self.get_settings_or_default(),
-        )
+        self.create(mmap_directory)
     }
     /// Creates a new index in a temp directory.
     ///
@@ -136,11 +129,7 @@ impl IndexBuilder {
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(self) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
-        Index::create(
-            mmap_directory,
-            self.get_expect_schema()?,
-            self.get_settings_or_default(),
-        )
+        self.create(mmap_directory)
     }
     fn get_settings_or_default(&self) -> IndexSettings {
         self.index_settings
@@ -158,11 +147,7 @@ impl IndexBuilder {
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
         if !Index::exists(&dir)? {
-            return Index::create(
-                dir,
-                self.get_expect_schema()?,
-                self.get_settings_or_default(),
-            );
+            return self.create(dir);
         }
         let index = Index::open(dir)?;
         if index.schema() == self.get_expect_schema()? {
@@ -172,6 +157,21 @@ impl IndexBuilder {
                 "An index exists but the schema does not match.".to_string(),
             ))
         }
+    }
+    /// Creates a new index given an implementation of the trait `Directory`.
+    ///
+    /// If a directory previously existed, it will be erased.
+    fn create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
+        let directory = ManagedDirectory::wrap(dir)?;
+        save_new_metas(
+            self.get_expect_schema()?,
+            self.get_settings_or_default(),
+            &directory,
+        )?;
+        let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
+        metas.index_settings = self.get_settings_or_default();
+        let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
+        Ok(index)
     }
 }
 
@@ -270,12 +270,10 @@ impl Index {
         schema: Schema,
         settings: IndexSettings,
     ) -> crate::Result<Index> {
-        let directory = ManagedDirectory::wrap(dir)?;
-        save_new_metas(schema.clone(), settings.clone(), &directory)?;
-        let mut metas = IndexMeta::with_schema(schema);
-        metas.index_settings = settings;
-        let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
-        Ok(index)
+        IndexBuilder::new()
+            .schema(schema)
+            .settings(settings)
+            .create(dir)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
