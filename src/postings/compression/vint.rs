@@ -1,4 +1,4 @@
-#[inline(always)]
+#[inline]
 pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], mut offset: u32) -> &'a [u8] {
     let mut byte_written = 0;
     for &v in input {
@@ -20,7 +20,7 @@ pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], mut offset: u32)
     &output[..byte_written]
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a [u8] {
     let mut byte_written = 0;
     for &v in input {
@@ -41,7 +41,7 @@ pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a 
     &output[..byte_written]
 }
 
-#[inline(always)]
+#[inline]
 pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32) -> usize {
     let mut read_byte = 0;
     let mut result = offset;
@@ -61,7 +61,7 @@ pub fn uncompress_sorted(compressed_data: &[u8], output: &mut [u32], offset: u32
     read_byte
 }
 
-#[inline(always)]
+#[inline]
 pub(crate) fn uncompress_unsorted(compressed_data: &[u8], output_arr: &mut [u32]) -> usize {
     let mut read_byte = 0;
     for output_mut in output_arr.iter_mut() {

@@ -133,7 +133,7 @@ impl FieldNormReader {
     }
 
     /// Returns the `fieldnorm_id` associated to a document.
-    #[inline(always)]
+    #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
             ReaderImplEnum::FromData(data) => {
@@ -145,14 +145,14 @@ impl FieldNormReader {
     }
 
     /// Converts a `fieldnorm_id` into a fieldnorm.
-    #[inline(always)]
+    #[inline]
     pub fn id_to_fieldnorm(id: u8) -> u32 {
         id_to_fieldnorm(id)
     }
 
     /// Converts a `fieldnorm` into a `fieldnorm_id`.
     /// (This function is not injective).
-    #[inline(always)]
+    #[inline]
     pub fn fieldnorm_to_id(fieldnorm: u32) -> u8 {
         fieldnorm_to_id(fieldnorm)
     }

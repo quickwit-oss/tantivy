@@ -51,13 +51,13 @@ impl OwnedBytes {
 
     /// Returns the underlying slice of data.
     /// `Deref` and `AsRef` are also available.
-    #[inline(always)]
+    #[inline]
     pub fn as_slice(&self) -> &[u8] {
         self.data
     }
 
     /// Returns the len of the slice.
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -84,7 +84,7 @@ impl OwnedBytes {
     }
 
     /// Returns true iff this `OwnedBytes` is empty.
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.as_slice().is_empty()
     }
@@ -92,7 +92,7 @@ impl OwnedBytes {
     /// Drops the left most `advance_len` bytes.
     ///
     /// See also [.clip(clip_len: usize))](#method.clip).
-    #[inline(always)]
+    #[inline]
     pub fn advance(&mut self, advance_len: usize) {
         self.data = &self.data[advance_len..]
     }

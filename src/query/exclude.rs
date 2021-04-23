@@ -3,7 +3,7 @@ use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
 
-#[inline(always)]
+#[inline]
 fn is_within<TDocSetExclude: DocSet>(docset: &mut TDocSetExclude, doc: DocId) -> bool {
     docset.doc() <= doc && docset.seek(doc) == doc
 }

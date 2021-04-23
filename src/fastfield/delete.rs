@@ -83,7 +83,7 @@ impl DeleteBitSet {
     }
 
     /// Returns true iff the document has been marked as deleted.
-    #[inline(always)]
+    #[inline]
     pub fn is_deleted(&self, doc: DocId) -> bool {
         let byte_offset = doc / 8u32;
         let b: u8 = self.data.as_slice()[byte_offset as usize];

@@ -1,9 +1,9 @@
-#[inline(always)]
+#[inline]
 pub fn id_to_fieldnorm(id: u8) -> u32 {
     FIELD_NORMS_TABLE[id as usize]
 }
 
-#[inline(always)]
+#[inline]
 pub fn fieldnorm_to_id(fieldnorm: u32) -> u8 {
     FIELD_NORMS_TABLE
         .binary_search(&fieldnorm)

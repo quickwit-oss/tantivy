@@ -6,12 +6,12 @@ use crate::query::BM25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
-#[inline(always)]
+#[inline]
 fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
     max_tf.min(u8::MAX as u32) as u8
 }
 
-#[inline(always)]
+#[inline]
 fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
     if max_tf_code == u8::MAX {
         u32::MAX
@@ -20,12 +20,12 @@ fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
     }
 }
 
-#[inline(always)]
+#[inline]
 fn read_u32(data: &[u8]) -> u32 {
     u32::from_le_bytes(data[..4].try_into().unwrap())
 }
 
-#[inline(always)]
+#[inline]
 fn write_u32(val: u32, buf: &mut Vec<u8>) {
     buf.extend_from_slice(&val.to_le_bytes());
 }
@@ -163,7 +163,7 @@ impl SkipReader {
         self.position_offset
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn byte_offset(&self) -> usize {
         self.byte_offset
     }

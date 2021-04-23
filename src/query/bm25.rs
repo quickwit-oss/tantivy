@@ -116,7 +116,7 @@ impl BM25Weight {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn score(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
@@ -125,7 +125,7 @@ impl BM25Weight {
         self.score(255u8, 2_013_265_944)
     }
 
-    #[inline(always)]
+    #[inline]
     pub(crate) fn tf_factor(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         let term_freq = term_freq as Score;
         let norm = self.cache[fieldnorm_id as usize];

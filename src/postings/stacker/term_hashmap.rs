@@ -118,7 +118,7 @@ impl TermHashMap {
         self.table.len() < self.occupied.len() * 3
     }
 
-    #[inline(always)]
+    #[inline]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
         let data = self.heap.slice_from(addr);
         let key_bytes_len = NativeEndian::read_u16(data) as usize;
@@ -126,7 +126,7 @@ impl TermHashMap {
         (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
     }
 
-    #[inline(always)]
+    #[inline]
     fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
         let (stored_key, value_addr) = self.get_key_value(addr);
         if stored_key == target_key {

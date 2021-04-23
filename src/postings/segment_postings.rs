@@ -204,7 +204,7 @@ impl DocSet for SegmentPostings {
     }
 
     /// Return the current document's `DocId`.
-    #[inline(always)]
+    #[inline]
     fn doc(&self) -> DocId {
         self.block_cursor.doc(self.cur)
     }

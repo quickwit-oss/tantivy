@@ -212,14 +212,14 @@ impl BlockSegmentPostings {
     /// `TERMINATED`. The array is also guaranteed to be aligned on 16 bytes = 128 bits.
     ///
     /// This method is useful to run SSE2 linear search.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
         debug_assert!(self.block_is_loaded());
         self.doc_decoder.output_aligned()
     }
 
     /// Return the document at index `idx` of the block.
-    #[inline(always)]
+    #[inline]
     pub fn doc(&self, idx: usize) -> u32 {
         self.doc_decoder.output(idx)
     }
