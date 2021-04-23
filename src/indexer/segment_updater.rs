@@ -44,7 +44,11 @@ const NUM_MERGE_THREADS: usize = 4;
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-pub fn save_new_metas(schema: Schema, index_settings: IndexSettings, directory: &dyn Directory) -> crate::Result<()> {
+pub fn save_new_metas(
+    schema: Schema,
+    index_settings: IndexSettings,
+    directory: &dyn Directory,
+) -> crate::Result<()> {
     save_metas(
         &IndexMeta {
             index_settings,
@@ -184,7 +188,11 @@ pub fn merge_segments<Dir: Directory>(
         segments.extend(index.searchable_segments()?);
     }
 
-    let mut merged_index = Index::create(output_directory, target_schema.clone(), indices[0].settings().clone())?;
+    let mut merged_index = Index::create(
+        output_directory,
+        target_schema.clone(),
+        indices[0].settings().clone(),
+    )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
