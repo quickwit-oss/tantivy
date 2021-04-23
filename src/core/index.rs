@@ -1,4 +1,5 @@
 use super::{segment::Segment, IndexSettings};
+use crate::core::Executor;
 use crate::core::IndexMeta;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
@@ -21,7 +22,6 @@ use crate::schema::FieldType;
 use crate::schema::Schema;
 use crate::tokenizer::{TextAnalyzer, TokenizerManager};
 use crate::IndexWriter;
-use crate::{core::Executor, schema::SchemaBuilder};
 use std::collections::HashSet;
 use std::fmt;
 
@@ -76,36 +76,38 @@ fn load_metas(
 ///
 /// ```
 pub struct IndexBuilder {
-    index_meta: IndexMeta,
+    schema: Option<Schema>,
+    index_settings: Option<IndexSettings>,
 }
 impl IndexBuilder {
     pub fn new() -> Self {
         Self {
-            index_meta: IndexMeta::with_schema(SchemaBuilder::new().build()),
+            schema: None,
+            index_settings: None,
         }
     }
     /// Set the settings
     pub fn settings(mut self, settings: IndexSettings) -> Self {
-        self.index_meta.index_settings = settings;
+        self.index_settings = Some(settings);
         self
     }
     /// Set the schema
     pub fn schema(mut self, schema: Schema) -> Self {
-        self.index_meta.schema = schema;
+        self.schema = Some(schema);
         self
     }
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
-    pub fn create_in_ram(self) -> Index {
+    pub fn create_in_ram(self) -> Result<Index, TantivyError> {
         let ram_directory = RAMDirectory::create();
-        Index::create(
+        Ok(Index::create(
             ram_directory,
-            self.index_meta.schema,
-            self.index_meta.index_settings,
+            self.get_expect_schema()?,
+            self.get_settings_or_default(),
         )
-        .expect("Creating a RAMDirectory should never fail")
+        .expect("Creating a RAMDirectory should never fail"))
     }
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
@@ -119,8 +121,8 @@ impl IndexBuilder {
         }
         Index::create(
             mmap_directory,
-            self.index_meta.schema,
-            self.index_meta.index_settings,
+            self.get_expect_schema()?,
+            self.get_settings_or_default(),
         )
     }
     /// Creates a new index in a temp directory.
@@ -136,9 +138,40 @@ impl IndexBuilder {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         Index::create(
             mmap_directory,
-            self.index_meta.schema,
-            self.index_meta.index_settings,
+            self.get_expect_schema()?,
+            self.get_settings_or_default(),
         )
+    }
+    fn get_settings_or_default(&self) -> IndexSettings {
+        self.index_settings
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| IndexSettings::default())
+    }
+    fn get_expect_schema(&self) -> crate::Result<Schema> {
+        Ok(self
+            .schema
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| TantivyError::IndexBuilderMissingArgument("schema"))?)
+    }
+    /// Opens or creates a new index in the provided directory
+    pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
+        if !Index::exists(&dir)? {
+            return Index::create(
+                dir,
+                self.get_expect_schema()?,
+                self.get_settings_or_default(),
+            );
+        }
+        let index = Index::open(dir)?;
+        if index.schema() == self.get_expect_schema()? {
+            Ok(index)
+        } else {
+            Err(TantivyError::SchemaError(
+                "An index exists but the schema does not match.".to_string(),
+            ))
+        }
     }
 }
 
@@ -194,7 +227,7 @@ impl Index {
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
-        IndexBuilder::new().schema(schema).create_in_ram()
+        IndexBuilder::new().schema(schema).create_in_ram().unwrap()
     }
 
     /// Creates a new index in a given filepath.
@@ -213,17 +246,7 @@ impl Index {
 
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
-        if !Index::exists(&dir)? {
-            return Index::create(dir, schema, IndexSettings::default());
-        }
-        let index = Index::open(dir)?;
-        if index.schema() == schema {
-            Ok(index)
-        } else {
-            Err(TantivyError::SchemaError(
-                "An index exists but the schema does not match.".to_string(),
-            ))
-        }
+        IndexBuilder::new().schema(schema).open_or_create(dir)
     }
 
     /// Creates a new index in a temp directory.
@@ -248,26 +271,15 @@ impl Index {
         settings: IndexSettings,
     ) -> crate::Result<Index> {
         let directory = ManagedDirectory::wrap(dir)?;
-        Index::from_directory(directory, schema, settings)
-    }
-
-    /// Create a new index from a directory.
-    ///
-    /// This will overwrite existing meta.json
-    fn from_directory(
-        directory: ManagedDirectory,
-        schema: Schema,
-        settings: IndexSettings,
-    ) -> crate::Result<Index> {
         save_new_metas(schema.clone(), settings.clone(), &directory)?;
         let mut metas = IndexMeta::with_schema(schema);
         metas.index_settings = settings;
-        let index = Index::create_from_metas(directory, &metas, SegmentMetaInventory::default());
+        let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         Ok(index)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
-    fn create_from_metas(
+    fn open_from_metas(
         directory: ManagedDirectory,
         metas: &IndexMeta,
         inventory: SegmentMetaInventory,
@@ -355,7 +367,7 @@ impl Index {
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
-        let index = Index::create_from_metas(directory, &metas, inventory);
+        let index = Index::open_from_metas(directory, &metas, inventory);
         Ok(index)
     }
 
