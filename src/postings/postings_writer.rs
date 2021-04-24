@@ -1,9 +1,8 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use crate::fieldnorm::FieldNormReaders;
-use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
-};
+use crate::postings::recorder::{BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder,
+                                TermFrequencyRecorder, TermScoreRecorder};
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
 use crate::schema::IndexRecordOption;
@@ -31,6 +30,9 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
                     SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
+                }
+                IndexRecordOption::WithScore => {
+                    SpecializedPostingsWriter::<TermScoreRecorder>::new_boxed()
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
@@ -120,7 +122,7 @@ impl MultiFieldPostingsWriter {
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
         let postings_writer =
             self.per_field_postings_writers[term.field().field_id() as usize].deref_mut();
-        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &mut self.heap)
+        postings_writer.subscribe(&mut self.term_index, doc, 0u32, 0u32,term, &mut self.heap)
     }
 
     /// Serialize the inverted index.
@@ -199,6 +201,7 @@ pub trait PostingsWriter {
         term_index: &mut TermHashMap,
         doc: DocId,
         pos: u32,
+        score: u32,
         term: &Term,
         heap: &mut MemoryArena,
     ) -> UnorderedTermId;
@@ -232,6 +235,7 @@ pub trait PostingsWriter {
                     term_index,
                     doc_id,
                     token.position as u32,
+                    token.score as u32,
                     &term_buffer,
                     heap,
                 );
@@ -278,6 +282,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         term_index: &mut TermHashMap,
         doc: DocId,
         position: u32,
+        score: u32,
         term: &Term,
         heap: &mut MemoryArena,
     ) -> UnorderedTermId {
@@ -290,12 +295,12 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
                     recorder.close_doc(heap);
                     recorder.new_doc(doc, heap);
                 }
-                recorder.record_position(position, heap);
+                recorder.record_position(position, score, heap);
                 recorder
             } else {
                 let mut recorder = Rec::new();
                 recorder.new_doc(doc, heap);
-                recorder.record_position(position, heap);
+                recorder.record_position(position, score, heap);
                 recorder
             }
         }) as UnorderedTermId

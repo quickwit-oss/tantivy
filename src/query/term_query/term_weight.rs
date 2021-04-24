@@ -91,11 +91,21 @@ impl TermWeight {
         similarity_weight: BM25Weight,
         scoring_enabled: bool,
     ) -> TermWeight {
-        TermWeight {
-            term,
-            index_record_option,
-            similarity_weight,
-            scoring_enabled,
+        if index_record_option == IndexRecordOption::WithScore {
+            let similarity_weight = similarity_weight.set_bm25(false);
+            TermWeight {
+                term,
+                index_record_option,
+                similarity_weight,
+                scoring_enabled
+            }
+        } else {
+            TermWeight {
+                term,
+                index_record_option,
+                similarity_weight,
+                scoring_enabled
+            }
         }
     }
 

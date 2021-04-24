@@ -184,7 +184,8 @@ impl SkipReader {
                     block_wand_term_freq: 0,
                 };
             }
-            IndexRecordOption::WithFreqs => {
+            IndexRecordOption::WithFreqs | IndexRecordOption::WithScore => {
+                let bytes = self.owned_read.as_slice();
                 let tf_num_bits = bytes[5];
                 let block_wand_fieldnorm_id = bytes[6];
                 let block_wand_term_freq = decode_block_wand_max_tf(bytes[7]);

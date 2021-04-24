@@ -21,6 +21,8 @@ pub struct Token {
     pub text: String,
     /// Is the length expressed in term of number of original tokens.
     pub position_length: usize,
+    /// Is the weights of a token
+    pub score: usize,
 }
 
 impl Default for Token {
@@ -31,6 +33,7 @@ impl Default for Token {
             position: usize::max_value(),
             text: String::with_capacity(200),
             position_length: 1,
+            score: 1
         }
     }
 }
@@ -322,6 +325,7 @@ mod test {
             offset_to: 3,
             text: "abc".to_string(),
             position_length: 1,
+            score: 24
         };
         let t2 = t1.clone();
 
