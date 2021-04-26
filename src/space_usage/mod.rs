@@ -122,14 +122,14 @@ impl SegmentSpaceUsage {
         use self::ComponentSpaceUsage::*;
         use crate::SegmentComponent::*;
         match component {
-            POSTINGS => PerField(self.postings().clone()),
-            POSITIONS => PerField(self.positions().clone()),
-            POSITIONSSKIP => PerField(self.positions_skip_idx().clone()),
-            FASTFIELDS => PerField(self.fast_fields().clone()),
-            FIELDNORMS => PerField(self.fieldnorms().clone()),
-            TERMS => PerField(self.termdict().clone()),
-            STORE => Store(self.store().clone()),
-            DELETE => Basic(self.deletes()),
+            Postings => PerField(self.postings().clone()),
+            Positions => PerField(self.positions().clone()),
+            PositionsSkip => PerField(self.positions_skip_idx().clone()),
+            FastFields => PerField(self.fast_fields().clone()),
+            FieldNorms => PerField(self.fieldnorms().clone()),
+            Terms => PerField(self.termdict().clone()),
+            SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
+            Delete => Basic(self.deletes()),
         }
     }
 

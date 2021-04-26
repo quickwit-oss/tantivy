@@ -3,7 +3,7 @@ use crate::core::SegmentReader;
 use crate::docset::DocSet;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
-use crate::query::bm25::BM25Weight;
+use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::weight::for_each_scorer;
 use crate::query::Weight;
@@ -15,7 +15,7 @@ use crate::{DocId, Score};
 pub struct TermWeight {
     term: Term,
     index_record_option: IndexRecordOption,
-    similarity_weight: BM25Weight,
+    similarity_weight: Bm25Weight,
     scoring_enabled: bool,
 }
 
@@ -88,7 +88,7 @@ impl TermWeight {
     pub fn new(
         term: Term,
         index_record_option: IndexRecordOption,
-        similarity_weight: BM25Weight,
+        similarity_weight: Bm25Weight,
         scoring_enabled: bool,
     ) -> TermWeight {
         TermWeight {

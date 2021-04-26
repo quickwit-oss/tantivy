@@ -192,14 +192,14 @@ impl Recorder for TermFrequencyRecorder {
 
 /// Recorder encoding term frequencies as well as positions.
 #[derive(Clone, Copy)]
-pub struct TFAndPositionRecorder {
+pub struct TfAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     term_doc_freq: u32,
 }
-impl Recorder for TFAndPositionRecorder {
+impl Recorder for TfAndPositionRecorder {
     fn new() -> Self {
-        TFAndPositionRecorder {
+        TfAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
             term_doc_freq: 0u32,

@@ -8,7 +8,7 @@ use crate::postings::compression::{
     AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
 };
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
@@ -127,7 +127,7 @@ impl BlockSegmentPostings {
     pub fn block_max_score(
         &mut self,
         fieldnorm_reader: &FieldNormReader,
-        bm25_weight: &BM25Weight,
+        bm25_weight: &Bm25Weight,
     ) -> Score {
         if let Some(score) = self.block_max_score_cache {
             return score;

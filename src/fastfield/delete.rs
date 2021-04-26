@@ -47,14 +47,14 @@ pub struct DeleteBitSet {
 impl DeleteBitSet {
     #[cfg(test)]
     pub(crate) fn for_test(docs: &[DocId], max_doc: u32) -> DeleteBitSet {
-        use crate::directory::{Directory, RAMDirectory, TerminatingWrite};
+        use crate::directory::{Directory, RamDirectory, TerminatingWrite};
         use std::path::Path;
         assert!(docs.iter().all(|&doc| doc < max_doc));
         let mut bitset = BitSet::with_max_value(max_doc);
         for &doc in docs {
             bitset.insert(doc);
         }
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("dummydeletebitset");
         let mut wrt = directory.open_write(path).unwrap();
         write_delete_bitset(&bitset, max_doc, &mut wrt).unwrap();

@@ -4,7 +4,7 @@ use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
-use crate::directory::{Directory, RAMDirectory, WritePtr};
+use crate::directory::{Directory, RamDirectory, WritePtr};
 use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
@@ -118,18 +118,18 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
         let path = Path::new("__dummy__");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory
                 .open_write(path)
-                .expect("With a RAMDirectory, this should never fail.");
+                .expect("With a RamDirectory, this should never fail.");
             let mut serializer = FastFieldSerializer::from_write(write)
-                .expect("With a RAMDirectory, this should never fail.");
+                .expect("With a RamDirectory, this should never fail.");
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             {
                 let fast_field_writer = fast_field_writers
                     .get_field_writer(field)
-                    .expect("With a RAMDirectory, this should never fail.");
+                    .expect("With a RamDirectory, this should never fail.");
                 for val in vals {
                     fast_field_writer.add_val(val.to_u64());
                 }

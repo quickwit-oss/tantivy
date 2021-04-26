@@ -1,6 +1,6 @@
 /// Positions are stored in three parts and over two files.
 //
-/// The `SegmentComponent::POSITIONS` file contains all of the bitpacked positions delta,
+/// The `SegmentComponent::Positions` file contains all of the bitpacked positions delta,
 /// for all terms of a given field, one term after the other.
 ///
 /// If the last block is incomplete, it is simply padded with zeros.
@@ -11,7 +11,7 @@
 /// If the last block is incomplete, it is simply padded with zeros.
 ///
 ///
-/// The `SegmentComponent::POSITIONSSKIP` file contains the number of bits used in each block in `u8`
+/// The `SegmentComponent::PositionsSKIP` file contains the number of bits used in each block in `u8`
 /// stream.
 ///
 /// This makes it possible to rapidly skip over `n positions`.

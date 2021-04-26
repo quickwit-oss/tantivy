@@ -108,14 +108,14 @@ impl SegmentMeta {
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         let mut path = self.id().uuid_string();
         path.push_str(&*match component {
-            SegmentComponent::POSTINGS => ".idx".to_string(),
-            SegmentComponent::POSITIONS => ".pos".to_string(),
-            SegmentComponent::POSITIONSSKIP => ".posidx".to_string(),
-            SegmentComponent::TERMS => ".term".to_string(),
-            SegmentComponent::STORE => ".store".to_string(),
-            SegmentComponent::FASTFIELDS => ".fast".to_string(),
-            SegmentComponent::FIELDNORMS => ".fieldnorm".to_string(),
-            SegmentComponent::DELETE => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
+            SegmentComponent::Postings => ".idx".to_string(),
+            SegmentComponent::Positions => ".pos".to_string(),
+            SegmentComponent::PositionsSkip => ".posidx".to_string(),
+            SegmentComponent::Terms => ".term".to_string(),
+            SegmentComponent::Store => ".store".to_string(),
+            SegmentComponent::FastFields => ".fast".to_string(),
+            SegmentComponent::FieldNorms => ".fieldnorm".to_string(),
+            SegmentComponent::Delete => format!(".{}.del", self.delete_opstamp().unwrap_or(0)),
         });
         PathBuf::from(path)
     }

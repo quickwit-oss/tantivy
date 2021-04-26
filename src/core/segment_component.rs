@@ -7,39 +7,39 @@ use std::slice;
 #[derive(Copy, Clone)]
 pub enum SegmentComponent {
     /// Postings (or inverted list). Sorted lists of document ids, associated to terms
-    POSTINGS,
+    Postings,
     /// Positions of terms in each document.
-    POSITIONS,
+    Positions,
     /// Index to seek within the position file
-    POSITIONSSKIP,
+    PositionsSkip,
     /// Column-oriented random-access storage of fields.
-    FASTFIELDS,
+    FastFields,
     /// Stores the sum  of the length (in terms) of each field for each document.
     /// Field norms are stored as a special u64 fast field.
-    FIELDNORMS,
+    FieldNorms,
     /// Dictionary associating `Term`s to `TermInfo`s which is
     /// simply an address into the `postings` file and the `positions` file.
-    TERMS,
+    Terms,
     /// Row-oriented, compressed storage of the documents.
     /// Accessing a document from the store is relatively slow, as it
     /// requires to decompress the entire block it belongs to.
-    STORE,
+    Store,
     /// Bitset describing which document of the segment is deleted.
-    DELETE,
+    Delete,
 }
 
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
         static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
-            SegmentComponent::POSTINGS,
-            SegmentComponent::POSITIONS,
-            SegmentComponent::POSITIONSSKIP,
-            SegmentComponent::FASTFIELDS,
-            SegmentComponent::FIELDNORMS,
-            SegmentComponent::TERMS,
-            SegmentComponent::STORE,
-            SegmentComponent::DELETE,
+            SegmentComponent::Postings,
+            SegmentComponent::Positions,
+            SegmentComponent::PositionsSkip,
+            SegmentComponent::FastFields,
+            SegmentComponent::FieldNorms,
+            SegmentComponent::Terms,
+            SegmentComponent::Store,
+            SegmentComponent::Delete,
         ];
         SEGMENT_COMPONENTS.iter()
     }

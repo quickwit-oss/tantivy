@@ -7,7 +7,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::schema::{IndexRecordOption, Schema};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
@@ -57,12 +57,12 @@ pub struct InvertedIndexSerializer {
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
+        use crate::SegmentComponent::{Positions, PositionsSkip, Postings, Terms};
         let inv_index_serializer = InvertedIndexSerializer {
-            terms_write: CompositeWrite::wrap(segment.open_write(TERMS)?),
-            postings_write: CompositeWrite::wrap(segment.open_write(POSTINGS)?),
-            positions_write: CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            positionsidx_write: CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
+            terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
+            postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
+            positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
+            positionsidx_write: CompositeWrite::wrap(segment.open_write(PositionsSkip)?),
             schema: segment.schema(),
         };
         Ok(inv_index_serializer)
@@ -307,7 +307,7 @@ pub struct PostingsSerializer<W: Write> {
     mode: IndexRecordOption,
     fieldnorm_reader: Option<FieldNormReader>,
 
-    bm25_weight: Option<BM25Weight>,
+    bm25_weight: Option<Bm25Weight>,
 
     num_docs: u32, // Number of docs in the segment
     avg_fieldnorm: Score, // Average number of term in the field for that segment.
@@ -347,7 +347,7 @@ impl<W: Write> PostingsSerializer<W> {
 
     pub fn new_term(&mut self, term_doc_freq: u32) {
         if self.mode.has_freq() && self.num_docs > 0 {
-            let bm25_weight = BM25Weight::for_one_term(
+            let bm25_weight = Bm25Weight::for_one_term(
                 term_doc_freq as u64,
                 self.num_docs as u64,
                 self.avg_fieldnorm,

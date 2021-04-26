@@ -2,7 +2,7 @@ use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
+    BufferLender, NothingRecorder, Recorder, TfAndPositionRecorder, TermFrequencyRecorder,
 };
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
@@ -30,7 +30,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                     SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),

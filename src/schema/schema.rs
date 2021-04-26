@@ -309,7 +309,7 @@ impl Schema {
                 } else {
                     format!("{:?}...", &doc_json[0..20])
                 };
-                DocParsingError::NotJSON(doc_json_sample)
+                DocParsingError::NotJson(doc_json_sample)
             })?;
 
         let mut doc = Document::default();
@@ -394,7 +394,7 @@ impl<'de> Deserialize<'de> for Schema {
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
     #[error("The provided string is not valid JSON")]
-    NotJSON(String),
+    NotJson(String),
     /// One of the value node could not be parsed.
     #[error("The field '{0:?}' could not be parsed: {1:?}")]
     ValueError(String, ValueParsingError),
@@ -408,7 +408,7 @@ mod tests {
 
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::int_options::Cardinality::SingleValue;
-    use crate::schema::schema::DocParsingError::NotJSON;
+    use crate::schema::schema::DocParsingError::NotJson;
     use crate::schema::*;
     use matches::{assert_matches, matches};
     use serde_json;
@@ -737,7 +737,7 @@ mod tests {
                 "count": 50,
             }"#,
             );
-            assert_matches!(json_err, Err(NotJSON(_)));
+            assert_matches!(json_err, Err(NotJson(_)));
         }
     }
 

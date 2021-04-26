@@ -124,7 +124,7 @@ mod tests {
     use super::*;
     use crate::schema::Document;
     use crate::schema::Field;
-    use crate::{directory::RAMDirectory, store::tests::write_lorem_ipsum_store, Directory};
+    use crate::{directory::RamDirectory, store::tests::write_lorem_ipsum_store, Directory};
     use std::path::Path;
 
     fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_store_lru_cache() -> crate::Result<()> {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
         let schema = write_lorem_ipsum_store(writer, 500);

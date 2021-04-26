@@ -100,7 +100,7 @@ fn galloping(block_docs: &[u32], target: u32) -> usize {
 #[derive(Clone, Copy, PartialEq)]
 pub enum BlockSearcher {
     #[cfg(target_arch = "x86_64")]
-    SSE2,
+    Sse2,
     Scalar,
 }
 
@@ -139,7 +139,7 @@ impl BlockSearcher {
     pub(crate) fn search_in_block(self, block_docs: &AlignedBuffer, target: u32) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
-            if self == BlockSearcher::SSE2 {
+            if self == BlockSearcher::Sse2 {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
@@ -152,7 +152,7 @@ impl Default for BlockSearcher {
         #[cfg(target_arch = "x86_64")]
         {
             if is_x86_feature_detected!("sse2") {
-                return BlockSearcher::SSE2;
+                return BlockSearcher::Sse2;
             }
         }
         BlockSearcher::Scalar
@@ -236,6 +236,6 @@ mod tests {
     #[cfg(target_arch = "x86_64")]
     #[test]
     fn test_search_in_block_sse2() {
-        test_search_in_block_util(BlockSearcher::SSE2);
+        test_search_in_block_util(BlockSearcher::Sse2);
     }
 }

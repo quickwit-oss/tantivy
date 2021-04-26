@@ -1,6 +1,6 @@
 use super::PhraseWeight;
 use crate::core::searcher::Searcher;
-use crate::query::bm25::BM25Weight;
+use crate::query::bm25::Bm25Weight;
 use crate::query::Query;
 use crate::query::Weight;
 use crate::schema::IndexRecordOption;
@@ -95,7 +95,7 @@ impl PhraseQuery {
             )));
         }
         let terms = self.phrase_terms();
-        let bm25_weight = BM25Weight::for_terms(searcher, &terms)?;
+        let bm25_weight = Bm25Weight::for_terms(searcher, &terms)?;
         Ok(PhraseWeight::new(
             self.phrase_terms.clone(),
             bm25_weight,

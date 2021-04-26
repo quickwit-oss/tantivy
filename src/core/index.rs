@@ -10,7 +10,7 @@ use crate::directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use crate::directory::MmapDirectory;
 use crate::directory::INDEX_WRITER_LOCK;
-use crate::directory::{Directory, RAMDirectory};
+use crate::directory::{Directory, RamDirectory};
 use crate::error::DataCorruption;
 use crate::error::TantivyError;
 use crate::indexer::index_writer::HEAP_SIZE_MIN;
@@ -97,13 +97,13 @@ impl Index {
         self.set_multithread_executor(default_num_threads)
     }
 
-    /// Creates a new index using the `RAMDirectory`.
+    /// Creates a new index using the `RamDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
-        let ram_directory = RAMDirectory::create();
-        Index::create(ram_directory, schema).expect("Creating a RAMDirectory should never fail")
+        let ram_directory = RamDirectory::create();
+        Index::create(ram_directory, schema).expect("Creating a RamDirectory should never fail")
     }
 
     /// Creates a new index in a given filepath.
@@ -144,7 +144,7 @@ impl Index {
     /// is destroyed.
     ///
     /// The temp directory is only used for testing the `MmapDirectory`.
-    /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
+    /// For other unit tests, prefer the `RamDirectory`, see: `create_in_ram`.
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
@@ -282,7 +282,7 @@ impl Index {
     /// Each thread will receive a budget of  `overall_heap_size_in_bytes / num_threads`.
     ///
     /// # Errors
-    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IOError`.
+    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
     ///
     /// # Panics
     /// If the heap size per thread is too small, panics.
@@ -411,7 +411,7 @@ impl fmt::Debug for Index {
 
 #[cfg(test)]
 mod tests {
-    use crate::directory::{RAMDirectory, WatchCallback};
+    use crate::directory::{RamDirectory, WatchCallback};
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
     use crate::IndexReader;
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_index_exists() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(!Index::exists(&directory).unwrap());
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory).unwrap());
@@ -442,7 +442,7 @@ mod tests {
 
     #[test]
     fn open_or_create_should_create() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(!Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory).unwrap());
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     fn open_or_create_should_open() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn create_should_wipeoff_existing() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::create(directory.clone(), Schema::builder().build()).is_ok());
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn open_or_create_exists_but_schema_does_not_match() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
@@ -599,7 +599,7 @@ mod tests {
     #[cfg(not(target_os = "windows"))]
     #[test]
     fn garbage_collect_works_as_intended() {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
         let index = Index::create(directory.clone(), schema).unwrap();

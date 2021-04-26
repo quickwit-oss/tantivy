@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::ops::Range;
 use tantivy_fst::Automaton;
 
-pub(crate) struct DFAWrapper(pub DFA);
+pub(crate) struct DfaWrapper(pub DFA);
 
-impl Automaton for DFAWrapper {
+impl Automaton for DfaWrapper {
     type State = u32;
 
     fn start(&self) -> Self::State {
@@ -127,7 +127,7 @@ impl FuzzyTermQuery {
         }
     }
 
-    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DFAWrapper>> {
+    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
         match LEV_BUILDER.get(&(self.distance, false)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
@@ -139,7 +139,7 @@ impl FuzzyTermQuery {
                 };
                 Ok(AutomatonWeight::new(
                     self.term.field(),
-                    DFAWrapper(automaton),
+                    DfaWrapper(automaton),
                 ))
             }
             None => Err(InvalidArgument(format!(

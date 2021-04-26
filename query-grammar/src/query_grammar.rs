@@ -1,4 +1,4 @@
-use super::user_input_ast::{UserInputAST, UserInputBound, UserInputLeaf, UserInputLiteral};
+use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
 use combine::parser::char::{char, digit, letter, space, spaces, string};
 use combine::parser::Parser;
@@ -209,21 +209,21 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     })
 }
 
-fn negate(expr: UserInputAST) -> UserInputAST {
+fn negate(expr: UserInputAst) -> UserInputAst {
     expr.unary(Occur::MustNot)
 }
 
-fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     parser(|input| {
         char('(')
             .with(ast())
             .skip(char(')'))
-            .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All)))
+            .or(char('*').map(|_| UserInputAst::from(UserInputLeaf::All)))
             .or(attempt(
                 string("NOT").skip(spaces1()).with(leaf()).map(negate),
             ))
-            .or(attempt(range().map(UserInputAST::from)))
-            .or(literal().map(UserInputAST::from))
+            .or(attempt(range().map(UserInputAst::from)))
+            .or(literal().map(UserInputAst::from))
             .parse_stream(input)
             .into_result()
     })
@@ -235,7 +235,7 @@ fn occur_symbol<'a>() -> impl Parser<&'a str, Output = Occur> {
         .or(char('+').map(|_| Occur::Must))
 }
 
-fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAST)> {
+fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAst)> {
     (optional(occur_symbol()), boosted_leaf())
 }
 
@@ -256,10 +256,10 @@ fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
     (char('^'), positive_float_number()).map(|(_, boost)| boost)
 }
 
-fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
         Some(boost) if (boost - 1.0).abs() > std::f64::EPSILON => {
-            UserInputAST::Boost(Box::new(leaf), boost)
+            UserInputAst::Boost(Box::new(leaf), boost)
         }
         _ => leaf,
     })
@@ -278,10 +278,10 @@ fn binary_operand<'a>() -> impl Parser<&'a str, Output = BinaryOperand> {
 }
 
 fn aggregate_binary_expressions(
-    left: UserInputAST,
-    others: Vec<(BinaryOperand, UserInputAST)>,
-) -> UserInputAST {
-    let mut dnf: Vec<Vec<UserInputAST>> = vec![vec![left]];
+    left: UserInputAst,
+    others: Vec<(BinaryOperand, UserInputAst)>,
+) -> UserInputAst {
+    let mut dnf: Vec<Vec<UserInputAst>> = vec![vec![left]];
     for (operator, operand_ast) in others {
         match operator {
             BinaryOperand::And => {
@@ -295,33 +295,33 @@ fn aggregate_binary_expressions(
         }
     }
     if dnf.len() == 1 {
-        UserInputAST::and(dnf.into_iter().next().unwrap()) //< safe
+        UserInputAst::and(dnf.into_iter().next().unwrap()) //< safe
     } else {
-        let conjunctions = dnf.into_iter().map(UserInputAST::and).collect();
-        UserInputAST::or(conjunctions)
+        let conjunctions = dnf.into_iter().map(UserInputAst::and).collect();
+        UserInputAst::or(conjunctions)
     }
 }
 
-fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAST)> {
+fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAst)> {
     (
         binary_operand().skip(spaces()),
         boosted_leaf().skip(spaces()),
     )
 }
 
-pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     let boolean_expr = (boosted_leaf().skip(spaces()), many1(operand_leaf()))
         .map(|(left, right)| aggregate_binary_expressions(left, right));
     let whitespace_separated_leaves = many1(occur_leaf().skip(spaces().silent())).map(
-        |subqueries: Vec<(Option<Occur>, UserInputAST)>| {
+        |subqueries: Vec<(Option<Occur>, UserInputAst)>| {
             if subqueries.len() == 1 {
                 let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
                 match occur_opt.unwrap_or(Occur::Should) {
                     Occur::Must | Occur::Should => ast,
-                    Occur::MustNot => UserInputAST::Clause(vec![(Some(Occur::MustNot), ast)]),
+                    Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
                 }
             } else {
-                UserInputAST::Clause(subqueries.into_iter().collect())
+                UserInputAst::Clause(subqueries.into_iter().collect())
             }
         },
     );
@@ -329,10 +329,10 @@ pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
     spaces().with(expr).skip(spaces())
 }
 
-pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     spaces()
         .with(optional(ast()).skip(eof()))
-        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
+        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAst::empty_query))
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use crate::directory::OwnedBytes;
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
@@ -144,7 +144,7 @@ impl SkipReader {
     //
     // The block max score is available for all full bitpacked block,
     // but no available for the last VInt encoded incomplete block.
-    pub fn block_max_score(&self, bm25_weight: &BM25Weight) -> Option<Score> {
+    pub fn block_max_score(&self, bm25_weight: &Bm25Weight) -> Option<Score> {
         match self.block_info {
             BlockInfo::BitPacked {
                 block_wand_fieldnorm_id,

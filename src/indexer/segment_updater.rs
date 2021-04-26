@@ -616,7 +616,7 @@ impl SegmentUpdater {
 #[cfg(test)]
 mod tests {
     use super::merge_segments;
-    use crate::directory::RAMDirectory;
+    use crate::directory::RamDirectory;
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::schema::*;
     use crate::Index;
@@ -765,7 +765,7 @@ mod tests {
         }
 
         assert_eq!(indices.len(), 3);
-        let output_directory = RAMDirectory::default();
+        let output_directory = RamDirectory::default();
         let index = merge_segments(&indices, output_directory)?;
         assert_eq!(index.schema(), schema);
 
@@ -780,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_merge_empty_indices_array() {
-        let merge_result = merge_segments(&[], RAMDirectory::default());
+        let merge_result = merge_segments(&[], RamDirectory::default());
         assert!(merge_result.is_err());
     }
 
@@ -807,7 +807,7 @@ mod tests {
         };
 
         // mismatched schema index list
-        let result = merge_segments(&[first_index, second_index], RAMDirectory::default());
+        let result = merge_segments(&[first_index, second_index], RamDirectory::default());
         assert!(result.is_err());
 
         Ok(())

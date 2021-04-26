@@ -19,18 +19,18 @@ pub enum LogicalLiteral {
     All,
 }
 
-pub enum LogicalAST {
-    Clause(Vec<(Occur, LogicalAST)>),
+pub enum LogicalAst {
+    Clause(Vec<(Occur, LogicalAst)>),
     Leaf(Box<LogicalLiteral>),
-    Boost(Box<LogicalAST>, Score),
+    Boost(Box<LogicalAst>, Score),
 }
 
-impl LogicalAST {
-    pub fn boost(self, boost: Score) -> LogicalAST {
+impl LogicalAst {
+    pub fn boost(self, boost: Score) -> LogicalAst {
         if (boost - 1.0).abs() < Score::EPSILON {
             self
         } else {
-            LogicalAST::Boost(Box::new(self), boost)
+            LogicalAst::Boost(Box::new(self), boost)
         }
     }
 }
@@ -43,10 +43,10 @@ fn occur_letter(occur: Occur) -> &'static str {
     }
 }
 
-impl fmt::Debug for LogicalAST {
+impl fmt::Debug for LogicalAst {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match *self {
-            LogicalAST::Clause(ref clause) => {
+            LogicalAst::Clause(ref clause) => {
                 if clause.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
@@ -59,15 +59,15 @@ impl fmt::Debug for LogicalAST {
                 }
                 Ok(())
             }
-            LogicalAST::Boost(ref ast, boost) => write!(formatter, "{:?}^{}", ast, boost),
-            LogicalAST::Leaf(ref literal) => write!(formatter, "{:?}", literal),
+            LogicalAst::Boost(ref ast, boost) => write!(formatter, "{:?}^{}", ast, boost),
+            LogicalAst::Leaf(ref literal) => write!(formatter, "{:?}", literal),
         }
     }
 }
 
-impl From<LogicalLiteral> for LogicalAST {
-    fn from(literal: LogicalLiteral) -> LogicalAST {
-        LogicalAST::Leaf(Box::new(literal))
+impl From<LogicalLiteral> for LogicalAst {
+    fn from(literal: LogicalLiteral) -> LogicalAst {
+        LogicalAst::Leaf(Box::new(literal))
     }
 }
 
