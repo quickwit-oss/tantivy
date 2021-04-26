@@ -141,7 +141,7 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
-pub(crate) mod positions;
+pub mod positions;
 pub mod postings;
 pub mod query;
 pub mod schema;

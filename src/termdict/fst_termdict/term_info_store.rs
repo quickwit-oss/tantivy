@@ -15,7 +15,7 @@ struct TermInfoBlockMeta {
     ref_term_info: TermInfo,
     doc_freq_nbits: u8,
     postings_offset_nbits: u8,
-    positions_idx_nbits: u8,
+    positions_offset_nbits: u8,
 }
 
 impl BinarySerializable for TermInfoBlockMeta {
@@ -25,7 +25,7 @@ impl BinarySerializable for TermInfoBlockMeta {
         write.write_all(&[
             self.doc_freq_nbits,
             self.postings_offset_nbits,
-            self.positions_idx_nbits,
+            self.positions_offset_nbits,
         ])?;
         Ok(())
     }
@@ -40,7 +40,7 @@ impl BinarySerializable for TermInfoBlockMeta {
             ref_term_info,
             doc_freq_nbits: buffer[0],
             postings_offset_nbits: buffer[1],
-            positions_idx_nbits: buffer[2],
+            positions_offset_nbits: buffer[2],
         })
     }
 }
@@ -52,7 +52,7 @@ impl FixedSize for TermInfoBlockMeta {
 
 impl TermInfoBlockMeta {
     fn num_bits(&self) -> u8 {
-        self.doc_freq_nbits + self.postings_offset_nbits + self.positions_idx_nbits
+        self.doc_freq_nbits + self.postings_offset_nbits + self.positions_offset_nbits
     }
 
     // Here inner_offset is the offset within the block, WITHOUT the first term_info.
@@ -63,23 +63,30 @@ impl TermInfoBlockMeta {
         let num_bits = self.num_bits() as usize;
 
         let posting_start_addr = num_bits * inner_offset;
-        // the stop offset is the start offset of the next term info.
-        let posting_stop_addr = posting_start_addr + num_bits;
-        let doc_freq_addr = posting_start_addr + self.postings_offset_nbits as usize;
-        let positions_idx_addr = doc_freq_addr + self.doc_freq_nbits as usize;
+        // the posting_start is the posting_start of the next term info.
+        let posting_end_addr = posting_start_addr + num_bits;
+        let positions_start_addr = posting_start_addr + self.postings_offset_nbits as usize;
+        // the position_end is the positions_start of the next term info.
+        let positions_end_addr = positions_start_addr + num_bits as usize;
+
+        let doc_freq_addr = positions_start_addr + self.positions_offset_nbits as usize;
 
         let postings_start_offset = self.ref_term_info.postings_range.start
             + extract_bits(data, posting_start_addr, self.postings_offset_nbits) as usize;
         let postings_end_offset = self.ref_term_info.postings_range.start
-            + extract_bits(data, posting_stop_addr, self.postings_offset_nbits) as usize;
+            + extract_bits(data, posting_end_addr, self.postings_offset_nbits) as usize;
+
+        let positions_start_offset = self.ref_term_info.positions_range.start
+            + extract_bits(data, positions_start_addr, self.positions_offset_nbits) as usize;
+        let positions_end_offset = self.ref_term_info.positions_range.start
+            + extract_bits(data, positions_end_addr, self.positions_offset_nbits) as usize;
+
         let doc_freq = extract_bits(data, doc_freq_addr, self.doc_freq_nbits) as u32;
-        let positions_idx = self.ref_term_info.positions_idx
-            + extract_bits(data, positions_idx_addr, self.positions_idx_nbits);
 
         TermInfo {
             doc_freq,
             postings_range: postings_start_offset..postings_end_offset,
-            positions_idx,
+            positions_range: positions_start_offset..positions_end_offset,
         }
     }
 }
@@ -167,14 +174,13 @@ fn bitpack_serialize<W: Write>(
         write,
     )?;
     bit_packer.write(
-        u64::from(term_info.doc_freq),
-        term_info_block_meta.doc_freq_nbits,
+        term_info.positions_range.start as u64,
+        term_info_block_meta.positions_offset_nbits,
         write,
     )?;
-
     bit_packer.write(
-        term_info.positions_idx,
-        term_info_block_meta.positions_idx_nbits,
+        u64::from(term_info.doc_freq),
+        term_info_block_meta.doc_freq_nbits,
         write,
     )?;
     Ok(())
@@ -201,29 +207,29 @@ impl TermInfoStoreWriter {
         };
         let postings_end_offset =
             last_term_info.postings_range.end - ref_term_info.postings_range.start;
+        let positions_end_offset =
+            last_term_info.positions_range.end - ref_term_info.positions_range.start;
         for term_info in &mut self.term_infos[1..] {
             term_info.postings_range.start -= ref_term_info.postings_range.start;
-            term_info.positions_idx -= ref_term_info.positions_idx;
+            term_info.positions_range.start -= ref_term_info.positions_range.start;
         }
 
         let mut max_doc_freq: u32 = 0u32;
-        let max_postings_offset: usize = postings_end_offset;
-        let max_positions_idx: u64 = last_term_info.positions_idx;
 
         for term_info in &self.term_infos[1..] {
             max_doc_freq = cmp::max(max_doc_freq, term_info.doc_freq);
         }
 
         let max_doc_freq_nbits: u8 = compute_num_bits(u64::from(max_doc_freq));
-        let max_postings_offset_nbits = compute_num_bits(max_postings_offset as u64);
-        let max_positions_idx_nbits = compute_num_bits(max_positions_idx);
+        let max_postings_offset_nbits = compute_num_bits(postings_end_offset as u64);
+        let max_positions_offset_nbits = compute_num_bits(positions_end_offset as u64);
 
         let term_info_block_meta = TermInfoBlockMeta {
             offset: self.buffer_term_infos.len() as u64,
             ref_term_info,
             doc_freq_nbits: max_doc_freq_nbits,
             postings_offset_nbits: max_postings_offset_nbits,
-            positions_idx_nbits: max_positions_idx_nbits,
+            positions_offset_nbits: max_positions_offset_nbits,
         };
 
         term_info_block_meta.serialize(&mut self.buffer_block_metas)?;
@@ -236,9 +242,15 @@ impl TermInfoStoreWriter {
             )?;
         }
 
+        // We still need to serialize the end offset for postings & positions.
         bit_packer.write(
             postings_end_offset as u64,
             term_info_block_meta.postings_offset_nbits,
+            &mut self.buffer_term_infos,
+        )?;
+        bit_packer.write(
+            positions_end_offset as u64,
+            term_info_block_meta.positions_offset_nbits,
             &mut self.buffer_term_infos,
         )?;
 
@@ -313,11 +325,11 @@ mod tests {
             ref_term_info: TermInfo {
                 doc_freq: 512,
                 postings_range: 51..57,
-                positions_idx: 3584,
+                positions_range: 110..134,
             },
             doc_freq_nbits: 10,
             postings_offset_nbits: 5,
-            positions_idx_nbits: 11,
+            positions_offset_nbits: 8,
         };
         let mut buffer: Vec<u8> = Vec::new();
         term_info_block_meta.serialize(&mut buffer).unwrap();
@@ -335,7 +347,7 @@ mod tests {
             let term_info = TermInfo {
                 doc_freq: i as u32,
                 postings_range: offset(i)..offset(i + 1),
-                positions_idx: (i * 7) as u64,
+                positions_range: offset(i) * 3..offset(i + 1) * 3,
             };
             store_writer.write_term_info(&term_info)?;
             term_infos.push(term_info);

@@ -2,7 +2,6 @@ use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use crate::common::{read_u32_vint, write_u32_vint};
 use crate::postings::FieldSerializer;
 use crate::DocId;
-use std::io;
 
 const POSITION_END: u32 = 0;
 
@@ -74,7 +73,7 @@ pub(crate) trait Recorder: Copy + 'static {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
-    ) -> io::Result<()>;
+    );
     /// Returns the number of document containing this term.
     ///
     /// Returns `None` if not available.
@@ -114,14 +113,13 @@ impl Recorder for NothingRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
-    ) -> io::Result<()> {
+    ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         // TODO avoid reading twice.
         for doc in VInt32Reader::new(&buffer[..]) {
-            serializer.write_doc(doc as u32, 0u32, &[][..])?;
+            serializer.write_doc(doc as u32, 0u32, &[][..]);
         }
-        Ok(())
     }
 
     fn term_doc_freq(&self) -> Option<u32> {
@@ -173,16 +171,14 @@ impl Recorder for TermFrequencyRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
-    ) -> io::Result<()> {
+    ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
         while let Some(doc) = u32_it.next() {
             let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(doc as u32, term_freq, &[][..])?;
+            serializer.write_doc(doc as u32, term_freq, &[][..]);
         }
-
-        Ok(())
     }
 
     fn term_doc_freq(&self) -> Option<u32> {
@@ -229,7 +225,7 @@ impl Recorder for TfAndPositionRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
-    ) -> io::Result<()> {
+    ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);
         let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
@@ -248,9 +244,8 @@ impl Recorder for TfAndPositionRecorder {
                     }
                 }
             }
-            serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions)?;
+            serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
         }
-        Ok(())
     }
 
     fn term_doc_freq(&self) -> Option<u32> {
