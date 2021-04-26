@@ -101,7 +101,7 @@ impl IndexBuilder {
     /// The index will be allocated in anonymous memory.
     /// This should only be used for unit tests.
     pub fn create_in_ram(self) -> Result<Index, TantivyError> {
-        let ram_directory = RAMDirectory::create();
+        let ram_directory = RamDirectory::create();
         Ok(self
             .create(ram_directory)
             .expect("Creating a RAMDirectory should never fail"))
