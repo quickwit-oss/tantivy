@@ -526,7 +526,6 @@ mod tests {
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
     use crate::IndexReader;
-    use crate::IndexSettings;
     use crate::ReloadPolicy;
     use crate::{Directory, Index};
 
@@ -548,12 +547,7 @@ mod tests {
     fn test_index_exists() {
         let directory = RamDirectory::create();
         assert!(!Index::exists(&directory).unwrap());
-        assert!(Index::create(
-            directory.clone(),
-            throw_away_schema(),
-            IndexSettings::default()
-        )
-        .is_ok());
+        assert!(Index::create(directory.clone(), throw_away_schema(), None).is_ok());
         assert!(Index::exists(&directory).unwrap());
     }
 

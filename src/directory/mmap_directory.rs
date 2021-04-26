@@ -487,7 +487,6 @@ mod tests {
     use super::*;
     use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
-    use crate::IndexSettings;
     use crate::ReloadPolicy;
     use crate::{common::HasLen, indexer::LogMergePolicy};
 
@@ -586,8 +585,7 @@ mod tests {
         let schema = schema_builder.build();
 
         {
-            let index =
-                Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
+            let index = Index::create(mmap_directory.clone(), schema, None).unwrap();
 
             let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();

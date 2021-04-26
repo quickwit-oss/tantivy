@@ -207,6 +207,7 @@ pub struct IndexSettings {}
 #[derive(Clone, Serialize)]
 pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub index_settings: Option<IndexSettings>,
     /// List of `SegmentMeta` informations associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
@@ -308,7 +309,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }
