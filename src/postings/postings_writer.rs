@@ -2,7 +2,7 @@ use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TfAndPositionRecorder, TermFrequencyRecorder,
+    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
 };
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
