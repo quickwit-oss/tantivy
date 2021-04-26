@@ -2,7 +2,7 @@ use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
+    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
 };
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
@@ -30,7 +30,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                     SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
@@ -313,7 +313,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
             let recorder: Rec = termdict_heap.read(addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(&term_bytes[4..], term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap)?;
+            recorder.serialize(&mut buffer_lender, serializer, heap);
             serializer.close_term()?;
         }
         Ok(())

@@ -98,7 +98,7 @@ use self::compression_snap::{compress, decompress};
 pub mod tests {
 
     use super::*;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::schema::Document;
     use crate::schema::FieldValue;
     use crate::schema::Schema;
@@ -146,7 +146,7 @@ pub mod tests {
     #[test]
     fn test_store() -> crate::Result<()> {
         let path = Path::new("store");
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
         let schema = write_lorem_ipsum_store(store_wrt, 1_000);
         let field_title = schema.get_field("title").unwrap();
@@ -172,7 +172,7 @@ mod bench {
 
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::Directory;
-    use crate::directory::RAMDirectory;
+    use crate::directory::RamDirectory;
     use crate::store::StoreReader;
     use std::path::Path;
     use test::Bencher;
@@ -180,7 +180,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "mmap")]
     fn bench_store_encode(b: &mut Bencher) {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         b.iter(|| {
             write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
@@ -190,7 +190,7 @@ mod bench {
 
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
         let store_file = directory.open_read(path).unwrap();

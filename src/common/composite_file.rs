@@ -190,7 +190,7 @@ mod test {
     use super::{CompositeFile, CompositeWrite};
     use crate::common::BinarySerializable;
     use crate::common::VInt;
-    use crate::directory::{Directory, RAMDirectory};
+    use crate::directory::{Directory, RamDirectory};
     use crate::schema::Field;
     use std::io::Write;
     use std::path::Path;
@@ -198,7 +198,7 @@ mod test {
     #[test]
     fn test_composite_file() -> crate::Result<()> {
         let path = Path::new("test_path");
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         {
             let w = directory.open_write(path).unwrap();
             let mut composite_write = CompositeWrite::wrap(w);

@@ -2,7 +2,7 @@ use super::PhraseScorer;
 use crate::core::SegmentReader;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
-use crate::query::bm25::BM25Weight;
+use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::Scorer;
 use crate::query::Weight;
@@ -14,7 +14,7 @@ use crate::{DocId, DocSet};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
-    similarity_weight: BM25Weight,
+    similarity_weight: Bm25Weight,
     score_needed: bool,
 }
 
@@ -22,7 +22,7 @@ impl PhraseWeight {
     /// Creates a new phrase weight.
     pub fn new(
         phrase_terms: Vec<(usize, Term)>,
-        similarity_weight: BM25Weight,
+        similarity_weight: Bm25Weight,
         score_needed: bool,
     ) -> PhraseWeight {
         PhraseWeight {

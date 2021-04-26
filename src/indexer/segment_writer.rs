@@ -311,7 +311,7 @@ fn write(
     }
     let fieldnorm_data = serializer
         .segment()
-        .open_read(SegmentComponent::FIELDNORMS)?;
+        .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
     let term_ord_map =
         multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;

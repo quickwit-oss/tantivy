@@ -65,12 +65,12 @@ mod mmap_directory_tests {
 }
 
 mod ram_directory_tests {
-    use crate::directory::RAMDirectory;
+    use crate::directory::RamDirectory;
 
-    type DirectoryImpl = RAMDirectory;
+    type DirectoryImpl = RamDirectory;
 
     fn make_directory() -> DirectoryImpl {
-        RAMDirectory::default()
+        RamDirectory::default()
     }
 
     #[test]
@@ -122,7 +122,7 @@ mod ram_directory_tests {
 #[should_panic]
 fn ram_directory_panics_if_flush_forgotten() {
     let test_path: &'static Path = Path::new("some_path_for_test");
-    let ram_directory = RAMDirectory::create();
+    let ram_directory = RamDirectory::create();
     let mut write_file = ram_directory.open_write(test_path).unwrap();
     assert!(write_file.write_all(&[4]).is_ok());
 }

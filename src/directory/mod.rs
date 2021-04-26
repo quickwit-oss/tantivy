@@ -26,7 +26,7 @@ pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub(crate) use self::file_slice::{ArcBytes, WeakArcBytes};
 pub use self::file_slice::{FileHandle, FileSlice};
 pub use self::owned_bytes::OwnedBytes;
-pub use self::ram_directory::RAMDirectory;
+pub use self::ram_directory::RamDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;

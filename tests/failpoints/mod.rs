@@ -1,6 +1,6 @@
 use fail;
 use std::path::Path;
-use tantivy::directory::{Directory, ManagedDirectory, RAMDirectory, TerminatingWrite};
+use tantivy::directory::{Directory, ManagedDirectory, RamDirectory, TerminatingWrite};
 use tantivy::doc;
 use tantivy::schema::{Schema, TEXT};
 use tantivy::{Index, Term};
@@ -11,7 +11,7 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
 
     let test_path: &'static Path = Path::new("some_path_for_test");
 
-    let ram_directory = RAMDirectory::create();
+    let ram_directory = RamDirectory::create();
     let mut managed_directory = ManagedDirectory::wrap(ram_directory).unwrap();
     managed_directory
         .open_write(test_path)
@@ -27,7 +27,7 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
     //
     // The initial 1*off is there to allow for the removal of the
     // lock file.
-    fail::cfg("RAMDirectory::delete", "1*off->1*return").unwrap();
+    fail::cfg("RamDirectory::delete", "1*off->1*return").unwrap();
     assert!(managed_directory.garbage_collect(Default::default).is_ok());
     assert!(managed_directory.exists(test_path).unwrap());
 
@@ -51,7 +51,7 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
         index_writer.add_document(doc!(text_field => "a"));
     }
     index_writer.commit()?;
-    fail::cfg("RAMDirectory::atomic_write", "return(error_write_failed)").unwrap();
+    fail::cfg("RamDirectory::atomic_write", "return(error_write_failed)").unwrap();
     for _ in 0..100 {
         index_writer.add_document(doc!(text_field => "b"));
     }

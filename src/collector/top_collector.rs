@@ -180,7 +180,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
     /// Return true iff at least K documents have gone through
     /// the collector.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
     }
@@ -189,7 +189,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     ///
     /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
     /// will compare the lowest scoring item with the given one and keep whichever is greater.
-    #[inline(always)]
+    #[inline]
     pub fn collect(&mut self, doc: DocId, feature: T) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.

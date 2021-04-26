@@ -68,13 +68,13 @@ pub mod tests {
         field_serializer.new_term("abc".as_bytes(), 12u32)?;
         for doc_id in 0u32..120u32 {
             let delta_positions = vec![1, 2, 3, 2];
-            field_serializer.write_doc(doc_id, 4, &delta_positions)?;
+            field_serializer.write_doc(doc_id, 4, &delta_positions);
         }
         field_serializer.close_term()?;
         mem::drop(field_serializer);
         posting_serializer.close()?;
-        let read = segment.open_read(SegmentComponent::POSITIONS)?;
-        assert!(read.len() <= 140);
+        let read = segment.open_read(SegmentComponent::Positions)?;
+        assert_eq!(read.len(), 207);
         Ok(())
     }
 

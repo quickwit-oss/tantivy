@@ -238,7 +238,7 @@ mod tests {
     use crate::query::score_combiner::SumCombiner;
     use crate::query::term_query::TermScorer;
     use crate::query::Union;
-    use crate::query::{BM25Weight, Scorer};
+    use crate::query::{Bm25Weight, Scorer};
     use crate::{DocId, DocSet, Score, TERMINATED};
     use proptest::prelude::*;
     use std::cmp::Ordering;
@@ -393,7 +393,7 @@ mod tests {
         let term_scorers: Vec<TermScorer> = postings_lists_expanded
             .iter()
             .map(|postings| {
-                let bm25_weight = BM25Weight::for_one_term(
+                let bm25_weight = Bm25Weight::for_one_term(
                     postings.len() as u64,
                     max_doc as u64,
                     average_fieldnorm,

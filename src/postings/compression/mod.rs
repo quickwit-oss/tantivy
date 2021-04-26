@@ -167,6 +167,8 @@ pub trait VIntDecoder {
         num_els: usize,
         padding: u32,
     ) -> usize;
+
+    fn uncompress_vint_unsorted_until_end(&mut self, compressed_data: &[u8]);
 }
 
 impl VIntEncoder for BlockEncoder {
@@ -201,6 +203,11 @@ impl VIntDecoder for BlockDecoder {
         self.output_len = num_els;
         self.output.0.iter_mut().for_each(|el| *el = padding);
         vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
+    }
+
+    fn uncompress_vint_unsorted_until_end(&mut self, compressed_data: &[u8]) {
+        let num_els = vint::uncompress_unsorted_until_end(compressed_data, &mut self.output.0);
+        self.output_len = num_els;
     }
 }
 

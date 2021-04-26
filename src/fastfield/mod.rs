@@ -201,7 +201,7 @@ mod tests {
 
     use super::*;
     use crate::common::CompositeFile;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_intfastfield_small() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::from_write(write).unwrap();
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn test_intfastfield_large() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let mut serializer = FastFieldSerializer::from_write(write)?;
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn test_intfastfield_null_amplitude() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn test_intfastfield_large_numbers() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn test_signed_intfastfield() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         let mut schema_builder = Schema::builder();
 
         let i64_field = schema_builder.add_i64_field("field", FAST);
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn test_signed_intfastfield_default_val() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         let mut schema_builder = Schema::builder();
         let i64_field = schema_builder.add_i64_field("field", FAST);
         let schema = schema_builder.build();
@@ -456,7 +456,7 @@ mod tests {
         let path = Path::new("test");
         let permutation = generate_permutation();
         let n = permutation.len();
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let mut serializer = FastFieldSerializer::from_write(write)?;
@@ -576,7 +576,7 @@ mod bench {
     use super::tests::{generate_permutation, SCHEMA};
     use super::*;
     use crate::common::CompositeFile;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use std::collections::HashMap;
     use std::path::Path;
@@ -612,7 +612,7 @@ mod bench {
     fn bench_intfastfield_linear_fflookup(b: &mut Bencher) {
         let path = Path::new("test");
         let permutation = generate_permutation();
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::from_write(write).unwrap();
@@ -646,7 +646,7 @@ mod bench {
     fn bench_intfastfield_fflookup(b: &mut Bencher) {
         let path = Path::new("test");
         let permutation = generate_permutation();
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
             let mut serializer = FastFieldSerializer::from_write(write).unwrap();

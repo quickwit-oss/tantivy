@@ -8,7 +8,7 @@ use crate::postings::compression::{
     AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
 };
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
@@ -127,7 +127,7 @@ impl BlockSegmentPostings {
     pub fn block_max_score(
         &mut self,
         fieldnorm_reader: &FieldNormReader,
-        bm25_weight: &BM25Weight,
+        bm25_weight: &Bm25Weight,
     ) -> Score {
         if let Some(score) = self.block_max_score_cache {
             return score;
@@ -212,14 +212,14 @@ impl BlockSegmentPostings {
     /// `TERMINATED`. The array is also guaranteed to be aligned on 16 bytes = 128 bits.
     ///
     /// This method is useful to run SSE2 linear search.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
         debug_assert!(self.block_is_loaded());
         self.doc_decoder.output_aligned()
     }
 
     /// Return the document at index `idx` of the block.
-    #[inline(always)]
+    #[inline]
     pub fn doc(&self, idx: usize) -> u32 {
         self.doc_decoder.output(idx)
     }

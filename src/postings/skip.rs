@@ -2,16 +2,16 @@ use std::convert::TryInto;
 
 use crate::directory::OwnedBytes;
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
-#[inline(always)]
+#[inline]
 fn encode_block_wand_max_tf(max_tf: u32) -> u8 {
     max_tf.min(u8::MAX as u32) as u8
 }
 
-#[inline(always)]
+#[inline]
 fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
     if max_tf_code == u8::MAX {
         u32::MAX
@@ -20,12 +20,12 @@ fn decode_block_wand_max_tf(max_tf_code: u8) -> u32 {
     }
 }
 
-#[inline(always)]
+#[inline]
 fn read_u32(data: &[u8]) -> u32 {
     u32::from_le_bytes(data[..4].try_into().unwrap())
 }
 
-#[inline(always)]
+#[inline]
 fn write_u32(val: u32, buf: &mut Vec<u8>) {
     buf.extend_from_slice(&val.to_le_bytes());
 }
@@ -144,7 +144,7 @@ impl SkipReader {
     //
     // The block max score is available for all full bitpacked block,
     // but no available for the last VInt encoded incomplete block.
-    pub fn block_max_score(&self, bm25_weight: &BM25Weight) -> Option<Score> {
+    pub fn block_max_score(&self, bm25_weight: &Bm25Weight) -> Option<Score> {
         match self.block_info {
             BlockInfo::BitPacked {
                 block_wand_fieldnorm_id,
@@ -163,7 +163,7 @@ impl SkipReader {
         self.position_offset
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn byte_offset(&self) -> usize {
         self.byte_offset
     }

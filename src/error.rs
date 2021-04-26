@@ -70,7 +70,7 @@ pub enum TantivyError {
     LockFailure(LockError, Option<String>),
     /// IO Error.
     #[error("An IO error occurred: '{0}'")]
-    IOError(#[from] io::Error),
+    IoError(#[from] io::Error),
     /// Data corruption.
     #[error("Data corrupted: '{0:?}'")]
     DataCorruption(DataCorruption),
@@ -139,7 +139,7 @@ impl From<schema::DocParsingError> for TantivyError {
 
 impl From<serde_json::Error> for TantivyError {
     fn from(error: serde_json::Error) -> TantivyError {
-        TantivyError::IOError(error.into())
+        TantivyError::IoError(error.into())
     }
 }
 

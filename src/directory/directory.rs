@@ -70,7 +70,7 @@ impl Drop for DirectoryLockGuard {
 
 enum TryAcquireLockError {
     FileExists,
-    IOError(io::Error),
+    IoError(io::Error),
 }
 
 fn try_acquire_lock(
@@ -79,9 +79,9 @@ fn try_acquire_lock(
 ) -> Result<DirectoryLock, TryAcquireLockError> {
     let mut write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
-        OpenWriteError::IOError { io_error, .. } => TryAcquireLockError::IOError(io_error),
+        OpenWriteError::IoError { io_error, .. } => TryAcquireLockError::IoError(io_error),
     })?;
-    write.flush().map_err(TryAcquireLockError::IOError)?;
+    write.flush().map_err(TryAcquireLockError::IoError)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
@@ -106,7 +106,7 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
 ///
 /// - The [`MMapDirectory`](struct.MmapDirectory.html), this
 /// should be your default choice.
-/// - The [`RAMDirectory`](struct.RAMDirectory.html), which
+/// - The [`RamDirectory`](struct.RamDirectory.html), which
 /// should be used mostly for tests.
 pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a file and returns a boxed `FileHandle`.
@@ -154,7 +154,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Flush operation should also be persistent.
     ///
     /// The user shall not rely on `Drop` triggering `flush`.
-    /// Note that `RAMDirectory` will panic! if `flush`
+    /// Note that `RamDirectory` will panic! if `flush`
     /// was not called.
     ///
     /// The file may not previously exist.
@@ -192,8 +192,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
                         return Err(LockError::LockBusy);
                     }
                 }
-                Err(TryAcquireLockError::IOError(io_error)) => {
-                    return Err(LockError::IOError(io_error));
+                Err(TryAcquireLockError::IoError(io_error)) => {
+                    return Err(LockError::IoError(io_error));
                 }
             }
         }

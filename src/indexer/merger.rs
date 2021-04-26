@@ -628,7 +628,7 @@ impl IndexMerger {
                         segment_postings.positions(&mut positions_buffer);
 
                         let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions)?;
+                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
                     }
 
                     doc = segment_postings.advance();
@@ -687,7 +687,7 @@ impl SerializableSegment for IndexMerger {
         }
         let fieldnorm_data = serializer
             .segment()
-            .open_read(SegmentComponent::FIELDNORMS)?;
+            .open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
         let term_ord_mappings =
             self.write_postings(serializer.get_postings_serializer(), fieldnorm_readers)?;

@@ -12,9 +12,9 @@ pub enum LockError {
     /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
     #[error("Could not acquire lock as it is already held, possibly by a different process.")]
     LockBusy,
-    /// Trying to acquire a lock failed with an `IOError`
+    /// Trying to acquire a lock failed with an `IoError`
     #[error("Failed to acquire the lock due to an io:Error.")]
-    IOError(io::Error),
+    IoError(io::Error),
 }
 
 /// Error that may occur when opening a directory
@@ -30,7 +30,7 @@ pub enum OpenDirectoryError {
     #[error("Failed to create a temporary directory: '{0}'.")]
     FailedToCreateTempDir(io::Error),
     /// IoError
-    #[error("IOError '{io_error:?}' while create directory in: '{directory_path:?}'.")]
+    #[error("IoError '{io_error:?}' while create directory in: '{directory_path:?}'.")]
     IoError {
         /// underlying io Error.
         io_error: io::Error,
@@ -48,8 +48,8 @@ pub enum OpenWriteError {
     FileAlreadyExists(PathBuf),
     /// Any kind of IO error that happens when
     /// writing in the underlying IO device.
-    #[error("IOError '{io_error:?}' while opening file for write: '{filepath}'.")]
-    IOError {
+    #[error("IoError '{io_error:?}' while opening file for write: '{filepath}'.")]
+    IoError {
         /// The underlying `io::Error`.
         io_error: io::Error,
         /// File path of the file that tantivy failed to open for write.
@@ -60,7 +60,7 @@ pub enum OpenWriteError {
 impl OpenWriteError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IOError { io_error, filepath }
+        Self::IoError { io_error, filepath }
     }
 }
 /// Type of index incompatibility between the library and the index found on disk
@@ -130,9 +130,9 @@ pub enum OpenReadError {
     FileDoesNotExist(PathBuf),
     /// Any kind of io::Error.
     #[error(
-        "IOError: '{io_error:?}' happened while opening the following file for Read: {filepath}."
+        "IoError: '{io_error:?}' happened while opening the following file for Read: {filepath}."
     )]
-    IOError {
+    IoError {
         /// The underlying `io::Error`.
         io_error: io::Error,
         /// File path of the file that tantivy failed to open for read.
@@ -146,7 +146,7 @@ pub enum OpenReadError {
 impl OpenReadError {
     /// Wraps an io error.
     pub fn wrap_io_error(io_error: io::Error, filepath: PathBuf) -> Self {
-        Self::IOError { io_error, filepath }
+        Self::IoError { io_error, filepath }
     }
 }
 /// Error that may occur when trying to delete a file
@@ -158,7 +158,7 @@ pub enum DeleteError {
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     #[error("The following IO error happened while deleting file '{filepath}': '{io_error:?}'.")]
-    IOError {
+    IoError {
         /// The underlying `io::Error`.
         io_error: io::Error,
         /// File path of the file that tantivy failed to delete.
