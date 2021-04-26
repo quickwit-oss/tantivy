@@ -114,3 +114,64 @@ impl<'a> TermMerger<'a> {
         &self.current_streamers[..]
     }
 }
+
+#[cfg(all(test, feature = "unstable"))]
+mod bench {
+    use super::TermMerger;
+    use crate::directory::FileSlice;
+    use crate::postings::TermInfo;
+    use crate::termdict::{TermDictionary, TermDictionaryBuilder};
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+    use test::{self, Bencher};
+
+    fn make_term_info(term_ord: u64) -> TermInfo {
+        let offset = |term_ord: u64| (term_ord * 100 + term_ord * term_ord) as usize;
+        TermInfo {
+            doc_freq: term_ord as u32,
+            postings_range: offset(term_ord)..offset(term_ord + 1),
+            positions_idx: offset(term_ord) as u64 * 2u64,
+        }
+    }
+
+    /// Create a dictionary of random strings.
+    fn rand_dict(size: usize) -> crate::Result<TermDictionary> {
+        let buffer: Vec<u8> = {
+            let mut terms = vec![];
+            for _i in 0..size {
+                let rand_string: String = thread_rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(30)
+                    .map(char::from)
+                    .collect();
+                terms.push(rand_string);
+            }
+            terms.sort();
+
+            let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
+            for i in 0..size {
+                term_dictionary_builder.insert(terms[i].as_bytes(), &make_term_info(i as u64))?;
+            }
+            term_dictionary_builder.finish()?
+        };
+        let file = FileSlice::from(buffer);
+        TermDictionary::open(file)
+    }
+
+    #[bench]
+    fn bench_termmerger_baseline(b: &mut Bencher) -> crate::Result<()> {
+        let dict1 = rand_dict(100000)?;
+        let dict2 = rand_dict(100000)?;
+        b.iter(|| {
+            let stream1 = dict1.stream().unwrap();
+            let stream2 = dict2.stream().unwrap();
+            let mut merger = TermMerger::new(vec![stream1, stream2]);
+            let mut count = 0;
+            while merger.advance() {
+                count += 1;
+            }
+            count
+        });
+        Ok(())
+    }
+}
