@@ -50,7 +50,7 @@ pub struct PhraseScorer<TPostings: Postings> {
     phrase_count: u32,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
-    score_needed: bool,
+    scoring_enabled: bool,
 }
 
 /// Returns true iff the two sorted array contain a common element
@@ -135,7 +135,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         term_postings: Vec<(usize, TPostings)>,
         similarity_weight: Bm25Weight,
         fieldnorm_reader: FieldNormReader,
-        score_needed: bool,
+        scoring_enabled: bool,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
             .iter()
@@ -157,7 +157,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             phrase_count: 0u32,
             similarity_weight,
             fieldnorm_reader,
-            score_needed,
+            scoring_enabled,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
             scorer.advance();
@@ -170,7 +170,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
-        if self.score_needed {
+        if self.scoring_enabled {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
             count > 0u32
