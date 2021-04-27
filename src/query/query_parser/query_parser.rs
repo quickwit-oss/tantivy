@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
-use tantivy_query_grammar::{UserInputAST, UserInputBound, UserInputLeaf};
+use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf};
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -28,7 +28,7 @@ pub enum QueryParserError {
     SyntaxError,
     /// `FieldDoesNotExist(field_name: String)`
     /// The query references a field that is not in the schema
-    #[error("File does not exists: '{0:?}'")]
+    #[error("Field does not exists: '{0:?}'")]
     FieldDoesNotExist(String),
     /// The query contains a term for a `u64` or `i64`-field, but the value
     /// is neither.
@@ -91,9 +91,9 @@ impl From<chrono::ParseError> for QueryParserError {
 /// Recursively remove empty clause from the AST
 ///
 /// Returns `None` iff the `logical_ast` ended up being empty.
-fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
+fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
     match logical_ast {
-        LogicalAST::Clause(children) => {
+        LogicalAst::Clause(children) => {
             let trimmed_children = children
                 .into_iter()
                 .flat_map(|(occur, child)| {
@@ -103,7 +103,7 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
             if trimmed_children.is_empty() {
                 None
             } else {
-                Some(LogicalAST::Clause(trimmed_children))
+                Some(LogicalAst::Clause(trimmed_children))
             }
         }
         _ => Some(logical_ast),
@@ -157,7 +157,8 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 ///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
 ///   Inclusive bounds are `[]`, exclusive are `{}`.
 ///
-/// * date values: The query parser supports rfc3339 formatted dates. For example "2002-10-02T15:00:00.05Z"
+/// * date values: The query parser supports rfc3339 formatted dates. For example `"2002-10-02T15:00:00.05Z"`
+///   or `some_date_field:[2002-10-02T15:00:00Z TO 2002-10-02T18:00:00Z}`
 ///
 /// *  all docs query: A plain `*` will match all documents in the index.
 ///
@@ -177,11 +178,11 @@ pub struct QueryParser {
     boost: HashMap<Field, Score>,
 }
 
-fn all_negative(ast: &LogicalAST) -> bool {
+fn all_negative(ast: &LogicalAst) -> bool {
     match ast {
-        LogicalAST::Leaf(_) => false,
-        LogicalAST::Boost(ref child_ast, _) => all_negative(&*child_ast),
-        LogicalAST::Clause(children) => children
+        LogicalAst::Leaf(_) => false,
+        LogicalAst::Boost(ref child_ast, _) => all_negative(&*child_ast),
+        LogicalAst::Clause(children) => children
             .iter()
             .all(|(ref occur, child)| (*occur == Occur::MustNot) || all_negative(child)),
     }
@@ -250,7 +251,7 @@ impl QueryParser {
     }
 
     /// Parse the user query into an AST.
-    fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
+    fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAst, QueryParserError> {
         let user_input_ast =
             tantivy_query_grammar::parse_query(query).map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
@@ -264,10 +265,10 @@ impl QueryParser {
 
     fn compute_logical_ast(
         &self,
-        user_input_ast: UserInputAST,
-    ) -> Result<LogicalAST, QueryParserError> {
+        user_input_ast: UserInputAst,
+    ) -> Result<LogicalAst, QueryParserError> {
         let ast = self.compute_logical_ast_with_occur(user_input_ast)?;
-        if let LogicalAST::Clause(children) = &ast {
+        if let LogicalAst::Clause(children) = &ast {
             if children.is_empty() {
                 return Ok(ast);
             }
@@ -357,7 +358,7 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet => {
+            FieldType::HierarchicalFacet(_) => {
                 let facet = Facet::from_text(phrase);
                 Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
             }
@@ -428,24 +429,24 @@ impl QueryParser {
 
     fn compute_logical_ast_with_occur(
         &self,
-        user_input_ast: UserInputAST,
-    ) -> Result<LogicalAST, QueryParserError> {
+        user_input_ast: UserInputAst,
+    ) -> Result<LogicalAst, QueryParserError> {
         match user_input_ast {
-            UserInputAST::Clause(sub_queries) => {
+            UserInputAst::Clause(sub_queries) => {
                 let default_occur = self.default_occur();
-                let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
+                let mut logical_sub_queries: Vec<(Occur, LogicalAst)> = Vec::new();
                 for (occur_opt, sub_ast) in sub_queries {
                     let sub_ast = self.compute_logical_ast_with_occur(sub_ast)?;
                     let occur = occur_opt.unwrap_or(default_occur);
                     logical_sub_queries.push((occur, sub_ast));
                 }
-                Ok(LogicalAST::Clause(logical_sub_queries))
+                Ok(LogicalAst::Clause(logical_sub_queries))
             }
-            UserInputAST::Boost(ast, boost) => {
+            UserInputAst::Boost(ast, boost) => {
                 let ast = self.compute_logical_ast_with_occur(*ast)?;
                 Ok(ast.boost(boost as Score))
             }
-            UserInputAST::Leaf(leaf) => self.compute_logical_ast_from_leaf(*leaf),
+            UserInputAst::Leaf(leaf) => self.compute_logical_ast_from_leaf(*leaf),
         }
     }
 
@@ -456,7 +457,7 @@ impl QueryParser {
     fn compute_logical_ast_from_leaf(
         &self,
         leaf: UserInputLeaf,
-    ) -> Result<LogicalAST, QueryParserError> {
+    ) -> Result<LogicalAst, QueryParserError> {
         match leaf {
             UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
@@ -475,22 +476,22 @@ impl QueryParser {
                         }
                     }
                 };
-                let mut asts: Vec<LogicalAST> = Vec::new();
+                let mut asts: Vec<LogicalAst> = Vec::new();
                 for (field, phrase) in term_phrases {
                     if let Some(ast) = self.compute_logical_ast_for_leaf(field, &phrase)? {
                         // Apply some field specific boost defined at the query parser level.
                         let boost = self.field_boost(field);
-                        asts.push(LogicalAST::Leaf(Box::new(ast)).boost(boost));
+                        asts.push(LogicalAst::Leaf(Box::new(ast)).boost(boost));
                     }
                 }
-                let result_ast: LogicalAST = if asts.len() == 1 {
+                let result_ast: LogicalAst = if asts.len() == 1 {
                     asts.into_iter().next().unwrap()
                 } else {
-                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
+                    LogicalAst::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
                 };
                 Ok(result_ast)
             }
-            UserInputLeaf::All => Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::All))),
+            UserInputLeaf::All => Ok(LogicalAst::Leaf(Box::new(LogicalLiteral::All))),
             UserInputLeaf::Range {
                 field,
                 lower,
@@ -503,7 +504,7 @@ impl QueryParser {
                         let boost = self.field_boost(field);
                         let field_entry = self.schema.get_field_entry(field);
                         let value_type = field_entry.field_type().value_type();
-                        let logical_ast = LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                        let logical_ast = LogicalAst::Leaf(Box::new(LogicalLiteral::Range {
                             field,
                             value_type,
                             lower: self.resolve_bound(field, &lower)?,
@@ -515,7 +516,7 @@ impl QueryParser {
                 let result_ast = if clauses.len() == 1 {
                     clauses.pop().unwrap()
                 } else {
-                    LogicalAST::Clause(
+                    LogicalAst::Clause(
                         clauses
                             .into_iter()
                             .map(|clause| (Occur::Should, clause))
@@ -546,9 +547,9 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<dyn Query> {
     }
 }
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
+fn convert_to_query(logical_ast: LogicalAst) -> Box<dyn Query> {
     match trim_ast(logical_ast) {
-        Some(LogicalAST::Clause(trimmed_clause)) => {
+        Some(LogicalAst::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
@@ -559,10 +560,10 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<dyn Query> {
             );
             Box::new(BooleanQuery::new(occur_subqueries))
         }
-        Some(LogicalAST::Leaf(trimmed_logical_literal)) => {
+        Some(LogicalAst::Leaf(trimmed_logical_literal)) => {
             convert_literal_to_query(*trimmed_logical_literal)
         }
-        Some(LogicalAST::Boost(ast, boost)) => {
+        Some(LogicalAst::Boost(ast, boost)) => {
             let query = convert_to_query(*ast);
             let boosted_query = BoostQuery::new(query, boost);
             Box::new(boosted_query)
@@ -605,7 +606,8 @@ mod test {
         schema_builder.add_text_field("with_stop_words", text_options);
         schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_f64_field("float", INDEXED);
-        schema_builder.add_facet_field("facet");
+        schema_builder.add_facet_field("facet", INDEXED);
+        schema_builder.add_facet_field("facet_not_indexed", STORED);
         schema_builder.add_bytes_field("bytes", INDEXED);
         schema_builder.add_bytes_field("bytes_not_indexed", STORED);
         schema_builder.build()
@@ -630,7 +632,7 @@ mod test {
     fn parse_query_to_logical_ast(
         query: &str,
         default_conjunction: bool,
-    ) -> Result<LogicalAST, QueryParserError> {
+    ) -> Result<LogicalAst, QueryParserError> {
         let mut query_parser = make_query_parser();
         if default_conjunction {
             query_parser.set_conjunction_by_default();
@@ -656,6 +658,13 @@ mod test {
             format!("{:?}", query),
             "TermQuery(Term(field=11,bytes=[114, 111, 111, 116, 0, 98, 114, 97, 110, 99, 104, 0, 108, 101, 97, 102]))"
         );
+    }
+
+    #[test]
+    fn test_parse_query_facet_not_indexed() {
+        let error =
+            parse_query_to_logical_ast("facet_not_indexed:/root/branch/leaf", false).unwrap_err();
+        assert!(matches!(error, QueryParserError::FieldNotIndexed(_)));
     }
 
     #[test]
@@ -799,7 +808,7 @@ mod test {
     fn test_parse_bytes() {
         test_parse_query_to_logical_ast_helper(
             "bytes:YnVidQ==",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(field=13,bytes=[98, 117, 98, 117])",
             false,
         );
     }
@@ -814,7 +823,7 @@ mod test {
     fn test_parse_bytes_phrase() {
         test_parse_query_to_logical_ast_helper(
             "bytes:\"YnVidQ==\"",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(field=13,bytes=[98, 117, 98, 117])",
             false,
         );
     }

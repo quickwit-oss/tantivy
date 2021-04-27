@@ -7,7 +7,7 @@ use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
-use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -195,7 +195,7 @@ impl IndexMerger {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match field_type {
-                FieldType::HierarchicalFacet => {
+                FieldType::HierarchicalFacet(_) => {
                     let term_ordinal_mapping = term_ord_mappings
                         .remove(&field)
                         .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have required a\
@@ -246,7 +246,7 @@ impl IndexMerger {
         for reader in &self.readers {
             let u64_reader: FastFieldReader<u64> = reader
                 .fast_fields()
-                .u64_lenient(field)
+                .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
             if let Some((seg_min_val, seg_max_val)) =
                 compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
@@ -290,7 +290,7 @@ impl IndexMerger {
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
-        let mut u64s_readers: Vec<MultiValueIntFastFieldReader<u64>> = Vec::new();
+        let mut u64s_readers: Vec<MultiValuedFastFieldReader<u64>> = Vec::new();
 
         // In the first pass, we compute the total number of vals.
         //
@@ -298,9 +298,8 @@ impl IndexMerger {
         // what should be the bit length use for bitpacking.
         for reader in &self.readers {
             let u64s_reader = reader.fast_fields()
-                .u64s_lenient(field)
+                .typed_fast_field_multi_reader(field)
                 .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
-
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
@@ -353,7 +352,7 @@ impl IndexMerger {
             for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
                 let term_ordinal_mapping: &[TermOrdinal] =
                     term_ordinal_mappings.get_segment(segment_ord);
-                let ff_reader: MultiValueIntFastFieldReader<u64> = segment_reader
+                let ff_reader: MultiValuedFastFieldReader<u64> = segment_reader
                     .fast_fields()
                     .u64s(field)
                     .expect("Could not find multivalued u64 fast value reader.");
@@ -397,8 +396,10 @@ impl IndexMerger {
         // We go through a complete first pass to compute the minimum and the
         // maximum value and initialize our Serializer.
         for reader in &self.readers {
-            let ff_reader: MultiValueIntFastFieldReader<u64> =
-                reader.fast_fields().u64s_lenient(field).expect(
+            let ff_reader: MultiValuedFastFieldReader<u64> = reader
+                .fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect(
                     "Failed to find multivalued fast field reader. This is a bug in \
                      tantivy. Please report.",
                 );
@@ -445,11 +446,7 @@ impl IndexMerger {
         let mut bytes_readers: Vec<BytesFastFieldReader> = Vec::new();
 
         for reader in &self.readers {
-            let bytes_reader = reader.fast_fields().bytes(field).ok_or_else(|| {
-                crate::TantivyError::InvalidArgument(
-                    "Bytes fast field {:?} not found in segment.".to_string(),
-                )
-            })?;
+            let bytes_reader = reader.fast_fields().bytes(field)?;
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
@@ -479,7 +476,7 @@ impl IndexMerger {
             serialize_idx.close_field()?;
         }
 
-        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1)?;
+        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
         for segment_reader in &self.readers {
             let bytes_reader = segment_reader.fast_fields().bytes(field)
                 .expect("Failed to find bytes field in fast field reader. This is a bug in tantivy. Please report.");
@@ -518,10 +515,9 @@ impl IndexMerger {
             max_term_ords.push(terms.num_terms() as u64);
         }
 
-        let mut term_ord_mapping_opt = if *field_type == FieldType::HierarchicalFacet {
-            Some(TermOrdinalMapping::new(max_term_ords))
-        } else {
-            None
+        let mut term_ord_mapping_opt = match field_type {
+            FieldType::HierarchicalFacet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
+            _ => None,
         };
 
         let mut merged_terms = TermMerger::new(field_term_streams);
@@ -632,7 +628,7 @@ impl IndexMerger {
                         segment_postings.positions(&mut positions_buffer);
 
                         let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions)?;
+                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
                     }
 
                     doc = segment_postings.advance();
@@ -691,7 +687,7 @@ impl SerializableSegment for IndexMerger {
         }
         let fieldnorm_data = serializer
             .segment()
-            .open_read(SegmentComponent::FIELDNORMS)?;
+            .open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
         let term_ord_mappings =
             self.write_postings(serializer.get_postings_serializer(), fieldnorm_readers)?;
@@ -802,49 +798,53 @@ mod tests {
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "a")])?,
-                    vec![DocAddress(0, 1), DocAddress(0, 2), DocAddress(0, 4)]
+                    vec![
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 4)
+                    ]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "af")])?,
-                    vec![DocAddress(0, 0), DocAddress(0, 3)]
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "g")])?,
-                    vec![DocAddress(0, 4)]
+                    vec![DocAddress::new(0, 4)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "b")])?,
                     vec![
-                        DocAddress(0, 0),
-                        DocAddress(0, 1),
-                        DocAddress(0, 2),
-                        DocAddress(0, 3),
-                        DocAddress(0, 4)
+                        DocAddress::new(0, 0),
+                        DocAddress::new(0, 1),
+                        DocAddress::new(0, 2),
+                        DocAddress::new(0, 3),
+                        DocAddress::new(0, 4)
                     ]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)])?,
-                    vec![DocAddress(0, 0), DocAddress(0, 3)]
+                    vec![DocAddress::new(0, 0), DocAddress::new(0, 3)]
                 );
             }
             {
-                let doc = searcher.doc(DocAddress(0, 0))?;
+                let doc = searcher.doc(DocAddress::new(0, 0))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 1))?;
+                let doc = searcher.doc(DocAddress::new(0, 1))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 2))?;
+                let doc = searcher.doc(DocAddress::new(0, 2))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 3))?;
+                let doc = searcher.doc(DocAddress::new(0, 3))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(DocAddress(0, 4))?;
+                let doc = searcher.doc(DocAddress::new(0, 4))?;
                 assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c g"));
             }
             {
@@ -1182,7 +1182,7 @@ mod tests {
     #[test]
     fn test_merge_facets() {
         let mut schema_builder = schema::Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader().unwrap();
         {

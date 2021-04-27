@@ -86,7 +86,7 @@ impl ManagedDirectory {
                 directory: Box::new(directory),
                 meta_informations: Arc::default(),
             }),
-            io_err @ Err(OpenReadError::IOError { .. }) => Err(io_err.err().unwrap().into()),
+            io_err @ Err(OpenReadError::IoError { .. }) => Err(io_err.err().unwrap().into()),
             Err(OpenReadError::IncompatibleIndex(incompatibility)) => {
                 // For the moment, this should never happen  `meta.json`
                 // do not have any footer and cannot detect incompatibility.
@@ -168,7 +168,7 @@ impl ManagedDirectory {
                         DeleteError::FileDoesNotExist(_) => {
                             deleted_files.push(file_to_delete.clone());
                         }
-                        DeleteError::IOError { .. } => {
+                        DeleteError::IoError { .. } => {
                             failed_to_delete_files.push(file_to_delete.clone());
                             if !cfg!(target_os = "windows") {
                                 // On windows, delete is expected to fail if the file
@@ -232,13 +232,13 @@ impl ManagedDirectory {
     pub fn validate_checksum(&self, path: &Path) -> result::Result<bool, OpenReadError> {
         let reader = self.directory.open_read(path)?;
         let (footer, data) =
-            Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IOError {
+            Footer::extract_footer(reader).map_err(|io_error| OpenReadError::IoError {
                 io_error,
                 filepath: path.to_path_buf(),
             })?;
         let bytes = data
             .read_bytes()
-            .map_err(|io_error| OpenReadError::IOError {
+            .map_err(|io_error| OpenReadError::IoError {
                 filepath: path.to_path_buf(),
                 io_error,
             })?;

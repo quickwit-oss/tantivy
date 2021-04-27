@@ -17,7 +17,7 @@ const LRU_CACHE_CAPACITY: usize = 100;
 
 type Block = Arc<Vec<u8>>;
 
-type BlockCache = Arc<Mutex<LruCache<u64, Block>>>;
+type BlockCache = Arc<Mutex<LruCache<usize, Block>>>;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
@@ -35,7 +35,7 @@ impl StoreReader {
         let (data_file, offset_index_file) = split_file(store_file)?;
         let index_data = offset_index_file.read_bytes()?;
         let space_usage = StoreSpaceUsage::new(data_file.len(), offset_index_file.len());
-        let skip_index = SkipIndex::from(index_data);
+        let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
             data: data_file,
             cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY))),
@@ -46,7 +46,7 @@ impl StoreReader {
         })
     }
 
-    pub(crate) fn block_checkpoints<'a>(&'a self) -> impl Iterator<Item = Checkpoint> + 'a {
+    pub(crate) fn block_checkpoints(&self) -> impl Iterator<Item = Checkpoint> + '_ {
         self.skip_index.checkpoints()
     }
 
@@ -59,16 +59,11 @@ impl StoreReader {
     }
 
     fn compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
-        self.data
-            .slice(
-                checkpoint.start_offset as usize,
-                checkpoint.end_offset as usize,
-            )
-            .read_bytes()
+        self.data.slice(checkpoint.byte_range.clone()).read_bytes()
     }
 
     fn read_block(&self, checkpoint: &Checkpoint) -> io::Result<Block> {
-        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.start_offset) {
+        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
             self.cache_hits.fetch_add(1, Ordering::SeqCst);
             return Ok(block.clone());
         }
@@ -83,7 +78,7 @@ impl StoreReader {
         self.cache
             .lock()
             .unwrap()
-            .put(checkpoint.start_offset, block.clone());
+            .put(checkpoint.byte_range.start, block.clone());
 
         Ok(block)
     }
@@ -100,7 +95,7 @@ impl StoreReader {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
         let mut cursor = &self.read_block(&checkpoint)?[..];
-        for _ in checkpoint.start_doc..doc_id {
+        for _ in checkpoint.doc_range.start..doc_id {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
             cursor = &cursor[doc_length..];
         }
@@ -129,7 +124,7 @@ mod tests {
     use super::*;
     use crate::schema::Document;
     use crate::schema::Field;
-    use crate::{directory::RAMDirectory, store::tests::write_lorem_ipsum_store, Directory};
+    use crate::{directory::RamDirectory, store::tests::write_lorem_ipsum_store, Directory};
     use std::path::Path;
 
     fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
@@ -138,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_store_lru_cache() -> crate::Result<()> {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         let writer = directory.open_write(path)?;
         let schema = write_lorem_ipsum_store(writer, 500);
@@ -196,7 +191,7 @@ mod tests {
                 .unwrap()
                 .peek_lru()
                 .map(|(&k, _)| k as usize),
-            Some(18806)
+            Some(9249)
         );
 
         Ok(())

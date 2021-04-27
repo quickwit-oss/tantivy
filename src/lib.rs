@@ -96,7 +96,7 @@
 //! A good place for you to get started is to check out
 //! the example code (
 //! [literate programming](https://tantivy-search.github.io/examples/basic_search.html) /
-//! [source code](https://github.com/tantivy-search/tantivy/blob/master/examples/basic_search.rs))
+//! [source code](https://github.com/tantivy-search/tantivy/blob/main/examples/basic_search.rs))
 
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
@@ -141,7 +141,7 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
-pub(crate) mod positions;
+pub mod positions;
 pub mod postings;
 pub mod query;
 pub mod schema;
@@ -163,6 +163,7 @@ pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
+pub use crate::indexer::merge_segments;
 pub use crate::indexer::operation::UserOperation;
 pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
@@ -174,7 +175,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 2;
+const INDEX_FORMAT_VERSION: u32 = 3;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +235,8 @@ pub mod merge_policy {
 /// A `u32` identifying a document within a segment.
 /// Documents have their `DocId` assigned incrementally,
 /// as they are added in the segment.
+///
+/// At most, a segment can contain 2^31 documents.
 pub type DocId = u32;
 
 /// A u64 assigned to every operation incrementally
@@ -252,20 +255,16 @@ pub type Opstamp = u64;
 /// the document to the search query.
 pub type Score = f32;
 
-/// A `SegmentLocalId` identifies a segment.
-/// It only makes sense for a given searcher.
-pub type SegmentLocalId = u32;
+/// A `SegmentOrdinal` identifies a segment, within a `Searcher`.
+pub type SegmentOrdinal = u32;
 
 impl DocAddress {
-    /// Return the segment ordinal id that identifies the segment
-    /// hosting the document in the `Searcher` it is called from.
-    pub fn segment_ord(self) -> SegmentLocalId {
-        self.0
-    }
-
-    /// Return the segment-local `DocId`
-    pub fn doc(self) -> DocId {
-        self.1
+    /// Creates a new DocAddress from the segment/docId pair.
+    pub fn new(segment_ord: SegmentOrdinal, doc_id: DocId) -> DocAddress {
+        DocAddress {
+            segment_ord,
+            doc_id,
+        }
     }
 }
 
@@ -278,7 +277,13 @@ impl DocAddress {
 /// The id used for the segment is actually an ordinal
 /// in the list of `Segment`s held by a `Searcher`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DocAddress(pub SegmentLocalId, pub DocId);
+pub struct DocAddress {
+    /// The segment ordinal id that identifies the segment
+    /// hosting the document in the `Searcher` it is called from.
+    pub segment_ord: SegmentOrdinal,
+    /// The segment-local `DocId`.
+    pub doc_id: DocId,
+}
 
 #[cfg(test)]
 mod tests {
@@ -776,30 +781,38 @@ mod tests {
         };
         assert_eq!(
             get_doc_ids(vec![Term::from_field_text(text_field, "a")])?,
-            vec![DocAddress(0, 1), DocAddress(0, 2)]
+            vec![DocAddress::new(0, 1), DocAddress::new(0, 2)]
         );
         assert_eq!(
             get_doc_ids(vec![Term::from_field_text(text_field, "af")])?,
-            vec![DocAddress(0, 0)]
+            vec![DocAddress::new(0, 0)]
         );
         assert_eq!(
             get_doc_ids(vec![Term::from_field_text(text_field, "b")])?,
-            vec![DocAddress(0, 0), DocAddress(0, 1), DocAddress(0, 2)]
+            vec![
+                DocAddress::new(0, 0),
+                DocAddress::new(0, 1),
+                DocAddress::new(0, 2)
+            ]
         );
         assert_eq!(
             get_doc_ids(vec![Term::from_field_text(text_field, "c")])?,
-            vec![DocAddress(0, 1), DocAddress(0, 2)]
+            vec![DocAddress::new(0, 1), DocAddress::new(0, 2)]
         );
         assert_eq!(
             get_doc_ids(vec![Term::from_field_text(text_field, "d")])?,
-            vec![DocAddress(0, 2)]
+            vec![DocAddress::new(0, 2)]
         );
         assert_eq!(
             get_doc_ids(vec![
                 Term::from_field_text(text_field, "b"),
                 Term::from_field_text(text_field, "a"),
             ])?,
-            vec![DocAddress(0, 0), DocAddress(0, 1), DocAddress(0, 2)]
+            vec![
+                DocAddress::new(0, 0),
+                DocAddress::new(0, 1),
+                DocAddress::new(0, 2)
+            ]
         );
         Ok(())
     }
@@ -866,39 +879,39 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().u64(text_field);
-            assert!(fast_field_reader_opt.is_none());
+            let fast_field_reader_res = segment_reader.fast_fields().u64(text_field);
+            assert!(fast_field_reader_res.is_err());
         }
         {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(stored_int_field);
-            assert!(fast_field_reader_opt.is_none());
+            assert!(fast_field_reader_opt.is_err());
         }
         {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_signed);
-            assert!(fast_field_reader_opt.is_none());
+            assert!(fast_field_reader_opt.is_err());
         }
         {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_float);
-            assert!(fast_field_reader_opt.is_none());
+            assert!(fast_field_reader_opt.is_err());
         }
         {
             let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_unsigned);
-            assert!(fast_field_reader_opt.is_some());
+            assert!(fast_field_reader_opt.is_ok());
             let fast_field_reader = fast_field_reader_opt.unwrap();
             assert_eq!(fast_field_reader.get(0), 4u64)
         }
 
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().i64(fast_field_signed);
-            assert!(fast_field_reader_opt.is_some());
-            let fast_field_reader = fast_field_reader_opt.unwrap();
+            let fast_field_reader_res = segment_reader.fast_fields().i64(fast_field_signed);
+            assert!(fast_field_reader_res.is_ok());
+            let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
 
         {
-            let fast_field_reader_opt = segment_reader.fast_fields().f64(fast_field_float);
-            assert!(fast_field_reader_opt.is_some());
-            let fast_field_reader = fast_field_reader_opt.unwrap();
+            let fast_field_reader_res = segment_reader.fast_fields().f64(fast_field_float);
+            assert!(fast_field_reader_res.is_ok());
+            let fast_field_reader = fast_field_reader_res.unwrap();
             assert_eq!(fast_field_reader.get(0), 4f64)
         }
         Ok(())

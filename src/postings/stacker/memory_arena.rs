@@ -132,7 +132,7 @@ impl MemoryArena {
         self.pages[addr.page_id()].slice_from(addr.page_local_addr())
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
         self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), len)
     }
@@ -162,7 +162,7 @@ impl Page {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn is_available(&self, len: usize) -> bool {
         len + self.len <= PAGE_SIZE
     }

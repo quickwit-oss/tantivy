@@ -26,7 +26,7 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
-pub(crate) use self::bm25::BM25Weight;
+pub(crate) use self::bm25::Bm25Weight;
 pub use self::intersection::Intersection;
 pub use self::union::Union;
 
@@ -42,7 +42,7 @@ pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
 pub use self::exclude::Exclude;
 pub use self::explanation::Explanation;
 #[cfg(test)]
-pub(crate) use self::fuzzy_query::DFAWrapper;
+pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::phrase_query::PhraseQuery;

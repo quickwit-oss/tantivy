@@ -1,28 +1,22 @@
 use crate::common::CompositeFile;
-use crate::fastfield::BytesFastFieldReader;
-use crate::fastfield::MultiValueIntFastFieldReader;
+use crate::directory::FileSlice;
+use crate::fastfield::MultiValuedFastFieldReader;
+use crate::fastfield::{BytesFastFieldReader, FastValue};
 use crate::fastfield::{FastFieldNotAvailableError, FastFieldReader};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
-use std::collections::HashMap;
+use crate::TantivyError;
 
 /// Provides access to all of the FastFieldReader.
 ///
 /// Internally, `FastFieldReaders` have preloaded fast field readers,
 /// and just wraps several `HashMap`.
+#[derive(Clone)]
 pub struct FastFieldReaders {
-    fast_field_i64: HashMap<Field, FastFieldReader<i64>>,
-    fast_field_u64: HashMap<Field, FastFieldReader<u64>>,
-    fast_field_f64: HashMap<Field, FastFieldReader<f64>>,
-    fast_field_date: HashMap<Field, FastFieldReader<crate::DateTime>>,
-    fast_field_i64s: HashMap<Field, MultiValueIntFastFieldReader<i64>>,
-    fast_field_u64s: HashMap<Field, MultiValueIntFastFieldReader<u64>>,
-    fast_field_f64s: HashMap<Field, MultiValueIntFastFieldReader<f64>>,
-    fast_field_dates: HashMap<Field, MultiValueIntFastFieldReader<crate::DateTime>>,
-    fast_bytes: HashMap<Field, BytesFastFieldReader>,
+    schema: Schema,
     fast_fields_composite: CompositeFile,
 }
-
+#[derive(Eq, PartialEq, Debug)]
 enum FastType {
     I64,
     U64,
@@ -44,234 +38,178 @@ fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality
         FieldType::Date(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
-        FieldType::HierarchicalFacet => Some((FastType::U64, Cardinality::MultiValues)),
+        FieldType::HierarchicalFacet(_) => Some((FastType::U64, Cardinality::MultiValues)),
         _ => None,
     }
 }
 
 impl FastFieldReaders {
-    pub(crate) fn load_all(
-        schema: &Schema,
-        fast_fields_composite: &CompositeFile,
-    ) -> crate::Result<FastFieldReaders> {
-        let mut fast_field_readers = FastFieldReaders {
-            fast_field_i64: Default::default(),
-            fast_field_u64: Default::default(),
-            fast_field_f64: Default::default(),
-            fast_field_date: Default::default(),
-            fast_field_i64s: Default::default(),
-            fast_field_u64s: Default::default(),
-            fast_field_f64s: Default::default(),
-            fast_field_dates: Default::default(),
-            fast_bytes: Default::default(),
-            fast_fields_composite: fast_fields_composite.clone(),
-        };
-        for (field, field_entry) in schema.fields() {
-            let field_type = field_entry.field_type();
-            if let FieldType::Bytes(bytes_option) = field_type {
-                if !bytes_option.is_fast() {
-                    continue;
-                }
-                let fast_field_idx_file = fast_fields_composite
-                    .open_read_with_idx(field, 0)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
-                let idx_reader = FastFieldReader::open(fast_field_idx_file)?;
-                let data = fast_fields_composite
-                    .open_read_with_idx(field, 1)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
-                let bytes_fast_field_reader = BytesFastFieldReader::open(idx_reader, data)?;
-                fast_field_readers
-                    .fast_bytes
-                    .insert(field, bytes_fast_field_reader);
-            } else if let Some((fast_type, cardinality)) = type_and_cardinality(field_type) {
-                match cardinality {
-                    Cardinality::SingleValue => {
-                        if let Some(fast_field_data) = fast_fields_composite.open_read(field) {
-                            match fast_type {
-                                FastType::U64 => {
-                                    let fast_field_reader = FastFieldReader::open(fast_field_data)?;
-                                    fast_field_readers
-                                        .fast_field_u64
-                                        .insert(field, fast_field_reader);
-                                }
-                                FastType::I64 => {
-                                    let fast_field_reader =
-                                        FastFieldReader::open(fast_field_data.clone())?;
-                                    fast_field_readers
-                                        .fast_field_i64
-                                        .insert(field, fast_field_reader);
-                                }
-                                FastType::F64 => {
-                                    let fast_field_reader =
-                                        FastFieldReader::open(fast_field_data.clone())?;
-                                    fast_field_readers
-                                        .fast_field_f64
-                                        .insert(field, fast_field_reader);
-                                }
-                                FastType::Date => {
-                                    let fast_field_reader =
-                                        FastFieldReader::open(fast_field_data.clone())?;
-                                    fast_field_readers
-                                        .fast_field_date
-                                        .insert(field, fast_field_reader);
-                                }
-                            }
-                        } else {
-                            return Err(From::from(FastFieldNotAvailableError::new(field_entry)));
-                        }
-                    }
-                    Cardinality::MultiValues => {
-                        let idx_opt = fast_fields_composite.open_read_with_idx(field, 0);
-                        let data_opt = fast_fields_composite.open_read_with_idx(field, 1);
-                        if let (Some(fast_field_idx), Some(fast_field_data)) = (idx_opt, data_opt) {
-                            let idx_reader = FastFieldReader::open(fast_field_idx)?;
-                            match fast_type {
-                                FastType::I64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
-                                    let multivalued_int_fast_field =
-                                        MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
-                                    fast_field_readers
-                                        .fast_field_i64s
-                                        .insert(field, multivalued_int_fast_field);
-                                }
-                                FastType::U64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
-                                    let multivalued_int_fast_field =
-                                        MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
-                                    fast_field_readers
-                                        .fast_field_u64s
-                                        .insert(field, multivalued_int_fast_field);
-                                }
-                                FastType::F64 => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
-                                    let multivalued_int_fast_field =
-                                        MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
-                                    fast_field_readers
-                                        .fast_field_f64s
-                                        .insert(field, multivalued_int_fast_field);
-                                }
-                                FastType::Date => {
-                                    let vals_reader = FastFieldReader::open(fast_field_data)?;
-                                    let multivalued_int_fast_field =
-                                        MultiValueIntFastFieldReader::open(idx_reader, vals_reader);
-                                    fast_field_readers
-                                        .fast_field_dates
-                                        .insert(field, multivalued_int_fast_field);
-                                }
-                            }
-                        } else {
-                            return Err(From::from(FastFieldNotAvailableError::new(field_entry)));
-                        }
-                    }
-                }
-            }
+    pub(crate) fn new(schema: Schema, fast_fields_composite: CompositeFile) -> FastFieldReaders {
+        FastFieldReaders {
+            fast_fields_composite,
+            schema,
         }
-        Ok(fast_field_readers)
     }
 
     pub(crate) fn space_usage(&self) -> PerFieldSpaceUsage {
         self.fast_fields_composite.space_usage()
     }
 
+    fn fast_field_data(&self, field: Field, idx: usize) -> crate::Result<FileSlice> {
+        self.fast_fields_composite
+            .open_read_with_idx(field, idx)
+            .ok_or_else(|| {
+                let field_name = self.schema.get_field_entry(field).name();
+                TantivyError::SchemaError(format!("Field({}) data was not found", field_name))
+            })
+    }
+
+    fn check_type(
+        &self,
+        field: Field,
+        expected_fast_type: FastType,
+        expected_cardinality: Cardinality,
+    ) -> crate::Result<()> {
+        let field_entry = self.schema.get_field_entry(field);
+        let (fast_type, cardinality) =
+            type_and_cardinality(field_entry.field_type()).ok_or_else(|| {
+                crate::TantivyError::SchemaError(format!(
+                    "Field {:?} is not a fast field.",
+                    field_entry.name()
+                ))
+            })?;
+        if fast_type != expected_fast_type {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "Field {:?} is of type {:?}, expected {:?}.",
+                field_entry.name(),
+                fast_type,
+                expected_fast_type
+            )));
+        }
+        if cardinality != expected_cardinality {
+            return Err(crate::TantivyError::SchemaError(format!(
+                "Field {:?} is of cardinality {:?}, expected {:?}.",
+                field_entry.name(),
+                cardinality,
+                expected_cardinality
+            )));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
+        &self,
+        field: Field,
+    ) -> crate::Result<FastFieldReader<TFastValue>> {
+        let fast_field_slice = self.fast_field_data(field, 0)?;
+        FastFieldReader::open(fast_field_slice)
+    }
+
+    pub(crate) fn typed_fast_field_multi_reader<TFastValue: FastValue>(
+        &self,
+        field: Field,
+    ) -> crate::Result<MultiValuedFastFieldReader<TFastValue>> {
+        let fast_field_slice_idx = self.fast_field_data(field, 0)?;
+        let fast_field_slice_vals = self.fast_field_data(field, 1)?;
+        let idx_reader = FastFieldReader::open(fast_field_slice_idx)?;
+        let vals_reader: FastFieldReader<TFastValue> =
+            FastFieldReader::open(fast_field_slice_vals)?;
+        Ok(MultiValuedFastFieldReader::open(idx_reader, vals_reader))
+    }
+
     /// Returns the `u64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns `None`.
-    pub fn u64(&self, field: Field) -> Option<FastFieldReader<u64>> {
-        self.fast_field_u64.get(&field).cloned()
+    pub fn u64(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
+        self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
     }
 
-    /// If the field is a u64-fast field return the associated reader.
-    /// If the field is a i64-fast field, return the associated u64 reader. Values are
-    /// mapped from i64 to u64 using a (well the, it is unique) monotonic mapping.    ///
+    /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the given
+    /// field is effectively of type `u64` or not.
     ///
-    /// This method is useful when merging segment reader.
-    pub(crate) fn u64_lenient(&self, field: Field) -> Option<FastFieldReader<u64>> {
-        if let Some(u64_ff_reader) = self.u64(field) {
-            return Some(u64_ff_reader);
-        }
-        if let Some(i64_ff_reader) = self.i64(field) {
-            return Some(i64_ff_reader.into_u64_reader());
-        }
-        if let Some(f64_ff_reader) = self.f64(field) {
-            return Some(f64_ff_reader.into_u64_reader());
-        }
-        if let Some(date_ff_reader) = self.date(field) {
-            return Some(date_ff_reader.into_u64_reader());
-        }
-        None
+    /// If not, the fastfield reader will returns the u64-value associated to the original FastValue.
+    pub fn u64_lenient(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns `None`.
-    pub fn i64(&self, field: Field) -> Option<FastFieldReader<i64>> {
-        self.fast_field_i64.get(&field).cloned()
+    pub fn i64(&self, field: Field) -> crate::Result<FastFieldReader<i64>> {
+        self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns `None`.
-    pub fn date(&self, field: Field) -> Option<FastFieldReader<crate::DateTime>> {
-        self.fast_field_date.get(&field).cloned()
+    pub fn date(&self, field: Field) -> crate::Result<FastFieldReader<crate::DateTime>> {
+        self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns `None`.
-    pub fn f64(&self, field: Field) -> Option<FastFieldReader<f64>> {
-        self.fast_field_f64.get(&field).cloned()
+    pub fn f64(&self, field: Field) -> crate::Result<FastFieldReader<f64>> {
+        self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
+        self.typed_fast_field_reader(field)
     }
 
     /// Returns a `u64s` multi-valued fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u64 multi-valued fast field, this method returns `None`.
-    pub fn u64s(&self, field: Field) -> Option<MultiValueIntFastFieldReader<u64>> {
-        self.fast_field_u64s.get(&field).cloned()
-    }
-
-    /// If the field is a u64s-fast field return the associated reader.
-    /// If the field is a i64s-fast field, return the associated u64s reader. Values are
-    /// mapped from i64 to u64 using a (well the, it is unique) monotonic mapping.
-    ///
-    /// This method is useful when merging segment reader.
-    pub(crate) fn u64s_lenient(&self, field: Field) -> Option<MultiValueIntFastFieldReader<u64>> {
-        if let Some(u64s_ff_reader) = self.u64s(field) {
-            return Some(u64s_ff_reader);
-        }
-        if let Some(i64s_ff_reader) = self.i64s(field) {
-            return Some(i64s_ff_reader.into_u64s_reader());
-        }
-        if let Some(f64s_ff_reader) = self.f64s(field) {
-            return Some(f64s_ff_reader.into_u64s_reader());
-        }
-        None
+    pub fn u64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {
+        self.check_type(field, FastType::U64, Cardinality::MultiValues)?;
+        self.typed_fast_field_multi_reader(field)
     }
 
     /// Returns a `i64s` multi-valued fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 multi-valued fast field, this method returns `None`.
-    pub fn i64s(&self, field: Field) -> Option<MultiValueIntFastFieldReader<i64>> {
-        self.fast_field_i64s.get(&field).cloned()
+    pub fn i64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<i64>> {
+        self.check_type(field, FastType::I64, Cardinality::MultiValues)?;
+        self.typed_fast_field_multi_reader(field)
     }
 
     /// Returns a `f64s` multi-valued fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 multi-valued fast field, this method returns `None`.
-    pub fn f64s(&self, field: Field) -> Option<MultiValueIntFastFieldReader<f64>> {
-        self.fast_field_f64s.get(&field).cloned()
+    pub fn f64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<f64>> {
+        self.check_type(field, FastType::F64, Cardinality::MultiValues)?;
+        self.typed_fast_field_multi_reader(field)
     }
 
     /// Returns a `crate::DateTime` multi-valued fast field reader reader associated to `field`.
     ///
     /// If `field` is not a `crate::DateTime` multi-valued fast field, this method returns `None`.
-    pub fn dates(&self, field: Field) -> Option<MultiValueIntFastFieldReader<crate::DateTime>> {
-        self.fast_field_dates.get(&field).cloned()
+    pub fn dates(
+        &self,
+        field: Field,
+    ) -> crate::Result<MultiValuedFastFieldReader<crate::DateTime>> {
+        self.check_type(field, FastType::Date, Cardinality::MultiValues)?;
+        self.typed_fast_field_multi_reader(field)
     }
 
     /// Returns the `bytes` fast field reader associated to `field`.
     ///
     /// If `field` is not a bytes fast field, returns `None`.
-    pub fn bytes(&self, field: Field) -> Option<BytesFastFieldReader> {
-        self.fast_bytes.get(&field).cloned()
+    pub fn bytes(&self, field: Field) -> crate::Result<BytesFastFieldReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        if let FieldType::Bytes(bytes_option) = field_entry.field_type() {
+            if !bytes_option.is_fast() {
+                return Err(crate::TantivyError::SchemaError(format!(
+                    "Field {:?} is not a fast field.",
+                    field_entry.name()
+                )));
+            }
+            let fast_field_idx_file = self.fast_field_data(field, 0)?;
+            let idx_reader = FastFieldReader::open(fast_field_idx_file)?;
+            let data = self.fast_field_data(field, 1)?;
+            BytesFastFieldReader::open(idx_reader, data)
+        } else {
+            Err(FastFieldNotAvailableError::new(field_entry).into())
+        }
     }
 }

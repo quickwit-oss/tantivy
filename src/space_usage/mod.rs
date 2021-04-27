@@ -69,7 +69,6 @@ pub struct SegmentSpaceUsage {
     termdict: PerFieldSpaceUsage,
     postings: PerFieldSpaceUsage,
     positions: PerFieldSpaceUsage,
-    positions_idx: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
 
@@ -87,7 +86,6 @@ impl SegmentSpaceUsage {
         termdict: PerFieldSpaceUsage,
         postings: PerFieldSpaceUsage,
         positions: PerFieldSpaceUsage,
-        positions_idx: PerFieldSpaceUsage,
         fast_fields: PerFieldSpaceUsage,
         fieldnorms: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
@@ -105,7 +103,6 @@ impl SegmentSpaceUsage {
             termdict,
             postings,
             positions,
-            positions_idx,
             fast_fields,
             fieldnorms,
             store,
@@ -122,14 +119,13 @@ impl SegmentSpaceUsage {
         use self::ComponentSpaceUsage::*;
         use crate::SegmentComponent::*;
         match component {
-            POSTINGS => PerField(self.postings().clone()),
-            POSITIONS => PerField(self.positions().clone()),
-            POSITIONSSKIP => PerField(self.positions_skip_idx().clone()),
-            FASTFIELDS => PerField(self.fast_fields().clone()),
-            FIELDNORMS => PerField(self.fieldnorms().clone()),
-            TERMS => PerField(self.termdict().clone()),
-            STORE => Store(self.store().clone()),
-            DELETE => Basic(self.deletes()),
+            Postings => PerField(self.postings().clone()),
+            Positions => PerField(self.positions().clone()),
+            FastFields => PerField(self.fast_fields().clone()),
+            FieldNorms => PerField(self.fieldnorms().clone()),
+            Terms => PerField(self.termdict().clone()),
+            SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
+            Delete => Basic(self.deletes()),
         }
     }
 
@@ -151,11 +147,6 @@ impl SegmentSpaceUsage {
     /// Space usage for positions
     pub fn positions(&self) -> &PerFieldSpaceUsage {
         &self.positions
-    }
-
-    /// Space usage for positions skip idx
-    pub fn positions_skip_idx(&self) -> &PerFieldSpaceUsage {
-        &self.positions_idx
     }
 
     /// Space usage for fast fields
@@ -358,7 +349,6 @@ mod test {
         expect_single_field(segment.termdict(), &name, 1, 512);
         expect_single_field(segment.postings(), &name, 1, 512);
         assert_eq!(0, segment.positions().total());
-        assert_eq!(0, segment.positions_skip_idx().total());
         expect_single_field(segment.fast_fields(), &name, 1, 512);
         expect_single_field(segment.fieldnorms(), &name, 1, 512);
         // TODO: understand why the following fails
@@ -398,7 +388,6 @@ mod test {
         expect_single_field(segment.termdict(), &name, 1, 512);
         expect_single_field(segment.postings(), &name, 1, 512);
         expect_single_field(segment.positions(), &name, 1, 512);
-        expect_single_field(segment.positions_skip_idx(), &name, 1, 512);
         assert_eq!(0, segment.fast_fields().total());
         expect_single_field(segment.fieldnorms(), &name, 1, 512);
         // TODO: understand why the following fails
@@ -437,7 +426,6 @@ mod test {
         assert_eq!(0, segment.termdict().total());
         assert_eq!(0, segment.postings().total());
         assert_eq!(0, segment.positions().total());
-        assert_eq!(0, segment.positions_skip_idx().total());
         assert_eq!(0, segment.fast_fields().total());
         assert_eq!(0, segment.fieldnorms().total());
         assert!(segment.store().total() > 0);
@@ -483,7 +471,6 @@ mod test {
         expect_single_field(segment_space_usage.termdict(), &name, 1, 512);
         expect_single_field(segment_space_usage.postings(), &name, 1, 512);
         assert_eq!(0, segment_space_usage.positions().total());
-        assert_eq!(0, segment_space_usage.positions_skip_idx().total());
         assert_eq!(0, segment_space_usage.fast_fields().total());
         expect_single_field(segment_space_usage.fieldnorms(), &name, 1, 512);
         assert!(segment_space_usage.deletes() > 0);

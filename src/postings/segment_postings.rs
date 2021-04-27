@@ -1,14 +1,11 @@
 use crate::common::HasLen;
-use crate::directory::FileSlice;
 use crate::docset::DocSet;
 use crate::fastfield::DeleteBitSet;
 use crate::positions::PositionReader;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::serializer::PostingsSerializer;
 use crate::postings::BlockSearcher;
 use crate::postings::BlockSegmentPostings;
 use crate::postings::Postings;
-use crate::schema::IndexRecordOption;
 use crate::{DocId, TERMINATED};
 
 /// `SegmentPostings` represents the inverted list or postings associated to
@@ -68,7 +65,11 @@ impl SegmentPostings {
     /// It serializes the doc ids using tantivy's codec
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
+    #[cfg(test)]
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
+        use crate::directory::FileSlice;
+        use crate::postings::serializer::PostingsSerializer;
+        use crate::schema::IndexRecordOption;
         let mut buffer = Vec::new();
         {
             let mut postings_serializer =
@@ -97,7 +98,10 @@ impl SegmentPostings {
         doc_and_tfs: &[(u32, u32)],
         fieldnorms: Option<&[u32]>,
     ) -> SegmentPostings {
+        use crate::directory::FileSlice;
         use crate::fieldnorm::FieldNormReader;
+        use crate::postings::serializer::PostingsSerializer;
+        use crate::schema::IndexRecordOption;
         use crate::Score;
         let mut buffer: Vec<u8> = Vec::new();
         let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
@@ -200,7 +204,7 @@ impl DocSet for SegmentPostings {
     }
 
     /// Return the current document's `DocId`.
-    #[inline(always)]
+    #[inline]
     fn doc(&self) -> DocId {
         self.block_cursor.doc(self.cur)
     }

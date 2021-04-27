@@ -14,7 +14,7 @@ use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::{doc, Index, Score, SegmentReader, TantivyError};
+use tantivy::{doc, Index, Score, SegmentReader};
 
 #[derive(Default)]
 struct Stats {
@@ -72,16 +72,7 @@ impl Collector for StatsCollector {
         _segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> tantivy::Result<StatsSegmentCollector> {
-        let fast_field_reader = segment_reader
-            .fast_fields()
-            .u64(self.field)
-            .ok_or_else(|| {
-                let field_name = segment_reader.schema().get_field_name(self.field);
-                TantivyError::SchemaError(format!(
-                    "Field {:?} is not a u64 fast field.",
-                    field_name
-                ))
-            })?;
+        let fast_field_reader = segment_reader.fast_fields().u64(self.field)?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
             stats: Stats::default(),

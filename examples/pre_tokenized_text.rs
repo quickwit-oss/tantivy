@@ -1,6 +1,6 @@
 // # Pre-tokenized text example
 //
-// This example shows how to use pre-tokenized text. Sometimes yout might
+// This example shows how to use pre-tokenized text. Sometimes you might
 // want to index and search through text which is already split into
 // tokens by some external tool.
 //

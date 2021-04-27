@@ -1,6 +1,6 @@
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 
-use crate::directory::{Directory, FileSlice, RAMDirectory, TerminatingWrite};
+use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
 use crate::postings::TermInfo;
 
 use std::path::PathBuf;
@@ -9,12 +9,11 @@ use std::str;
 const BLOCK_SIZE: usize = 1_500;
 
 fn make_term_info(term_ord: u64) -> TermInfo {
-    let offset = |term_ord: u64| term_ord * 100 + term_ord * term_ord;
+    let offset = |term_ord: u64| (term_ord * 100 + term_ord * term_ord) as usize;
     TermInfo {
         doc_freq: term_ord as u32,
-        postings_start_offset: offset(term_ord),
-        postings_stop_offset: offset(term_ord + 1),
-        positions_idx: offset(term_ord) * 2u64,
+        postings_range: offset(term_ord)..offset(term_ord + 1),
+        positions_range: offset(term_ord) * 2..offset(term_ord + 1) * 2,
     }
 }
 
@@ -35,7 +34,7 @@ fn test_term_ordinals() -> crate::Result<()> {
         "Sweden",
         "Switzerland",
     ];
-    let directory = RAMDirectory::create();
+    let directory = RamDirectory::create();
     let path = PathBuf::from("TermDictionary");
     {
         let write = directory.open_write(&path)?;
@@ -58,7 +57,7 @@ fn test_term_ordinals() -> crate::Result<()> {
 
 #[test]
 fn test_term_dictionary_simple() -> crate::Result<()> {
-    let directory = RAMDirectory::create();
+    let directory = RamDirectory::create();
     let path = PathBuf::from("TermDictionary");
     {
         let write = directory.open_write(&path)?;
@@ -381,7 +380,7 @@ fn test_stream_term_ord() -> crate::Result<()> {
     let termdict = stream_range_test_dict()?;
     let mut stream = termdict.stream()?;
     for b in 0u8..10u8 {
-        assert!(stream.advance(), true);
+        assert!(stream.advance());
         assert_eq!(stream.term_ord(), b as u64);
         assert_eq!(stream.key(), &[b]);
     }
@@ -391,7 +390,7 @@ fn test_stream_term_ord() -> crate::Result<()> {
 
 #[test]
 fn test_automaton_search() -> crate::Result<()> {
-    use crate::query::DFAWrapper;
+    use crate::query::DfaWrapper;
     use levenshtein_automata::LevenshteinAutomatonBuilder;
 
     const COUNTRIES: [&'static str; 7] = [
@@ -404,7 +403,7 @@ fn test_automaton_search() -> crate::Result<()> {
         "Switzerland",
     ];
 
-    let directory = RAMDirectory::create();
+    let directory = RamDirectory::create();
     let path = PathBuf::from("TermDictionary");
     {
         let write = directory.open_write(&path)?;
@@ -419,7 +418,7 @@ fn test_automaton_search() -> crate::Result<()> {
 
     // We can now build an entire dfa.
     let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
-    let automaton = DFAWrapper(lev_automaton_builder.build_dfa("Spaen"));
+    let automaton = DfaWrapper(lev_automaton_builder.build_dfa("Spaen"));
 
     let mut range = term_dict.search(automaton).into_stream()?;
 

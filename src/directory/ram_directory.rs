@@ -14,7 +14,7 @@ use std::sync::{Arc, RwLock};
 
 use super::FileHandle;
 
-/// Writer associated with the `RAMDirectory`
+/// Writer associated with the `RamDirectory`
 ///
 /// The Writer just writes a buffer.
 ///
@@ -26,13 +26,13 @@ use super::FileHandle;
 ///
 struct VecWriter {
     path: PathBuf,
-    shared_directory: RAMDirectory,
+    shared_directory: RamDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
 }
 
 impl VecWriter {
-    fn new(path_buf: PathBuf, shared_directory: RAMDirectory) -> VecWriter {
+    fn new(path_buf: PathBuf, shared_directory: RamDirectory) -> VecWriter {
         VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
@@ -119,9 +119,9 @@ impl InnerDirectory {
     }
 }
 
-impl fmt::Debug for RAMDirectory {
+impl fmt::Debug for RamDirectory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RAMDirectory")
+        write!(f, "RamDirectory")
     }
 }
 
@@ -131,23 +131,23 @@ impl fmt::Debug for RAMDirectory {
 /// Writes are only made visible upon flushing.
 ///
 #[derive(Clone, Default)]
-pub struct RAMDirectory {
+pub struct RamDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
 }
 
-impl RAMDirectory {
+impl RamDirectory {
     /// Constructor
-    pub fn create() -> RAMDirectory {
+    pub fn create() -> RamDirectory {
         Self::default()
     }
 
     /// Returns the sum of the size of the different files
-    /// in the RAMDirectory.
+    /// in the RamDirectory.
     pub fn total_mem_usage(&self) -> usize {
         self.fs.read().unwrap().total_mem_usage()
     }
 
-    /// Write a copy of all of the files saved in the RAMDirectory in the target `Directory`.
+    /// Write a copy of all of the files saved in the RamDirectory in the target `Directory`.
     ///
     /// Files are all written using the `Directory::write` meaning, even if they were
     /// written using the `atomic_write` api.
@@ -164,7 +164,7 @@ impl RAMDirectory {
     }
 }
 
-impl Directory for RAMDirectory {
+impl Directory for RamDirectory {
     fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
         let file_slice = self.open_read(path)?;
         Ok(Box::new(file_slice))
@@ -175,8 +175,8 @@ impl Directory for RAMDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        fail_point!("RAMDirectory::delete", |_| {
-            Err(DeleteError::IOError {
+        fail_point!("RamDirectory::delete", |_| {
+            Err(DeleteError::IoError {
                 io_error: io::Error::from(io::ErrorKind::Other),
                 filepath: path.to_path_buf(),
             })
@@ -188,7 +188,7 @@ impl Directory for RAMDirectory {
         Ok(self
             .fs
             .read()
-            .map_err(|e| OpenReadError::IOError {
+            .map_err(|e| OpenReadError::IoError {
                 io_error: io::Error::new(io::ErrorKind::Other, e.to_string()),
                 filepath: path.to_path_buf(),
             })?
@@ -212,7 +212,7 @@ impl Directory for RAMDirectory {
         let bytes =
             self.open_read(path)?
                 .read_bytes()
-                .map_err(|io_error| OpenReadError::IOError {
+                .map_err(|io_error| OpenReadError::IoError {
                     io_error,
                     filepath: path.to_path_buf(),
                 })?;
@@ -220,19 +220,15 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
-        fail_point!("RAMDirectory::atomic_write", |msg| Err(io::Error::new(
+        fail_point!("RamDirectory::atomic_write", |msg| Err(io::Error::new(
             io::ErrorKind::Other,
             msg.unwrap_or_else(|| "Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
 
-        // Reserve the path to prevent calls to .write() to succeed.
-        self.fs.write().unwrap().write(path_buf.clone(), &[]);
+        self.fs.write().unwrap().write(path_buf, data);
 
-        let mut vec_writer = VecWriter::new(path_buf, self.clone());
-        vec_writer.write_all(data)?;
-        vec_writer.flush()?;
-        if path == Path::new(&*META_FILEPATH) {
+        if path == *META_FILEPATH {
             let _ = self.fs.write().unwrap().watch_router.broadcast();
         }
         Ok(())
@@ -245,7 +241,7 @@ impl Directory for RAMDirectory {
 
 #[cfg(test)]
 mod tests {
-    use super::RAMDirectory;
+    use super::RamDirectory;
     use crate::Directory;
     use std::io::Write;
     use std::path::Path;
@@ -256,12 +252,12 @@ mod tests {
         let msg_seq: &'static [u8] = b"sequential is the way";
         let path_atomic: &'static Path = Path::new("atomic");
         let path_seq: &'static Path = Path::new("seq");
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         assert!(directory.atomic_write(path_atomic, msg_atomic).is_ok());
         let mut wrt = directory.open_write(path_seq).unwrap();
         assert!(wrt.write_all(msg_seq).is_ok());
         assert!(wrt.flush().is_ok());
-        let directory_copy = RAMDirectory::create();
+        let directory_copy = RamDirectory::create();
         assert!(directory.persist(&directory_copy).is_ok());
         assert_eq!(directory_copy.atomic_read(path_atomic).unwrap(), msg_atomic);
         assert_eq!(directory_copy.atomic_read(path_seq).unwrap(), msg_seq);

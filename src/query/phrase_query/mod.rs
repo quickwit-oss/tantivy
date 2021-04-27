@@ -58,7 +58,7 @@ pub mod tests {
             test_fruits
                 .docs()
                 .iter()
-                .map(|docaddr| docaddr.1)
+                .map(|docaddr| docaddr.doc_id)
                 .collect::<Vec<_>>()
         };
         assert_eq!(test_query(vec!["a", "b"]), vec![1, 2, 3, 4]);
@@ -109,7 +109,7 @@ pub mod tests {
             test_fruits
                 .docs()
                 .iter()
-                .map(|docaddr| docaddr.1)
+                .map(|docaddr| docaddr.doc_id)
                 .collect::<Vec<_>>()
         };
         assert_eq!(test_query(vec!["a", "b", "c"]), vec![2, 4]);
@@ -206,8 +206,8 @@ pub mod tests {
                 .docs()
                 .to_vec()
         };
-        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0, 1)]);
-        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0, 2)]);
+        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress::new(0, 1)]);
+        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress::new(0, 2)]);
     }
 
     #[test] // motivated by #234
@@ -233,7 +233,7 @@ pub mod tests {
                 .expect("search should succeed")
                 .docs()
                 .iter()
-                .map(|doc_address| doc_address.1)
+                .map(|doc_address| doc_address.doc_id)
                 .collect::<Vec<DocId>>()
         };
         assert_eq!(test_query(vec![(0, "a"), (1, "b")]), vec![0]);

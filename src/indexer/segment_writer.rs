@@ -142,7 +142,7 @@ impl SegmentWriter {
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
             match *field_entry.field_type() {
-                FieldType::HierarchicalFacet => {
+                FieldType::HierarchicalFacet(_) => {
                     term_buffer.set_field(field);
                     let facets =
                         field_values
@@ -213,69 +213,59 @@ impl SegmentWriter {
 
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
-                FieldType::U64(ref int_option) => {
-                    if int_option.is_indexed() {
-                        for field_value in field_values {
-                            term_buffer.set_field(field_value.field());
-                            let u64_val = field_value
-                                .value()
-                                .u64_value()
-                                .ok_or_else(make_schema_error)?;
-                            term_buffer.set_u64(u64_val);
-                            multifield_postings.subscribe(doc_id, &term_buffer);
-                        }
+                FieldType::U64(_) => {
+                    for field_value in field_values {
+                        term_buffer.set_field(field_value.field());
+                        let u64_val = field_value
+                            .value()
+                            .u64_value()
+                            .ok_or_else(make_schema_error)?;
+                        term_buffer.set_u64(u64_val);
+                        multifield_postings.subscribe(doc_id, &term_buffer);
                     }
                 }
-                FieldType::Date(ref int_option) => {
-                    if int_option.is_indexed() {
-                        for field_value in field_values {
-                            term_buffer.set_field(field_value.field());
-                            let date_val = field_value
-                                .value()
-                                .date_value()
-                                .ok_or_else(make_schema_error)?;
-                            term_buffer.set_i64(date_val.timestamp());
-                            multifield_postings.subscribe(doc_id, &term_buffer);
-                        }
+                FieldType::Date(_) => {
+                    for field_value in field_values {
+                        term_buffer.set_field(field_value.field());
+                        let date_val = field_value
+                            .value()
+                            .date_value()
+                            .ok_or_else(make_schema_error)?;
+                        term_buffer.set_i64(date_val.timestamp());
+                        multifield_postings.subscribe(doc_id, &term_buffer);
                     }
                 }
-                FieldType::I64(ref int_option) => {
-                    if int_option.is_indexed() {
-                        for field_value in field_values {
-                            term_buffer.set_field(field_value.field());
-                            let i64_val = field_value
-                                .value()
-                                .i64_value()
-                                .ok_or_else(make_schema_error)?;
-                            term_buffer.set_i64(i64_val);
-                            multifield_postings.subscribe(doc_id, &term_buffer);
-                        }
+                FieldType::I64(_) => {
+                    for field_value in field_values {
+                        term_buffer.set_field(field_value.field());
+                        let i64_val = field_value
+                            .value()
+                            .i64_value()
+                            .ok_or_else(make_schema_error)?;
+                        term_buffer.set_i64(i64_val);
+                        multifield_postings.subscribe(doc_id, &term_buffer);
                     }
                 }
-                FieldType::F64(ref int_option) => {
-                    if int_option.is_indexed() {
-                        for field_value in field_values {
-                            term_buffer.set_field(field_value.field());
-                            let f64_val = field_value
-                                .value()
-                                .f64_value()
-                                .ok_or_else(make_schema_error)?;
-                            term_buffer.set_f64(f64_val);
-                            multifield_postings.subscribe(doc_id, &term_buffer);
-                        }
+                FieldType::F64(_) => {
+                    for field_value in field_values {
+                        term_buffer.set_field(field_value.field());
+                        let f64_val = field_value
+                            .value()
+                            .f64_value()
+                            .ok_or_else(make_schema_error)?;
+                        term_buffer.set_f64(f64_val);
+                        multifield_postings.subscribe(doc_id, &term_buffer);
                     }
                 }
-                FieldType::Bytes(ref option) => {
-                    if option.is_indexed() {
-                        for field_value in field_values {
-                            term_buffer.set_field(field_value.field());
-                            let bytes = field_value
-                                .value()
-                                .bytes_value()
-                                .ok_or_else(make_schema_error)?;
-                            term_buffer.set_bytes(bytes);
-                            self.multifield_postings.subscribe(doc_id, &term_buffer);
-                        }
+                FieldType::Bytes(_) => {
+                    for field_value in field_values {
+                        term_buffer.set_field(field_value.field());
+                        let bytes = field_value
+                            .value()
+                            .bytes_value()
+                            .ok_or_else(make_schema_error)?;
+                        term_buffer.set_bytes(bytes);
+                        self.multifield_postings.subscribe(doc_id, &term_buffer);
                     }
                 }
             }
@@ -321,7 +311,7 @@ fn write(
     }
     let fieldnorm_data = serializer
         .segment()
-        .open_read(SegmentComponent::FIELDNORMS)?;
+        .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
     let term_ord_map =
         multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;

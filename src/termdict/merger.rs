@@ -1,4 +1,3 @@
-use crate::schema::Term;
 use crate::termdict::TermOrdinal;
 use crate::termdict::TermStreamer;
 use std::cmp::Ordering;
@@ -113,15 +112,5 @@ impl<'a> TermMerger<'a> {
     /// and "true" was returned.
     pub fn current_kvs(&self) -> &[HeapItem<'a>] {
         &self.current_streamers[..]
-    }
-
-    /// Iterates through terms
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
-    pub fn next(&mut self) -> Option<Term<&[u8]>> {
-        if self.advance() {
-            Some(Term::wrap(self.current_streamers[0].streamer.key()))
-        } else {
-            None
-        }
     }
 }

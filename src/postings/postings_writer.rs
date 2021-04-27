@@ -2,7 +2,7 @@ use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
+    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
 };
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
@@ -16,7 +16,7 @@ use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::DerefMut;
+use std::ops::{DerefMut, Range};
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
@@ -30,7 +30,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                     SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
+                    SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
@@ -39,7 +39,9 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::F64(_)
         | FieldType::Date(_)
         | FieldType::Bytes(_)
-        | FieldType::HierarchicalFacet => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
+        | FieldType::HierarchicalFacet(_) => {
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
+        }
     }
 }
 
@@ -52,7 +54,7 @@ pub struct MultiFieldPostingsWriter {
 
 fn make_field_partition(
     term_offsets: &[(&[u8], Addr, UnorderedTermId)],
-) -> Vec<(Field, usize, usize)> {
+) -> Vec<(Field, Range<usize>)> {
     let term_offsets_it = term_offsets
         .iter()
         .map(|(key, _, _)| Term::wrap(key).field())
@@ -70,7 +72,7 @@ fn make_field_partition(
     offsets.push(term_offsets.len());
     let mut field_offsets = vec![];
     for i in 0..fields.len() {
-        field_offsets.push((fields[i], offsets[i], offsets[i + 1]));
+        field_offsets.push((fields[i], offsets[i]..offsets[i + 1]));
     }
     field_offsets
 }
@@ -138,14 +140,14 @@ impl MultiFieldPostingsWriter {
 
         let field_offsets = make_field_partition(&term_offsets);
 
-        for (field, start, stop) in field_offsets {
+        for (field, byte_offsets) in field_offsets {
             let field_entry = self.schema.get_field_entry(field);
 
             match *field_entry.field_type() {
-                FieldType::Str(_) | FieldType::HierarchicalFacet => {
+                FieldType::Str(_) | FieldType::HierarchicalFacet(_) => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
-                    let unordered_term_ids = term_offsets[start..stop]
+                    let unordered_term_ids = term_offsets[byte_offsets.clone()]
                         .iter()
                         .map(|&(_, _, bucket)| bucket);
                     let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
@@ -169,7 +171,7 @@ impl MultiFieldPostingsWriter {
                 fieldnorm_reader,
             )?;
             postings_writer.serialize(
-                &term_offsets[start..stop],
+                &term_offsets[byte_offsets],
                 &mut field_serializer,
                 &self.term_index.heap,
                 &self.heap,
@@ -311,7 +313,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
             let recorder: Rec = termdict_heap.read(addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(&term_bytes[4..], term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap)?;
+            recorder.serialize(&mut buffer_lender, serializer, heap);
             serializer.close_term()?;
         }
         Ok(())

@@ -7,6 +7,7 @@ use crate::termdict::TermOrdinal;
 use crate::DocId;
 use fnv::FnvHashMap;
 use std::io;
+use std::iter::once;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -18,7 +19,7 @@ use std::io;
 /// in your schema
 /// - add your document simply by calling `.add_document(...)`.
 ///
-/// The `MultiValueIntFastFieldWriter` can be acquired from the
+/// The `MultiValuedFastFieldWriter` can be acquired from the
 /// fastfield writer, by calling [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
 ///
 /// Once acquired, writing is done by calling calls to
@@ -29,17 +30,17 @@ use std::io;
 /// This makes it possible to push unordered term ids,
 /// during indexing and remap them to their respective
 /// term ids when the segment is getting serialized.
-pub struct MultiValueIntFastFieldWriter {
+pub struct MultiValuedFastFieldWriter {
     field: Field,
     vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
     is_facet: bool,
 }
 
-impl MultiValueIntFastFieldWriter {
+impl MultiValuedFastFieldWriter {
     /// Creates a new `IntFastFieldWriter`
     pub(crate) fn new(field: Field, is_facet: bool) -> Self {
-        MultiValueIntFastFieldWriter {
+        MultiValuedFastFieldWriter {
             field,
             vals: Vec::new(),
             doc_index: Vec::new(),
@@ -47,7 +48,7 @@ impl MultiValueIntFastFieldWriter {
         }
     }
 
-    /// Access the field associated to the `MultiValueIntFastFieldWriter`
+    /// Access the field associated to the `MultiValuedFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
     }
@@ -125,21 +126,18 @@ impl MultiValueIntFastFieldWriter {
                         1,
                     )?;
 
-                    let last_interval = (
-                        self.doc_index.last().cloned().unwrap(),
-                        self.vals.len() as u64,
-                    );
+                    let last_interval =
+                        self.doc_index.last().cloned().unwrap() as usize..self.vals.len();
 
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
-                    for (start, stop) in self
+                    for range in self
                         .doc_index
                         .windows(2)
-                        .map(|interval| (interval[0], interval[1]))
-                        .chain(Some(last_interval).into_iter())
-                        .map(|(start, stop)| (start as usize, stop as usize))
+                        .map(|interval| interval[0] as usize..interval[1] as usize)
+                        .chain(once(last_interval))
                     {
                         doc_vals.clear();
-                        let remapped_vals = self.vals[start..stop]
+                        let remapped_vals = self.vals[range]
                             .iter()
                             .map(|val| *mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);

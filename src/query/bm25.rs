@@ -29,22 +29,22 @@ fn compute_tf_cache(average_fieldnorm: Score) -> [Score; 256] {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct BM25Params {
+pub struct Bm25Params {
     pub idf: Score,
     pub avg_fieldnorm: Score,
 }
 
 #[derive(Clone)]
-pub struct BM25Weight {
+pub struct Bm25Weight {
     idf_explain: Explanation,
     weight: Score,
     cache: [Score; 256],
     average_fieldnorm: Score,
 }
 
-impl BM25Weight {
-    pub fn boost_by(&self, boost: Score) -> BM25Weight {
-        BM25Weight {
+impl Bm25Weight {
+    pub fn boost_by(&self, boost: Score) -> Bm25Weight {
+        Bm25Weight {
             idf_explain: self.idf_explain.clone(),
             weight: self.weight * boost,
             cache: self.cache,
@@ -52,8 +52,8 @@ impl BM25Weight {
         }
     }
 
-    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> crate::Result<BM25Weight> {
-        assert!(!terms.is_empty(), "BM25 requires at least one term");
+    pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> crate::Result<Bm25Weight> {
+        assert!(!terms.is_empty(), "Bm25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
             assert_eq!(
@@ -74,7 +74,7 @@ impl BM25Weight {
 
         if terms.len() == 1 {
             let term_doc_freq = searcher.doc_freq(&terms[0])?;
-            Ok(BM25Weight::for_one_term(
+            Ok(Bm25Weight::for_one_term(
                 term_doc_freq,
                 total_num_docs,
                 average_fieldnorm,
@@ -86,7 +86,7 @@ impl BM25Weight {
                 idf_sum += idf(term_doc_freq, total_num_docs);
             }
             let idf_explain = Explanation::new("idf", idf_sum);
-            Ok(BM25Weight::new(idf_explain, average_fieldnorm))
+            Ok(Bm25Weight::new(idf_explain, average_fieldnorm))
         }
     }
 
@@ -94,7 +94,7 @@ impl BM25Weight {
         term_doc_freq: u64,
         total_num_docs: u64,
         avg_fieldnorm: Score,
-    ) -> BM25Weight {
+    ) -> Bm25Weight {
         let idf = idf(term_doc_freq, total_num_docs);
         let mut idf_explain =
             Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);
@@ -103,12 +103,12 @@ impl BM25Weight {
             term_doc_freq as Score,
         );
         idf_explain.add_const("N, total number of docs", total_num_docs as Score);
-        BM25Weight::new(idf_explain, avg_fieldnorm)
+        Bm25Weight::new(idf_explain, avg_fieldnorm)
     }
 
-    pub(crate) fn new(idf_explain: Explanation, average_fieldnorm: Score) -> BM25Weight {
+    pub(crate) fn new(idf_explain: Explanation, average_fieldnorm: Score) -> Bm25Weight {
         let weight = idf_explain.value() * (1.0 + K1);
-        BM25Weight {
+        Bm25Weight {
             idf_explain,
             weight,
             cache: compute_tf_cache(average_fieldnorm),
@@ -116,7 +116,7 @@ impl BM25Weight {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn score(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         self.weight * self.tf_factor(fieldnorm_id, term_freq)
     }
@@ -125,7 +125,7 @@ impl BM25Weight {
         self.score(255u8, 2_013_265_944)
     }
 
-    #[inline(always)]
+    #[inline]
     pub(crate) fn tf_factor(&self, fieldnorm_id: u8, term_freq: u32) -> Score {
         let term_freq = term_freq as Score;
         let norm = self.cache[fieldnorm_id as usize];

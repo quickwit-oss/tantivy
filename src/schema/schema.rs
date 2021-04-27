@@ -146,8 +146,12 @@ impl SchemaBuilder {
     }
 
     /// Adds a facet field to the schema.
-    pub fn add_facet_field(&mut self, field_name: &str) -> Field {
-        let field_entry = FieldEntry::new_facet(field_name.to_string());
+    pub fn add_facet_field<T: Into<FacetOptions>>(
+        &mut self,
+        field_name: &str,
+        facet_options: T,
+    ) -> Field {
+        let field_entry = FieldEntry::new_facet(field_name.to_string(), facet_options.into());
         self.add_field(field_entry)
     }
 
@@ -188,7 +192,7 @@ impl SchemaBuilder {
         }))
     }
 }
-
+#[derive(Debug)]
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
@@ -222,7 +226,7 @@ impl Eq for InnerSchema {}
 /// let schema = schema_builder.build();
 ///
 /// ```
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {
@@ -305,7 +309,7 @@ impl Schema {
                 } else {
                     format!("{:?}...", &doc_json[0..20])
                 };
-                DocParsingError::NotJSON(doc_json_sample)
+                DocParsingError::NotJson(doc_json_sample)
             })?;
 
         let mut doc = Document::default();
@@ -390,7 +394,7 @@ impl<'de> Deserialize<'de> for Schema {
 pub enum DocParsingError {
     /// The payload given is not valid JSON.
     #[error("The provided string is not valid JSON")]
-    NotJSON(String),
+    NotJson(String),
     /// One of the value node could not be parsed.
     #[error("The field '{0:?}' could not be parsed: {1:?}")]
     ValueError(String, ValueParsingError),
@@ -404,7 +408,7 @@ mod tests {
 
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::int_options::Cardinality::SingleValue;
-    use crate::schema::schema::DocParsingError::NotJSON;
+    use crate::schema::schema::DocParsingError::NotJson;
     use crate::schema::*;
     use matches::{assert_matches, matches};
     use serde_json;
@@ -665,7 +669,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::TypeError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::TypeError(_)
+                ))
             );
         }
         {
@@ -680,7 +687,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             );
         }
         {
@@ -695,7 +705,10 @@ mod tests {
             );
             assert!(!matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             ));
         }
         {
@@ -710,7 +723,10 @@ mod tests {
             );
             assert_matches!(
                 json_err,
-                Err(DocParsingError::ValueError(_, ValueParsingError::OverflowError(_)))
+                Err(DocParsingError::ValueError(
+                    _,
+                    ValueParsingError::OverflowError(_)
+                ))
             );
         }
         {
@@ -721,7 +737,7 @@ mod tests {
                 "count": 50,
             }"#,
             );
-            assert_matches!(json_err, Err(NotJSON(_)));
+            assert_matches!(json_err, Err(NotJson(_)));
         }
     }
 

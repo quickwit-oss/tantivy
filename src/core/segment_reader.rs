@@ -46,7 +46,6 @@ pub struct SegmentReader {
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
-    positions_idx_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
 
@@ -108,24 +107,22 @@ impl SegmentReader {
     /// Accessor to the `FacetReader` associated to a given `Field`.
     pub fn facet_reader(&self, field: Field) -> crate::Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
-        if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(crate::TantivyError::InvalidArgument(format!(
+
+        match field_entry.field_type() {
+            FieldType::HierarchicalFacet(_) => {
+                let term_ords_reader = self.fast_fields().u64s(field)?;
+                let termdict = self
+                    .termdict_composite
+                    .open_read(field)
+                    .map(TermDictionary::open)
+                    .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
+                Ok(FacetReader::new(term_ords_reader, termdict))
+            }
+            _ => Err(crate::TantivyError::InvalidArgument(format!(
                 "Field {:?} is not a facet field.",
                 field_entry.name()
-            )));
+            ))),
         }
-        let term_ords_reader = self.fast_fields().u64s(field).ok_or_else(|| {
-            DataCorruption::comment_only(format!(
-                "Cannot find data for hierarchical facet {:?}",
-                field_entry.name()
-            ))
-        })?;
-        let termdict = self
-            .termdict_composite
-            .open_read(field)
-            .map(TermDictionary::open)
-            .unwrap_or_else(|| Ok(TermDictionary::empty()))?;
-        Ok(FacetReader::new(term_ords_reader, termdict))
     }
 
     /// Accessor to the segment's `Field norms`'s reader.
@@ -153,27 +150,19 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
-        let termdict_file = segment.open_read(SegmentComponent::TERMS)?;
+        let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
-        let store_file = segment.open_read(SegmentComponent::STORE)?;
+        let store_file = segment.open_read(SegmentComponent::Store)?;
 
         fail_point!("SegmentReader::open#middle");
 
-        let postings_file = segment.open_read(SegmentComponent::POSTINGS)?;
+        let postings_file = segment.open_read(SegmentComponent::Postings)?;
         let postings_composite = CompositeFile::open(&postings_file)?;
 
         let positions_composite = {
-            if let Ok(positions_file) = segment.open_read(SegmentComponent::POSITIONS) {
+            if let Ok(positions_file) = segment.open_read(SegmentComponent::Positions) {
                 CompositeFile::open(&positions_file)?
-            } else {
-                CompositeFile::empty()
-            }
-        };
-
-        let positions_idx_composite = {
-            if let Ok(positions_skip_file) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
-                CompositeFile::open(&positions_skip_file)?
             } else {
                 CompositeFile::empty()
             }
@@ -181,16 +170,16 @@ impl SegmentReader {
 
         let schema = segment.schema();
 
-        let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
+        let fast_fields_data = segment.open_read(SegmentComponent::FastFields)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
         let fast_field_readers =
-            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
+            Arc::new(FastFieldReaders::new(schema.clone(), fast_fields_composite));
 
-        let fieldnorm_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
+        let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
-            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+            let delete_data = segment.open_read(SegmentComponent::Delete)?;
             let delete_bitset = DeleteBitSet::open(delete_data)?;
             Some(delete_bitset)
         } else {
@@ -209,7 +198,6 @@ impl SegmentReader {
             store_file,
             delete_bitset_opt,
             positions_composite,
-            positions_idx_composite,
             schema,
         })
     }
@@ -265,18 +253,15 @@ impl SegmentReader {
         let positions_file = self
             .positions_composite
             .open_read(field)
-            .expect("Index corrupted. Failed to open field positions in composite file.");
-
-        let positions_idx_file = self
-            .positions_idx_composite
-            .open_read(field)
-            .expect("Index corrupted. Failed to open field positions in composite file.");
+            .ok_or_else(|| {
+                let error_msg = format!("Failed to open field {:?}'s positions in the composite file. Has the schema been modified?", field_entry.name());
+               DataCorruption::comment_only(error_msg)
+            })?;
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::open(termdict_file)?,
             postings_file,
             positions_file,
-            positions_idx_file,
             record_option,
         )?);
 
@@ -310,7 +295,7 @@ impl SegmentReader {
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive<'a>(&'a self) -> impl Iterator<Item = DocId> + 'a {
+    pub fn doc_ids_alive(&self) -> impl Iterator<Item = DocId> + '_ {
         (0u32..self.max_doc).filter(move |doc| !self.is_deleted(*doc))
     }
 
@@ -321,7 +306,6 @@ impl SegmentReader {
             self.termdict_composite.space_usage(),
             self.postings_composite.space_usage(),
             self.positions_composite.space_usage(),
-            self.positions_idx_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
             self.get_store_reader()?.space_usage(),

@@ -62,9 +62,7 @@ where
         segment_reader: &SegmentReader,
     ) -> Result<Self::Child> {
         let segment_scorer = self.score_tweaker.segment_tweaker(segment_reader)?;
-        let segment_collector = self
-            .collector
-            .for_segment(segment_local_id, segment_reader)?;
+        let segment_collector = self.collector.for_segment(segment_local_id, segment_reader);
         Ok(TopTweakedScoreSegmentCollector {
             segment_collector,
             segment_scorer,

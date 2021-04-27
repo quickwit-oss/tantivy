@@ -6,20 +6,20 @@ use crate::Score;
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::SegmentPostings;
 use crate::postings::{FreqReadingOption, Postings};
-use crate::query::bm25::BM25Weight;
+use crate::query::bm25::Bm25Weight;
 
 #[derive(Clone)]
 pub struct TermScorer {
     postings: SegmentPostings,
     fieldnorm_reader: FieldNormReader,
-    similarity_weight: BM25Weight,
+    similarity_weight: Bm25Weight,
 }
 
 impl TermScorer {
     pub fn new(
         postings: SegmentPostings,
         fieldnorm_reader: FieldNormReader,
-        similarity_weight: BM25Weight,
+        similarity_weight: Bm25Weight,
     ) -> TermScorer {
         TermScorer {
             postings,
@@ -36,7 +36,7 @@ impl TermScorer {
     pub fn create_for_test(
         doc_and_tfs: &[(DocId, u32)],
         fieldnorms: &[u32],
-        similarity_weight: BM25Weight,
+        similarity_weight: Bm25Weight,
     ) -> TermScorer {
         assert!(!doc_and_tfs.is_empty());
         assert!(
@@ -131,7 +131,7 @@ mod tests {
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
-    use crate::query::{BM25Weight, Scorer, TermQuery};
+    use crate::query::{Bm25Weight, Scorer, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
     use crate::Score;
     use crate::{assert_nearly_equals, Index, Searcher, SegmentId, Term};
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_term_scorer_max_score() -> crate::Result<()> {
-        let bm25_weight = BM25Weight::for_one_term(3, 6, 10.0);
+        let bm25_weight = Bm25Weight::for_one_term(3, 6, 10.0);
         let mut term_scorer = TermScorer::create_for_test(
             &[(2, 3), (3, 12), (7, 8)],
             &[0, 0, 10, 12, 0, 0, 0, 100],
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_term_scorer_shallow_advance() -> crate::Result<()> {
-        let bm25_weight = BM25Weight::for_one_term(300, 1024, 10.0);
+        let bm25_weight = Bm25Weight::for_one_term(300, 1024, 10.0);
         let mut doc_and_tfs = vec![];
         for i in 0u32..300u32 {
             let doc = i * 10;
@@ -205,7 +205,7 @@ mod tests {
              // Average fieldnorm is over the entire index,
              // not necessarily the docs that are in the posting list.
              // For this reason we multiply by 1.1 to make a realistic value.
-         let bm25_weight = BM25Weight::for_one_term(term_doc_freq as u64,
+         let bm25_weight = Bm25Weight::for_one_term(term_doc_freq as u64,
             term_doc_freq as u64 * 10u64,
             average_fieldnorm);
 
@@ -240,7 +240,7 @@ mod tests {
         doc_tfs.push((258, 1u32));
 
         let fieldnorms: Vec<u32> = std::iter::repeat(20u32).take(300).collect();
-        let bm25_weight = BM25Weight::for_one_term(10, 129, 20.0);
+        let bm25_weight = Bm25Weight::for_one_term(10, 129, 20.0);
         let mut docs = TermScorer::create_for_test(&doc_tfs[..], &fieldnorms[..], bm25_weight);
         assert_nearly_equals!(docs.block_max_score(), 2.5161593);
         docs.shallow_seek(135);
@@ -302,7 +302,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         writer.set_merge_policy(Box::new(NoMergePolicy));
         for _ in 0..3_000 {
-            let term_freq = rng.gen_range(1, 10000);
+            let term_freq = rng.gen_range(1..10000);
             let words: Vec<&str> = std::iter::repeat("bbbb").take(term_freq).collect();
             let text = words.join(" ");
             writer.add_document(doc!(text_field=>text));

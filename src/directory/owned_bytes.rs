@@ -2,7 +2,7 @@ use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
 use std::convert::TryInto;
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::sync::Arc;
 use std::{fmt, io};
 
@@ -17,8 +17,8 @@ pub struct OwnedBytes {
 }
 
 impl FileHandle for OwnedBytes {
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
-        Ok(self.slice(from, to))
+    fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
+        Ok(self.slice(range))
     }
 }
 
@@ -42,22 +42,22 @@ impl OwnedBytes {
     }
 
     /// creates a fileslice that is just a view over a slice of the data.
-    pub fn slice(&self, from: usize, to: usize) -> Self {
+    pub fn slice(&self, range: Range<usize>) -> Self {
         OwnedBytes {
-            data: &self.data[from..to],
+            data: &self.data[range],
             box_stable_deref: self.box_stable_deref.clone(),
         }
     }
 
     /// Returns the underlying slice of data.
     /// `Deref` and `AsRef` are also available.
-    #[inline(always)]
+    #[inline]
     pub fn as_slice(&self) -> &[u8] {
         self.data
     }
 
     /// Returns the len of the slice.
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -84,7 +84,7 @@ impl OwnedBytes {
     }
 
     /// Returns true iff this `OwnedBytes` is empty.
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.as_slice().is_empty()
     }
@@ -92,7 +92,7 @@ impl OwnedBytes {
     /// Drops the left most `advance_len` bytes.
     ///
     /// See also [.clip(clip_len: usize))](#method.clip).
-    #[inline(always)]
+    #[inline]
     pub fn advance(&mut self, advance_len: usize) {
         self.data = &self.data[advance_len..]
     }

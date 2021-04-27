@@ -80,7 +80,7 @@ impl BytesFastFieldWriter {
         doc_index_serializer.close_field()?;
         // writing the values themselves
         serializer
-            .new_bytes_fast_field_with_idx(self.field, 1)?
+            .new_bytes_fast_field_with_idx(self.field, 1)
             .write_all(&self.vals)?;
         Ok(())
     }

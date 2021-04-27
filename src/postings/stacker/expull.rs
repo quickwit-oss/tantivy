@@ -147,7 +147,7 @@ impl ExpUnrolledLinkedList {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn writer<'a>(&'a mut self, heap: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
         ExpUnrolledLinkedListWriter { eull: self, heap }
     }

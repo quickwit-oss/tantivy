@@ -84,41 +84,41 @@ impl UserInputBound {
     }
 }
 
-pub enum UserInputAST {
-    Clause(Vec<(Option<Occur>, UserInputAST)>),
+pub enum UserInputAst {
+    Clause(Vec<(Option<Occur>, UserInputAst)>),
     Leaf(Box<UserInputLeaf>),
-    Boost(Box<UserInputAST>, f64),
+    Boost(Box<UserInputAst>, f64),
 }
 
-impl UserInputAST {
-    pub fn unary(self, occur: Occur) -> UserInputAST {
-        UserInputAST::Clause(vec![(Some(occur), self)])
+impl UserInputAst {
+    pub fn unary(self, occur: Occur) -> UserInputAst {
+        UserInputAst::Clause(vec![(Some(occur), self)])
     }
 
-    fn compose(occur: Occur, asts: Vec<UserInputAST>) -> UserInputAST {
+    fn compose(occur: Occur, asts: Vec<UserInputAst>) -> UserInputAst {
         assert_ne!(occur, Occur::MustNot);
         assert!(!asts.is_empty());
         if asts.len() == 1 {
             asts.into_iter().next().unwrap() //< safe
         } else {
-            UserInputAST::Clause(
+            UserInputAst::Clause(
                 asts.into_iter()
-                    .map(|ast: UserInputAST| (Some(occur), ast))
+                    .map(|ast: UserInputAst| (Some(occur), ast))
                     .collect::<Vec<_>>(),
             )
         }
     }
 
-    pub fn empty_query() -> UserInputAST {
-        UserInputAST::Clause(Vec::default())
+    pub fn empty_query() -> UserInputAst {
+        UserInputAst::Clause(Vec::default())
     }
 
-    pub fn and(asts: Vec<UserInputAST>) -> UserInputAST {
-        UserInputAST::compose(Occur::Must, asts)
+    pub fn and(asts: Vec<UserInputAst>) -> UserInputAst {
+        UserInputAst::compose(Occur::Must, asts)
     }
 
-    pub fn or(asts: Vec<UserInputAST>) -> UserInputAST {
-        UserInputAST::compose(Occur::Should, asts)
+    pub fn or(asts: Vec<UserInputAst>) -> UserInputAst {
+        UserInputAst::compose(Occur::Should, asts)
     }
 }
 
@@ -128,15 +128,15 @@ impl From<UserInputLiteral> for UserInputLeaf {
     }
 }
 
-impl From<UserInputLeaf> for UserInputAST {
-    fn from(leaf: UserInputLeaf) -> UserInputAST {
-        UserInputAST::Leaf(Box::new(leaf))
+impl From<UserInputLeaf> for UserInputAst {
+    fn from(leaf: UserInputLeaf) -> UserInputAst {
+        UserInputAst::Leaf(Box::new(leaf))
     }
 }
 
 fn print_occur_ast(
     occur_opt: Option<Occur>,
-    ast: &UserInputAST,
+    ast: &UserInputAst,
     formatter: &mut fmt::Formatter,
 ) -> fmt::Result {
     if let Some(occur) = occur_opt {
@@ -147,10 +147,10 @@ fn print_occur_ast(
     Ok(())
 }
 
-impl fmt::Debug for UserInputAST {
+impl fmt::Debug for UserInputAst {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            UserInputAST::Clause(ref subqueries) => {
+            UserInputAst::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;
                 } else {
@@ -164,8 +164,8 @@ impl fmt::Debug for UserInputAST {
                 }
                 Ok(())
             }
-            UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
-            UserInputAST::Boost(ref leaf, boost) => write!(formatter, "({:?})^{}", leaf, boost),
+            UserInputAst::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
+            UserInputAst::Boost(ref leaf, boost) => write!(formatter, "({:?})^{}", leaf, boost),
         }
     }
 }

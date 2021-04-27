@@ -39,8 +39,39 @@ mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
+// compile_error doesn't scale very well, enum like feature flags would be great to have in Rust
 #[cfg(all(feature = "lz4", feature = "brotli"))]
 compile_error!("feature `lz4` or `brotli` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "brotli"))]
+compile_error!("feature `lz4_block` or `brotli` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "lz4"))]
+compile_error!("feature `lz4_block` or `lz4` must not be enabled together.");
+
+#[cfg(all(feature = "lz4_block", feature = "snap"))]
+compile_error!("feature `lz4_block` or `snap` must not be enabled together.");
+
+#[cfg(all(feature = "lz4", feature = "snap"))]
+compile_error!("feature `lz4` or `snap` must not be enabled together.");
+
+#[cfg(all(feature = "brotli", feature = "snap"))]
+compile_error!("feature `brotli` or `snap` must not be enabled together.");
+
+#[cfg(not(any(
+    feature = "lz4",
+    feature = "brotli",
+    feature = "lz4_flex",
+    feature = "snap"
+)))]
+compile_error!("all compressors are deactivated via feature-flags, check Cargo.toml for available decompressors.");
+
+#[cfg(feature = "lz4_flex")]
+mod compression_lz4_block;
+#[cfg(feature = "lz4_flex")]
+pub use self::compression_lz4_block::COMPRESSION;
+#[cfg(feature = "lz4_flex")]
+use self::compression_lz4_block::{compress, decompress};
 
 #[cfg(feature = "lz4")]
 mod compression_lz4;
@@ -56,18 +87,18 @@ pub use self::compression_brotli::COMPRESSION;
 #[cfg(feature = "brotli")]
 use self::compression_brotli::{compress, decompress};
 
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 mod compression_snap;
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 pub use self::compression_snap::COMPRESSION;
-#[cfg(not(any(feature = "lz4", feature = "brotli")))]
+#[cfg(feature = "snap")]
 use self::compression_snap::{compress, decompress};
 
 #[cfg(test)]
 pub mod tests {
 
     use super::*;
-    use crate::directory::{Directory, RAMDirectory, WritePtr};
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::schema::Document;
     use crate::schema::FieldValue;
     use crate::schema::Schema;
@@ -115,7 +146,7 @@ pub mod tests {
     #[test]
     fn test_store() -> crate::Result<()> {
         let path = Path::new("store");
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
         let schema = write_lorem_ipsum_store(store_wrt, 1_000);
         let field_title = schema.get_field("title").unwrap();
@@ -141,7 +172,7 @@ mod bench {
 
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::Directory;
-    use crate::directory::RAMDirectory;
+    use crate::directory::RamDirectory;
     use crate::store::StoreReader;
     use std::path::Path;
     use test::Bencher;
@@ -149,7 +180,7 @@ mod bench {
     #[bench]
     #[cfg(feature = "mmap")]
     fn bench_store_encode(b: &mut Bencher) {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         b.iter(|| {
             write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
@@ -159,7 +190,7 @@ mod bench {
 
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
-        let directory = RAMDirectory::create();
+        let directory = RamDirectory::create();
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
         let store_file = directory.open_read(path).unwrap();

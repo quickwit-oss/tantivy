@@ -58,9 +58,7 @@ where
         segment_local_id: u32,
         segment_reader: &SegmentReader,
     ) -> crate::Result<Self::Child> {
-        let segment_collector = self
-            .collector
-            .for_segment(segment_local_id, segment_reader)?;
+        let segment_collector = self.collector.for_segment(segment_local_id, segment_reader);
         let segment_scorer = self.custom_scorer.segment_scorer(segment_reader)?;
         Ok(CustomScoreTopSegmentCollector {
             segment_collector,

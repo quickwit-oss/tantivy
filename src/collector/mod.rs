@@ -86,12 +86,15 @@ See the `custom_collector` example.
 
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use downcast_rs::impl_downcast;
 
 mod count_collector;
 pub use self::count_collector::Count;
+
+mod histogram_collector;
+pub use histogram_collector::HistogramCollector;
 
 mod multi_collector;
 pub use self::multi_collector::MultiCollector;
@@ -109,6 +112,7 @@ pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
+pub use self::facet_collector::FacetCounts;
 use crate::query::Weight;
 
 mod docset_collector;
@@ -155,7 +159,7 @@ pub trait Collector: Sync + Send {
     /// on this segment.
     fn for_segment(
         &self,
-        segment_local_id: SegmentLocalId,
+        segment_local_id: SegmentOrdinal,
         segment: &SegmentReader,
     ) -> crate::Result<Self::Child>;
 
@@ -190,6 +194,61 @@ pub trait Collector: Sync + Send {
             })?;
         }
         Ok(segment_collector.harvest())
+    }
+}
+
+impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {
+    type Fruit = Option<TSegmentCollector::Fruit>;
+
+    fn collect(&mut self, doc: DocId, score: Score) {
+        if let Some(segment_collector) = self {
+            segment_collector.collect(doc, score);
+        }
+    }
+
+    fn harvest(self) -> Self::Fruit {
+        self.map(|segment_collector| segment_collector.harvest())
+    }
+}
+
+impl<TCollector: Collector> Collector for Option<TCollector> {
+    type Fruit = Option<TCollector::Fruit>;
+
+    type Child = Option<<TCollector as Collector>::Child>;
+
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentOrdinal,
+        segment: &SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        Ok(if let Some(inner) = self {
+            let inner_segment_collector = inner.for_segment(segment_local_id, segment)?;
+            Some(inner_segment_collector)
+        } else {
+            None
+        })
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.as_ref()
+            .map(|inner| inner.requires_scoring())
+            .unwrap_or(false)
+    }
+
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit> {
+        if let Some(inner) = self.as_ref() {
+            let inner_segment_fruits: Vec<_> = segment_fruits
+                .into_iter()
+                .flat_map(|fruit_opt| fruit_opt.into_iter())
+                .collect();
+            let fruit = inner.merge_fruits(inner_segment_fruits)?;
+            Ok(Some(fruit))
+        } else {
+            Ok(None)
+        }
     }
 }
 

@@ -66,9 +66,9 @@ impl FastFieldSerializer {
         &mut self,
         field: Field,
         idx: usize,
-    ) -> io::Result<FastBytesFieldSerializer<'_, CountingWriter<WritePtr>>> {
+    ) -> FastBytesFieldSerializer<'_, CountingWriter<WritePtr>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
-        FastBytesFieldSerializer::open(field_write)
+        FastBytesFieldSerializer { write: field_write }
     }
 
     /// Closes the serializer
@@ -132,10 +132,6 @@ pub struct FastBytesFieldSerializer<'a, W: Write> {
 }
 
 impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
-    fn open(write: &'a mut W) -> io::Result<FastBytesFieldSerializer<'a, W>> {
-        Ok(FastBytesFieldSerializer { write })
-    }
-
     pub fn write_all(&mut self, vals: &[u8]) -> io::Result<()> {
         self.write.write_all(vals)
     }

@@ -5,15 +5,15 @@ use crate::schema::Facet;
 use crate::schema::Field;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::BinaryHeap;
-use std::collections::Bound;
 use std::iter::Peekable;
+use std::ops::Bound;
 use std::{u64, usize};
 
 struct Hit<'a> {
@@ -37,7 +37,10 @@ impl<'a> PartialOrd<Hit<'a>> for Hit<'a> {
 
 impl<'a> Ord for Hit<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.count.cmp(&self.count)
+        other
+            .count
+            .cmp(&self.count)
+            .then(self.facet.cmp(other.facet))
     }
 }
 
@@ -80,7 +83,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// ```rust
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
-/// use tantivy::schema::{Facet, Schema, TEXT};
+/// use tantivy::schema::{Facet, Schema, INDEXED, TEXT};
 /// use tantivy::{doc, Index};
 ///
 /// fn example() -> tantivy::Result<()> {
@@ -89,7 +92,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     // Facet have their own specific type.
 ///     // It is not a bad practise to put all of your
 ///     // facet information in the same field.
-///     let facet = schema_builder.add_facet_field("facet");
+///     let facet = schema_builder.add_facet_field("facet", INDEXED);
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -262,7 +265,7 @@ impl Collector for FacetCollector {
 
     fn for_segment(
         &self,
-        _: SegmentLocalId,
+        _: SegmentOrdinal,
         reader: &SegmentReader,
     ) -> crate::Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
@@ -398,6 +401,8 @@ impl<'a> Iterator for FacetChildIterator<'a> {
 }
 
 impl FacetCounts {
+    /// Returns an iterator over all of the facet count pairs inside this result.
+    /// See the documentation for `FacetCollector` for a usage example.
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
     where
         Facet: From<T>,
@@ -417,6 +422,8 @@ impl FacetCounts {
         FacetChildIterator { underlying }
     }
 
+    /// Returns a vector of top `k` facets with their counts, sorted highest-to-lowest by counts.
+    /// See the documentation for `FacetCollector` for a usage example.
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
     where
         Facet: From<T>,
@@ -457,7 +464,7 @@ mod tests {
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{Document, Facet, Field, IndexRecordOption, Schema};
+    use crate::schema::{Document, Facet, Field, IndexRecordOption, Schema, INDEXED};
     use crate::Term;
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;
@@ -467,7 +474,7 @@ mod tests {
     #[test]
     fn test_facet_collector_drilldown() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -527,7 +534,7 @@ mod tests {
     #[test]
     fn test_doc_unsorted_multifacet() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets");
+        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
@@ -551,7 +558,7 @@ mod tests {
     #[test]
     fn test_doc_search_by_facet() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -608,7 +615,7 @@ mod tests {
     #[test]
     fn test_facet_collector_topk() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -653,6 +660,41 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_facet_collector_topk_tie_break() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let docs: Vec<Document> = vec![("b", 2), ("a", 2), ("c", 4)]
+            .into_iter()
+            .flat_map(|(c, count)| {
+                let facet = Facet::from(&format!("/facet/{}", c));
+                let doc = doc!(facet_field => facet);
+                iter::repeat(doc).take(count)
+            })
+            .collect();
+
+        let mut index_writer = index.writer_for_tests()?;
+        for doc in docs {
+            index_writer.add_document(doc);
+        }
+        index_writer.commit()?;
+
+        let searcher = index.reader()?.searcher();
+        let mut facet_collector = FacetCollector::for_field(facet_field);
+        facet_collector.add_facet("/facet");
+        let counts: FacetCounts = searcher.search(&AllQuery, &facet_collector)?;
+
+        let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 2);
+        assert_eq!(
+            facets,
+            vec![(&Facet::from("/facet/c"), 4), (&Facet::from("/facet/a"), 2)]
+        );
+        Ok(())
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
@@ -660,7 +702,7 @@ mod bench {
 
     use crate::collector::FacetCollector;
     use crate::query::AllQuery;
-    use crate::schema::{Facet, Schema};
+    use crate::schema::{Facet, Schema, INDEXED};
     use crate::Index;
     use rand::seq::SliceRandom;
     use rand::thread_rng;
@@ -669,7 +711,7 @@ mod bench {
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 

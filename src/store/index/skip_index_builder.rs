@@ -28,18 +28,18 @@ impl LayerBuilder {
     ///
     /// If the block was empty to begin with, simply return None.
     fn flush_block(&mut self) -> Option<Checkpoint> {
-        self.block.doc_interval().map(|(start_doc, end_doc)| {
-            let start_offset = self.buffer.len() as u64;
+        if let Some(doc_range) = self.block.doc_interval() {
+            let start_offset = self.buffer.len();
             self.block.serialize(&mut self.buffer);
-            let end_offset = self.buffer.len() as u64;
+            let end_offset = self.buffer.len();
             self.block.clear();
-            Checkpoint {
-                start_doc,
-                end_doc,
-                start_offset,
-                end_offset,
-            }
-        })
+            Some(Checkpoint {
+                doc_range,
+                byte_range: start_offset..end_offset,
+            })
+        } else {
+            None
+        }
     }
 
     fn push(&mut self, checkpoint: Checkpoint) {
@@ -48,7 +48,7 @@ impl LayerBuilder {
 
     fn insert(&mut self, checkpoint: Checkpoint) -> Option<Checkpoint> {
         self.push(checkpoint);
-        let emit_skip_info = (self.block.len() % CHECKPOINT_PERIOD) == 0;
+        let emit_skip_info = self.block.len() >= CHECKPOINT_PERIOD;
         if emit_skip_info {
             self.flush_block()
         } else {

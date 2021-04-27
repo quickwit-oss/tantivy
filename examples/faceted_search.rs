@@ -23,7 +23,7 @@ fn main() -> tantivy::Result<()> {
 
     let name = schema_builder.add_text_field("felin_name", TEXT | STORED);
     // this is our faceted field: its scientific classification
-    let classification = schema_builder.add_facet_field("classification");
+    let classification = schema_builder.add_facet_field("classification", INDEXED);
 
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);

@@ -2,7 +2,7 @@ use super::Collector;
 use crate::collector::SegmentCollector;
 use crate::DocId;
 use crate::Score;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
 
 /// `CountCollector` collector only counts how many
@@ -45,7 +45,7 @@ impl Collector for Count {
 
     fn for_segment(
         &self,
-        _: SegmentLocalId,
+        _: SegmentOrdinal,
         _: &SegmentReader,
     ) -> crate::Result<SegmentCountCollector> {
         Ok(SegmentCountCollector::default())

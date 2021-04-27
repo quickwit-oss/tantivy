@@ -51,9 +51,9 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
 
     /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> crate::Result<Explanation> {
-        let reader = searcher.segment_reader(doc_address.segment_ord());
+        let reader = searcher.segment_reader(doc_address.segment_ord);
         let weight = self.weight(searcher, true)?;
-        weight.explain(reader, doc_address.doc())
+        weight.explain(reader, doc_address.doc_id)
     }
 
     /// Returns the number of documents matching the query.

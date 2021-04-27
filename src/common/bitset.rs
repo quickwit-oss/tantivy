@@ -59,19 +59,19 @@ impl TinySet {
 
     /// Creates a new `TinySet` containing only one element
     /// within `[0; 64[`
-    #[inline(always)]
+    #[inline]
     pub fn singleton(el: u32) -> TinySet {
         TinySet(1u64 << u64::from(el))
     }
 
     /// Insert a new element within [0..64[
-    #[inline(always)]
+    #[inline]
     pub fn insert(self, el: u32) -> TinySet {
         self.union(TinySet::singleton(el))
     }
 
     /// Insert a new element within [0..64[
-    #[inline(always)]
+    #[inline]
     pub fn insert_mut(&mut self, el: u32) -> bool {
         let old = *self;
         *self = old.insert(el);
@@ -79,20 +79,20 @@ impl TinySet {
     }
 
     /// Returns the union of two tinysets
-    #[inline(always)]
+    #[inline]
     pub fn union(self, other: TinySet) -> TinySet {
         TinySet(self.0 | other.0)
     }
 
     /// Returns true iff the `TinySet` is empty.
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(self) -> bool {
         self.0 == 0u64
     }
 
     /// Returns the lowest element in the `TinySet`
     /// and removes it.
-    #[inline(always)]
+    #[inline]
     pub fn pop_lowest(&mut self) -> Option<u32> {
         if self.is_empty() {
             None

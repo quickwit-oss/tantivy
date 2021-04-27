@@ -128,7 +128,7 @@ mod tests {
                 .docs()
                 .iter()
                 .cloned()
-                .map(|doc| doc.1)
+                .map(|doc| doc.doc_id)
                 .collect::<Vec<DocId>>()
         };
         {
@@ -196,8 +196,8 @@ mod tests {
             let topdocs_no_excluded = matching_topdocs(&boolean_query_no_excluded);
             assert_eq!(topdocs_no_excluded.len(), 2);
             let (top_score, top_doc) = topdocs_no_excluded[0];
-            assert_eq!(top_doc, DocAddress(0, 4));
-            assert_eq!(topdocs_no_excluded[1].1, DocAddress(0, 3)); // ignore score of doc 3.
+            assert_eq!(top_doc, DocAddress::new(0, 4));
+            assert_eq!(topdocs_no_excluded[1].1, DocAddress::new(0, 3)); // ignore score of doc 3.
             score_doc_4 = top_score;
         }
 
@@ -210,7 +210,7 @@ mod tests {
             let topdocs_excluded = matching_topdocs(&boolean_query_two_excluded);
             assert_eq!(topdocs_excluded.len(), 1);
             let (top_score, top_doc) = topdocs_excluded[0];
-            assert_eq!(top_doc, DocAddress(0, 4));
+            assert_eq!(top_doc, DocAddress::new(0, 4));
             assert_eq!(top_score, score_doc_4);
         }
     }
@@ -309,7 +309,7 @@ mod tests {
             IndexRecordOption::Basic,
         ));
         let query = BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
-        let explanation = query.explain(&searcher, DocAddress(0, 0u32))?;
+        let explanation = query.explain(&searcher, DocAddress::new(0, 0u32))?;
         assert_nearly_equals!(explanation.value(), 0.6931472);
         Ok(())
     }

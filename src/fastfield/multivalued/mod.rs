@@ -1,8 +1,8 @@
 mod reader;
 mod writer;
 
-pub use self::reader::MultiValueIntFastFieldReader;
-pub use self::writer::MultiValueIntFastFieldWriter;
+pub use self::reader::MultiValuedFastFieldReader;
+pub use self::writer::MultiValuedFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
@@ -13,6 +13,7 @@ mod tests {
     use crate::schema::Facet;
     use crate::schema::IntOptions;
     use crate::schema::Schema;
+    use crate::schema::INDEXED;
     use crate::Index;
     use chrono::Duration;
 
@@ -76,12 +77,15 @@ mod tests {
         // add another second
         let two_secs_ahead = first_time_stamp + Duration::seconds(2);
         index_writer.add_document(doc!(date_field=>two_secs_ahead, date_field=>two_secs_ahead,date_field=>two_secs_ahead, time_i=>3i64));
+        // add three seconds
+        index_writer
+            .add_document(doc!(date_field=>first_time_stamp + Duration::seconds(3), time_i=>4i64));
         assert!(index_writer.commit().is_ok());
 
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let reader = searcher.segment_reader(0);
-        assert_eq!(reader.num_docs(), 4);
+        assert_eq!(reader.num_docs(), 5);
 
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
@@ -146,37 +150,50 @@ mod tests {
             }
         }
 
-        // TODO: support Date range queries
-        //        {
-        //            let parser = QueryParser::for_index(&index, vec![date_field]);
-        //            let range_q = format!("\"{}\"..\"{}\"",
-        //                                  (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
-        //                                  (first_time_stamp + Duration::seconds(3)).to_rfc3339()
-        //            );
-        //            let query = parser.parse_query(&range_q)
-        //                .expect("could not parse query");
-        //            let results = searcher.search(&query, &TopDocs::with_limit(5))
-        //                .expect("could not query index");
-        //
-        //
-        //            assert_eq!(results.len(), 2);
-        //            for (i, doc_pair) in results.iter().enumerate() {
-        //                let retrieved_doc = searcher.doc(doc_pair.1).expect("cannot fetch doc");
-        //                let offset_sec = match i {
-        //                    0 => 1,
-        //                    1 => 3,
-        //                    _ => panic!("should not have more than 2 docs")
-        //                };
-        //                let time_i_val = match i {
-        //                    0 => 2,
-        //                    1 => 3,
-        //                    _ => panic!("should not have more than 2 docs")
-        //                };
-        //                assert_eq!(retrieved_doc.get_first(date_field).expect("cannot find value").date_value().timestamp(),
-        //                           (first_time_stamp + Duration::seconds(offset_sec)).timestamp());
-        //                assert_eq!(retrieved_doc.get_first(time_i).expect("cannot find value").i64_value(), time_i_val);
-        //            }
-        //        }
+        {
+            let parser = QueryParser::for_index(&index, vec![date_field]);
+            let range_q = format!(
+                "[{} TO {}}}",
+                (first_time_stamp + Duration::seconds(1)).to_rfc3339(),
+                (first_time_stamp + Duration::seconds(3)).to_rfc3339()
+            );
+            let query = parser.parse_query(&range_q).expect("could not parse query");
+            let results = searcher
+                .search(&query, &TopDocs::with_limit(5))
+                .expect("could not query index");
+
+            assert_eq!(results.len(), 2);
+            for (i, doc_pair) in results.iter().enumerate() {
+                let retrieved_doc = searcher.doc(doc_pair.1).expect("cannot fetch doc");
+                let offset_sec = match i {
+                    0 => 1,
+                    1 => 2,
+                    _ => panic!("should not have more than 2 docs"),
+                };
+                let time_i_val = match i {
+                    0 => 2,
+                    1 => 3,
+                    _ => panic!("should not have more than 2 docs"),
+                };
+                assert_eq!(
+                    retrieved_doc
+                        .get_first(date_field)
+                        .expect("cannot find value")
+                        .date_value()
+                        .expect("value not of Date type")
+                        .timestamp(),
+                    (first_time_stamp + Duration::seconds(offset_sec)).timestamp()
+                );
+                assert_eq!(
+                    retrieved_doc
+                        .get_first(time_i)
+                        .expect("cannot find value")
+                        .i64_value()
+                        .expect("value not of i64 type"),
+                    time_i_val
+                );
+            }
+        }
     }
 
     #[test]
@@ -212,7 +229,7 @@ mod tests {
     #[ignore]
     fn test_many_facets() {
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_facet_field("facetfield");
+        let field = schema_builder.add_facet_field("facetfield", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();

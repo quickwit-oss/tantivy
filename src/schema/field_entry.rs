@@ -1,3 +1,4 @@
+use crate::schema::FacetOptions;
 use crate::schema::TextOptions;
 use crate::schema::{is_valid_field_name, IntOptions};
 
@@ -73,11 +74,11 @@ impl FieldEntry {
     }
 
     /// Creates a field entry for a facet.
-    pub fn new_facet(field_name: String) -> FieldEntry {
+    pub fn new_facet(field_name: String, field_type: FacetOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
-            field_type: FieldType::HierarchicalFacet,
+            field_type: FieldType::HierarchicalFacet(field_type),
         }
     }
 
@@ -107,7 +108,7 @@ impl FieldEntry {
             | FieldType::I64(ref options)
             | FieldType::F64(ref options)
             | FieldType::Date(ref options) => options.is_indexed(),
-            FieldType::HierarchicalFacet => true,
+            FieldType::HierarchicalFacet(ref options) => options.is_indexed(),
             FieldType::Bytes(ref options) => options.is_indexed(),
         }
     }
@@ -131,8 +132,7 @@ impl FieldEntry {
             | FieldType::F64(ref options)
             | FieldType::Date(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
-            // TODO make stored hierarchical facet optional
-            FieldType::HierarchicalFacet => true,
+            FieldType::HierarchicalFacet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
         }
     }
@@ -167,8 +167,9 @@ impl Serialize for FieldEntry {
                 s.serialize_field("type", "date")?;
                 s.serialize_field("options", options)?;
             }
-            FieldType::HierarchicalFacet => {
+            FieldType::HierarchicalFacet(ref options) => {
                 s.serialize_field("type", "hierarchical_facet")?;
+                s.serialize_field("options", options)?;
             }
             FieldType::Bytes(ref options) => {
                 s.serialize_field("type", "bytes")?;
@@ -191,7 +192,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
             Name,
             Type,
             Options,
-        };
+        }
 
         const FIELDS: &[&str] = &["name", "type", "options"];
 
@@ -225,10 +226,8 @@ impl<'de> Deserialize<'de> for FieldEntry {
                             }
                             let type_string = map.next_value::<String>()?;
                             match type_string.as_str() {
-                                "hierarchical_facet" => {
-                                    field_type = Some(FieldType::HierarchicalFacet);
-                                }
-                                "text" | "u64" | "i64" | "f64" | "date" | "bytes" => {
+                                "text" | "u64" | "i64" | "f64" | "date" | "bytes"
+                                | "hierarchical_facet" => {
                                     // These types require additional options to create a field_type
                                 }
                                 _ => panic!("unhandled type"),
@@ -248,6 +247,10 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "f64" => field_type = Some(FieldType::F64(map.next_value()?)),
                                 "date" => field_type = Some(FieldType::Date(map.next_value()?)),
                                 "bytes" => field_type = Some(FieldType::Bytes(map.next_value()?)),
+                                "hierarchical_facet" => {
+                                    field_type =
+                                        Some(FieldType::HierarchicalFacet(map.next_value()?))
+                                }
                                 _ => {
                                     let msg = format!("Unrecognised type {}", ty);
                                     return Err(de::Error::custom(msg));

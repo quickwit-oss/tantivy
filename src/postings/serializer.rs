@@ -7,7 +7,7 @@ use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
-use crate::query::BM25Weight;
+use crate::query::Bm25Weight;
 use crate::schema::{Field, FieldEntry, FieldType};
 use crate::schema::{IndexRecordOption, Schema};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
@@ -50,38 +50,20 @@ pub struct InvertedIndexSerializer {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
-    positionsidx_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
 impl InvertedIndexSerializer {
-    /// Open a new `InvertedIndexSerializer` for the given segment
-    fn create(
-        terms_write: CompositeWrite<WritePtr>,
-        postings_write: CompositeWrite<WritePtr>,
-        positions_write: CompositeWrite<WritePtr>,
-        positionsidx_write: CompositeWrite<WritePtr>,
-        schema: Schema,
-    ) -> crate::Result<InvertedIndexSerializer> {
-        Ok(InvertedIndexSerializer {
-            terms_write,
-            postings_write,
-            positions_write,
-            positionsidx_write,
-            schema,
-        })
-    }
-
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> crate::Result<InvertedIndexSerializer> {
-        use crate::SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
-        InvertedIndexSerializer::create(
-            CompositeWrite::wrap(segment.open_write(TERMS)?),
-            CompositeWrite::wrap(segment.open_write(POSTINGS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
-            segment.schema(),
-        )
+        use crate::SegmentComponent::{Positions, Postings, Terms};
+        let inv_index_serializer = InvertedIndexSerializer {
+            terms_write: CompositeWrite::wrap(segment.open_write(Terms)?),
+            postings_write: CompositeWrite::wrap(segment.open_write(Postings)?),
+            positions_write: CompositeWrite::wrap(segment.open_write(Positions)?),
+            schema: segment.schema(),
+        };
+        Ok(inv_index_serializer)
     }
 
     /// Must be called before starting pushing terms of
@@ -98,7 +80,6 @@ impl InvertedIndexSerializer {
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
         let positions_write = self.positions_write.for_field(field);
-        let positionsidx_write = self.positionsidx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::create(
             &field_type,
@@ -106,7 +87,6 @@ impl InvertedIndexSerializer {
             term_dictionary_write,
             postings_write,
             positions_write,
-            positionsidx_write,
             fieldnorm_reader,
         )
     }
@@ -116,7 +96,6 @@ impl InvertedIndexSerializer {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
-        self.positionsidx_write.close()?;
         Ok(())
     }
 }
@@ -139,7 +118,6 @@ impl<'a> FieldSerializer<'a> {
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
-        positionsidx_write: &'a mut CountingWriter<WritePtr>,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> io::Result<FieldSerializer<'a>> {
         total_num_tokens.serialize(postings_write)?;
@@ -161,7 +139,7 @@ impl<'a> FieldSerializer<'a> {
         let postings_serializer =
             PostingsSerializer::new(postings_write, average_fieldnorm, mode, fieldnorm_reader);
         let positions_serializer_opt = if mode.has_positions() {
-            Some(PositionSerializer::new(positions_write, positionsidx_write))
+            Some(PositionSerializer::new(positions_write))
         } else {
             None
         };
@@ -177,17 +155,17 @@ impl<'a> FieldSerializer<'a> {
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let positions_idx =
+        let positions_start =
             if let Some(positions_serializer) = self.positions_serializer_opt.as_ref() {
-                positions_serializer.positions_idx()
+                positions_serializer.written_bytes()
             } else {
                 0u64
-            };
+            } as usize;
+        let addr = self.postings_serializer.written_bytes() as usize;
         TermInfo {
             doc_freq: 0,
-            postings_start_offset: self.postings_serializer.addr(),
-            postings_stop_offset: 0u64,
-            positions_idx,
+            postings_range: addr..addr,
+            positions_range: positions_start..positions_start,
         }
     }
 
@@ -220,18 +198,12 @@ impl<'a> FieldSerializer<'a> {
     ///
     /// Term frequencies and positions may be ignored by the serializer depending
     /// on the configuration of the field in the `Schema`.
-    pub fn write_doc(
-        &mut self,
-        doc_id: DocId,
-        term_freq: u32,
-        position_deltas: &[u32],
-    ) -> io::Result<()> {
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32, position_deltas: &[u32]) {
         self.current_term_info.doc_freq += 1;
         self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
-            positions_serializer.write_all(position_deltas)?;
+            positions_serializer.write_positions_delta(position_deltas);
         }
-        Ok(())
     }
 
     /// Finish the serialization for this term postings.
@@ -242,7 +214,14 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
-            self.current_term_info.postings_stop_offset = self.postings_serializer.addr();
+            self.current_term_info.postings_range.end =
+                self.postings_serializer.written_bytes() as usize;
+
+            if let Some(positions_serializer) = self.positions_serializer_opt.as_mut() {
+                positions_serializer.close_term()?;
+                self.current_term_info.positions_range.end =
+                    positions_serializer.written_bytes() as usize;
+            }
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
             self.term_open = false;
@@ -323,7 +302,7 @@ pub struct PostingsSerializer<W: Write> {
     mode: IndexRecordOption,
     fieldnorm_reader: Option<FieldNormReader>,
 
-    bm25_weight: Option<BM25Weight>,
+    bm25_weight: Option<Bm25Weight>,
 
     num_docs: u32, // Number of docs in the segment
     avg_fieldnorm: Score, // Average number of term in the field for that segment.
@@ -363,7 +342,7 @@ impl<W: Write> PostingsSerializer<W> {
 
     pub fn new_term(&mut self, term_doc_freq: u32) {
         if self.mode.has_freq() && self.num_docs > 0 {
-            let bm25_weight = BM25Weight::for_one_term(
+            let bm25_weight = Bm25Weight::for_one_term(
                 term_doc_freq as u64,
                 self.num_docs as u64,
                 self.avg_fieldnorm,
@@ -473,7 +452,13 @@ impl<W: Write> PostingsSerializer<W> {
         Ok(())
     }
 
-    fn addr(&self) -> u64 {
+    /// Returns the number of bytes written in the postings write object
+    /// at this point.
+    /// When called before writing the postings of a term, this value is used as
+    /// start offset.
+    /// When called after writing the postings of a term, this value is used as a
+    /// end offset.
+    fn written_bytes(&self) -> u64 {
         self.output_write.written_bytes() as u64
     }
 

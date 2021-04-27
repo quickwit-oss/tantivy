@@ -1,4 +1,4 @@
-use super::MultiValueIntFastFieldReader;
+use super::MultiValuedFastFieldReader;
 use crate::error::DataCorruption;
 use crate::schema::Facet;
 use crate::termdict::TermDictionary;
@@ -20,7 +20,7 @@ use std::str;
 /// list of facets. This ordinal is segment local and
 /// only makes sense for a given segment.
 pub struct FacetReader {
-    term_ords: MultiValueIntFastFieldReader<u64>,
+    term_ords: MultiValuedFastFieldReader<u64>,
     term_dict: TermDictionary,
     buffer: Vec<u8>,
 }
@@ -29,12 +29,12 @@ impl FacetReader {
     /// Creates a new `FacetReader`.
     ///
     /// A facet reader just wraps :
-    /// - a `MultiValueIntFastFieldReader` that makes it possible to
+    /// - a `MultiValuedFastFieldReader` that makes it possible to
     /// access the list of facet ords for a given document.
     /// - a `TermDictionary` that helps associating a facet to
     /// an ordinal and vice versa.
     pub fn new(
-        term_ords: MultiValueIntFastFieldReader<u64>,
+        term_ords: MultiValuedFastFieldReader<u64>,
         term_dict: TermDictionary,
     ) -> FacetReader {
         FacetReader {
@@ -84,14 +84,106 @@ impl FacetReader {
 mod tests {
     use crate::Index;
     use crate::{
-        schema::{Facet, SchemaBuilder},
-        Document,
+        schema::{Facet, FacetOptions, SchemaBuilder, Value, INDEXED, STORED},
+        DocAddress, Document,
     };
+
+    #[test]
+    fn test_facet_only_indexed() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
+        let mut facet_ords = Vec::new();
+        facet_reader.facet_ords(0u32, &mut facet_ords);
+        assert_eq!(&facet_ords, &[2u64]);
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
+        let value = doc.get_first(facet_field).and_then(Value::path);
+        assert_eq!(value, None);
+        Ok(())
+    }
+
+    #[test]
+    fn test_facet_only_stored() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet", STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
+        let mut facet_ords = Vec::new();
+        facet_reader.facet_ords(0u32, &mut facet_ords);
+        assert!(facet_ords.is_empty());
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
+        let value = doc.get_first(facet_field).and_then(Value::path);
+        assert_eq!(value, Some("/a/b".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_facet_stored_and_indexed() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet", STORED | INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
+        let mut facet_ords = Vec::new();
+        facet_reader.facet_ords(0u32, &mut facet_ords);
+        assert_eq!(&facet_ords, &[2u64]);
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
+        let value = doc.get_first(facet_field).and_then(Value::path);
+        assert_eq!(value, Some("/a/b".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_facet_neither_stored_and_indexed() -> crate::Result<()> {
+        let mut schema_builder = SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let facet_reader = searcher
+            .segment_reader(0u32)
+            .facet_reader(facet_field)
+            .unwrap();
+        let mut facet_ords = Vec::new();
+        facet_reader.facet_ords(0u32, &mut facet_ords);
+        assert!(facet_ords.is_empty());
+        let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
+        let value = doc.get_first(facet_field).and_then(Value::path);
+        assert_eq!(value, None);
+        Ok(())
+    }
 
     #[test]
     fn test_facet_not_populated_for_all_docs() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::default();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -110,10 +202,11 @@ mod tests {
         assert!(facet_ords.is_empty());
         Ok(())
     }
+
     #[test]
     fn test_facet_not_populated_for_any_docs() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::default();
-        let facet_field = schema_builder.add_facet_field("facet");
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;

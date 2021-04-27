@@ -1,11 +1,11 @@
-use super::user_input_ast::{UserInputAST, UserInputBound, UserInputLeaf, UserInputLiteral};
+use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
-use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, letter, space, spaces, string};
 use combine::parser::Parser;
 use combine::{
     attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
+use combine::{error::StringStreamError, parser::combinator::recognize};
 
 fn field<'a>() -> impl Parser<&'a str, Output = String> {
     (
@@ -33,6 +33,62 @@ fn word<'a>() -> impl Parser<&'a str, Output = String> {
             "OR" | "AND " | "NOT" => Err(StringStreamError::UnexpectedParse),
             _ => Ok(s),
         })
+}
+
+/// Parses a date time according to rfc3339
+/// 2015-08-02T18:54:42+02
+/// 2021-04-13T19:46:26.266051969+00:00
+///
+/// NOTE: also accepts 999999-99-99T99:99:99.266051969+99:99
+/// We delegate rejecting such invalid dates to the logical AST compuation code
+/// which invokes chrono::DateTime::parse_from_rfc3339 on the value to actually parse
+/// it (instead of merely extracting the datetime value as string as done here).
+fn date_time<'a>() -> impl Parser<&'a str, Output = String> {
+    let two_digits = || recognize::<String, _, _>((digit(), digit()));
+
+    // Parses a time zone
+    // -06:30
+    // Z
+    let time_zone = {
+        let utc = recognize::<String, _, _>(char('Z'));
+        let offset = recognize((
+            choice([char('-'), char('+')]),
+            two_digits(),
+            char(':'),
+            two_digits(),
+        ));
+
+        utc.or(offset)
+    };
+
+    // Parses a date
+    // 2010-01-30
+    let date = {
+        recognize::<String, _, _>((
+            many1::<String, _, _>(digit()),
+            char('-'),
+            two_digits(),
+            char('-'),
+            two_digits(),
+        ))
+    };
+
+    // Parses a time
+    // 12:30:02
+    // 19:46:26.266051969
+    let time = {
+        recognize::<String, _, _>((
+            two_digits(),
+            char(':'),
+            two_digits(),
+            char(':'),
+            two_digits(),
+            optional((char('.'), many1::<String, _, _>(digit()))),
+            time_zone,
+        ))
+    };
+
+    recognize((date, char('T'), time))
 }
 
 fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
@@ -83,7 +139,8 @@ fn spaces1<'a>() -> impl Parser<&'a str, Output = ()> {
 /// [a TO *], [a TO c], [abc TO bcd}
 fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     let range_term_val = || {
-        word()
+        attempt(date_time())
+            .or(word())
             .or(negative_number())
             .or(char('*').with(value("*".to_string())))
     };
@@ -152,21 +209,21 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     })
 }
 
-fn negate(expr: UserInputAST) -> UserInputAST {
+fn negate(expr: UserInputAst) -> UserInputAst {
     expr.unary(Occur::MustNot)
 }
 
-fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+fn leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     parser(|input| {
         char('(')
             .with(ast())
             .skip(char(')'))
-            .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All)))
+            .or(char('*').map(|_| UserInputAst::from(UserInputLeaf::All)))
             .or(attempt(
                 string("NOT").skip(spaces1()).with(leaf()).map(negate),
             ))
-            .or(attempt(range().map(UserInputAST::from)))
-            .or(literal().map(UserInputAST::from))
+            .or(attempt(range().map(UserInputAst::from)))
+            .or(literal().map(UserInputAst::from))
             .parse_stream(input)
             .into_result()
     })
@@ -178,7 +235,7 @@ fn occur_symbol<'a>() -> impl Parser<&'a str, Output = Occur> {
         .or(char('+').map(|_| Occur::Must))
 }
 
-fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAST)> {
+fn occur_leaf<'a>() -> impl Parser<&'a str, Output = (Option<Occur>, UserInputAst)> {
     (optional(occur_symbol()), boosted_leaf())
 }
 
@@ -199,10 +256,10 @@ fn boost<'a>() -> impl Parser<&'a str, Output = f64> {
     (char('^'), positive_float_number()).map(|(_, boost)| boost)
 }
 
-fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+fn boosted_leaf<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     (leaf(), optional(boost())).map(|(leaf, boost_opt)| match boost_opt {
         Some(boost) if (boost - 1.0).abs() > std::f64::EPSILON => {
-            UserInputAST::Boost(Box::new(leaf), boost)
+            UserInputAst::Boost(Box::new(leaf), boost)
         }
         _ => leaf,
     })
@@ -221,10 +278,10 @@ fn binary_operand<'a>() -> impl Parser<&'a str, Output = BinaryOperand> {
 }
 
 fn aggregate_binary_expressions(
-    left: UserInputAST,
-    others: Vec<(BinaryOperand, UserInputAST)>,
-) -> UserInputAST {
-    let mut dnf: Vec<Vec<UserInputAST>> = vec![vec![left]];
+    left: UserInputAst,
+    others: Vec<(BinaryOperand, UserInputAst)>,
+) -> UserInputAst {
+    let mut dnf: Vec<Vec<UserInputAst>> = vec![vec![left]];
     for (operator, operand_ast) in others {
         match operator {
             BinaryOperand::And => {
@@ -238,33 +295,33 @@ fn aggregate_binary_expressions(
         }
     }
     if dnf.len() == 1 {
-        UserInputAST::and(dnf.into_iter().next().unwrap()) //< safe
+        UserInputAst::and(dnf.into_iter().next().unwrap()) //< safe
     } else {
-        let conjunctions = dnf.into_iter().map(UserInputAST::and).collect();
-        UserInputAST::or(conjunctions)
+        let conjunctions = dnf.into_iter().map(UserInputAst::and).collect();
+        UserInputAst::or(conjunctions)
     }
 }
 
-fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAST)> {
+fn operand_leaf<'a>() -> impl Parser<&'a str, Output = (BinaryOperand, UserInputAst)> {
     (
         binary_operand().skip(spaces()),
         boosted_leaf().skip(spaces()),
     )
 }
 
-pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     let boolean_expr = (boosted_leaf().skip(spaces()), many1(operand_leaf()))
         .map(|(left, right)| aggregate_binary_expressions(left, right));
     let whitespace_separated_leaves = many1(occur_leaf().skip(spaces().silent())).map(
-        |subqueries: Vec<(Option<Occur>, UserInputAST)>| {
+        |subqueries: Vec<(Option<Occur>, UserInputAst)>| {
             if subqueries.len() == 1 {
                 let (occur_opt, ast) = subqueries.into_iter().next().unwrap();
                 match occur_opt.unwrap_or(Occur::Should) {
                     Occur::Must | Occur::Should => ast,
-                    Occur::MustNot => UserInputAST::Clause(vec![(Some(Occur::MustNot), ast)]),
+                    Occur::MustNot => UserInputAst::Clause(vec![(Some(Occur::MustNot), ast)]),
                 }
             } else {
-                UserInputAST::Clause(subqueries.into_iter().collect())
+                UserInputAst::Clause(subqueries.into_iter().collect())
             }
         },
     );
@@ -272,10 +329,10 @@ pub fn ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
     spaces().with(expr).skip(spaces())
 }
 
-pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAST> {
+pub fn parse_to_ast<'a>() -> impl Parser<&'a str, Output = UserInputAst> {
     spaces()
         .with(optional(ast()).skip(eof()))
-        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAST::empty_query))
+        .map(|opt_ast| opt_ast.unwrap_or_else(UserInputAst::empty_query))
 }
 
 #[cfg(test)]
@@ -322,6 +379,22 @@ mod test {
         error_parse(".3332");
         error_parse("1.");
         error_parse("-1.");
+    }
+
+    #[test]
+    fn test_date_time() {
+        let (val, remaining) = date_time()
+            .parse("2015-08-02T18:54:42+02:30")
+            .expect("cannot parse date");
+        assert_eq!(val, "2015-08-02T18:54:42+02:30");
+        assert_eq!(remaining, "");
+        assert!(date_time().parse("2015-08-02T18:54:42+02").is_err());
+
+        let (val, remaining) = date_time()
+            .parse("2021-04-13T19:46:26.266051969+00:00")
+            .expect("cannot parse fractional date");
+        assert_eq!(val, "2021-04-13T19:46:26.266051969+00:00");
+        assert_eq!(remaining, "");
     }
 
     fn test_parse_query_to_ast_helper(query: &str, expected: &str) {
@@ -437,25 +510,60 @@ mod test {
     #[test]
     fn test_range_parser() {
         // testing the range() parser separately
-        let res = range().parse("title: <hello").unwrap().0;
+        let res = range()
+            .parse("title: <hello")
+            .expect("Cannot parse felxible bound word")
+            .0;
         let expected = UserInputLeaf::Range {
             field: Some("title".to_string()),
             lower: UserInputBound::Unbounded,
             upper: UserInputBound::Exclusive("hello".to_string()),
         };
-        let res2 = range().parse("title:{* TO hello}").unwrap().0;
+        let res2 = range()
+            .parse("title:{* TO hello}")
+            .expect("Cannot parse ununbounded to word")
+            .0;
         assert_eq!(res, expected);
         assert_eq!(res2, expected);
+
         let expected_weight = UserInputLeaf::Range {
             field: Some("weight".to_string()),
             lower: UserInputBound::Inclusive("71.2".to_string()),
             upper: UserInputBound::Unbounded,
         };
-
-        let res3 = range().parse("weight: >=71.2").unwrap().0;
-        let res4 = range().parse("weight:[71.2 TO *}").unwrap().0;
+        let res3 = range()
+            .parse("weight: >=71.2")
+            .expect("Cannot parse flexible bound float")
+            .0;
+        let res4 = range()
+            .parse("weight:[71.2 TO *}")
+            .expect("Cannot parse float to unbounded")
+            .0;
         assert_eq!(res3, expected_weight);
         assert_eq!(res4, expected_weight);
+
+        let expected_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Exclusive("2015-08-02T18:54:42Z".to_string()),
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42+02:30".to_string()),
+        };
+        let res5 = range()
+            .parse("date_field:{2015-08-02T18:54:42Z TO 2021-08-02T18:54:42+02:30]")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res5, expected_dates);
+
+        let expected_flexible_dates = UserInputLeaf::Range {
+            field: Some("date_field".to_string()),
+            lower: UserInputBound::Unbounded,
+            upper: UserInputBound::Inclusive("2021-08-02T18:54:42.12345+02:30".to_string()),
+        };
+
+        let res6 = range()
+            .parse("date_field: <=2021-08-02T18:54:42.12345+02:30")
+            .expect("Cannot parse date range")
+            .0;
+        assert_eq!(res6, expected_flexible_dates);
     }
 
     #[test]

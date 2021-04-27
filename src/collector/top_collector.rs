@@ -1,10 +1,10 @@
 use crate::DocAddress;
 use crate::DocId;
-use crate::SegmentLocalId;
+use crate::SegmentOrdinal;
 use crate::SegmentReader;
-use serde::export::PhantomData;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::marker::PhantomData;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
@@ -118,13 +118,10 @@ where
 
     pub(crate) fn for_segment<F: PartialOrd>(
         &self,
-        segment_id: SegmentLocalId,
+        segment_id: SegmentOrdinal,
         _: &SegmentReader,
-    ) -> crate::Result<TopSegmentCollector<F>> {
-        Ok(TopSegmentCollector::new(
-            segment_id,
-            self.limit + self.offset,
-        ))
+    ) -> TopSegmentCollector<F> {
+        TopSegmentCollector::new(segment_id, self.limit + self.offset)
     }
 
     /// Create a new TopCollector with the same limit and offset.
@@ -150,29 +147,32 @@ where
 pub(crate) struct TopSegmentCollector<T> {
     limit: usize,
     heap: BinaryHeap<ComparableDoc<T, DocId>>,
-    segment_id: u32,
+    segment_ord: u32,
 }
 
 impl<T: PartialOrd> TopSegmentCollector<T> {
-    fn new(segment_id: SegmentLocalId, limit: usize) -> TopSegmentCollector<T> {
+    fn new(segment_ord: SegmentOrdinal, limit: usize) -> TopSegmentCollector<T> {
         TopSegmentCollector {
             limit,
             heap: BinaryHeap::with_capacity(limit),
-            segment_id,
+            segment_ord,
         }
     }
 }
 
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub fn harvest(self) -> Vec<(T, DocAddress)> {
-        let segment_id = self.segment_id;
+        let segment_ord = self.segment_ord;
         self.heap
             .into_sorted_vec()
             .into_iter()
             .map(|comparable_doc| {
                 (
                     comparable_doc.feature,
-                    DocAddress(segment_id, comparable_doc.doc),
+                    DocAddress {
+                        segment_ord,
+                        doc_id: comparable_doc.doc,
+                    },
                 )
             })
             .collect()
@@ -180,7 +180,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
     /// Return true iff at least K documents have gone through
     /// the collector.
-    #[inline(always)]
+    #[inline]
     pub(crate) fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
     }
@@ -189,7 +189,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     ///
     /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
     /// will compare the lowest scoring item with the given one and keep whichever is greater.
-    #[inline(always)]
+    #[inline]
     pub fn collect(&mut self, doc: DocId, feature: T) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
@@ -223,9 +223,9 @@ mod tests {
         assert_eq!(
             top_collector.harvest(),
             vec![
-                (0.8, DocAddress(0, 1)),
-                (0.3, DocAddress(0, 5)),
-                (0.2, DocAddress(0, 3))
+                (0.8, DocAddress::new(0, 1)),
+                (0.3, DocAddress::new(0, 5)),
+                (0.2, DocAddress::new(0, 3))
             ]
         );
     }
@@ -241,10 +241,10 @@ mod tests {
         assert_eq!(
             top_collector.harvest(),
             vec![
-                (0.9, DocAddress(0, 7)),
-                (0.8, DocAddress(0, 1)),
-                (0.3, DocAddress(0, 5)),
-                (0.2, DocAddress(0, 3))
+                (0.9, DocAddress::new(0, 7)),
+                (0.8, DocAddress::new(0, 1)),
+                (0.3, DocAddress::new(0, 5)),
+                (0.2, DocAddress::new(0, 3))
             ]
         );
     }
@@ -279,17 +279,17 @@ mod tests {
 
         let results = collector
             .merge_fruits(vec![vec![
-                (0.9, DocAddress(0, 1)),
-                (0.8, DocAddress(0, 2)),
-                (0.7, DocAddress(0, 3)),
-                (0.6, DocAddress(0, 4)),
-                (0.5, DocAddress(0, 5)),
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+                (0.7, DocAddress::new(0, 3)),
+                (0.6, DocAddress::new(0, 4)),
+                (0.5, DocAddress::new(0, 5)),
             ]])
             .unwrap();
 
         assert_eq!(
             results,
-            vec![(0.8, DocAddress(0, 2)), (0.7, DocAddress(0, 3)),]
+            vec![(0.8, DocAddress::new(0, 2)), (0.7, DocAddress::new(0, 3)),]
         );
     }
 
@@ -298,10 +298,13 @@ mod tests {
         let collector = TopCollector::with_limit(2).and_offset(1);
 
         let results = collector
-            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+            ]])
             .unwrap();
 
-        assert_eq!(results, vec![(0.8, DocAddress(0, 2)),]);
+        assert_eq!(results, vec![(0.8, DocAddress::new(0, 2)),]);
     }
 
     #[test]
@@ -309,7 +312,10 @@ mod tests {
         let collector = TopCollector::with_limit(2).and_offset(20);
 
         let results = collector
-            .merge_fruits(vec![vec![(0.9, DocAddress(0, 1)), (0.8, DocAddress(0, 2))]])
+            .merge_fruits(vec![vec![
+                (0.9, DocAddress::new(0, 1)),
+                (0.8, DocAddress::new(0, 2)),
+            ]])
             .unwrap();
 
         assert_eq!(results, vec![]);
