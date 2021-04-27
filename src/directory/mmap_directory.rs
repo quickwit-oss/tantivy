@@ -585,7 +585,7 @@ mod tests {
         let schema = schema_builder.build();
 
         {
-            let index = Index::create(mmap_directory.clone(), schema).unwrap();
+            let index = Index::create(mmap_directory.clone(), schema, None).unwrap();
 
             let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();
