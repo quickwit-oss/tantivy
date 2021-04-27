@@ -47,7 +47,6 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 | Posting list | `.idx` | List of sorted doc ids associated to each term |
 | Term dictionnary | `.term` | Dictionary associating `Term`s to an address into the `postings` file and the `positions` file |
 | Term positions | `.pos` | Positions of terms in each document |
-| Term positions file index | `.posidx` | Index to seek within the position file |
 | Document store | `.store` | Row-oriented, compressed storage of the documents |
 | Fast fields | `.fast` | Column-oriented random-access storage of fields |
 | Fieldnorm | `.fieldnorm` | Stores the sum  of the length (in terms) of each field for each document ? |
@@ -55,13 +54,13 @@ For a given segment, Tantivy stores a bunch of files whose name is set by segmen
 
 
 ### Endianness
-By default integers and floats are serialized with little indian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates when big indian is used.
+By default integers and floats are serialized with little endian order. In some specific cases, Tantivy uses big indian, the documentation will explicitely indicates when big endian is used.
 
 
 ### Composite file structure
 [Source](../../src/common/composite_file.rs)
 
-All segment files needs to store data for each field except for tomstone file (.del). In this case, a footer is added which stores for each field an offset that indicates the starting point (or file address) of its data.
+All segment files needs to store data for each field except for tombstone file (.del). In this case, a footer is added which stores for each field an offset that indicates the starting point (or file address) of its data.
 
 ```
 Footer --> {{field_offset, field_file_address}^num_field, num_field, footer_len}
@@ -136,17 +135,17 @@ Token positions are stored in three parts and over two files:
 The position file (.pos) stores data for each field (it's a [composite file](#composite-file-structure)) and thus has the dedicated footer to get data for each field. The following data structure is repeated for each field, we omit that repetition for clarity.
 
 ```
-Position file (.pos) --> {bitpacked_delta_positions}^{N/1024}{0}^{N%1024}
-bitpacked_delta_positions --> u32
+Position file (.pos) := *DeltaPositionsForTerm* ^ *NumTerms*
 ```
 
-#### Skip positions file
+The delta positions are the difference between two consecutive positions, and are encoded in blocks like the posting lists format.
 
 ```
-Skip positions file ( `.posidx`) --> {{decompress_num_bits}^{num_doc/128}, {total_bits_from_start}^{num_doc/(1024 * k)}, skip_len}
-decompress_num_bits --> u8
-total_bits_from_start --> u64
-skip_len --> u32
+* *DeltaPositionsForTerms* := *NumBitPackedBlocks* *BitPackedPositionBlock*^(P/128) *BitPackedPositionsDeltaBitWidth* *VIntPosDeltas*?
+* *NumBitPackedBlocks**: := *P* / 128 encoded as a variable byte integer.
+* *BitPackedPositionBlock* := bit width encoded block of 128 positions delta
+* *BitPackedPositionsDeltaBitWidth* := (*BitWidth*: u8)^*NumBitPackedBlocks*
+* *VIntPosDeltas* := *VIntPosDelta*^(*P* % 128).
 ```
 
 
