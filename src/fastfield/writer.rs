@@ -1,11 +1,11 @@
 use super::multivalued::MultiValuedFastFieldWriter;
-use crate::common;
 use crate::common::BinarySerializable;
 use crate::common::VInt;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
+use crate::{common, DocId};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -70,6 +70,14 @@ impl FastFieldsWriter {
             multi_values_writers,
             bytes_value_writers,
         }
+    }
+
+    /// Update data to reflect mapped docids
+    pub(crate) fn remap_docids(&mut self, docid_map: &[DocId]) {
+        for writer in &mut self.single_value_writers {
+            writer.remap_docids(docid_map);
+        }
+        // todo other writers
     }
 
     /// Get the `FastFieldWriter` associated to a field.
@@ -177,6 +185,30 @@ impl IntFastFieldWriter {
         }
     }
 
+    /// Update data to reflect mapped docids
+    pub(crate) fn remap_docids(&mut self, docid_map: &[DocId]) {
+        // create vec to map the data to the new docids, e.g. from values
+        // [docid0=2, docid1=4, docid=1] to [newdocid0=2, newdocid1=1, newdocid2=4] (index=docid)
+        // for docid_map [0, 2, 1]
+        let mut new_mapped_vals = vec![];
+        new_mapped_vals.resize(self.val_count as usize, self.val_if_missing); // todo resize with max docid?
+        let mut cursor = self.vals.as_slice();
+        let mut old_docid = 0;
+        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
+            let new_docid = docid_map[old_docid] as usize;
+            new_mapped_vals[new_docid] = val;
+            old_docid += 1;
+        }
+
+        let mut new_vals = Vec::with_capacity(self.vals.len());
+        for val in new_mapped_vals {
+            VInt(val)
+                .serialize(&mut new_vals)
+                .expect("unable to serialize VInt to Vec");
+        }
+        self.vals = new_vals;
+    }
+
     /// Returns the field that this writer is targetting.
     pub fn field(&self) -> Field {
         self.field
@@ -232,6 +264,16 @@ impl IntFastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         let val = self.extract_val(doc);
         self.add_val(val);
+    }
+
+    /// Extract the stored data
+    pub(crate) fn get_data(&self) -> Vec<u64> {
+        let mut data = vec![];
+        let mut cursor = self.vals.as_slice();
+        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
+            data.push(val);
+        }
+        data
     }
 
     /// Push the fast fields value to the `FastFieldWriter`.

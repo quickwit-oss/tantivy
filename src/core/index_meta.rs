@@ -193,9 +193,36 @@ impl InnerSegmentMeta {
     }
 }
 
-/// Search Index Settings
-#[derive(Clone, Default, Serialize)]
-pub struct IndexSettings {}
+/// Search Index Settings.
+///
+/// Contains settings which are applied on the whole
+/// index, like presort documents.
+#[derive(Clone, Serialize)]
+pub struct IndexSettings {
+    /// Sorts the documents by information
+    /// provided in `IndexSortByField`
+    pub sort_by_field: IndexSortByField,
+}
+/// Settings to presort the documents in an index
+///
+/// Presorting documents can greatly performance
+/// in some scenarios, by appliying top n
+/// optimizations.
+#[derive(Clone, Serialize)]
+pub struct IndexSortByField {
+    /// The field to sort the documents by
+    pub field: String,
+    /// The order to sort the documents by
+    pub order: Order,
+}
+/// The order to sort by
+#[derive(Clone, Serialize, PartialEq)]
+pub enum Order {
+    /// Ascending Order
+    Asc,
+    /// Descending Order
+    Desc,
+}
 /// Meta information about the `Index`.
 ///
 /// This object is serialized on disk in the `meta.json` file.

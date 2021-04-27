@@ -1,6 +1,7 @@
 pub mod delete_queue;
 
 mod doc_opstamp_mapping;
+pub mod index_sorter;
 pub mod index_writer;
 mod log_merge_policy;
 mod merge_operation;
@@ -51,5 +52,54 @@ mod tests_mmap {
         }
         index_writer.commit().unwrap();
         index_writer.commit().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests_indexsorting {
+    use crate::schema::Schema;
+    use crate::schema::*;
+    use crate::{Index, IndexSettings, IndexSortByField, Order};
+
+    #[test]
+    fn test_sort_index() {
+        let mut schema_builder = Schema::builder();
+        let my_number = schema_builder.add_u64_field(
+            "my_number",
+            IntOptions::default().set_fast(Cardinality::SingleValue),
+        );
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            sort_by_field: IndexSortByField {
+                field: "my_number".to_string(),
+                order: Order::Asc,
+            },
+        };
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap();
+
+        assert_eq!(
+            index.settings().as_ref().unwrap().sort_by_field.field,
+            "my_number".to_string()
+        );
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.add_document(doc!(my_number=>2_u64));
+        index_writer.add_document(doc!(my_number=>1_u64));
+        index_writer.add_document(doc!(my_number=>3_u64));
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+
+        let fast_field = fast_fields.u64(my_number).unwrap();
+        assert_eq!(fast_field.get(0u32), 1u64);
+        assert_eq!(fast_field.get(1u32), 2u64);
+        assert_eq!(fast_field.get(2u32), 3u64);
     }
 }

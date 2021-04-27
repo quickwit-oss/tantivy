@@ -1,4 +1,4 @@
-use super::operation::AddOperation;
+use super::{index_sorter::sort_index, operation::AddOperation};
 use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
@@ -39,12 +39,12 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
 /// They creates the postings list in anonymous memory.
 /// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
-    max_doc: DocId,
-    multifield_postings: MultiFieldPostingsWriter,
-    segment_serializer: SegmentSerializer,
-    fast_field_writers: FastFieldsWriter,
-    fieldnorms_writer: FieldNormsWriter,
-    doc_opstamps: Vec<Opstamp>,
+    pub(crate) max_doc: DocId,
+    pub(crate) multifield_postings: MultiFieldPostingsWriter,
+    pub(crate) segment_serializer: SegmentSerializer,
+    pub(crate) fast_field_writers: FastFieldsWriter,
+    pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     term_buffer: Term,
 }
@@ -100,6 +100,9 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        if let Some(settings) = self.segment_serializer.segment().index().settings() {
+            sort_index(settings.clone(), &mut self)?;
+        }
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
