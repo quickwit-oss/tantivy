@@ -3,15 +3,14 @@ use std::cmp::Reverse;
 use super::SegmentWriter;
 use crate::{DocId, IndexSettings, Order, TantivyError};
 
+pub(crate) type DocidMapping = Vec<u32>;
+
 pub(crate) fn sort_index(
     settings: IndexSettings,
     segment_writer: &mut SegmentWriter,
-) -> crate::Result<()> {
+) -> crate::Result<DocidMapping> {
     let docid_mapping = get_docid_mapping(settings, segment_writer)?;
-    segment_writer
-        .fast_field_writers
-        .remap_docids(&docid_mapping);
-    Ok(())
+    Ok(docid_mapping)
 }
 
 // Generates a document mapping in the form of [index docid] -> docid

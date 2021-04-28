@@ -251,7 +251,7 @@ mod tests {
             fast_field_writers.add_document(&doc!(*FIELD=>14u64));
             fast_field_writers.add_document(&doc!(*FIELD=>2u64));
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -283,7 +283,7 @@ mod tests {
             fast_field_writers.add_document(&doc!(*FIELD=>1_002u64));
             fast_field_writers.add_document(&doc!(*FIELD=>1_501u64));
             fast_field_writers.add_document(&doc!(*FIELD=>215u64));
-            fast_field_writers.serialize(&mut serializer, &HashMap::new())?;
+            fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
         let file = directory.open_read(&path)?;
@@ -318,7 +318,7 @@ mod tests {
                 fast_field_writers.add_document(&doc!(*FIELD=>100_000u64));
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -350,7 +350,7 @@ mod tests {
                 fast_field_writers.add_document(&doc!(*FIELD=>5_000_000_000_000_000_000u64 + i));
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -389,7 +389,7 @@ mod tests {
                 fast_field_writers.add_document(&doc);
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -429,7 +429,7 @@ mod tests {
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -464,7 +464,7 @@ mod tests {
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
             }
-            fast_field_writers.serialize(&mut serializer, &HashMap::new())?;
+            fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
         let file = directory.open_read(&path)?;
@@ -621,7 +621,7 @@ mod bench {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }
@@ -655,7 +655,7 @@ mod bench {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }

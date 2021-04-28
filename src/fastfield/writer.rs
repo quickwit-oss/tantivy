@@ -1,11 +1,11 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common::BinarySerializable;
-use crate::common::VInt;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
 use crate::{common, DocId};
+use crate::{common::VInt, indexer::index_sorter::DocidMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -72,14 +72,6 @@ impl FastFieldsWriter {
         }
     }
 
-    /// Update data to reflect mapped docids
-    pub(crate) fn remap_docids(&mut self, docid_map: &[DocId]) {
-        for writer in &mut self.single_value_writers {
-            writer.remap_docids(docid_map);
-        }
-        // todo other writers
-    }
-
     /// Get the `FastFieldWriter` associated to a field.
     pub fn get_field_writer(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
@@ -132,14 +124,15 @@ impl FastFieldsWriter {
         &self,
         serializer: &mut FastFieldSerializer,
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
+        docid_map: Option<&DocidMapping>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
-            field_writer.serialize(serializer)?;
+            field_writer.serialize(serializer, docid_map)?;
         }
 
         for field_writer in &self.multi_values_writers {
             let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field))?;
+            field_writer.serialize(serializer, mapping.get(&field), docid_map)?;
         }
         for field_writer in &self.bytes_value_writers {
             field_writer.serialize(serializer)?;
@@ -183,30 +176,6 @@ impl IntFastFieldWriter {
             val_min: u64::max_value(),
             val_max: 0,
         }
-    }
-
-    /// Update data to reflect mapped docids
-    pub(crate) fn remap_docids(&mut self, docid_map: &[DocId]) {
-        // create vec to map the data to the new docids, e.g. from values
-        // [docid0=2, docid1=4, docid=1] to [newdocid0=2, newdocid1=1, newdocid2=4] (index=docid)
-        // for docid_map [0, 2, 1]
-        let mut new_mapped_vals = vec![];
-        new_mapped_vals.resize(self.val_count as usize, self.val_if_missing); // todo resize with max docid?
-        let mut cursor = self.vals.as_slice();
-        let mut old_docid = 0;
-        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-            let new_docid = docid_map[old_docid] as usize;
-            new_mapped_vals[new_docid] = val;
-            old_docid += 1;
-        }
-
-        let mut new_vals = Vec::with_capacity(self.vals.len());
-        for val in new_mapped_vals {
-            VInt(val)
-                .serialize(&mut new_vals)
-                .expect("unable to serialize VInt to Vec");
-        }
-        self.vals = new_vals;
     }
 
     /// Returns the field that this writer is targetting.
@@ -277,19 +246,37 @@ impl IntFastFieldWriter {
     }
 
     /// Push the fast fields value to the `FastFieldWriter`.
-    pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
+    pub fn serialize(
+        &self,
+        serializer: &mut FastFieldSerializer,
+        docid_map: Option<&DocidMapping>,
+    ) -> io::Result<()> {
         let (min, max) = if self.val_min > self.val_max {
             (0, 0)
         } else {
             (self.val_min, self.val_max)
         };
-
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
+        if let Some(docid_map) = docid_map {
+            let mut new_mapped_vals = vec![];
+            new_mapped_vals.resize(self.val_count as usize, self.val_if_missing); // todo resize with max docid?
+            let mut cursor = self.vals.as_slice();
+            let mut old_docid = 0;
+            while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
+                let new_docid = docid_map[old_docid] as usize;
+                new_mapped_vals[new_docid] = val;
+                old_docid += 1;
+            }
 
-        let mut cursor = self.vals.as_slice();
-        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-            single_field_serializer.add_val(val)?;
-        }
+            for val in new_mapped_vals {
+                single_field_serializer.add_val(val)?;
+            }
+        } else {
+            let mut cursor = self.vals.as_slice();
+            while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
+                single_field_serializer.add_val(val)?;
+            }
+        };
 
         single_field_serializer.close_field()
     }

@@ -64,14 +64,14 @@ fn load_metas(
 ///
 /// ```
 /// use tantivy::schema::*;
-/// use tantivy::{Index, IndexSettings};
+/// use tantivy::{Index, IndexSettings, IndexSortByField, Order};
 ///
 /// let mut schema_builder = Schema::builder();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings::default();
+/// let settings = IndexSettings{sort_by_field: IndexSortByField{field:"title".to_string(), order:Order::Asc}};
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 ///
 /// ```

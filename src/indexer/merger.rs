@@ -25,6 +25,8 @@ use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use super::index_sorter::DocidMapping;
+
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
     let mut count: [usize; 256] = [0; 256];
@@ -681,7 +683,11 @@ impl IndexMerger {
 }
 
 impl SerializableSegment for IndexMerger {
-    fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
+    fn write(
+        &self,
+        mut serializer: SegmentSerializer,
+        docid_mapping: Option<&DocidMapping>,
+    ) -> crate::Result<u32> {
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
             self.write_fieldnorms(fieldnorms_serializer)?;
         }

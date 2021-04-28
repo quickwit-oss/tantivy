@@ -1,10 +1,10 @@
 use crate::fastfield::serializer::FastSingleFieldSerializer;
-use crate::fastfield::value_to_u64;
 use crate::fastfield::FastFieldSerializer;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
+use crate::{fastfield::value_to_u64, indexer::index_sorter::DocidMapping};
 use fnv::FnvHashMap;
 use std::io;
 use std::iter::once;
@@ -88,6 +88,34 @@ impl MultiValuedFastFieldWriter {
         doc
     }
 
+    /// Returns an iterator over docids in ascending order.
+    ///
+    /// Normally this is simply iterating self.docid_index.
+    /// With docid_map it accounts for the new mapping, returning old docids, but in the order of the
+    /// new docids.
+    fn get_ordered_docid_iter<'a: 'b, 'b>(
+        &'a self,
+        docid_map: Option<&'b DocidMapping>,
+    ) -> Box<dyn Iterator<Item = u32> + 'b> {
+        let docid_iter = if let Some(docid_map) = docid_map {
+            Box::new(docid_map.iter().cloned()) as Box<dyn Iterator<Item = u32>>
+        } else {
+            Box::new(self.doc_index.iter().enumerate().map(|el| el.0 as u32))
+                as Box<dyn Iterator<Item = u32>>
+        };
+        docid_iter
+    }
+
+    /// returns all values for a docids
+    fn get_values_for_docid(&self, docid: u32) -> &[u64] {
+        let start_pos = self.doc_index[docid as usize] as usize;
+        let end_pos = if docid as usize + 1 == self.doc_index.len() {
+            self.vals.len()
+        } else {
+            self.doc_index[docid as usize + 1] as usize
+        };
+        &self.vals[start_pos..end_pos]
+    }
     /// Serializes fast field values by pushing them to the `FastFieldSerializer`.
     ///
     /// If a mapping is given, the values are remapped *and sorted* before serialization.
@@ -103,15 +131,22 @@ impl MultiValuedFastFieldWriter {
         &self,
         serializer: &mut FastFieldSerializer,
         mapping_opt: Option<&FnvHashMap<UnorderedTermId, TermOrdinal>>,
+        docid_map: Option<&DocidMapping>,
     ) -> io::Result<()> {
         {
             // writing the offset index
             let mut doc_index_serializer =
                 serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
-            for &offset in &self.doc_index {
+
+            let mut offset = 0;
+            let iter = self.get_ordered_docid_iter(docid_map);
+            for docid in iter {
+                let vals = self.get_values_for_docid(docid);
                 doc_index_serializer.add_val(offset)?;
+                offset += vals.len() as u64;
             }
             doc_index_serializer.add_val(self.vals.len() as u64)?;
+
             doc_index_serializer.close_field()?;
         }
         {
@@ -126,18 +161,11 @@ impl MultiValuedFastFieldWriter {
                         1,
                     )?;
 
-                    let last_interval =
-                        self.doc_index.last().cloned().unwrap() as usize..self.vals.len();
-
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
-                    for range in self
-                        .doc_index
-                        .windows(2)
-                        .map(|interval| interval[0] as usize..interval[1] as usize)
-                        .chain(once(last_interval))
-                    {
+                    let docid_iter = self.get_ordered_docid_iter(docid_map);
+                    for vals in docid_iter.map(|docid| self.get_values_for_docid(docid)) {
                         doc_vals.clear();
-                        let remapped_vals = self.vals[range]
+                        let remapped_vals = vals
                             .iter()
                             .map(|val| *mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);
@@ -152,8 +180,15 @@ impl MultiValuedFastFieldWriter {
                     let (val_min, val_max) = val_min_max.unwrap_or((0u64, 0u64));
                     value_serializer =
                         serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
-                    for &val in &self.vals {
-                        value_serializer.add_val(val)?;
+
+                    for vals in self
+                        .get_ordered_docid_iter(docid_map)
+                        .map(|docid| self.get_values_for_docid(docid))
+                    {
+                        // sort values in case of remapped docids?
+                        for &val in vals {
+                            value_serializer.add_val(val)?;
+                        }
                     }
                 }
             }

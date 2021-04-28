@@ -1,5 +1,4 @@
 use super::SegmentComponent;
-use crate::core::Index;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
@@ -8,6 +7,7 @@ use crate::directory::{FileSlice, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
+use crate::{core::Index, indexer::index_sorter::DocidMapping};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -97,5 +97,9 @@ pub trait SerializableSegment {
     ///
     /// # Returns
     /// The number of documents in the segment.
-    fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32>;
+    fn write(
+        &self,
+        serializer: SegmentSerializer,
+        docid_map: Option<&DocidMapping>,
+    ) -> crate::Result<u32>;
 }

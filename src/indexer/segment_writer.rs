@@ -1,4 +1,7 @@
-use super::{index_sorter::sort_index, operation::AddOperation};
+use super::{
+    index_sorter::{sort_index, DocidMapping},
+    operation::AddOperation,
+};
 use crate::core::Segment;
 use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
@@ -100,14 +103,17 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
-        if let Some(settings) = self.segment_serializer.segment().index().settings() {
-            sort_index(settings.clone(), &mut self)?;
-        }
+        let mapping = if let Some(settings) = self.segment_serializer.segment().index().settings() {
+            Some(sort_index(settings.clone(), &mut self)?)
+        } else {
+            None
+        };
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
+            mapping.as_ref(),
         )?;
         Ok(self.doc_opstamps)
     }
@@ -308,6 +314,7 @@ fn write(
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
+    docid_map: Option<&DocidMapping>,
 ) -> crate::Result<()> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer)?;
@@ -318,19 +325,28 @@ fn write(
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
     let term_ord_map =
         multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
-    fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
+    fast_field_writers.serialize(
+        serializer.get_fast_field_serializer(),
+        &term_ord_map,
+        docid_map,
+    )?;
     serializer.close()?;
     Ok(())
 }
 
 impl SerializableSegment for SegmentWriter {
-    fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32> {
+    fn write(
+        &self,
+        serializer: SegmentSerializer,
+        docid_map: Option<&DocidMapping>,
+    ) -> crate::Result<u32> {
         let max_doc = self.max_doc;
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             serializer,
+            docid_map,
         )?;
         Ok(max_doc)
     }

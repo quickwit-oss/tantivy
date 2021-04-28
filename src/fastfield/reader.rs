@@ -135,7 +135,7 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
                 }
             }
             fast_field_writers
-                .serialize(&mut serializer, &HashMap::new())
+                .serialize(&mut serializer, &HashMap::new(), None)
                 .unwrap();
             serializer.close().unwrap();
         }

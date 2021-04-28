@@ -68,6 +68,10 @@ mod tests_indexsorting {
             "my_number",
             IntOptions::default().set_fast(Cardinality::SingleValue),
         );
+        let multi_numbers = schema_builder.add_u64_field(
+            "multi_numbers",
+            IntOptions::default().set_fast(Cardinality::MultiValues),
+        );
         let schema = schema_builder.build();
         let settings = IndexSettings {
             sort_by_field: IndexSortByField {
@@ -86,9 +90,10 @@ mod tests_indexsorting {
             "my_number".to_string()
         );
         let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(my_number=>2_u64));
+        index_writer
+            .add_document(doc!(my_number=>2_u64, multi_numbers => 5_u64, multi_numbers => 6_u64));
         index_writer.add_document(doc!(my_number=>1_u64));
-        index_writer.add_document(doc!(my_number=>3_u64));
+        index_writer.add_document(doc!(my_number=>3_u64, multi_numbers => 3_u64));
         index_writer.commit().unwrap();
 
         let reader = index.reader().unwrap();
@@ -101,5 +106,16 @@ mod tests_indexsorting {
         assert_eq!(fast_field.get(0u32), 1u64);
         assert_eq!(fast_field.get(1u32), 2u64);
         assert_eq!(fast_field.get(2u32), 3u64);
+
+        let multifield = fast_fields.u64s(multi_numbers).unwrap();
+        let mut vals = vec![];
+        multifield.get_vals(0u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[] as &[u64]);
+        let mut vals = vec![];
+        multifield.get_vals(1u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[5, 6]);
+        let mut vals = vec![];
+        multifield.get_vals(2u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[3]);
     }
 }
