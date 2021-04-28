@@ -47,7 +47,7 @@ pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
-pub use self::phrase_query::PhraseQuery;
+pub use self::phrase_query::{PhraseQuery, PhraseScorer, PhraseWeight};
 pub use self::query::{Query, QueryClone};
 pub use self::query_parser::QueryParser;
 pub use self::query_parser::QueryParserError;
@@ -56,7 +56,7 @@ pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::scorer::ConstScorer;
 pub use self::scorer::Scorer;
-pub use self::term_query::TermQuery;
+pub use self::term_query::{TermQuery, TermScorer, TermWeight};
 pub use self::weight::Weight;
 pub use tantivy_query_grammar::Occur;
 

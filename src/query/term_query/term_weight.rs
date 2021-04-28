@@ -103,7 +103,7 @@ impl TermWeight {
         &self.term
     }
 
-    pub(crate) fn specialized_scorer(
+    pub fn specialized_scorer(
         &self,
         reader: &SegmentReader,
         boost: Score,

@@ -202,6 +202,26 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
+    pub fn intersection(&mut self, positions: &mut Vec<u32>) {
+        {
+            self.intersection_docset
+                .docset_mut_specialized(0)
+                .positions(positions);
+        }
+        for i in 1..self.num_terms {
+            {
+                self.intersection_docset
+                    .docset_mut_specialized(i)
+                    .positions(&mut self.right);
+            }
+            let intersection_len = intersection(&mut positions[..], &self.right[..]);
+            positions.truncate(intersection_len);
+            if intersection_len == 0 {
+                return;
+            }
+        }
+    }
+
     fn compute_phrase_count(&mut self) -> u32 {
         {
             self.intersection_docset
