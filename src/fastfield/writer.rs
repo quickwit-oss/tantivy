@@ -135,7 +135,7 @@ impl FastFieldsWriter {
             field_writer.serialize(serializer, mapping.get(&field), docid_map)?;
         }
         for field_writer in &self.bytes_value_writers {
-            field_writer.serialize(serializer)?;
+            field_writer.serialize(serializer, docid_map)?;
         }
         Ok(())
     }
