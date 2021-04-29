@@ -6,7 +6,7 @@ use crate::{
     DocAddress, Result, Searcher, TantivyError,
 };
 
-/// A query that matches all of the documents similar to a document 
+/// A query that matches all of the documents similar to a document
 /// or a set of field values provided.
 ///
 /// # Examples
@@ -60,7 +60,7 @@ impl Query for MoreLikeThisQuery {
     }
 }
 
-/// The builder for more-like-this query 
+/// The builder for more-like-this query
 #[derive(Debug, Clone)]
 pub struct MoreLikeThisQueryBuilder {
     mlt: MoreLikeThis,
@@ -149,7 +149,7 @@ impl MoreLikeThisQueryBuilder {
     /// needed for composing the query.
     ///
     /// Note that field values will only be collected from stored fields in the index.
-    /// You can construct your own field values from any source. 
+    /// You can construct your own field values from any source.
     pub fn with_document(self, doc_address: DocAddress) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
@@ -247,8 +247,8 @@ mod tests {
         let index = create_test_index();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-        
-        // search base 1st doc with words [sea, and] skipping [old] 
+
+        // search base 1st doc with words [sea, and] skipping [old]
         let query = MoreLikeThisQuery::builder()
             .with_min_doc_frequency(1)
             .with_max_doc_frequency(10)

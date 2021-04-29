@@ -94,8 +94,8 @@ impl MoreLikeThis {
     }
 
     /// Creates a [`BooleanQuery`] from an ascendingly sorted list of ScoreTerm
-    /// This will map the list of ScoreTerm to a list of [`TermQuery`]  and compose a 
-    /// BooleanQuery using that list as sub queries. 
+    /// This will map the list of ScoreTerm to a list of [`TermQuery`]  and compose a
+    /// BooleanQuery using that list as sub queries.
     fn create_query(&self, score_terms: Vec<ScoreTerm>) -> BooleanQuery {
         let best_score = score_terms.first().map_or(1f32, |x| x.score);
         let mut queries = Vec::new();
@@ -153,9 +153,9 @@ impl MoreLikeThis {
         self.create_score_term(searcher, field_to_term_freq_map)
     }
 
-    /// Computes the frequency of values for a field while updating the term frequencies 
-    /// Note: A FieldValue can be made up of multiple terms. 
-    /// We are interested in extracting terms within FieldValue 
+    /// Computes the frequency of values for a field while updating the term frequencies
+    /// Note: A FieldValue can be made up of multiple terms.
+    /// We are interested in extracting terms within FieldValue
     fn add_term_frequencies(
         &self,
         searcher: &Searcher,
@@ -171,7 +171,7 @@ impl MoreLikeThis {
             return Ok(());
         }
 
-        // extract the raw value, possibly tokenizing & filtering to update the term frequency map  
+        // extract the raw value, possibly tokenizing & filtering to update the term frequency map
         match field_entry.field_type() {
             FieldType::HierarchicalFacet(_) => {
                 let facets: Vec<&str> = field_values
@@ -325,7 +325,7 @@ impl MoreLikeThis {
             .sum::<u64>();
 
         for (term, term_frequency) in per_field_term_frequencies.into_iter() {
-             // ignore terms with less than min_term_frequency
+            // ignore terms with less than min_term_frequency
             if self
                 .min_term_frequency
                 .map(|x| term_frequency < x)
@@ -359,7 +359,7 @@ impl MoreLikeThis {
                 continue;
             }
 
-            // compute similarity & score 
+            // compute similarity & score
             let idf = self.idf(doc_freq, num_docs);
             let score = (term_frequency as f32) * idf;
             score_terms.push(ScoreTerm::new(term, score));
