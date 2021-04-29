@@ -46,7 +46,7 @@ pub use self::explanation::Explanation;
 pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
-pub use self::mlt::MoreLikeThisQuery;
+pub use self::mlt::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::{Query, QueryClone};
 pub use self::query_parser::QueryParser;
