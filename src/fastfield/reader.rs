@@ -1,5 +1,4 @@
 use super::FastValue;
-use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
@@ -12,6 +11,7 @@ use crate::DocId;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
+use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitUnpacker;
 
 /// Trait for accessing a fastfield.

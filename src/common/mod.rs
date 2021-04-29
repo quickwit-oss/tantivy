@@ -32,39 +32,6 @@ where
     None
 }
 
-/// Computes the number of bits that will be used for bitpacking.
-///
-/// In general the target is the minimum number of bits
-/// required to express the amplitude given in argument.
-///
-/// e.g. If the amplitude is 10, we can store all ints on simply 4bits.
-///
-/// The logic is slightly more convoluted here as for optimization
-/// reasons, we want to ensure that a value spawns over at most 8 bytes
-/// of aligns bytes.
-///
-/// Spanning over 9 bytes is possible for instance, if we do
-/// bitpacking with an amplitude of 63 bits.
-/// In this case, the second int will start on bit
-/// 63 (which belongs to byte 7) and ends at byte 15;
-/// Hence 9 bytes (from byte 7 to byte 15 included).
-///
-/// To avoid this, we force the number of bits to 64bits
-/// when the result is greater than `64-8 = 56 bits`.
-///
-/// Note that this only affects rare use cases spawning over
-/// a very large range of values. Even in this case, it results
-/// in an extra cost of at most 12% compared to the optimal
-/// number of bits.
-pub(crate) fn compute_num_bits(n: u64) -> u8 {
-    let amplitude = (64u32 - n.leading_zeros()) as u8;
-    if amplitude <= 64 - 8 {
-        amplitude
-    } else {
-        64
-    }
-}
-
 /// Has length trait
 pub trait HasLen {
     /// Return length
@@ -151,9 +118,10 @@ pub(crate) mod test {
 
     pub use super::minmax;
     pub use super::serialize::test::fixed_size_test;
-    use super::{compute_num_bits, f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
+    use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
     use proptest::prelude::*;
     use std::f64;
+    use tantivy_bitpacker::compute_num_bits;
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);

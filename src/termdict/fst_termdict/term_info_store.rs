@@ -1,4 +1,3 @@
-use crate::common::compute_num_bits;
 use crate::common::{BinarySerializable, FixedSize};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
@@ -6,6 +5,7 @@ use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
 use std::cmp;
 use std::io::{self, Read, Write};
+use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitPacker;
 
 const BLOCK_LEN: usize = 256;
@@ -291,10 +291,10 @@ mod tests {
     use super::TermInfoBlockMeta;
     use super::{TermInfoStore, TermInfoStoreWriter};
     use crate::common;
-    use crate::common::compute_num_bits;
     use crate::common::BinarySerializable;
     use crate::directory::FileSlice;
     use crate::postings::TermInfo;
+    use tantivy_bitpacker::compute_num_bits;
     use tantivy_bitpacker::BitPacker;
 
     #[test]
