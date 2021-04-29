@@ -12,7 +12,6 @@ mod tests {
         for val in 0..=21500 {
             blocked_bitpacker.add(val);
         }
-        blocked_bitpacker.finish();
         b.iter(|| {
             for val in 0..=21500 {
                 blocked_bitpacker.get(val);
