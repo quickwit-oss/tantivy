@@ -1,4 +1,3 @@
-pub mod bitpacker;
 mod bitset;
 mod composite_file;
 mod counting_writer;

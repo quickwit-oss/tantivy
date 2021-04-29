@@ -1,9 +1,9 @@
 use super::FastValue;
-use crate::common::bitpacker::BitUnpacker;
 use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
+use crate::directory::OwnedBytes;
 use crate::directory::{Directory, RamDirectory, WritePtr};
 use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
@@ -12,6 +12,7 @@ use crate::DocId;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
+use tantivy_bitpacker::BitUnpacker;
 
 /// Trait for accessing a fastfield.
 ///
@@ -19,6 +20,7 @@ use std::path::Path;
 /// fast field is required.
 #[derive(Clone)]
 pub struct FastFieldReader<Item: FastValue> {
+    bytes: OwnedBytes,
     bit_unpacker: BitUnpacker,
     min_value_u64: u64,
     max_value_u64: u64,
@@ -33,8 +35,9 @@ impl<Item: FastValue> FastFieldReader<Item> {
         let amplitude = u64::deserialize(&mut bytes)?;
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
-        let bit_unpacker = BitUnpacker::new(bytes, num_bits);
+        let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(FastFieldReader {
+            bytes,
             min_value_u64: min_value,
             max_value_u64: max_value,
             bit_unpacker,
@@ -55,7 +58,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     }
 
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc))
+        Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc, &self.bytes))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.
