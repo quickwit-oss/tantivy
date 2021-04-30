@@ -3,7 +3,7 @@ use super::MoreLikeThis;
 use crate::{
     query::{Query, Weight},
     schema::{Field, FieldValue},
-    DocAddress, Result, Searcher, TantivyError,
+    DocAddress, Result, Searcher,
 };
 
 /// A query that matches all of the documents similar to a document
@@ -29,8 +29,13 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct MoreLikeThisQuery {
     mlt: MoreLikeThis,
-    doc_address: Option<DocAddress>,
-    doc_fields: Option<Vec<(Field, Vec<FieldValue>)>>,
+    target: TargetDocument,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+enum TargetDocument {
+    DocumentAdress(DocAddress),
+    DocumentFields(Vec<(Field, Vec<FieldValue>)>),
 }
 
 impl MoreLikeThisQuery {
@@ -42,21 +47,16 @@ impl MoreLikeThisQuery {
 
 impl Query for MoreLikeThisQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<dyn Weight>> {
-        if let Some(doc_address) = self.doc_address {
-            return self
+        match &self.target {
+            TargetDocument::DocumentAdress(doc_address) => self
                 .mlt
-                .query_with_document(searcher, doc_address)?
-                .weight(searcher, scoring_enabled);
-        }
-
-        if let Some(ref doc_fields) = self.doc_fields {
-            return self
+                .query_with_document(searcher, *doc_address)?
+                .weight(searcher, scoring_enabled),
+            TargetDocument::DocumentFields(doc_fields) => self
                 .mlt
                 .query_with_document_fields(searcher, doc_fields)?
-                .weight(searcher, scoring_enabled);
+                .weight(searcher, scoring_enabled),
         }
-
-        Err(TantivyError::InvalidArgument("".to_string()))
     }
 }
 
@@ -153,8 +153,7 @@ impl MoreLikeThisQueryBuilder {
     pub fn with_document(self, doc_address: DocAddress) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
-            doc_address: Some(doc_address),
-            doc_fields: None,
+            target: TargetDocument::DocumentAdress(doc_address),
         }
     }
 
@@ -171,8 +170,7 @@ impl MoreLikeThisQueryBuilder {
     ) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
-            doc_address: None,
-            doc_fields: Some(doc_fields),
+            target: TargetDocument::DocumentFields(doc_fields),
         }
     }
 }
@@ -180,6 +178,7 @@ impl MoreLikeThisQueryBuilder {
 #[cfg(test)]
 mod tests {
     use super::MoreLikeThisQuery;
+    use super::TargetDocument;
     use crate::collector::TopDocs;
     use crate::schema::{Schema, STORED, TEXT};
     use crate::DocAddress;
@@ -214,8 +213,7 @@ mod tests {
         assert_eq!(query.mlt.max_word_length, None);
         assert_eq!(query.mlt.boost_factor, Some(1.0));
         assert_eq!(query.mlt.stop_words, Vec::<String>::new());
-        assert_eq!(query.doc_fields, Some(vec![]));
-        assert_eq!(query.doc_address, None);
+        assert_eq!(query.target, TargetDocument::DocumentFields(vec![]));
 
         // custom settings
         let query = MoreLikeThisQuery::builder()
@@ -238,8 +236,10 @@ mod tests {
             query.mlt.stop_words,
             vec!["all".to_string(), "for".to_string()]
         );
-        assert_eq!(query.doc_fields, None);
-        assert_eq!(query.doc_address, Some(DocAddress::new(1, 2)));
+        assert_eq!(
+            query.target,
+            TargetDocument::DocumentAdress(DocAddress::new(1, 2))
+        );
     }
 
     #[test]

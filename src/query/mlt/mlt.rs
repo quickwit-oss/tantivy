@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::{
@@ -34,6 +35,11 @@ impl Ord for ScoreTerm {
 }
 
 /// A struct used as helper to build [`MoreLikeThisQuery`]
+/// This more-like-this implementation is inspired by the Appache Lucene
+/// amd closely follows the same implementation with adaptabtion to Tantivy vocabulary and API.
+///
+/// [MoreLikeThis](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThis.java#L147)
+/// [MoreLikeThisQuery](https://github.com/apache/lucene/blob/main/lucene/queries/src/java/org/apache/lucene/queries/mlt/MoreLikeThisQuery.java#L36)
 #[derive(Debug, Clone)]
 pub struct MoreLikeThis {
     /// Ignore words which do not occur in at least this many docs.
@@ -194,16 +200,10 @@ impl MoreLikeThis {
             }
             FieldType::Str(text_options) => {
                 let mut token_streams: Vec<BoxTokenStream> = vec![];
-                let mut offsets = vec![];
-                let mut total_offset = 0;
 
                 for field_value in field_values {
                     match field_value.value() {
                         Value::PreTokStr(tok_str) => {
-                            offsets.push(total_offset);
-                            if let Some(last_token) = tok_str.tokens.last() {
-                                total_offset += last_token.offset_to;
-                            }
                             token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
                         }
                         Value::Str(ref text) => {
@@ -214,9 +214,6 @@ impl MoreLikeThis {
                                 })
                                 .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
                             {
-                                offsets.push(total_offset);
-                                total_offset += text.len();
-                                //let v = text.clone();
                                 token_streams.push(tokenizer.token_stream(text));
                             }
                         }
@@ -317,18 +314,18 @@ impl MoreLikeThis {
         searcher: &Searcher,
         per_field_term_frequencies: HashMap<Term, usize>,
     ) -> Result<Vec<ScoreTerm>> {
-        let mut score_terms = BinaryHeap::new();
+        let mut score_terms: BinaryHeap<Reverse<ScoreTerm>> = BinaryHeap::new();
         let num_docs = searcher
             .segment_readers()
             .iter()
-            .map(|x| x.num_docs() as u64)
+            .map(|segment_reader| segment_reader.num_docs() as u64)
             .sum::<u64>();
 
-        for (term, term_frequency) in per_field_term_frequencies.into_iter() {
+        for (term, term_frequency) in per_field_term_frequencies.iter() {
             // ignore terms with less than min_term_frequency
             if self
                 .min_term_frequency
-                .map(|x| term_frequency < x)
+                .map(|min_term_frequency| *term_frequency < min_term_frequency)
                 .unwrap_or(false)
             {
                 continue;
@@ -339,7 +336,7 @@ impl MoreLikeThis {
             // ignore terms with less than min_doc_frequency
             if self
                 .min_doc_frequency
-                .map(|x| doc_freq < x)
+                .map(|min_doc_frequency| doc_freq < min_doc_frequency)
                 .unwrap_or(false)
             {
                 continue;
@@ -348,7 +345,7 @@ impl MoreLikeThis {
             // ignore terms with more than max_doc_frequency
             if self
                 .max_doc_frequency
-                .map(|x| doc_freq > x)
+                .map(|max_doc_frequency| doc_freq > max_doc_frequency)
                 .unwrap_or(false)
             {
                 continue;
@@ -361,22 +358,29 @@ impl MoreLikeThis {
 
             // compute similarity & score
             let idf = self.idf(doc_freq, num_docs);
-            let score = (term_frequency as f32) * idf;
-            score_terms.push(ScoreTerm::new(term, score));
+            let score = (*term_frequency as f32) * idf;
+            if let Some(limit) = self.max_query_terms {
+                if score_terms.len() > limit {
+                    // update the least significant term
+                    let least_significant_term_score = score_terms.peek().unwrap().0.score;
+                    if least_significant_term_score < score {
+                        score_terms.peek_mut().unwrap().0 = ScoreTerm::new(term.clone(), score);
+                    }
+                } else {
+                    score_terms.push(Reverse(ScoreTerm::new(term.clone(), score)));
+                }
+            } else {
+                score_terms.push(Reverse(ScoreTerm::new(term.clone(), score)));
+            }
         }
 
-        // limit ourself to max_query terms. we need to sort so to avoid discarding important terms
-        let score_terms = if let Some(max_query_terms) = self.max_query_terms {
-            let max_num_terms = std::cmp::min(max_query_terms, score_terms.len());
-            score_terms
-                .into_sorted_vec()
-                .into_iter()
-                .take(max_num_terms)
-                .collect()
-        } else {
-            score_terms.into_sorted_vec()
-        };
-        Ok(score_terms)
+        let mut score_terms_vec: Vec<ScoreTerm> = score_terms
+            .into_iter()
+            .map(|reverse_score_term| reverse_score_term.0)
+            .collect();
+        score_terms_vec.sort_unstable();
+
+        Ok(score_terms_vec)
     }
 
     /// Computes the similarity
