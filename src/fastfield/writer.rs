@@ -158,7 +158,6 @@ impl FastFieldsWriter {
 /// using `common::i64_to_u64` and `common::f64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
-    //vals: Vec<u8>,
     vals: BlockedBitpacker,
     val_count: usize,
     val_if_missing: u64,
