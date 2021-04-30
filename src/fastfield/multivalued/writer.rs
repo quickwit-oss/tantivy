@@ -48,6 +48,12 @@ impl MultiValuedFastFieldWriter {
         }
     }
 
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.capacity() * std::mem::size_of::<UnorderedTermId>()
+            + self.doc_index.capacity() * std::mem::size_of::<u64>()
+    }
+
     /// Access the field associated to the `MultiValuedFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field

@@ -4,7 +4,7 @@ use super::{bitpacker::BitPacker, compute_num_bits};
 
 const BLOCK_SIZE: usize = 128;
 
-/// BlockedBitpacker compresses data in blocks of
+/// `BlockedBitpacker` compresses data in blocks of
 /// 128 elements, while keeping an index on it
 ///
 #[derive(Debug, Clone)]
@@ -16,6 +16,12 @@ pub struct BlockedBitpacker {
     offset_and_bits: Vec<BlockedBitpackerEntryMetaData>,
 }
 
+/// `BlockedBitpackerEntryMetaData` encodes the
+/// offset and bit_width into a u64 bit field
+///
+/// This saves some space, since 7byte is more
+/// than enough and also keeps the access fast
+/// because of alignment
 #[derive(Debug, Clone, Default)]
 struct BlockedBitpackerEntryMetaData {
     encoded: u64,
@@ -23,7 +29,7 @@ struct BlockedBitpackerEntryMetaData {
 
 impl BlockedBitpackerEntryMetaData {
     fn new(offset: u64, num_bits: u8) -> Self {
-        let encoded = offset | (num_bits as u64) << 56;
+        let encoded = offset | (num_bits as u64) << (64 - 8);
         Self { encoded }
     }
     fn offset(&self) -> u64 {
@@ -33,6 +39,7 @@ impl BlockedBitpackerEntryMetaData {
         (self.encoded >> 56) as u8
     }
 }
+
 #[test]
 fn metadata_test() {
     let meta = BlockedBitpackerEntryMetaData::new(50000, 6);
@@ -51,8 +58,10 @@ impl BlockedBitpacker {
         }
     }
 
-    pub fn get_memory_usage(&self) -> usize {
-        self.compressed_blocks.capacity()
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        std::mem::size_of::<BlockedBitpacker>()
+            + self.compressed_blocks.capacity()
             + self.offset_and_bits.capacity()
                 * std::mem::size_of_val(&self.offset_and_bits.get(0).cloned().unwrap_or_default())
             + self.cache.capacity()
@@ -80,6 +89,10 @@ impl BlockedBitpacker {
         self.compressed_blocks
             .resize(self.compressed_blocks.len() - 8, 0); // remove padding for bitpacker
         let offset = self.compressed_blocks.len() as u64;
+        // todo performance: for some bit_width we
+        // can encode multiple vals into the
+        // mini_buffer before checking to flush
+        // (to be done in BitPacker)
         for val in self.cache.iter() {
             bit_packer
                 .write(*val, num_bits_block, &mut self.compressed_blocks)
@@ -108,6 +121,7 @@ impl BlockedBitpacker {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
+        // todo performance: we could decompress the whole block and cache it instead
         let bitpacked_elems = self.offset_and_bits.len() * BLOCK_SIZE;
         let iter = (0..bitpacked_elems)
             .map(move |idx| self.get(idx))

@@ -10,21 +10,24 @@ mod tests {
     fn bench_blockedbitp_read(b: &mut Bencher) {
         let mut blocked_bitpacker = BlockedBitpacker::new();
         for val in 0..=21500 {
-            blocked_bitpacker.add(val);
+            blocked_bitpacker.add(val * val);
         }
         b.iter(|| {
+            let mut out = 0;
             for val in 0..=21500 {
-                blocked_bitpacker.get(val);
+                out = blocked_bitpacker.get(val);
             }
+            out
         });
     }
     #[bench]
-    fn bench_blockbitp_create(b: &mut Bencher) {
+    fn bench_blockedbitp_create(b: &mut Bencher) {
         b.iter(|| {
             let mut blocked_bitpacker = BlockedBitpacker::new();
             for val in 0..=21500 {
-                blocked_bitpacker.add(val);
+                blocked_bitpacker.add(val * val);
             }
+            blocked_bitpacker
         });
     }
 }

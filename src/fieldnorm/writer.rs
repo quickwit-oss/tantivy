@@ -50,6 +50,13 @@ impl FieldNormsWriter {
         }
     }
 
+    /// The memory used inclusive childs
+    pub fn mem_usage(&self) -> usize {
+        self.fieldnorms_buffer
+            .iter()
+            .map(|buf| buf.capacity())
+            .sum()
+    }
     /// Ensure that all documents in 0..max_doc have a byte associated with them
     /// in each of the fieldnorm vectors.
     ///

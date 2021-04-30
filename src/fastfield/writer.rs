@@ -1,7 +1,5 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common;
-use crate::common::BinarySerializable;
-use crate::common::VInt;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
@@ -71,6 +69,24 @@ impl FastFieldsWriter {
             multi_values_writers,
             bytes_value_writers,
         }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.single_value_writers
+            .iter()
+            .map(|w| w.mem_usage())
+            .sum::<usize>()
+            + self
+                .multi_values_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
+            + self
+                .bytes_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
     }
 
     /// Get the `FastFieldWriter` associated to a field.
@@ -176,6 +192,11 @@ impl IntFastFieldWriter {
             val_min: u64::max_value(),
             val_max: 0,
         }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.mem_usage()
     }
 
     /// Returns the field that this writer is targetting.

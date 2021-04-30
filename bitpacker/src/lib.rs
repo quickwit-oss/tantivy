@@ -14,7 +14,7 @@ pub use crate::blocked_bitpacker::BlockedBitpacker;
 ///
 /// The logic is slightly more convoluted here as for optimization
 /// reasons, we want to ensure that a value spawns over at most 8 bytes
-/// of aligns bytes.
+/// of aligned bytes.
 ///
 /// Spanning over 9 bytes is possible for instance, if we do
 /// bitpacking with an amplitude of 63 bits.
