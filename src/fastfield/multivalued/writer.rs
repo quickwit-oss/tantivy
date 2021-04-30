@@ -8,6 +8,7 @@ use crate::DocId;
 use fnv::FnvHashMap;
 use std::io;
 use std::iter::once;
+use tantivy_bitpacker::minmax;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -154,7 +155,7 @@ impl MultiValuedFastFieldWriter {
                     }
                 }
                 None => {
-                    let val_min_max = crate::common::minmax(self.vals.iter().cloned());
+                    let val_min_max = minmax(self.vals.iter().cloned());
                     let (val_min, val_max) = val_min_max.unwrap_or((0u64, 0u64));
                     value_serializer =
                         serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;

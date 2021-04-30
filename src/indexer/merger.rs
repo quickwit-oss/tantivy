@@ -1,3 +1,5 @@
+use tantivy_bitpacker::minmax;
+
 use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
@@ -70,7 +72,7 @@ fn compute_min_max_val(
             Some(delete_bitset) => {
                 // some deleted documents,
                 // we need to recompute the max / min
-                crate::common::minmax(
+                minmax(
                     (0..max_doc)
                         .filter(|doc_id| delete_bitset.is_alive(*doc_id))
                         .map(|doc_id| u64_reader.get(doc_id)),

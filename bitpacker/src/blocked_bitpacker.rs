@@ -1,4 +1,4 @@
-use crate::BitUnpacker;
+use crate::{minmax, BitUnpacker};
 
 use super::{bitpacker::BitPacker, compute_num_bits};
 
@@ -83,14 +83,9 @@ impl BlockedBitpacker {
     }
 
     pub fn flush(&mut self) {
-        if let Some(min_value) = self.buffer.iter().min() {
+        if let Some((min_value, max_value)) = minmax(self.buffer.iter()) {
             let mut bit_packer = BitPacker::new();
-            let num_bits_block = self
-                .buffer
-                .iter()
-                .map(|val| compute_num_bits(*val - min_value))
-                .max()
-                .unwrap();
+            let num_bits_block = compute_num_bits(*max_value - min_value);
             // todo performance: the padding handling could be done better, e.g. use a slice and
             // return num_bytes written from bitpacker
             self.compressed_blocks

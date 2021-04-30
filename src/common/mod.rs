@@ -19,19 +19,6 @@ pub use byteorder::LittleEndian as Endianness;
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
-pub fn minmax<I, T>(mut vals: I) -> Option<(T, T)>
-where
-    I: Iterator<Item = T>,
-    T: Copy + Ord,
-{
-    if let Some(first_el) = vals.next() {
-        return Some(vals.fold((first_el, first_el), |(min_val, max_val), el| {
-            (min_val.min(el), max_val.max(el))
-        }));
-    }
-    None
-}
-
 /// Has length trait
 pub trait HasLen {
     /// Return length
@@ -116,12 +103,12 @@ pub fn u64_to_f64(val: u64) -> f64 {
 #[cfg(test)]
 pub(crate) mod test {
 
-    pub use super::minmax;
     pub use super::serialize::test::fixed_size_test;
     use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
     use proptest::prelude::*;
     use std::f64;
     use tantivy_bitpacker::compute_num_bits;
+    pub use tantivy_bitpacker::minmax;
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);

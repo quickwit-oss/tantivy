@@ -37,3 +37,16 @@ pub fn compute_num_bits(n: u64) -> u8 {
         64
     }
 }
+
+pub fn minmax<I, T>(mut vals: I) -> Option<(T, T)>
+where
+    I: Iterator<Item = T>,
+    T: Copy + Ord,
+{
+    if let Some(first_el) = vals.next() {
+        return Some(vals.fold((first_el, first_el), |(min_val, max_val), el| {
+            (min_val.min(el), max_val.max(el))
+        }));
+    }
+    None
+}
