@@ -102,7 +102,8 @@ impl MoreLikeThis {
     /// Creates a [`BooleanQuery`] from an ascendingly sorted list of ScoreTerm
     /// This will map the list of ScoreTerm to a list of [`TermQuery`]  and compose a
     /// BooleanQuery using that list as sub queries.
-    fn create_query(&self, score_terms: Vec<ScoreTerm>) -> BooleanQuery {
+    fn create_query(&self, mut score_terms: Vec<ScoreTerm>) -> BooleanQuery {
+        score_terms.sort_by(|left_ts, right_ts| right_ts.cmp(left_ts));
         let best_score = score_terms.first().map_or(1f32, |x| x.score);
         let mut queries = Vec::new();
 
@@ -374,11 +375,10 @@ impl MoreLikeThis {
             }
         }
 
-        let mut score_terms_vec: Vec<ScoreTerm> = score_terms
+        let score_terms_vec: Vec<ScoreTerm> = score_terms
             .into_iter()
             .map(|reverse_score_term| reverse_score_term.0)
             .collect();
-        score_terms_vec.sort_unstable();
 
         Ok(score_terms_vec)
     }
