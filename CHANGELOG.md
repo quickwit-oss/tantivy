@@ -10,6 +10,7 @@ Tantivy 0.15.0
 - Added lz4-flex as the default compression scheme in tantivy (@PSeitz) #1009
 - Renamed a lot of symbols to avoid all uppercasing on acronyms, as per new clippy recommendation. For instance, RAMDireotory -> RamDirectory. (@pmasurel)
 - Simplified positions index format (@fulmicoton) #1022
+- Moved bitpacking to bitpacker subcrate and add BlockedBitpacker, which bitpacks blocks of 128 elements (@PSeitz) #1030
 
 Tantivy 0.14.0
 =========================
