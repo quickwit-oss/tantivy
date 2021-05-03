@@ -1,5 +1,5 @@
 use super::multivalued::MultiValuedFastFieldWriter;
-use crate::common::BinarySerializable;
+use crate::common;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
@@ -9,6 +9,7 @@ use crate::{common::VInt, indexer::index_sorter::DocidMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
+use tantivy_bitpacker::BlockedBitpacker;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
@@ -70,6 +71,24 @@ impl FastFieldsWriter {
             multi_values_writers,
             bytes_value_writers,
         }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.single_value_writers
+            .iter()
+            .map(|w| w.mem_usage())
+            .sum::<usize>()
+            + self
+                .multi_values_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
+            + self
+                .bytes_value_writers
+                .iter()
+                .map(|w| w.mem_usage())
+                .sum::<usize>()
     }
 
     /// Get the `FastFieldWriter` associated to a field.
@@ -158,7 +177,7 @@ impl FastFieldsWriter {
 /// using `common::i64_to_u64` and `common::f64_to_u64`.
 pub struct IntFastFieldWriter {
     field: Field,
-    vals: Vec<u8>,
+    vals: BlockedBitpacker,
     val_count: usize,
     val_if_missing: u64,
     val_min: u64,
@@ -170,12 +189,17 @@ impl IntFastFieldWriter {
     pub fn new(field: Field) -> IntFastFieldWriter {
         IntFastFieldWriter {
             field,
-            vals: Vec::new(),
+            vals: BlockedBitpacker::new(),
             val_count: 0,
             val_if_missing: 0u64,
             val_min: u64::max_value(),
             val_max: 0,
         }
+    }
+
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.mem_usage()
     }
 
     /// Returns the field that this writer is targetting.
@@ -197,9 +221,7 @@ impl IntFastFieldWriter {
     /// associated to the document with the `DocId` n.
     /// (Well, `n-1` actually because of 0-indexing)
     pub fn add_val(&mut self, val: u64) {
-        VInt(val)
-            .serialize(&mut self.vals)
-            .expect("unable to serialize VInt to Vec");
+        self.vals.add(val);
 
         if val > self.val_max {
             self.val_max = val;

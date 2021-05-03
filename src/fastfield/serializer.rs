@@ -1,11 +1,11 @@
-use crate::common::bitpacker::BitPacker;
-use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
 use crate::common::CompositeWrite;
 use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;
 use std::io::{self, Write};
+use tantivy_bitpacker::compute_num_bits;
+use tantivy_bitpacker::BitPacker;
 
 /// `FastFieldSerializer` is in charge of serializing
 /// fastfields on disk.

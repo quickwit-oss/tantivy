@@ -35,6 +35,10 @@ impl BytesFastFieldWriter {
         }
     }
 
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.vals.capacity() + self.doc_index.capacity() * std::mem::size_of::<u64>()
+    }
     /// Access the field associated to the `BytesFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
