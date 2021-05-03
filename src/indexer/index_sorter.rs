@@ -96,7 +96,7 @@ mod tests_indexsorting {
     fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = Schema::builder();
 
-        let my_field = schema_builder.add_text_field("text_field", TEXT | STORED);
+        let my_text_field = schema_builder.add_text_field("text_field", TEXT | STORED);
         let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
         let my_number = schema_builder.add_u64_field(
             "my_number",
@@ -121,7 +121,7 @@ mod tests_indexsorting {
             .add_document(doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64));
         index_writer.add_document(doc!(my_number=>100_u64));
         index_writer.add_document(
-            doc!(my_number=>10_u64, my_string_field=> "blublub", my_field => "some text"),
+            doc!(my_number=>10_u64, my_string_field=> "blublub", my_text_field => "some text"),
         );
         index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ));
         index_writer.commit().unwrap();
@@ -152,7 +152,8 @@ mod tests_indexsorting {
             },
         }));
         let my_string_field = index.schema().get_field("string_field").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
 
         let query = QueryParser::for_index(&index, vec![my_string_field])
             .parse_query("blublub")
@@ -163,6 +164,17 @@ mod tests_indexsorting {
             top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
             vec![0]
         );
+
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = searcher
+                .segment_reader(0)
+                .get_fieldnorms_reader(my_text_field)
+                .unwrap();
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+        }
         // sort by field desc
         let index = create_test_index(Some(IndexSettings {
             sort_by_field: IndexSortByField {
@@ -182,6 +194,19 @@ mod tests_indexsorting {
             top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
             vec![4]
         );
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = searcher
+                .segment_reader(0)
+                .get_fieldnorms_reader(my_text_field)
+                .unwrap();
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
+        }
     }
 
     #[test]

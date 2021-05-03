@@ -320,7 +320,7 @@ fn write(
     docid_map: Option<&DocidMapping>,
 ) -> crate::Result<()> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-        fieldnorms_writer.serialize(fieldnorms_serializer)?;
+        fieldnorms_writer.serialize(fieldnorms_serializer, docid_map)?;
     }
     let fieldnorm_data = serializer
         .segment()

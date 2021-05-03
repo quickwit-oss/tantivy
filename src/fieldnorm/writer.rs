@@ -1,4 +1,4 @@
-use crate::DocId;
+use crate::{indexer::index_sorter::DocidMapping, DocId};
 
 use super::fieldnorm_to_id;
 use super::FieldNormsSerializer;
@@ -87,10 +87,23 @@ impl FieldNormsWriter {
     }
 
     /// Serialize the seen fieldnorm values to the serializer for all fields.
-    pub fn serialize(&self, mut fieldnorms_serializer: FieldNormsSerializer) -> io::Result<()> {
+    pub fn serialize(
+        &self,
+        mut fieldnorms_serializer: FieldNormsSerializer,
+        docid_map: Option<&DocidMapping>,
+    ) -> io::Result<()> {
         for &field in self.fields.iter() {
             let fieldnorm_values: &[u8] = &self.fieldnorms_buffer[field.field_id() as usize][..];
-            fieldnorms_serializer.serialize_field(field, fieldnorm_values)?;
+            if let Some(docid_map) = docid_map {
+                let mut mapped_fieldnorm_values = vec![];
+                mapped_fieldnorm_values.resize(fieldnorm_values.len(), 0u8);
+                for (new_docid, old_docid) in docid_map.iter_old_docids().enumerate() {
+                    mapped_fieldnorm_values[new_docid] = fieldnorm_values[*old_docid as usize];
+                }
+                fieldnorms_serializer.serialize_field(field, &mapped_fieldnorm_values)?;
+            } else {
+                fieldnorms_serializer.serialize_field(field, fieldnorm_values)?;
+            }
         }
         fieldnorms_serializer.close()?;
         Ok(())
