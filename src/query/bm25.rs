@@ -9,7 +9,7 @@ use serde::Serialize;
 const K1: Score = 1.2;
 const B: Score = 0.75;
 
-fn idf(doc_freq: u64, doc_count: u64) -> Score {
+pub(crate) fn idf(doc_freq: u64, doc_count: u64) -> Score {
     assert!(doc_count >= doc_freq, "{} >= {}", doc_count, doc_freq);
     let x = ((doc_count - doc_freq) as Score + 0.5) / (doc_freq as Score + 0.5);
     (1.0 + x).ln()

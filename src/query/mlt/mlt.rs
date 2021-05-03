@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::{
-    query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery},
+    query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery, bm25::idf},
     schema::{Field, FieldType, FieldValue, IndexRecordOption, Term, Value},
     tokenizer::{BoxTokenStream, FacetTokenizer, PreTokenizedStream, Tokenizer},
     DocAddress, Result, Searcher, TantivyError,
@@ -358,7 +358,7 @@ impl MoreLikeThis {
             }
 
             // compute similarity & score
-            let idf = self.idf(doc_freq, num_docs);
+            let idf = idf(doc_freq, num_docs);
             let score = (*term_frequency as f32) * idf;
             if let Some(limit) = self.max_query_terms {
                 if score_terms.len() > limit {
@@ -383,9 +383,4 @@ impl MoreLikeThis {
         Ok(score_terms_vec)
     }
 
-    /// Computes the similarity
-    fn idf(&self, doc_freq: u64, doc_count: u64) -> f32 {
-        let x = ((doc_count - doc_freq) as f32 + 0.5) / (doc_freq as f32 + 0.5);
-        (1f32 + x).ln()
-    }
 }
