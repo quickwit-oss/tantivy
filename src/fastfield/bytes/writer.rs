@@ -82,7 +82,7 @@ impl BytesFastFieldWriter {
         docid_map: Option<&'b DocidMapping>,
     ) -> impl Iterator<Item = &'b [u8]> {
         let docid_iter = if let Some(docid_map) = docid_map {
-            Box::new(docid_map.iter().cloned()) as Box<dyn Iterator<Item = u32>>
+            Box::new(docid_map.iter_old_docids().cloned()) as Box<dyn Iterator<Item = u32>>
         } else {
             Box::new(self.doc_index.iter().enumerate().map(|el| el.0 as u32))
                 as Box<dyn Iterator<Item = u32>>

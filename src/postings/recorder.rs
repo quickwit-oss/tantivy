@@ -123,7 +123,11 @@ impl Recorder for NothingRecorder {
         self.stack.read_to_end(heap, buffer);
         // TODO avoid reading twice.
         for doc in VInt32Reader::new(&buffer[..]) {
-            serializer.write_doc(doc as u32, 0u32, &[][..]);
+            serializer.write_doc(
+                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
+                0u32,
+                &[][..],
+            );
         }
     }
 
@@ -181,25 +185,13 @@ impl Recorder for TermFrequencyRecorder {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
-        if let Some(docid_map) = docid_map {
-            // create lookup data structure, if the data is very sparse, a vec with binary search
-            // would be more memory efficient
-            let mut doc_index_term_freq = vec![];
-            doc_index_term_freq.resize(self.current_doc as usize, None);
-            while let Some(doc) = u32_it.next() {
-                let term_freq = u32_it.next().unwrap_or(self.current_tf);
-                doc_index_term_freq[doc as usize] = Some(term_freq);
-            }
-            for docid in docid_map {
-                if let Some(term_freq) = doc_index_term_freq[*docid as usize] {
-                    serializer.write_doc(*docid, term_freq, &[][..]);
-                }
-            }
-        } else {
-            while let Some(doc) = u32_it.next() {
-                let term_freq = u32_it.next().unwrap_or(self.current_tf);
-                serializer.write_doc(doc as u32, term_freq, &[][..]);
-            }
+        while let Some(doc) = u32_it.next() {
+            let term_freq = u32_it.next().unwrap_or(self.current_tf);
+            serializer.write_doc(
+                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
+                term_freq,
+                &[][..],
+            );
         }
     }
 
@@ -267,7 +259,11 @@ impl Recorder for TfAndPositionRecorder {
                     }
                 }
             }
-            serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
+            serializer.write_doc(
+                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
+                buffer_positions.len() as u32,
+                &buffer_positions,
+            );
         }
     }
 

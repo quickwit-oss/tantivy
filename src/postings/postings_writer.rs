@@ -239,7 +239,7 @@ pub trait PostingsWriter {
                     heap,
                 );
             } else {
-                info!(
+                warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
                      MAX_TOKEN_LEN in the documentation for more information.",
                     token.text.len(),
