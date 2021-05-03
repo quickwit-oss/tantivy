@@ -1,9 +1,6 @@
-use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
-use std::io;
+use std::{convert::TryInto, io};
 
-use crate::directory::OwnedBytes;
-
-pub(crate) struct BitPacker {
+pub struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,
 }
@@ -26,14 +23,14 @@ impl BitPacker {
         let num_bits = num_bits as usize;
         if self.mini_buffer_written + num_bits > 64 {
             self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
-            output.write_u64::<LittleEndian>(self.mini_buffer)?;
+            output.write_all(self.mini_buffer.to_le_bytes().as_ref())?;
             self.mini_buffer = val_u64.wrapping_shr((64 - self.mini_buffer_written) as u32);
             self.mini_buffer_written = self.mini_buffer_written + num_bits - 64;
         } else {
             self.mini_buffer |= val_u64 << self.mini_buffer_written;
             self.mini_buffer_written += num_bits;
             if self.mini_buffer_written == 64 {
-                output.write_u64::<LittleEndian>(self.mini_buffer)?;
+                output.write_all(self.mini_buffer.to_le_bytes().as_ref())?;
                 self.mini_buffer_written = 0;
                 self.mini_buffer = 0u64;
             }
@@ -44,9 +41,8 @@ impl BitPacker {
     pub fn flush<TWrite: io::Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
             let num_bytes = (self.mini_buffer_written + 7) / 8;
-            let mut arr: [u8; 8] = [0u8; 8];
-            LittleEndian::write_u64(&mut arr, self.mini_buffer);
-            output.write_all(&arr[..num_bytes])?;
+            let bytes = self.mini_buffer.to_le_bytes();
+            output.write_all(&bytes[..num_bytes])?;
             self.mini_buffer_written = 0;
         }
         Ok(())
@@ -64,11 +60,10 @@ impl BitPacker {
 pub struct BitUnpacker {
     num_bits: u64,
     mask: u64,
-    data: OwnedBytes,
 }
 
 impl BitUnpacker {
-    pub fn new(data: OwnedBytes, num_bits: u8) -> BitUnpacker {
+    pub fn new(num_bits: u8) -> BitUnpacker {
         let mask: u64 = if num_bits == 64 {
             !0u64
         } else {
@@ -77,15 +72,13 @@ impl BitUnpacker {
         BitUnpacker {
             num_bits: u64::from(num_bits),
             mask,
-            data,
         }
     }
 
-    pub fn get(&self, idx: u64) -> u64 {
+    pub fn get(&self, idx: u64, data: &[u8]) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
         }
-        let data: &[u8] = self.data.as_slice();
         let num_bits = self.num_bits;
         let mask = self.mask;
         let addr_in_bits = idx * num_bits;
@@ -95,7 +88,10 @@ impl BitUnpacker {
             addr + 8 <= data.len() as u64,
             "The fast field field should have been padded with 7 bytes."
         );
-        let val_unshifted_unmasked: u64 = LittleEndian::read_u64(&data[(addr as usize)..]);
+        let bytes: [u8; 8] = (&data[(addr as usize)..(addr as usize) + 8])
+            .try_into()
+            .unwrap();
+        let val_unshifted_unmasked: u64 = u64::from_le_bytes(bytes);
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         val_shifted & mask
     }
@@ -104,9 +100,8 @@ impl BitUnpacker {
 #[cfg(test)]
 mod test {
     use super::{BitPacker, BitUnpacker};
-    use crate::directory::OwnedBytes;
 
-    fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker, Vec<u64>) {
+    fn create_fastfield_bitpacker(len: usize, num_bits: u8) -> (BitUnpacker, Vec<u64>, Vec<u8>) {
         let mut data = Vec::new();
         let mut bitpacker = BitPacker::new();
         let max_val: u64 = (1u64 << num_bits as u64) - 1u64;
@@ -118,14 +113,14 @@ mod test {
         }
         bitpacker.close(&mut data).unwrap();
         assert_eq!(data.len(), ((num_bits as usize) * len + 7) / 8 + 7);
-        let bitunpacker = BitUnpacker::new(OwnedBytes::new(data), num_bits);
-        (bitunpacker, vals)
+        let bitunpacker = BitUnpacker::new(num_bits);
+        (bitunpacker, vals, data)
     }
 
     fn test_bitpacker_util(len: usize, num_bits: u8) {
-        let (bitunpacker, vals) = create_fastfield_bitpacker(len, num_bits);
+        let (bitunpacker, vals, data) = create_fastfield_bitpacker(len, num_bits);
         for (i, val) in vals.iter().enumerate() {
-            assert_eq!(bitunpacker.get(i as u64), *val);
+            assert_eq!(bitunpacker.get(i as u64, &data), *val);
         }
     }
 

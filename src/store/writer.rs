@@ -45,6 +45,11 @@ impl StoreWriter {
         }
     }
 
+    /// The memory used (inclusive childs)
+    pub fn mem_usage(&self) -> usize {
+        self.intermediary_buffer.capacity() + self.current_block.capacity()
+    }
+
     /// Store a new document.
     ///
     /// The document id is implicitely the number of times
