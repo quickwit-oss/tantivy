@@ -120,7 +120,7 @@ impl BytesFastFieldWriter {
         doc_index_serializer.close_field()?;
         // writing the values themselves
         let mut value_serializer = serializer.new_bytes_fast_field_with_idx(self.field, 1);
-        /// the else could be removed, but this is faster (difference not benchmarked)
+        // the else could be removed, but this is faster (difference not benchmarked)
         if let Some(docid_map) = docid_map {
             for vals in self.get_ordered_values(Some(docid_map)) {
                 // sort values in case of remapped docids?

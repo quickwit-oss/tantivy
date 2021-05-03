@@ -1,11 +1,10 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
+use crate::indexer::index_sorter::DocidMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
-use crate::{common, DocId};
-use crate::{common::VInt, indexer::index_sorter::DocidMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -259,12 +258,7 @@ impl IntFastFieldWriter {
 
     /// Extract the stored data
     pub(crate) fn get_data(&self) -> Vec<u64> {
-        let mut data = vec![];
-        let mut cursor = self.vals.as_slice();
-        while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-            data.push(val);
-        }
-        data
+        self.vals.iter().collect::<Vec<u64>>()
     }
 
     /// Push the fast fields value to the `FastFieldWriter`.
@@ -280,22 +274,11 @@ impl IntFastFieldWriter {
         };
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
         if let Some(docid_map) = docid_map {
-            let mut new_mapped_vals = vec![];
-            new_mapped_vals.resize(self.val_count as usize, self.val_if_missing);
-            let mut cursor = self.vals.as_slice();
-            let mut old_docid = 0;
-            while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
-                let new_docid = docid_map[old_docid] as usize;
-                new_mapped_vals[new_docid] = val;
-                old_docid += 1;
-            }
-
-            for val in new_mapped_vals {
-                single_field_serializer.add_val(val)?;
+            for docid in docid_map {
+                single_field_serializer.add_val(self.vals.get(*docid as usize))?;
             }
         } else {
-            let mut cursor = self.vals.as_slice();
-            while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {
+            for val in self.vals.iter() {
                 single_field_serializer.add_val(val)?;
             }
         };
