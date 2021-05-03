@@ -51,3 +51,67 @@ fn get_docid_mapping(
         .map(|el| el.0)
         .collect::<Vec<_>>())
 }
+
+mod tests_indexsorting {
+    use crate::schema::Schema;
+    use crate::schema::*;
+    use crate::{Index, IndexSettings, IndexSortByField, Order};
+
+    #[test]
+    fn test_sort_index() {
+        let mut schema_builder = Schema::builder();
+        let my_number = schema_builder.add_u64_field(
+            "my_number",
+            IntOptions::default().set_fast(Cardinality::SingleValue),
+        );
+        let multi_numbers = schema_builder.add_u64_field(
+            "multi_numbers",
+            IntOptions::default().set_fast(Cardinality::MultiValues),
+        );
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            sort_by_field: IndexSortByField {
+                field: "my_number".to_string(),
+                order: Order::Asc,
+            },
+        };
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap();
+
+        assert_eq!(
+            index.settings().as_ref().unwrap().sort_by_field.field,
+            "my_number".to_string()
+        );
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer
+            .add_document(doc!(my_number=>2_u64, multi_numbers => 5_u64, multi_numbers => 6_u64));
+        index_writer.add_document(doc!(my_number=>1_u64));
+        index_writer.add_document(doc!(my_number=>3_u64, multi_numbers => 3_u64));
+        index_writer.commit().unwrap();
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_reader(0);
+        let fast_fields = segment_reader.fast_fields();
+
+        let fast_field = fast_fields.u64(my_number).unwrap();
+        assert_eq!(fast_field.get(0u32), 1u64);
+        assert_eq!(fast_field.get(1u32), 2u64);
+        assert_eq!(fast_field.get(2u32), 3u64);
+
+        let multifield = fast_fields.u64s(multi_numbers).unwrap();
+        let mut vals = vec![];
+        multifield.get_vals(0u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[] as &[u64]);
+        let mut vals = vec![];
+        multifield.get_vals(1u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[5, 6]);
+        let mut vals = vec![];
+        multifield.get_vals(2u32, &mut vals); // todo add test which includes mapping
+        assert_eq!(vals, &[3]);
+    }
+}
