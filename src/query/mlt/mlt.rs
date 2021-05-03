@@ -2,7 +2,7 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
 use crate::{
-    query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery, bm25::idf},
+    query::{bm25::idf, BooleanQuery, BoostQuery, Occur, Query, TermQuery},
     schema::{Field, FieldType, FieldValue, IndexRecordOption, Term, Value},
     tokenizer::{BoxTokenStream, FacetTokenizer, PreTokenizedStream, Tokenizer},
     DocAddress, Result, Searcher, TantivyError,
@@ -382,5 +382,4 @@ impl MoreLikeThis {
 
         Ok(score_terms_vec)
     }
-
 }
