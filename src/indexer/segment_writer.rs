@@ -111,6 +111,9 @@ impl SegmentWriter {
 
     pub fn mem_usage(&self) -> usize {
         self.multifield_postings.mem_usage()
+            + self.fieldnorms_writer.mem_usage()
+            + self.fast_field_writers.mem_usage()
+            + self.segment_serializer.mem_usage()
     }
 
     /// Indexes a new document
