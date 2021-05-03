@@ -323,8 +323,11 @@ fn write(
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    let term_ord_map =
-        multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
+    let term_ord_map = multifield_postings.serialize(
+        serializer.get_postings_serializer(),
+        fieldnorm_readers,
+        docid_map,
+    )?;
     fast_field_writers.serialize(
         serializer.get_fast_field_serializer(),
         &term_ord_map,

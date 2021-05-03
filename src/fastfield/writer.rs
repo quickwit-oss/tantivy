@@ -259,7 +259,7 @@ impl IntFastFieldWriter {
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
         if let Some(docid_map) = docid_map {
             let mut new_mapped_vals = vec![];
-            new_mapped_vals.resize(self.val_count as usize, self.val_if_missing); // todo resize with max docid?
+            new_mapped_vals.resize(self.val_count as usize, self.val_if_missing);
             let mut cursor = self.vals.as_slice();
             let mut old_docid = 0;
             while let Ok(VInt(val)) = VInt::deserialize(&mut cursor) {

@@ -1,7 +1,10 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
-use crate::common::{read_u32_vint, write_u32_vint};
 use crate::postings::FieldSerializer;
 use crate::DocId;
+use crate::{
+    common::{read_u32_vint, write_u32_vint},
+    indexer::index_sorter::DocidMapping,
+};
 
 const POSITION_END: u32 = 0;
 
@@ -73,6 +76,7 @@ pub(crate) trait Recorder: Copy + 'static {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        docid_map: Option<&DocidMapping>,
     );
     /// Returns the number of document containing this term.
     ///
@@ -113,6 +117,7 @@ impl Recorder for NothingRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        docid_map: Option<&DocidMapping>,
     ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
@@ -140,7 +145,7 @@ impl Recorder for TermFrequencyRecorder {
     fn new() -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: 0,
             current_tf: 0u32,
             term_doc_freq: 0u32,
         }
@@ -171,13 +176,30 @@ impl Recorder for TermFrequencyRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        docid_map: Option<&DocidMapping>,
     ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
-        while let Some(doc) = u32_it.next() {
-            let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(doc as u32, term_freq, &[][..]);
+        if let Some(docid_map) = docid_map {
+            // create lookup data structure, if the data is very sparse, a vec with binary search
+            // would be more memory efficient
+            let mut doc_index_term_freq = vec![];
+            doc_index_term_freq.resize(self.current_doc as usize, None);
+            while let Some(doc) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                doc_index_term_freq[doc as usize] = Some(term_freq);
+            }
+            for docid in docid_map {
+                if let Some(term_freq) = doc_index_term_freq[*docid as usize] {
+                    serializer.write_doc(*docid, term_freq, &[][..]);
+                }
+            }
+        } else {
+            while let Some(doc) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                serializer.write_doc(doc as u32, term_freq, &[][..]);
+            }
         }
     }
 
@@ -225,6 +247,7 @@ impl Recorder for TfAndPositionRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        docid_map: Option<&DocidMapping>,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);
