@@ -69,6 +69,7 @@ fn get_docid_mapping(
         .into_iter()
         .map(|el| el.0)
         .collect::<Vec<_>>();
+
     // create old docid to new docid index
     let mut new_docid_and_old_docid = new_docid_to_old
         .iter()
@@ -93,10 +94,13 @@ mod tests_indexsorting {
     use crate::{schema::Schema, DocAddress};
     use crate::{Index, IndexSettings, IndexSortByField, Order};
 
-    fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
+    fn create_test_index(
+        index_settings: Option<IndexSettings>,
+        text_field_options: TextOptions,
+    ) -> Index {
         let mut schema_builder = Schema::builder();
 
-        let my_text_field = schema_builder.add_text_field("text_field", TEXT | STORED);
+        let my_text_field = schema_builder.add_text_field("text_field", text_field_options);
         let my_string_field = schema_builder.add_text_field("string_field", STRING | STORED);
         let my_number = schema_builder.add_u64_field(
             "my_number",
@@ -127,10 +131,118 @@ mod tests_indexsorting {
         index_writer.commit().unwrap();
         index
     }
+    fn get_text_options() -> TextOptions {
+        TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default().set_index_option(IndexRecordOption::Basic),
+        )
+    }
+    #[test]
+    fn test_sort_index_test_text_field() {
+        // there are different serializers for different settings in postings/recorder.rs
+        // test remapping for all of them
+        let options = vec![
+            get_text_options(),
+            get_text_options().set_indexing_options(
+                TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
+            ),
+            get_text_options().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::WithFreqsAndPositions),
+            ),
+        ];
+
+        for option in options {
+            //let options = get_text_options();
+            // no index_sort
+            let index = create_test_index(None, option.clone());
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let searcher = index.reader().unwrap().searcher();
+
+            let query = QueryParser::for_index(&index, vec![my_text_field])
+                .parse_query("text")
+                .unwrap();
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![3]
+            );
+
+            // sort by field asc
+            let index = create_test_index(
+                Some(IndexSettings {
+                    sort_by_field: IndexSortByField {
+                        field: "my_number".to_string(),
+                        order: Order::Asc,
+                    },
+                }),
+                option.clone(),
+            );
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
+
+            let query = QueryParser::for_index(&index, vec![my_text_field])
+                .parse_query("text")
+                .unwrap();
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![0]
+            );
+
+            // test new field norm mapping
+            {
+                let my_text_field = index.schema().get_field("text_field").unwrap();
+                let fieldnorm_reader = searcher
+                    .segment_reader(0)
+                    .get_fieldnorms_reader(my_text_field)
+                    .unwrap();
+                assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            }
+            // sort by field desc
+            let index = create_test_index(
+                Some(IndexSettings {
+                    sort_by_field: IndexSortByField {
+                        field: "my_number".to_string(),
+                        order: Order::Desc,
+                    },
+                }),
+                option.clone(),
+            );
+            let my_string_field = index.schema().get_field("text_field").unwrap();
+            let searcher = index.reader().unwrap().searcher();
+
+            let query = QueryParser::for_index(&index, vec![my_string_field])
+                .parse_query("text")
+                .unwrap();
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+            assert_eq!(
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+                vec![4]
+            );
+            // test new field norm mapping
+            {
+                let my_text_field = index.schema().get_field("text_field").unwrap();
+                let fieldnorm_reader = searcher
+                    .segment_reader(0)
+                    .get_fieldnorms_reader(my_text_field)
+                    .unwrap();
+                assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
+            }
+        }
+    }
 
     #[test]
-    fn test_sort_index_test_score() {
-        let index = create_test_index(None);
+    fn test_sort_index_test_string_field() {
+        let index = create_test_index(None, get_text_options());
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader().unwrap().searcher();
 
@@ -145,12 +257,15 @@ mod tests_indexsorting {
         );
 
         // sort by field asc
-        let index = create_test_index(Some(IndexSettings {
-            sort_by_field: IndexSortByField {
-                field: "my_number".to_string(),
-                order: Order::Asc,
-            },
-        }));
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                },
+            }),
+            get_text_options(),
+        );
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
@@ -176,12 +291,15 @@ mod tests_indexsorting {
             assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
         }
         // sort by field desc
-        let index = create_test_index(Some(IndexSettings {
-            sort_by_field: IndexSortByField {
-                field: "my_number".to_string(),
-                order: Order::Desc,
-            },
-        }));
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Desc,
+                },
+            }),
+            get_text_options(),
+        );
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader().unwrap().searcher();
 
@@ -211,12 +329,15 @@ mod tests_indexsorting {
 
     #[test]
     fn test_sort_index_fast_field() {
-        let index = create_test_index(Some(IndexSettings {
-            sort_by_field: IndexSortByField {
-                field: "my_number".to_string(),
-                order: Order::Asc,
-            },
-        }));
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                },
+            }),
+            get_text_options(),
+        );
         assert_eq!(
             index.settings().as_ref().unwrap().sort_by_field.field,
             "my_number".to_string()

@@ -121,13 +121,20 @@ impl Recorder for NothingRecorder {
     ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
-        // TODO avoid reading twice.
-        for doc in VInt32Reader::new(&buffer[..]) {
-            serializer.write_doc(
-                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
-                0u32,
-                &[][..],
-            );
+        //TODO avoid reading twice.
+        if let Some(docid_map) = docid_map {
+            let mut docids = VInt32Reader::new(&buffer[..])
+                .map(|old_docid| docid_map.get_new_docid(old_docid))
+                .collect::<Vec<_>>();
+            docids.sort_unstable();
+
+            for doc in docids {
+                serializer.write_doc(doc, 0u32, &[][..]);
+            }
+        } else {
+            for doc in VInt32Reader::new(&buffer[..]) {
+                serializer.write_doc(doc, 0u32, &[][..]);
+            }
         }
     }
 
@@ -185,13 +192,22 @@ impl Recorder for TermFrequencyRecorder {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
-        while let Some(doc) = u32_it.next() {
-            let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(
-                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
-                term_freq,
-                &[][..],
-            );
+        if let Some(docid_map) = docid_map {
+            let mut docid_and_tf = vec![];
+            while let Some(old_docid) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                docid_and_tf.push((docid_map.get_new_docid(old_docid), term_freq));
+            }
+            docid_and_tf.sort_unstable_by_key(|&(docid, _)| docid);
+
+            for (docid, tf) in docid_and_tf {
+                serializer.write_doc(docid, tf, &[][..]);
+            }
+        } else {
+            while let Some(doc) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                serializer.write_doc(doc, term_freq, &[][..]);
+            }
         }
     }
 
@@ -244,6 +260,7 @@ impl Recorder for TfAndPositionRecorder {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);
         let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+        let mut docid_and_positions = vec![];
         while let Some(doc) = u32_it.next() {
             let mut prev_position_plus_one = 1u32;
             buffer_positions.clear();
@@ -259,11 +276,18 @@ impl Recorder for TfAndPositionRecorder {
                     }
                 }
             }
-            serializer.write_doc(
-                docid_map.map_or_else(|| doc, |docid_map| docid_map.get_new_docid(doc)),
-                buffer_positions.len() as u32,
-                &buffer_positions,
-            );
+            if let Some(docid_map) = docid_map {
+                // this simple variant to remap may consume to much memory
+                docid_and_positions.push((docid_map.get_new_docid(doc), buffer_positions.to_vec()));
+            } else {
+                serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
+            }
+        }
+        if docid_map.is_some() {
+            docid_and_positions.sort_unstable_by_key(|&(docid, _)| docid);
+            for (docid, positions) in docid_and_positions {
+                serializer.write_doc(docid, positions.len() as u32, &positions);
+            }
         }
     }
 
