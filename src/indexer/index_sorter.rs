@@ -41,7 +41,12 @@ fn get_docid_mapping(
         .segment()
         .schema()
         .get_field(&settings.sort_by_field.field)
-        .unwrap();
+        .ok_or_else(|| {
+            TantivyError::InvalidArgument(format!(
+                "field to sort index by not found: {:?}",
+                settings.sort_by_field.field
+            ))
+        })?;
     // for now expect fastfield, but not strictly required
     let fast_field = segment_writer
         .fast_field_writers
@@ -53,7 +58,7 @@ fn get_docid_mapping(
             ))
         })?;
 
-    // create new docid to old docid index
+    // create new docid to old docid index (used in fast_field_writers)
     let data = fast_field.get_data();
     let mut docid_and_data = data
         .into_iter()
@@ -70,7 +75,7 @@ fn get_docid_mapping(
         .map(|el| el.0)
         .collect::<Vec<_>>();
 
-    // create old docid to new docid index
+    // create old docid to new docid index (used in posting recorder)
     let mut new_docid_and_old_docid = new_docid_to_old
         .iter()
         .enumerate()
@@ -137,7 +142,7 @@ mod tests_indexsorting {
         )
     }
     #[test]
-    fn test_sort_index_test_text_field() {
+    fn test_sort_index_test_text_field() -> crate::Result<()> {
         // there are different serializers for different settings in postings/recorder.rs
         // test remapping for all of them
         let options = vec![
@@ -156,13 +161,11 @@ mod tests_indexsorting {
             // no index_sort
             let index = create_test_index(None, option.clone());
             let my_text_field = index.schema().get_field("text_field").unwrap();
-            let searcher = index.reader().unwrap().searcher();
+            let searcher = index.reader()?.searcher();
 
-            let query = QueryParser::for_index(&index, vec![my_text_field])
-                .parse_query("text")
-                .unwrap();
+            let query = QueryParser::for_index(&index, vec![my_text_field]).parse_query("text")?;
             let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                searcher.search(&query, &TopDocs::with_limit(3))?;
             assert_eq!(
                 top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
                 vec![3]
@@ -179,14 +182,12 @@ mod tests_indexsorting {
                 option.clone(),
             );
             let my_text_field = index.schema().get_field("text_field").unwrap();
-            let reader = index.reader().unwrap();
+            let reader = index.reader()?;
             let searcher = reader.searcher();
 
-            let query = QueryParser::for_index(&index, vec![my_text_field])
-                .parse_query("text")
-                .unwrap();
+            let query = QueryParser::for_index(&index, vec![my_text_field]).parse_query("text")?;
             let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                searcher.search(&query, &TopDocs::with_limit(3))?;
             assert_eq!(
                 top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
                 vec![0]
@@ -197,8 +198,7 @@ mod tests_indexsorting {
                 let my_text_field = index.schema().get_field("text_field").unwrap();
                 let fieldnorm_reader = searcher
                     .segment_reader(0)
-                    .get_fieldnorms_reader(my_text_field)
-                    .unwrap();
+                    .get_fieldnorms_reader(my_text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
             }
@@ -213,13 +213,12 @@ mod tests_indexsorting {
                 option.clone(),
             );
             let my_string_field = index.schema().get_field("text_field").unwrap();
-            let searcher = index.reader().unwrap().searcher();
+            let searcher = index.reader()?.searcher();
 
-            let query = QueryParser::for_index(&index, vec![my_string_field])
-                .parse_query("text")
-                .unwrap();
+            let query =
+                QueryParser::for_index(&index, vec![my_string_field]).parse_query("text")?;
             let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                searcher.search(&query, &TopDocs::with_limit(3))?;
             assert_eq!(
                 top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
                 vec![4]
@@ -229,8 +228,7 @@ mod tests_indexsorting {
                 let my_text_field = index.schema().get_field("text_field").unwrap();
                 let fieldnorm_reader = searcher
                     .segment_reader(0)
-                    .get_fieldnorms_reader(my_text_field)
-                    .unwrap();
+                    .get_fieldnorms_reader(my_text_field)?;
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
                 assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
@@ -238,24 +236,30 @@ mod tests_indexsorting {
                 assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
             }
         }
+        Ok(())
     }
-
     #[test]
-    fn test_sort_index_test_string_field() {
+    fn test_sort_index_get_documents() -> crate::Result<()> {
+        // default baseline
         let index = create_test_index(None, get_text_options());
         let my_string_field = index.schema().get_field("string_field").unwrap();
-        let searcher = index.reader().unwrap().searcher();
-
-        let query = QueryParser::for_index(&index, vec![my_string_field])
-            .parse_query("blublub")
-            .unwrap();
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
-        assert_eq!(
-            top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
-            vec![3]
-        );
-
+        let searcher = index.reader()?.searcher();
+        {
+            assert_eq!(
+                searcher
+                    .doc(DocAddress::new(0, 0))?
+                    .get_first(my_string_field),
+                None
+            );
+            assert_eq!(
+                searcher
+                    .doc(DocAddress::new(0, 3))?
+                    .get_first(my_string_field)
+                    .unwrap()
+                    .text(),
+                Some("blublub")
+            );
+        }
         // sort by field asc
         let index = create_test_index(
             Some(IndexSettings {
@@ -267,14 +271,69 @@ mod tests_indexsorting {
             get_text_options(),
         );
         let my_string_field = index.schema().get_field("string_field").unwrap();
-        let reader = index.reader().unwrap();
+        let searcher = index.reader()?.searcher();
+        {
+            assert_eq!(
+                searcher
+                    .doc(DocAddress::new(0, 0))?
+                    .get_first(my_string_field)
+                    .unwrap()
+                    .text(),
+                Some("blublub")
+            );
+            let doc = searcher.doc(DocAddress::new(0, 4))?;
+            assert_eq!(doc.get_first(my_string_field), None);
+        }
+        // sort by field desc
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Desc,
+                },
+            }),
+            get_text_options(),
+        );
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+        {
+            let doc = searcher.doc(DocAddress::new(0, 4))?;
+            assert_eq!(
+                doc.get_first(my_string_field).unwrap().text(),
+                Some("blublub")
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_sort_index_test_string_field() -> crate::Result<()> {
+        let index = create_test_index(None, get_text_options());
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let searcher = index.reader()?.searcher();
+
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> = searcher.search(&query, &TopDocs::with_limit(3))?;
+        assert_eq!(
+            top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
+            vec![3]
+        );
+
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "my_number".to_string(),
+                    order: Order::Asc,
+                },
+            }),
+            get_text_options(),
+        );
+        let my_string_field = index.schema().get_field("string_field").unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
 
-        let query = QueryParser::for_index(&index, vec![my_string_field])
-            .parse_query("blublub")
-            .unwrap();
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> = searcher.search(&query, &TopDocs::with_limit(3))?;
         assert_eq!(
             top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
             vec![0]
@@ -285,8 +344,7 @@ mod tests_indexsorting {
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let fieldnorm_reader = searcher
                 .segment_reader(0)
-                .get_fieldnorms_reader(my_text_field)
-                .unwrap();
+                .get_fieldnorms_reader(my_text_field)?;
             assert_eq!(fieldnorm_reader.fieldnorm(0), 2); // some text
             assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
         }
@@ -301,13 +359,10 @@ mod tests_indexsorting {
             get_text_options(),
         );
         let my_string_field = index.schema().get_field("string_field").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
 
-        let query = QueryParser::for_index(&index, vec![my_string_field])
-            .parse_query("blublub")
-            .unwrap();
-        let top_docs: Vec<(f32, DocAddress)> =
-            searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+        let query = QueryParser::for_index(&index, vec![my_string_field]).parse_query("blublub")?;
+        let top_docs: Vec<(f32, DocAddress)> = searcher.search(&query, &TopDocs::with_limit(3))?;
         assert_eq!(
             top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>(),
             vec![4]
@@ -317,18 +372,18 @@ mod tests_indexsorting {
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let fieldnorm_reader = searcher
                 .segment_reader(0)
-                .get_fieldnorms_reader(my_text_field)
-                .unwrap();
+                .get_fieldnorms_reader(my_text_field)?;
             assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(4), 2); // some text
         }
+        Ok(())
     }
 
     #[test]
-    fn test_sort_index_fast_field() {
+    fn test_sort_index_fast_field() -> crate::Result<()> {
         let index = create_test_index(
             Some(IndexSettings {
                 sort_by_field: IndexSortByField {
@@ -343,7 +398,7 @@ mod tests_indexsorting {
             "my_number".to_string()
         );
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
         let fast_fields = segment_reader.fast_fields();
@@ -366,5 +421,6 @@ mod tests_indexsorting {
         let mut vals = vec![];
         multifield.get_vals(2u32, &mut vals);
         assert_eq!(vals, &[3]);
+        Ok(())
     }
 }

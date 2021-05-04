@@ -2,8 +2,6 @@ use super::{
     index_sorter::{sort_index, DocidMapping},
     operation::AddOperation,
 };
-use crate::core::Segment;
-use crate::core::SerializableSegment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -18,6 +16,8 @@ use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
+use crate::{core::Segment, store::StoreWriter};
+use crate::{core::SerializableSegment, store::StoreReader};
 use crate::{DocId, SegmentComponent};
 
 /// Computes the initial size of the hash table.
@@ -336,6 +336,26 @@ fn write(
         &term_ord_map,
         docid_map,
     )?;
+    // finalize temp docstore and create version, which reflects the docid_map
+    if let Some(docid_map) = docid_map {
+        let store_write = serializer
+            .segment_mut()
+            .open_write(SegmentComponent::Store)?;
+        let mut store_writer = StoreWriter::new(store_write);
+        std::mem::swap(&mut serializer.store_writer, &mut store_writer);
+        store_writer.close()?;
+        let store_read = StoreReader::open(
+            serializer
+                .segment()
+                .open_read(SegmentComponent::TempStore)?,
+        )?;
+        for old_docid in docid_map.iter_old_docids() {
+            // todo serialize/deserialize should not be necessary
+            let doc = store_read.get(*old_docid)?;
+            serializer.get_store_writer().store(&doc)?;
+        }
+        // TODO delete temp store
+    }
     serializer.close()?;
     Ok(())
 }

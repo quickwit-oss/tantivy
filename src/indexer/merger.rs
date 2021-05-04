@@ -688,7 +688,7 @@ impl SerializableSegment for IndexMerger {
     fn write(
         &self,
         mut serializer: SegmentSerializer,
-        docid_mapping: Option<&DocidMapping>,
+        _docid_mapping: Option<&DocidMapping>,
     ) -> crate::Result<u32> {
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
             self.write_fieldnorms(fieldnorms_serializer)?;
