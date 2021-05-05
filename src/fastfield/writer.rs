@@ -91,7 +91,15 @@ impl FastFieldsWriter {
     }
 
     /// Get the `FastFieldWriter` associated to a field.
-    pub fn get_field_writer(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
+    pub fn get_field_writer(&self, field: Field) -> Option<&IntFastFieldWriter> {
+        // TODO optimize
+        self.single_value_writers
+            .iter()
+            .find(|field_writer| field_writer.field() == field)
+    }
+
+    /// Get the `FastFieldWriter` associated to a field.
+    pub fn get_field_writer_mut(&mut self, field: Field) -> Option<&mut IntFastFieldWriter> {
         // TODO optimize
         self.single_value_writers
             .iter_mut()
@@ -102,7 +110,7 @@ impl FastFieldsWriter {
     ///
     /// Returns None if the field does not exist, or is not
     /// configured as a multivalued fastfield in the schema.
-    pub fn get_multivalue_writer(
+    pub fn get_multivalue_writer_mut(
         &mut self,
         field: Field,
     ) -> Option<&mut MultiValuedFastFieldWriter> {
@@ -116,7 +124,7 @@ impl FastFieldsWriter {
     ///
     /// Returns None if the field does not exist, or is not
     /// configured as a bytes fastfield in the schema.
-    pub fn get_bytes_writer(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
+    pub fn get_bytes_writer_mut(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
         // TODO optimize
         self.bytes_value_writers
             .iter_mut()

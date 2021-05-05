@@ -104,7 +104,7 @@ impl SegmentWriter {
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         let mapping = if let Some(settings) = self.segment_serializer.segment().index().settings() {
-            Some(sort_index(settings.clone(), &mut self)?)
+            Some(sort_index(settings.clone(), &self)?)
         } else {
             None
         };
@@ -177,7 +177,7 @@ impl SegmentWriter {
                             });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
-                                .get_multivalue_writer(field)
+                                .get_multivalue_writer_mut(field)
                                 .expect("writer for facet missing")
                                 .add_val(unordered_term_id);
                         }

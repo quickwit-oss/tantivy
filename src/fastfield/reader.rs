@@ -131,7 +131,7 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             {
                 let fast_field_writer = fast_field_writers
-                    .get_field_writer(field)
+                    .get_field_writer_mut(field)
                     .expect("With a RamDirectory, this should never fail.");
                 for val in vals {
                     fast_field_writer.add_val(val.to_u64());
