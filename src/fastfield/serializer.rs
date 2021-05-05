@@ -107,8 +107,8 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
         let num_bits = compute_num_bits(amplitude);
         let bit_packer = BitPacker::new();
         Ok(FastSingleFieldSerializer {
-            write,
             bit_packer,
+            write,
             min_value,
             num_bits,
         })

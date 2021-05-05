@@ -1,5 +1,5 @@
 use super::{
-    index_sorter::{sort_index, DocIdMapping},
+    index_sorter::{get_doc_id_mapping, DocIdMapping},
     operation::AddOperation,
 };
 use crate::fastfield::FastFieldsWriter;
@@ -104,7 +104,7 @@ impl SegmentWriter {
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
         let mapping = if let Some(settings) = self.segment_serializer.segment().index().settings() {
-            Some(sort_index(settings.clone(), &self)?)
+            Some(get_doc_id_mapping(settings.clone(), &self)?)
         } else {
             None
         };

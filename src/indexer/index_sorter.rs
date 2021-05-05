@@ -23,16 +23,8 @@ impl DocIdMapping {
     }
 }
 
-pub(crate) fn sort_index(
-    settings: IndexSettings,
-    segment_writer: &SegmentWriter,
-) -> crate::Result<DocIdMapping> {
-    let doc_id_mapping = get_doc_id_mapping(settings, segment_writer)?;
-    Ok(doc_id_mapping)
-}
-
 // Generates a document mapping in the form of [index new doc_id] -> old doc_id
-fn get_doc_id_mapping(
+pub(crate) fn get_doc_id_mapping(
     settings: IndexSettings,
     segment_writer: &SegmentWriter,
 ) -> crate::Result<DocIdMapping> {
