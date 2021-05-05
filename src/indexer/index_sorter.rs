@@ -4,8 +4,8 @@ use std::cmp::Reverse;
 
 /// Struct to provide mapping from old doc_id to new doc_id and vice versa
 pub struct DocIdMapping {
-    new_doc_id_to_old: Vec<u32>,
-    old_doc_id_to_new: Vec<u32>,
+    new_doc_id_to_old: Vec<DocId>,
+    old_doc_id_to_new: Vec<DocId>,
 }
 
 impl DocIdMapping {
@@ -18,7 +18,7 @@ impl DocIdMapping {
         self.new_doc_id_to_old[doc_id as usize]
     }
     /// iterate over old doc_ids in order of the new doc_ids
-    pub fn iter_old_doc_ids(&self) -> std::slice::Iter<'_, u32> {
+    pub fn iter_old_doc_ids(&self) -> std::slice::Iter<'_, DocId> {
         self.new_doc_id_to_old.iter()
     }
 }
@@ -79,7 +79,7 @@ fn get_doc_id_mapping(
     let mut new_doc_id_and_old_doc_id = new_doc_id_to_old
         .iter()
         .enumerate()
-        .map(|el| (el.0 as u32, *el.1))
+        .map(|el| (el.0 as DocId, *el.1))
         .collect::<Vec<_>>();
     new_doc_id_and_old_doc_id.sort_unstable_by_key(|k| k.1);
     let old_doc_id_to_new = new_doc_id_and_old_doc_id
