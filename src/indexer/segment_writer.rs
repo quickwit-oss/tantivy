@@ -103,11 +103,14 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
-        let mapping = if let Some(settings) = self.segment_serializer.segment().index().settings() {
-            Some(get_doc_id_mapping(settings.clone(), &self)?)
-        } else {
-            None
-        };
+        let mapping = self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .as_ref()
+            .map(|settings| get_doc_id_mapping(settings.clone(), &self))
+            .transpose()?;
         write(
             &self.multifield_postings,
             &self.fast_field_writers,

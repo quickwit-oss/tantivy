@@ -79,6 +79,11 @@ pub struct IndexBuilder {
     schema: Option<Schema>,
     index_settings: Option<IndexSettings>,
 }
+impl Default for IndexBuilder {
+    fn default() -> Self {
+        IndexBuilder::new()
+    }
+}
 impl IndexBuilder {
     /// Creates a new `IndexBuilder`
     pub fn new() -> Self {
@@ -136,11 +141,10 @@ impl IndexBuilder {
         self.index_settings.as_ref().cloned()
     }
     fn get_expect_schema(&self) -> crate::Result<Schema> {
-        Ok(self
-            .schema
+        self.schema
             .as_ref()
             .cloned()
-            .ok_or_else(|| TantivyError::IndexBuilderMissingArgument("schema"))?)
+            .ok_or(TantivyError::IndexBuilderMissingArgument("schema"))
     }
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {

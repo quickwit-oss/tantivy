@@ -36,8 +36,8 @@ impl OwnedBytes {
         let bytes: &[u8] = box_stable_deref.as_ref();
         let data = unsafe { mem::transmute::<_, &'static [u8]>(bytes.deref()) };
         OwnedBytes {
-            box_stable_deref,
             data,
+            box_stable_deref,
         }
     }
 

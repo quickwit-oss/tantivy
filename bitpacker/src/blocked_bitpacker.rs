@@ -15,6 +15,11 @@ pub struct BlockedBitpacker {
     buffer: Vec<u64>,
     offset_and_bits: Vec<BlockedBitpackerEntryMetaData>,
 }
+impl Default for BlockedBitpacker {
+    fn default() -> Self {
+        BlockedBitpacker::new()
+    }
+}
 
 /// `BlockedBitpackerEntryMetaData` encodes the
 /// offset and bit_width into a u64 bit field
@@ -115,8 +120,6 @@ impl BlockedBitpacker {
             self.buffer.clear();
             self.compressed_blocks
                 .resize(self.compressed_blocks.len() + 8, 0); // add padding for bitpacker
-        } else {
-            return;
         }
     }
     pub fn get(&self, idx: usize) -> u64 {
