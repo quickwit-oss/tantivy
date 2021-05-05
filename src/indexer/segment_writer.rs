@@ -344,9 +344,9 @@ fn write(
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
-        let mut store_writer = StoreWriter::new(store_write);
-        std::mem::swap(&mut serializer.store_writer, &mut store_writer);
-        store_writer.close()?;
+        let old_store_writer =
+            std::mem::replace(&mut serializer.store_writer, StoreWriter::new(store_write));
+        old_store_writer.close()?;
         let store_read = StoreReader::open(
             serializer
                 .segment()

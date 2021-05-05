@@ -114,12 +114,11 @@ impl MultiValuedFastFieldWriter {
     /// returns all values for a doc_ids
     fn get_values_for_doc_id(&self, doc_id: u32) -> &[u64] {
         let start_pos = self.doc_index[doc_id as usize] as usize;
-        let end_pos = if doc_id as usize + 1 == self.doc_index.len() {
-            // special case, last doc_id has no offset information
-            self.vals.len()
-        } else {
-            self.doc_index[doc_id as usize + 1] as usize
-        };
+        let end_pos = self
+            .doc_index
+            .get(doc_id as usize + 1)
+            .cloned()
+            .unwrap_or(self.vals.len() as u64) as usize; // special case, last doc_id has no offset information
         &self.vals[start_pos..end_pos]
     }
     /// Serializes fast field values by pushing them to the `FastFieldSerializer`.

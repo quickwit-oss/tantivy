@@ -31,13 +31,14 @@ pub enum SegmentComponent {
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
             SegmentComponent::Postings,
             SegmentComponent::Positions,
             SegmentComponent::FastFields,
             SegmentComponent::FieldNorms,
             SegmentComponent::Terms,
             SegmentComponent::Store,
+            SegmentComponent::TempStore,
             SegmentComponent::Delete,
         ];
         SEGMENT_COMPONENTS.iter()
