@@ -432,7 +432,7 @@ impl Index {
 
     /// Creates a multithreaded writer
     ///
-    /// Tantivy will automatically define the number of threads to use, but 
+    /// Tantivy will automatically define the number of threads to use, but
     /// no more than [`MAX_NUM_THREAD`] threads.
     /// `overall_heap_size_in_bytes` is the total target memory usage that will be split
     /// between a given number of threads.
@@ -442,7 +442,7 @@ impl Index {
     /// # Panics
     /// If the heap size per thread is too small, panics.
     pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
-        let mut num_threads = std::cmp::max( num_cpus::get(), MAX_NUM_THREAD);
+        let mut num_threads = std::cmp::max(num_cpus::get(), MAX_NUM_THREAD);
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
             num_threads = (overall_heap_size_in_bytes / HEAP_SIZE_MIN).max(1);
