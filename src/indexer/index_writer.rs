@@ -50,7 +50,7 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 // Group of operations.
 // Most of the time, users will send operation one-by-one, but it can be useful to
 // send them as a small block to ensure that
-// - all docs in the operation will happen on the same segment and continuous docids.
+// - all docs in the operation will happen on the same segment and continuous doc_ids.
 // - all operations in the group are committed at the same time, making the group
 // atomic.
 type OperationGroup = SmallVec<[AddOperation; 4]>;

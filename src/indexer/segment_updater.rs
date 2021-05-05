@@ -139,7 +139,7 @@ fn merge(
     // ... we just serialize this index merger in our new segment to merge the two segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
 
-    let num_docs = merger.write(segment_serializer, None)?; // todo map docid on merge
+    let num_docs = merger.write(segment_serializer, None)?; // todo map doc_id on merge
 
     let merged_segment_id = merged_segment.id();
 
@@ -197,7 +197,7 @@ pub fn merge_segments<Dir: Directory>(
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
-    let num_docs = merger.write(segment_serializer, None)?; // todo docid mapping in merge
+    let num_docs = merger.write(segment_serializer, None)?; // todo doc_id mapping in merge
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 

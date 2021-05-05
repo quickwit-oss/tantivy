@@ -2,40 +2,40 @@ use super::SegmentWriter;
 use crate::{DocId, IndexSettings, Order, TantivyError};
 use std::cmp::Reverse;
 
-/// Struct to provide mapping from old docid to new docid and vice versa
-pub struct DocidMapping {
-    new_docid_to_old: Vec<u32>,
-    old_docid_to_new: Vec<u32>,
+/// Struct to provide mapping from old doc_id to new doc_id and vice versa
+pub struct DocIdMapping {
+    new_doc_id_to_old: Vec<u32>,
+    old_doc_id_to_new: Vec<u32>,
 }
 
-impl DocidMapping {
-    /// returns the new docid for the old docid
-    pub fn get_new_docid(&self, docid: DocId) -> DocId {
-        self.old_docid_to_new[docid as usize]
+impl DocIdMapping {
+    /// returns the new doc_id for the old doc_id
+    pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
+        self.old_doc_id_to_new[doc_id as usize]
     }
-    /// returns the old docid for the new docid
-    pub fn get_old_docid(&self, docid: DocId) -> DocId {
-        self.new_docid_to_old[docid as usize]
+    /// returns the old doc_id for the new doc_id
+    pub fn get_old_doc_id(&self, doc_id: DocId) -> DocId {
+        self.new_doc_id_to_old[doc_id as usize]
     }
-    /// iterate over old docids in order of the new docids
-    pub fn iter_old_docids(&self) -> std::slice::Iter<'_, u32> {
-        self.new_docid_to_old.iter()
+    /// iterate over old doc_ids in order of the new doc_ids
+    pub fn iter_old_doc_ids(&self) -> std::slice::Iter<'_, u32> {
+        self.new_doc_id_to_old.iter()
     }
 }
 
 pub(crate) fn sort_index(
     settings: IndexSettings,
     segment_writer: &mut SegmentWriter,
-) -> crate::Result<DocidMapping> {
-    let docid_mapping = get_docid_mapping(settings, segment_writer)?;
-    Ok(docid_mapping)
+) -> crate::Result<DocIdMapping> {
+    let doc_id_mapping = get_doc_id_mapping(settings, segment_writer)?;
+    Ok(doc_id_mapping)
 }
 
-// Generates a document mapping in the form of [index new docid] -> old docid
-fn get_docid_mapping(
+// Generates a document mapping in the form of [index new doc_id] -> old doc_id
+fn get_doc_id_mapping(
     settings: IndexSettings,
     segment_writer: &mut SegmentWriter,
-) -> crate::Result<DocidMapping> {
+) -> crate::Result<DocIdMapping> {
     let field_id = segment_writer
         .segment_serializer
         .segment()
@@ -58,39 +58,39 @@ fn get_docid_mapping(
             ))
         })?;
 
-    // create new docid to old docid index (used in fast_field_writers)
+    // create new doc_id to old doc_id index (used in fast_field_writers)
     let data = fast_field.get_data();
-    let mut docid_and_data = data
+    let mut doc_id_and_data = data
         .into_iter()
         .enumerate()
         .map(|el| (el.0 as DocId, el.1))
         .collect::<Vec<_>>();
     if settings.sort_by_field.order == Order::Desc {
-        docid_and_data.sort_unstable_by_key(|k| Reverse(k.1));
+        doc_id_and_data.sort_unstable_by_key(|k| Reverse(k.1));
     } else {
-        docid_and_data.sort_unstable_by_key(|k| k.1);
+        doc_id_and_data.sort_unstable_by_key(|k| k.1);
     }
-    let new_docid_to_old = docid_and_data
+    let new_doc_id_to_old = doc_id_and_data
         .into_iter()
         .map(|el| el.0)
         .collect::<Vec<_>>();
 
-    // create old docid to new docid index (used in posting recorder)
-    let mut new_docid_and_old_docid = new_docid_to_old
+    // create old doc_id to new doc_id index (used in posting recorder)
+    let mut new_doc_id_and_old_doc_id = new_doc_id_to_old
         .iter()
         .enumerate()
         .map(|el| (el.0 as u32, *el.1))
         .collect::<Vec<_>>();
-    new_docid_and_old_docid.sort_unstable_by_key(|k| k.1);
-    let old_docid_to_new = new_docid_and_old_docid
+    new_doc_id_and_old_doc_id.sort_unstable_by_key(|k| k.1);
+    let old_doc_id_to_new = new_doc_id_and_old_doc_id
         .iter()
         .map(|el| el.0)
         .collect::<Vec<_>>();
-    let docid_map = DocidMapping {
-        new_docid_to_old,
-        old_docid_to_new,
+    let doc_id_map = DocIdMapping {
+        new_doc_id_to_old,
+        old_doc_id_to_new,
     };
-    Ok(docid_map)
+    Ok(doc_id_map)
 }
 
 #[cfg(test)]

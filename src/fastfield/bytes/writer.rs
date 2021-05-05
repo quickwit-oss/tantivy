@@ -2,7 +2,7 @@ use std::io;
 
 use crate::schema::{Document, Field, Value};
 use crate::DocId;
-use crate::{fastfield::serializer::FastFieldSerializer, indexer::index_sorter::DocidMapping};
+use crate::{fastfield::serializer::FastFieldSerializer, indexer::index_sorter::DocIdMapping};
 
 /// Writer for byte array (as in, any number of bytes per document) fast fields
 ///
@@ -72,32 +72,32 @@ impl BytesFastFieldWriter {
         doc
     }
 
-    /// Returns an iterator over values per docid in ascending docid order.
+    /// Returns an iterator over values per doc_id in ascending doc_id order.
     ///
-    /// Normally the order is simply iterating self.docid_index.
-    /// With docid_map it accounts for the new mapping, returning values in the order of the
-    /// new docids.
+    /// Normally the order is simply iterating self.doc_id_index.
+    /// With doc_id_map it accounts for the new mapping, returning values in the order of the
+    /// new doc_ids.
     fn get_ordered_values<'a: 'b, 'b>(
         &'a self,
-        docid_map: Option<&'b DocidMapping>,
+        doc_id_map: Option<&'b DocIdMapping>,
     ) -> impl Iterator<Item = &'b [u8]> {
-        let docid_iter = if let Some(docid_map) = docid_map {
-            Box::new(docid_map.iter_old_docids().cloned()) as Box<dyn Iterator<Item = u32>>
+        let doc_id_iter = if let Some(doc_id_map) = doc_id_map {
+            Box::new(doc_id_map.iter_old_doc_ids().cloned()) as Box<dyn Iterator<Item = u32>>
         } else {
             Box::new(self.doc_index.iter().enumerate().map(|el| el.0 as u32))
                 as Box<dyn Iterator<Item = u32>>
         };
-        docid_iter.map(move |docid| self.get_values_for_docid(docid))
+        doc_id_iter.map(move |doc_id| self.get_values_for_doc_id(doc_id))
     }
 
-    /// returns all values for a docids
-    fn get_values_for_docid(&self, docid: u32) -> &[u8] {
-        let start_pos = self.doc_index[docid as usize] as usize;
-        let end_pos = if docid as usize + 1 == self.doc_index.len() {
-            // special case, last docid has no offset information
+    /// returns all values for a doc_ids
+    fn get_values_for_doc_id(&self, doc_id: u32) -> &[u8] {
+        let start_pos = self.doc_index[doc_id as usize] as usize;
+        let end_pos = if doc_id as usize + 1 == self.doc_index.len() {
+            // special case, last doc_id has no offset information
             self.vals.len()
         } else {
-            self.doc_index[docid as usize + 1] as usize
+            self.doc_index[doc_id as usize + 1] as usize
         };
         &self.vals[start_pos..end_pos]
     }
@@ -106,13 +106,13 @@ impl BytesFastFieldWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         // writing the offset index
         let mut doc_index_serializer =
             serializer.new_u64_fast_field_with_idx(self.field, 0, self.vals.len() as u64, 0)?;
         let mut offset = 0;
-        for vals in self.get_ordered_values(docid_map) {
+        for vals in self.get_ordered_values(doc_id_map) {
             doc_index_serializer.add_val(offset)?;
             offset += vals.len() as u64;
         }
@@ -121,9 +121,9 @@ impl BytesFastFieldWriter {
         // writing the values themselves
         let mut value_serializer = serializer.new_bytes_fast_field_with_idx(self.field, 1);
         // the else could be removed, but this is faster (difference not benchmarked)
-        if let Some(docid_map) = docid_map {
-            for vals in self.get_ordered_values(Some(docid_map)) {
-                // sort values in case of remapped docids?
+        if let Some(doc_id_map) = doc_id_map {
+            for vals in self.get_ordered_values(Some(doc_id_map)) {
+                // sort values in case of remapped doc_ids?
                 value_serializer.write_all(vals)?;
             }
         } else {

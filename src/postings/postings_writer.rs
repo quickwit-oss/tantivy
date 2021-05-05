@@ -11,7 +11,7 @@ use crate::termdict::TermOrdinal;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
 use crate::DocId;
-use crate::{fieldnorm::FieldNormReaders, indexer::index_sorter::DocidMapping};
+use crate::{fieldnorm::FieldNormReaders, indexer::index_sorter::DocIdMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -130,7 +130,7 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
@@ -176,7 +176,7 @@ impl MultiFieldPostingsWriter {
                 &mut field_serializer,
                 &self.term_index.heap,
                 &self.heap,
-                docid_map,
+                doc_id_map,
             )?;
             field_serializer.close()?;
         }
@@ -213,7 +213,7 @@ pub trait PostingsWriter {
         serializer: &mut FieldSerializer<'_>,
         term_heap: &MemoryArena,
         heap: &MemoryArena,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -310,14 +310,14 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         serializer: &mut FieldSerializer<'_>,
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = termdict_heap.read(addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(&term_bytes[4..], term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap, docid_map);
+            recorder.serialize(&mut buffer_lender, serializer, heap, doc_id_map);
             serializer.close_term()?;
         }
         Ok(())

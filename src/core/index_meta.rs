@@ -207,7 +207,7 @@ pub struct IndexSettings {
 /// Settings to presort the documents in an index
 ///
 /// Presorting documents can greatly performance
-/// in some scenarios, by appliying top n
+/// in some scenarios, by applying top n
 /// optimizations.
 #[derive(Clone, Serialize)]
 pub struct IndexSortByField {

@@ -1,5 +1,5 @@
 use super::{
-    index_sorter::{sort_index, DocidMapping},
+    index_sorter::{sort_index, DocIdMapping},
     operation::AddOperation,
 };
 use crate::fastfield::FastFieldsWriter;
@@ -317,10 +317,10 @@ fn write(
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
-    docid_map: Option<&DocidMapping>,
+    doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-        fieldnorms_writer.serialize(fieldnorms_serializer, docid_map)?;
+        fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
     let fieldnorm_data = serializer
         .segment()
@@ -329,15 +329,15 @@ fn write(
     let term_ord_map = multifield_postings.serialize(
         serializer.get_postings_serializer(),
         fieldnorm_readers,
-        docid_map,
+        doc_id_map,
     )?;
     fast_field_writers.serialize(
         serializer.get_fast_field_serializer(),
         &term_ord_map,
-        docid_map,
+        doc_id_map,
     )?;
-    // finalize temp docstore and create version, which reflects the docid_map
-    if let Some(docid_map) = docid_map {
+    // finalize temp docstore and create version, which reflects the doc_id_map
+    if let Some(doc_id_map) = doc_id_map {
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
@@ -349,9 +349,9 @@ fn write(
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
         )?;
-        for old_docid in docid_map.iter_old_docids() {
+        for old_doc_id in doc_id_map.iter_old_doc_ids() {
             // todo serialize/deserialize should not be necessary
-            let doc = store_read.get(*old_docid)?;
+            let doc = store_read.get(*old_doc_id)?;
             serializer.get_store_writer().store(&doc)?;
         }
         // TODO delete temp store
@@ -364,7 +364,7 @@ impl SerializableSegment for SegmentWriter {
     fn write(
         &self,
         serializer: SegmentSerializer,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<u32> {
         let max_doc = self.max_doc;
         write(
@@ -372,7 +372,7 @@ impl SerializableSegment for SegmentWriter {
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             serializer,
-            docid_map,
+            doc_id_map,
         )?;
         Ok(max_doc)
     }

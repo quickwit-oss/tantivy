@@ -7,7 +7,7 @@ use crate::directory::{FileSlice, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
-use crate::{core::Index, indexer::index_sorter::DocidMapping};
+use crate::{core::Index, indexer::index_sorter::DocIdMapping};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -100,6 +100,6 @@ pub trait SerializableSegment {
     fn write(
         &self,
         serializer: SegmentSerializer,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<u32>;
 }

@@ -1,4 +1,4 @@
-use crate::{indexer::index_sorter::DocidMapping, DocId};
+use crate::{indexer::index_sorter::DocIdMapping, DocId};
 
 use super::fieldnorm_to_id;
 use super::FieldNormsSerializer;
@@ -90,15 +90,15 @@ impl FieldNormsWriter {
     pub fn serialize(
         &self,
         mut fieldnorms_serializer: FieldNormsSerializer,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         for &field in self.fields.iter() {
             let fieldnorm_values: &[u8] = &self.fieldnorms_buffer[field.field_id() as usize][..];
-            if let Some(docid_map) = docid_map {
+            if let Some(doc_id_map) = doc_id_map {
                 let mut mapped_fieldnorm_values = vec![];
                 mapped_fieldnorm_values.resize(fieldnorm_values.len(), 0u8);
-                for (new_docid, old_docid) in docid_map.iter_old_docids().enumerate() {
-                    mapped_fieldnorm_values[new_docid] = fieldnorm_values[*old_docid as usize];
+                for (new_doc_id, old_doc_id) in doc_id_map.iter_old_doc_ids().enumerate() {
+                    mapped_fieldnorm_values[new_doc_id] = fieldnorm_values[*old_doc_id as usize];
                 }
                 fieldnorms_serializer.serialize_field(field, &mapped_fieldnorm_values)?;
             } else {

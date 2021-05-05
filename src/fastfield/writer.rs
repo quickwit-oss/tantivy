@@ -1,7 +1,7 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
-use crate::indexer::index_sorter::DocidMapping;
+use crate::indexer::index_sorter::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
@@ -142,18 +142,18 @@ impl FastFieldsWriter {
         &self,
         serializer: &mut FastFieldSerializer,
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
-            field_writer.serialize(serializer, docid_map)?;
+            field_writer.serialize(serializer, doc_id_map)?;
         }
 
         for field_writer in &self.multi_values_writers {
             let field = field_writer.field();
-            field_writer.serialize(serializer, mapping.get(&field), docid_map)?;
+            field_writer.serialize(serializer, mapping.get(&field), doc_id_map)?;
         }
         for field_writer in &self.bytes_value_writers {
-            field_writer.serialize(serializer, docid_map)?;
+            field_writer.serialize(serializer, doc_id_map)?;
         }
         Ok(())
     }
@@ -265,7 +265,7 @@ impl IntFastFieldWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        docid_map: Option<&DocidMapping>,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let (min, max) = if self.val_min > self.val_max {
             (0, 0)
@@ -273,9 +273,9 @@ impl IntFastFieldWriter {
             (self.val_min, self.val_max)
         };
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
-        if let Some(docid_map) = docid_map {
-            for docid in docid_map.iter_old_docids() {
-                single_field_serializer.add_val(self.vals.get(*docid as usize))?;
+        if let Some(doc_id_map) = doc_id_map {
+            for doc_id in doc_id_map.iter_old_doc_ids() {
+                single_field_serializer.add_val(self.vals.get(*doc_id as usize))?;
             }
         } else {
             for val in self.vals.iter() {
