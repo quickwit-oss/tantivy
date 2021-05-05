@@ -278,7 +278,8 @@ impl Recorder for TfAndPositionRecorder {
             }
             if let Some(doc_id_map) = doc_id_map {
                 // this simple variant to remap may consume to much memory
-                doc_id_and_positions.push((doc_id_map.get_new_doc_id(doc), buffer_positions.to_vec()));
+                doc_id_and_positions
+                    .push((doc_id_map.get_new_doc_id(doc), buffer_positions.to_vec()));
             } else {
                 serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
             }
