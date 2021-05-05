@@ -198,7 +198,7 @@ impl InnerSegmentMeta {
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -209,7 +209,7 @@ pub struct IndexSettings {
 /// Presorting documents can greatly performance
 /// in some scenarios, by applying top n
 /// optimizations.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IndexSortByField {
     /// The field to sort the documents by
     pub field: String,
@@ -217,7 +217,7 @@ pub struct IndexSortByField {
     pub order: Order,
 }
 /// The order to sort by
-#[derive(Clone, Serialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,
@@ -255,6 +255,7 @@ pub struct IndexMeta {
 #[derive(Deserialize)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
+    pub index_settings: Option<IndexSettings>,
     pub schema: Schema,
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -264,7 +265,7 @@ struct UntrackedIndexMeta {
 impl UntrackedIndexMeta {
     pub fn track(self, inventory: &SegmentMetaInventory) -> IndexMeta {
         IndexMeta {
-            index_settings: None,
+            index_settings: self.index_settings,
             segments: self
                 .segments
                 .into_iter()
