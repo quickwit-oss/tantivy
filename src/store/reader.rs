@@ -91,18 +91,33 @@ impl StoreReader {
     /// It should not be called to score documents
     /// for instance.
     pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
+        let (block, start_pos, end_pos) = self.get_raw(doc_id)?;
+        let mut cursor = &block[start_pos..end_pos];
+        Ok(Document::deserialize(&mut cursor)?)
+    }
+
+    /// Reads raw bytes of a given document. Returns the block of a document and its start and end
+    /// position within the block.
+    ///
+    /// Calling `.get(doc)` is relatively costly as it requires
+    /// decompressing a compressed block.
+    ///
+    pub fn get_raw(&self, doc_id: DocId) -> crate::Result<(Arc<Vec<u8>>, usize, usize)> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
-        let mut cursor = &self.read_block(&checkpoint)?[..];
+        let block = self.read_block(&checkpoint)?;
+        let mut cursor = &block[..];
+        let cursor_len_before = cursor.len();
         for _ in checkpoint.doc_range.start..doc_id {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
             cursor = &cursor[doc_length..];
         }
 
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-        cursor = &cursor[..doc_length];
-        Ok(Document::deserialize(&mut cursor)?)
+        let start_pos = cursor_len_before - cursor.len();
+        let end_pos = cursor_len_before - cursor.len() + doc_length;
+        Ok((block, start_pos, end_pos))
     }
 
     /// Summarize total space usage of this store reader.

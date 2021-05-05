@@ -318,7 +318,10 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
-    use crate::schema::{Schema, TEXT};
+    use crate::{
+        schema::{Schema, TEXT},
+        IndexSettings, IndexSortByField, Order,
+    };
     use serde_json;
 
     #[test]
@@ -329,7 +332,12 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
-            index_settings: None,
+            index_settings: Some(IndexSettings {
+                sort_by_field: IndexSortByField {
+                    field: "text".to_string(),
+                    order: Order::Asc,
+                },
+            }),
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -338,7 +346,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"}},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }
