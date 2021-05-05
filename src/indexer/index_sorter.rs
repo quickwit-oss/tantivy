@@ -66,9 +66,9 @@ fn get_doc_id_mapping(
         .map(|el| (el.0 as DocId, el.1))
         .collect::<Vec<_>>();
     if settings.sort_by_field.order == Order::Desc {
-        doc_id_and_data.sort_unstable_by_key(|k| Reverse(k.1));
+        doc_id_and_data.sort_by_key(|k| Reverse(k.1));
     } else {
-        doc_id_and_data.sort_unstable_by_key(|k| k.1);
+        doc_id_and_data.sort_by_key(|k| k.1);
     }
     let new_doc_id_to_old = doc_id_and_data
         .into_iter()
@@ -76,16 +76,11 @@ fn get_doc_id_mapping(
         .collect::<Vec<_>>();
 
     // create old doc_id to new doc_id index (used in posting recorder)
-    let mut new_doc_id_and_old_doc_id = new_doc_id_to_old
-        .iter()
-        .enumerate()
-        .map(|el| (el.0 as DocId, *el.1))
-        .collect::<Vec<_>>();
-    new_doc_id_and_old_doc_id.sort_unstable_by_key(|k| k.1);
-    let old_doc_id_to_new = new_doc_id_and_old_doc_id
-        .iter()
-        .map(|el| el.0)
-        .collect::<Vec<_>>();
+    let max_doc = new_doc_id_to_old.len();
+    let mut old_doc_id_to_new = vec![0; max_doc];
+    for i in 0..max_doc {
+        old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
+    }
     let doc_id_map = DocIdMapping {
         new_doc_id_to_old,
         old_doc_id_to_new,
