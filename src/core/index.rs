@@ -442,7 +442,7 @@ impl Index {
     /// # Panics
     /// If the heap size per thread is too small, panics.
     pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
-        let mut num_threads = std::cmp::max(num_cpus::get(), MAX_NUM_THREAD);
+        let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
             num_threads = (overall_heap_size_in_bytes / HEAP_SIZE_MIN).max(1);
