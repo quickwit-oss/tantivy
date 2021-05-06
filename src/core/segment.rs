@@ -7,7 +7,7 @@ use crate::directory::{FileSlice, WritePtr};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
-use crate::{core::Index, indexer::index_sorter::DocIdMapping};
+use crate::{core::Index, indexer::doc_id_mapping::DocIdMapping};
 use std::fmt;
 use std::path::PathBuf;
 

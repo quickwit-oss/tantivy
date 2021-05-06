@@ -3,7 +3,7 @@ use crate::postings::FieldSerializer;
 use crate::DocId;
 use crate::{
     common::{read_u32_vint, write_u32_vint},
-    indexer::index_sorter::DocIdMapping,
+    indexer::doc_id_mapping::DocIdMapping,
 };
 
 const POSITION_END: u32 = 0;
@@ -119,17 +119,18 @@ impl Recorder for NothingRecorder {
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
     ) {
-        let buffer = buffer_lender.lend_u8();
+        let (buffer, doc_ids) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer);
         //TODO avoid reading twice.
         if let Some(doc_id_map) = doc_id_map {
-            let mut doc_ids = VInt32Reader::new(&buffer[..])
-                .map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id))
-                .collect::<Vec<_>>();
+            doc_ids.extend(
+                VInt32Reader::new(&buffer[..])
+                    .map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)),
+            );
             doc_ids.sort_unstable();
 
             for doc in doc_ids {
-                serializer.write_doc(doc, 0u32, &[][..]);
+                serializer.write_doc(*doc, 0u32, &[][..]);
             }
         } else {
             for doc in VInt32Reader::new(&buffer[..]) {

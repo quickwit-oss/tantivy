@@ -1,7 +1,7 @@
 pub mod delete_queue;
 
+pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
-pub mod index_sorter;
 pub mod index_writer;
 mod log_merge_policy;
 mod merge_operation;

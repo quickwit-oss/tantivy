@@ -13,7 +13,7 @@ use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::indexer::SegmentSerializer;
+use crate::indexer::SegmentSerializer;doc_id_mapping
 use crate::postings::Postings;
 use crate::postings::{InvertedIndexSerializer, SegmentPostings};
 use crate::schema::Cardinality;
@@ -27,7 +27,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::index_sorter::DocIdMapping;
+use super::doc_id_mapping::DocIdMapping;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;

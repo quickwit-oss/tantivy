@@ -4,7 +4,7 @@ use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
-use crate::{fastfield::value_to_u64, indexer::index_sorter::DocIdMapping};
+use crate::{fastfield::value_to_u64, indexer::doc_id_mapping::DocIdMapping};
 use fnv::FnvHashMap;
 use std::io;
 use tantivy_bitpacker::minmax;

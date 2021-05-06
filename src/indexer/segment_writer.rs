@@ -1,5 +1,5 @@
 use super::{
-    index_sorter::{get_doc_id_mapping, DocIdMapping},
+    doc_id_mapping::{get_doc_id_mapping, DocIdMapping},
     operation::AddOperation,
 };
 use crate::fastfield::FastFieldsWriter;

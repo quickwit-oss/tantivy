@@ -1,7 +1,7 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common;
 use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
-use crate::indexer::index_sorter::DocIdMapping;
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;

@@ -1,4 +1,4 @@
-use crate::{indexer::index_sorter::DocIdMapping, DocId};
+use crate::{indexer::doc_id_mapping::DocIdMapping, DocId};
 
 use super::fieldnorm_to_id;
 use super::FieldNormsSerializer;

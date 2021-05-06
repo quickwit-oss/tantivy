@@ -11,7 +11,7 @@ use crate::termdict::TermOrdinal;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
 use crate::DocId;
-use crate::{fieldnorm::FieldNormReaders, indexer::index_sorter::DocIdMapping};
+use crate::{fieldnorm::FieldNormReaders, indexer::doc_id_mapping::DocIdMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
