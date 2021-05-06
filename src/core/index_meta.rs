@@ -202,7 +202,7 @@ impl InnerSegmentMeta {
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
-    pub sort_by_field: IndexSortByField,
+    pub sort_by_field: Option<IndexSortByField>,
 }
 /// Settings to presort the documents in an index
 ///
@@ -333,10 +333,10 @@ mod tests {
         };
         let index_metas = IndexMeta {
             index_settings: Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "text".to_string(),
                     order: Order::Asc,
-                },
+                }),
             }),
             segments: Vec::new(),
             schema,

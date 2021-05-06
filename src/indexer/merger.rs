@@ -13,7 +13,7 @@ use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::indexer::SegmentSerializer;doc_id_mapping
+use crate::indexer::SegmentSerializer;
 use crate::postings::Postings;
 use crate::postings::{InvertedIndexSerializer, SegmentPostings};
 use crate::schema::Cardinality;

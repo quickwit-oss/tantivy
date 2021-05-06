@@ -1,5 +1,5 @@
 use super::{
-    doc_id_mapping::{get_doc_id_mapping, DocIdMapping},
+    doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping},
     operation::AddOperation,
 };
 use crate::fastfield::FastFieldsWriter;
@@ -109,7 +109,8 @@ impl SegmentWriter {
             .index()
             .settings()
             .as_ref()
-            .map(|settings| get_doc_id_mapping(settings.clone(), &self))
+            .and_then(|settings| settings.sort_by_field.clone())
+            .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
         write(
             &self.multifield_postings,

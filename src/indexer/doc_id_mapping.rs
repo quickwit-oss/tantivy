@@ -1,5 +1,5 @@
 use super::SegmentWriter;
-use crate::{DocId, IndexSettings, Order, TantivyError};
+use crate::{DocId, IndexSortByField, Order, TantivyError};
 use std::cmp::Reverse;
 
 /// Struct to provide mapping from old doc_id to new doc_id and vice versa
@@ -24,19 +24,19 @@ impl DocIdMapping {
 }
 
 // Generates a document mapping in the form of [index new doc_id] -> old doc_id
-pub(crate) fn get_doc_id_mapping(
-    settings: IndexSettings,
+pub(crate) fn get_doc_id_mapping_from_field(
+    sort_by_field: IndexSortByField,
     segment_writer: &SegmentWriter,
 ) -> crate::Result<DocIdMapping> {
     let field_id = segment_writer
         .segment_serializer
         .segment()
         .schema()
-        .get_field(&settings.sort_by_field.field)
+        .get_field(&sort_by_field.field)
         .ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
                 "field to sort index by not found: {:?}",
-                settings.sort_by_field.field
+                sort_by_field.field
             ))
         })?;
     // for now expect fastfield, but not strictly required
@@ -46,7 +46,7 @@ pub(crate) fn get_doc_id_mapping(
         .ok_or_else(|| {
             TantivyError::InvalidArgument(format!(
                 "sort index by field is required to be a fast field {:?}",
-                settings.sort_by_field.field
+                sort_by_field.field
             ))
         })?;
 
@@ -57,7 +57,7 @@ pub(crate) fn get_doc_id_mapping(
         .enumerate()
         .map(|el| (el.0 as DocId, el.1))
         .collect::<Vec<_>>();
-    if settings.sort_by_field.order == Order::Desc {
+    if sort_by_field.order == Order::Desc {
         doc_id_and_data.sort_by_key(|k| Reverse(k.1));
     } else {
         doc_id_and_data.sort_by_key(|k| k.1);
@@ -161,10 +161,10 @@ mod tests_indexsorting {
             // sort by field asc
             let index = create_test_index(
                 Some(IndexSettings {
-                    sort_by_field: IndexSortByField {
+                    sort_by_field: Some(IndexSortByField {
                         field: "my_number".to_string(),
                         order: Order::Asc,
-                    },
+                    }),
                 }),
                 option.clone(),
             );
@@ -192,10 +192,10 @@ mod tests_indexsorting {
             // sort by field desc
             let index = create_test_index(
                 Some(IndexSettings {
-                    sort_by_field: IndexSortByField {
+                    sort_by_field: Some(IndexSortByField {
                         field: "my_number".to_string(),
                         order: Order::Desc,
-                    },
+                    }),
                 }),
                 option.clone(),
             );
@@ -250,10 +250,10 @@ mod tests_indexsorting {
         // sort by field asc
         let index = create_test_index(
             Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "my_number".to_string(),
                     order: Order::Asc,
-                },
+                }),
             }),
             get_text_options(),
         );
@@ -274,10 +274,10 @@ mod tests_indexsorting {
         // sort by field desc
         let index = create_test_index(
             Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "my_number".to_string(),
                     order: Order::Desc,
-                },
+                }),
             }),
             get_text_options(),
         );
@@ -308,10 +308,10 @@ mod tests_indexsorting {
 
         let index = create_test_index(
             Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "my_number".to_string(),
                     order: Order::Asc,
-                },
+                }),
             }),
             get_text_options(),
         );
@@ -338,10 +338,10 @@ mod tests_indexsorting {
         // sort by field desc
         let index = create_test_index(
             Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "my_number".to_string(),
                     order: Order::Desc,
-                },
+                }),
             }),
             get_text_options(),
         );
@@ -373,10 +373,10 @@ mod tests_indexsorting {
     fn test_sort_index_fast_field() -> crate::Result<()> {
         let index = create_test_index(
             Some(IndexSettings {
-                sort_by_field: IndexSortByField {
+                sort_by_field: Some(IndexSortByField {
                     field: "my_number".to_string(),
                     order: Order::Asc,
-                },
+                }),
             }),
             get_text_options(),
         );
