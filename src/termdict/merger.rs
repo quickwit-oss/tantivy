@@ -130,18 +130,18 @@ mod bench {
         TermInfo {
             doc_freq: term_ord as u32,
             postings_range: offset(term_ord)..offset(term_ord + 1),
-            positions_idx: offset(term_ord) as u64 * 2u64,
+            positions_range: offset(term_ord)..offset(term_ord + 1),
         }
     }
 
     /// Create a dictionary of random strings.
-    fn rand_dict(size: usize) -> crate::Result<TermDictionary> {
+    fn rand_dict(num_terms: usize) -> crate::Result<TermDictionary> {
         let buffer: Vec<u8> = {
             let mut terms = vec![];
-            for _i in 0..size {
+            for _i in 0..num_terms {
                 let rand_string: String = thread_rng()
                     .sample_iter(&Alphanumeric)
-                    .take(30)
+                    .take(thread_rng().gen_range(30..42))
                     .map(char::from)
                     .collect();
                 terms.push(rand_string);
@@ -149,7 +149,7 @@ mod bench {
             terms.sort();
 
             let mut term_dictionary_builder = TermDictionaryBuilder::create(Vec::new())?;
-            for i in 0..size {
+            for i in 0..num_terms {
                 term_dictionary_builder.insert(terms[i].as_bytes(), &make_term_info(i as u64))?;
             }
             term_dictionary_builder.finish()?
@@ -160,17 +160,17 @@ mod bench {
 
     #[bench]
     fn bench_termmerger_baseline(b: &mut Bencher) -> crate::Result<()> {
-        let dict1 = rand_dict(100000)?;
-        let dict2 = rand_dict(100000)?;
-        b.iter(|| {
-            let stream1 = dict1.stream().unwrap();
-            let stream2 = dict2.stream().unwrap();
+        let dict1 = rand_dict(100_000)?;
+        let dict2 = rand_dict(100_000)?;
+        b.iter(|| -> crate::Result<u32> {
+            let stream1 = dict1.stream()?;
+            let stream2 = dict2.stream()?;
             let mut merger = TermMerger::new(vec![stream1, stream2]);
             let mut count = 0;
             while merger.advance() {
                 count += 1;
             }
-            count
+            Ok(count)
         });
         Ok(())
     }
