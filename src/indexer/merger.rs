@@ -1,6 +1,5 @@
 use tantivy_bitpacker::minmax;
 
-use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
@@ -22,6 +21,7 @@ use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
+use crate::{common::MAX_DOC_LIMIT, IndexSettings};
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
 use std::cmp;
 use std::collections::HashMap;
@@ -57,6 +57,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
 }
 
 pub struct IndexMerger {
+    index_settings: Option<IndexSettings>,
     schema: Schema,
     readers: Vec<SegmentReader>,
     max_doc: u32,
@@ -145,7 +146,11 @@ impl DeltaComputer {
 }
 
 impl IndexMerger {
-    pub fn open(schema: Schema, segments: &[Segment]) -> crate::Result<IndexMerger> {
+    pub fn open(
+        schema: Schema,
+        index_settings: Option<IndexSettings>,
+        segments: &[Segment],
+    ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         let mut max_doc: u32 = 0u32;
         for segment in segments {
@@ -165,6 +170,7 @@ impl IndexMerger {
         }
         Ok(IndexMerger {
             schema,
+            index_settings,
             readers,
             max_doc,
         })

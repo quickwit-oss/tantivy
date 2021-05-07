@@ -1,3 +1,7 @@
+//! This module is used when sorting the index by a property, e.g.
+//! to get mappings from old doc_id to new doc_id and vice versa, after sorting
+//!
+
 use super::SegmentWriter;
 use crate::{DocId, IndexSortByField, Order, TantivyError};
 use std::cmp::Reverse;

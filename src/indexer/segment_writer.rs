@@ -69,7 +69,7 @@ impl SegmentWriter {
     ) -> crate::Result<SegmentWriter> {
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_num_bits = initial_table_size(memory_budget)?;
-        let segment_serializer = SegmentSerializer::for_segment(segment)?;
+        let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()

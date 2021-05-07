@@ -198,7 +198,7 @@ impl InnerSegmentMeta {
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -209,7 +209,7 @@ pub struct IndexSettings {
 /// Presorting documents can greatly performance
 /// in some scenarios, by applying top n
 /// optimizations.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSortByField {
     /// The field to sort the documents by
     pub field: String,
@@ -217,7 +217,7 @@ pub struct IndexSortByField {
     pub order: Order,
 }
 /// The order to sort by
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Order {
     /// Ascending Order
     Asc,

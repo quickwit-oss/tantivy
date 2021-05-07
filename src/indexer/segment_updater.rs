@@ -134,10 +134,10 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
+    let merger: IndexMerger = IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
 
-    // ... we just serialize this index merger in our new segment to merge the two segments.
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
+    // ... we just serialize this index merger in our new segment to merge the segments.
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
 
     let num_docs = merger.write(segment_serializer, None)?; // todo map doc_id on merge
 
@@ -171,6 +171,7 @@ pub fn merge_segments<Dir: Directory>(
     }
 
     let target_schema = indices[0].schema();
+    let target_setttings = indices[0].settings().clone();
 
     // let's check that all of the indices have the same schema
     if indices
@@ -182,6 +183,16 @@ pub fn merge_segments<Dir: Directory>(
             "Attempt to merge different schema indices".to_string(),
         ));
     }
+    // let's check that all of the indices have the same index settings 
+    if indices
+        .iter()
+        .skip(1)
+        .any(|index| index.settings() != &target_setttings)
+    {
+        return Err(crate::TantivyError::InvalidArgument(
+            "Attempt to merge indices with different index_settings".to_string(),
+        ));
+    }
 
     let mut segments: Vec<Segment> = Vec::new();
     for index in indices {
@@ -191,12 +202,12 @@ pub fn merge_segments<Dir: Directory>(
     let mut merged_index = Index::create(
         output_directory,
         target_schema.clone(),
-        indices[0].settings().clone(),
+        target_setttings,
     )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
+    let merger: IndexMerger = IndexMerger::open(merged_index.schema(), merged_index.settings().clone(), &segments[..])?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
     let num_docs = merger.write(segment_serializer, None)?; // todo doc_id mapping in merge
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);

@@ -17,10 +17,14 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(mut segment: Segment) -> crate::Result<SegmentSerializer> {
-        // currently if there are settings, there is also some sorting information, which requires resorting
-        // TODO sorting should be optional
-        let remapping_required = segment.index().settings().is_some();
+    pub fn for_segment(
+        mut segment: Segment,
+        is_in_merge: bool,
+    ) -> crate::Result<SegmentSerializer> {
+        // If the segment is going to be sorted, we stream the docs first to a temporary file.
+        // In the merge case this is not necessary because we can kmerge the already sorted
+        // segments
+        let remapping_required = segment.index().settings().is_some() && !is_in_merge;
         let store_component = if remapping_required {
             SegmentComponent::TempStore
         } else {
