@@ -1,7 +1,6 @@
 use tantivy_bitpacker::minmax;
 
 use super::doc_id_mapping::DocIdMapping;
-use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
 use crate::docset::{DocSet, TERMINATED};
 use crate::fastfield::BytesFastFieldReader;
@@ -23,6 +22,7 @@ use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
 use crate::{common::MAX_DOC_LIMIT, IndexSettings};
 use crate::{core::Segment, indexer::doc_id_mapping::expect_field_id_for_sort_field};
+use crate::{core::SegmentReader, Order};
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
 use itertools::Itertools;
 use std::cmp;
@@ -249,6 +249,18 @@ impl IndexMerger {
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> crate::Result<()> {
+        let (min_value, max_value) = self.readers.iter().map(|reader|{
+                let u64_reader: FastFieldReader<u64> = reader
+                .fast_fields()
+                .typed_fast_field_reader(field)
+                .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
+                compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
+            })
+            .filter_map(|x| x)
+            .reduce(|a, b| {
+                (a.0.min(b.0), a.1.max(b.1))
+            }).expect("Unexpected error, empty readers in IndexMerger");
+
         if let Some(sort_by_field) = self
             .index_settings
             .as_ref()
@@ -275,62 +287,64 @@ impl IndexMerger {
                 })
                 .collect::<Vec<_>>();
 
-            let mut sorted_docids = doc_id_reader_pair
+            // create iterator tuple of (old doc_id, reader, old fastfield) in order of the new
+            // doc_ids
+            let sorted_doc_ids = doc_id_reader_pair
                 .into_iter()
-                .kmerge_by(|a, b| a.2.get(a.0) < b.2.get(b.0))
-                .map(|(doc_id, reader, sort_accessor)|{
-            
+                .kmerge_by(|a, b| {
+                    let val1 = a.2.get(a.0);
+                    let val2 = b.2.get(b.0);
+                    if sort_by_field.order == Order::Asc {
+                        val1 < val2
+                    }else{
+                        val1 > val2
+                    }
+                })
+                .map(|(doc_id, reader, _)|{
                     let u64_reader: FastFieldReader<u64> = reader
-                .fast_fields()
-                .typed_fast_field_reader(field)
-                .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
+                    .fast_fields()
+                    .typed_fast_field_reader(field)
+                    .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
 
                     (doc_id, reader, u64_reader)
                 });
-        }
-        let mut u64_readers = vec![];
-        let mut min_value = u64::max_value();
-        let mut max_value = u64::min_value();
 
-        for reader in &self.readers {
+            // add values in order of the new docids
+            let mut fast_single_field_serializer =
+                fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
+            for (doc_id, _reader, field_reader) in sorted_doc_ids {
+                let val = field_reader.get(doc_id);
+                fast_single_field_serializer.add_val(val)?;
+            }
+
+            fast_single_field_serializer.close_field()?;
+            Ok(())
+        } else {
+            let u64_readers = self.readers.iter().map(|reader|{
             let u64_reader: FastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-            if let Some((seg_min_val, seg_max_val)) =
-                compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
-            {
-                // the segment has some non-deleted documents
-                min_value = cmp::min(min_value, seg_min_val);
-                max_value = cmp::max(max_value, seg_max_val);
-                u64_readers.push((reader.max_doc(), u64_reader, reader.delete_bitset()));
-            } else {
-                // all documents have been deleted.
-            }
-        }
+            (reader.max_doc(), u64_reader, reader.delete_bitset())
+        }).collect::<Vec<_>>();
 
-        if min_value > max_value {
-            // There is not a single document remaining in the index.
-            min_value = 0;
-            max_value = 0;
-        }
-
-        let mut fast_single_field_serializer =
-            fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
-        for (max_doc, u64_reader, delete_bitset_opt) in u64_readers {
-            for doc_id in 0u32..max_doc {
-                let is_deleted = delete_bitset_opt
-                    .map(|delete_bitset| delete_bitset.is_deleted(doc_id))
-                    .unwrap_or(false);
-                if !is_deleted {
-                    let val = u64_reader.get(doc_id);
-                    fast_single_field_serializer.add_val(val)?;
+            let mut fast_single_field_serializer =
+                fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
+            for (max_doc, u64_reader, delete_bitset_opt) in u64_readers {
+                for doc_id in 0u32..max_doc {
+                    let is_deleted = delete_bitset_opt
+                        .map(|delete_bitset| delete_bitset.is_deleted(doc_id))
+                        .unwrap_or(false);
+                    if !is_deleted {
+                        let val = u64_reader.get(doc_id);
+                        fast_single_field_serializer.add_val(val)?;
+                    }
                 }
             }
-        }
 
-        fast_single_field_serializer.close_field()?;
-        Ok(())
+            fast_single_field_serializer.close_field()?;
+            Ok(())
+        }
     }
 
     fn write_fast_field_idx(
