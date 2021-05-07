@@ -1,6 +1,6 @@
 use tantivy_bitpacker::minmax;
 
-use crate::core::Segment;
+use super::doc_id_mapping::DocIdMapping;
 use crate::core::SegmentReader;
 use crate::core::SerializableSegment;
 use crate::docset::{DocSet, TERMINATED};
@@ -22,12 +22,12 @@ use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
 use crate::{common::MAX_DOC_LIMIT, IndexSettings};
+use crate::{core::Segment, indexer::doc_id_mapping::expect_field_id_for_sort_field};
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
+use itertools::Itertools;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
-
-use super::doc_id_mapping::DocIdMapping;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
@@ -249,6 +249,45 @@ impl IndexMerger {
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> crate::Result<()> {
+        if let Some(sort_by_field) = self
+            .index_settings
+            .as_ref()
+            .and_then(|settings| settings.sort_by_field.as_ref())
+        {
+            let reader_and_field_accessors = self
+                .readers
+                .iter()
+                .map(|reader| {
+                    let field_id =
+                        expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
+                    let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
+                    Ok((reader, value_accessor))
+                })
+                .collect::<crate::Result<Vec<_>>>()?;
+            // create iterators over segment/sort_accessor/docid  tuple
+            let doc_id_reader_pair = reader_and_field_accessors
+                .iter()
+                .map(|reader| {
+                    reader
+                        .0
+                        .doc_ids_alive()
+                        .map(move |doc_id| (doc_id, reader.0, &reader.1))
+                })
+                .collect::<Vec<_>>();
+
+            let mut sorted_docids = doc_id_reader_pair
+                .into_iter()
+                .kmerge_by(|a, b| a.2.get(a.0) < b.2.get(b.0))
+                .map(|(doc_id, reader, sort_accessor)|{
+            
+                    let u64_reader: FastFieldReader<u64> = reader
+                .fast_fields()
+                .typed_fast_field_reader(field)
+                .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
+
+                    (doc_id, reader, u64_reader)
+                });
+        }
         let mut u64_readers = vec![];
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();

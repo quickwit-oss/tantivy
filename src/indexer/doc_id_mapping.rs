@@ -3,7 +3,10 @@
 //!
 
 use super::SegmentWriter;
-use crate::{DocId, IndexSortByField, Order, TantivyError};
+use crate::{
+    schema::{Field, Schema},
+    DocId, IndexSortByField, Order, TantivyError,
+};
 use std::cmp::Reverse;
 
 /// Struct to provide mapping from old doc_id to new doc_id and vice versa
@@ -27,23 +30,26 @@ impl DocIdMapping {
     }
 }
 
+pub(crate) fn expect_field_id_for_sort_field(
+    schema: &Schema,
+    sort_by_field: &IndexSortByField,
+) -> crate::Result<Field> {
+    schema.get_field(&sort_by_field.field).ok_or_else(|| {
+        TantivyError::InvalidArgument(format!(
+            "field to sort index by not found: {:?}",
+            sort_by_field.field
+        ))
+    })
+}
+
 // Generates a document mapping in the form of [index new doc_id] -> old doc_id
+// TODO detect if field is already sorted and discard mapping
 pub(crate) fn get_doc_id_mapping_from_field(
     sort_by_field: IndexSortByField,
     segment_writer: &SegmentWriter,
 ) -> crate::Result<DocIdMapping> {
-    let field_id = segment_writer
-        .segment_serializer
-        .segment()
-        .schema()
-        .get_field(&sort_by_field.field)
-        .ok_or_else(|| {
-            TantivyError::InvalidArgument(format!(
-                "field to sort index by not found: {:?}",
-                sort_by_field.field
-            ))
-        })?;
-    // for now expect fastfield, but not strictly required
+    let schema = segment_writer.segment_serializer.segment().schema();
+    let field_id = expect_field_id_for_sort_field(&schema, &sort_by_field)?; // for now expect fastfield, but not strictly required
     let fast_field = segment_writer
         .fast_field_writers
         .get_field_writer(field_id)
