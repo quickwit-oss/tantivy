@@ -119,7 +119,7 @@ impl FastFieldReaders {
 
     /// Returns the `u64` fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a u64 fast field, this method returns `None`.
+    /// If `field` is not a u64 fast field, this method returns an Error.
     pub fn u64(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
         self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
@@ -135,7 +135,7 @@ impl FastFieldReaders {
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a i64 fast field, this method returns `None`.
+    /// If `field` is not a i64 fast field, this method returns an Error.
     pub fn i64(&self, field: Field) -> crate::Result<FastFieldReader<i64>> {
         self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
@@ -143,7 +143,7 @@ impl FastFieldReaders {
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a i64 fast field, this method returns `None`.
+    /// If `field` is not a i64 fast field, this method returns an Error.
     pub fn date(&self, field: Field) -> crate::Result<FastFieldReader<crate::DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
@@ -151,7 +151,7 @@ impl FastFieldReaders {
 
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a f64 fast field, this method returns `None`.
+    /// If `field` is not a f64 fast field, this method returns an Error.
     pub fn f64(&self, field: Field) -> crate::Result<FastFieldReader<f64>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
@@ -159,15 +159,23 @@ impl FastFieldReaders {
 
     /// Returns a `u64s` multi-valued fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a u64 multi-valued fast field, this method returns `None`.
+    /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
     pub fn u64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {
         self.check_type(field, FastType::U64, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
     }
 
+    /// Returns a `u64s` multi-valued fast field reader reader associated to `field`, regardless of whether the given
+    /// field is effectively of type `u64` or not.
+    ///
+    /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
+    pub fn u64s_lenient(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {
+        self.typed_fast_field_multi_reader(field)
+    }
+
     /// Returns a `i64s` multi-valued fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a i64 multi-valued fast field, this method returns `None`.
+    /// If `field` is not a i64 multi-valued fast field, this method returns an Error.
     pub fn i64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<i64>> {
         self.check_type(field, FastType::I64, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
@@ -175,7 +183,7 @@ impl FastFieldReaders {
 
     /// Returns a `f64s` multi-valued fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a f64 multi-valued fast field, this method returns `None`.
+    /// If `field` is not a f64 multi-valued fast field, this method returns an Error.
     pub fn f64s(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<f64>> {
         self.check_type(field, FastType::F64, Cardinality::MultiValues)?;
         self.typed_fast_field_multi_reader(field)
@@ -183,7 +191,7 @@ impl FastFieldReaders {
 
     /// Returns a `crate::DateTime` multi-valued fast field reader reader associated to `field`.
     ///
-    /// If `field` is not a `crate::DateTime` multi-valued fast field, this method returns `None`.
+    /// If `field` is not a `crate::DateTime` multi-valued fast field, this method returns an Error.
     pub fn dates(
         &self,
         field: Field,
@@ -194,7 +202,7 @@ impl FastFieldReaders {
 
     /// Returns the `bytes` fast field reader associated to `field`.
     ///
-    /// If `field` is not a bytes fast field, returns `None`.
+    /// If `field` is not a bytes fast field, returns an Error.
     pub fn bytes(&self, field: Field) -> crate::Result<BytesFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
         if let FieldType::Bytes(bytes_option) = field_entry.field_type() {
