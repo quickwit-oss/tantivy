@@ -340,6 +340,9 @@ impl IndexMerger {
         }
     }
 
+    /// Generates the doc_id mapping where position in the vec=new docid.
+    /// ReaderWithOrdinal will include the ordinal posiiton of the
+    /// reader in self.readers.
     pub(crate) fn generate_doc_id_mapping(
         &self,
         sort_by_field: &IndexSortByField,
@@ -398,11 +401,12 @@ impl IndexMerger {
         Ok(sorted_doc_ids)
     }
 
-    // Creating the index file generic over `BytesFastFieldReader` and
+    // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
     // `MultiValuedFastFieldReader`
     //
     // Important: reader_and_field_accessor needs
-    // to have the same order as self.readers
+    // to have the same order as self.readers since ReaderWithOrdinal
+    // is used to index the reader_and_field_accessors vec.
     fn write_multi_value_fast_field_idx_generic(
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,

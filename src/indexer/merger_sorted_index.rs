@@ -36,7 +36,7 @@ mod tests {
 
             index_writer.add_document(doc!(int_field=>1_u64));
             index_writer.add_document(
-                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64),
+                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3]),
             );
             index_writer.add_document(
                 doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64),
@@ -49,7 +49,7 @@ mod tests {
                 doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64),
             );
             index_writer.add_document(
-                doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64),
+                doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5]),
             );
             assert!(index_writer.commit().is_ok());
         }
@@ -103,6 +103,7 @@ mod tests {
 
         let int_field = index.schema().get_field("intval").unwrap();
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
+        let bytes_field = index.schema().get_field("bytes").unwrap();
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
@@ -130,6 +131,11 @@ mod tests {
         assert_eq!(&get_vals(&fast_field, 3), &[10, 11]);
         assert_eq!(&get_vals(&fast_field, 4), &[20]);
         assert_eq!(&get_vals(&fast_field, 5), &[1001, 1002]);
+
+        let fast_field = fast_fields.bytes(bytes_field).unwrap();
+        assert_eq!(fast_field.get_bytes(0), &[] as &[u8]);
+        assert_eq!(fast_field.get_bytes(2), &[1, 2, 3]);
+        assert_eq!(fast_field.get_bytes(5), &[5, 5]);
     }
 }
 
