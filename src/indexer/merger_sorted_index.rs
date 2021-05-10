@@ -1,12 +1,21 @@
 #[cfg(test)]
 mod tests {
-    use crate::schema::{self, BytesOptions};
-    use crate::schema::{Cardinality, TextFieldIndexing};
-    use crate::schema::{IntOptions, TextOptions};
     use crate::IndexSettings;
     use crate::IndexSortByField;
     use crate::Order;
+    use crate::{
+        collector::TopDocs,
+        schema::{Cardinality, TextFieldIndexing},
+    };
     use crate::{core::Index, fastfield::MultiValuedFastFieldReader};
+    use crate::{
+        query::QueryParser,
+        schema::{IntOptions, TextOptions},
+    };
+    use crate::{
+        schema::{self, BytesOptions},
+        DocAddress,
+    };
     use futures::executor::block_on;
 
     fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
@@ -51,10 +60,10 @@ mod tests {
             index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(
-                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64),
+                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber"),
             );
             index_writer.add_document(
-                doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5]),
+                doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5],text_field => "the biggest num")
             );
             assert!(index_writer.commit().is_ok());
         }
@@ -72,7 +81,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_sorted_index_int_field_desc() {
+    fn test_merge_sorted_index_desc() {
         let index = create_test_index(Some(IndexSettings {
             sort_by_field: Some(IndexSortByField {
                 field: "intval".to_string(),
@@ -95,10 +104,41 @@ mod tests {
         assert_eq!(fast_field.get(2u32), 10u64);
         assert_eq!(fast_field.get(1u32), 20u64);
         assert_eq!(fast_field.get(0u32), 1_000u64);
+
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = segment_reader.get_fieldnorms_reader(my_text_field).unwrap();
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 3); // the biggest num
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(2), 1); // blubber
+            assert_eq!(fieldnorm_reader.fieldnorm(3), 2); // some text
+            assert_eq!(fieldnorm_reader.fieldnorm(5), 0);
+        }
+
+        let my_text_field = index.schema().get_field("text_field").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+
+            let do_search = |term: &str| {
+                let query = QueryParser::for_index(&index, vec![my_text_field])
+                    .parse_query(term)
+                    .unwrap();
+                let top_docs: Vec<(f32, DocAddress)> =
+                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>()
+            };
+
+            assert_eq!(do_search("some"), vec![3]);
+            assert_eq!(do_search("blubber"), vec![2]);
+            assert_eq!(do_search("biggest"), vec![0]);
+        }
     }
 
     #[test]
-    fn test_merge_sorted_index_int_field_asc() {
+    fn test_merge_sorted_index_asc() {
         let index = create_test_index(Some(IndexSettings {
             sort_by_field: Some(IndexSortByField {
                 field: "intval".to_string(),
@@ -149,7 +189,28 @@ mod tests {
             assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
             assert_eq!(fieldnorm_reader.fieldnorm(2), 2); // some text
-            assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(3), 1);
+            assert_eq!(fieldnorm_reader.fieldnorm(5), 3); // the biggest num
+        }
+
+        let my_text_field = index.schema().get_field("text_field").unwrap();
+        let searcher = index.reader().unwrap().searcher();
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+
+            let do_search = |term: &str| {
+                let query = QueryParser::for_index(&index, vec![my_text_field])
+                    .parse_query(term)
+                    .unwrap();
+                let top_docs: Vec<(f32, DocAddress)> =
+                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>()
+            };
+
+            assert_eq!(do_search("some"), vec![2]);
+            assert_eq!(do_search("blubber"), vec![3]);
+            assert_eq!(do_search("biggest"), vec![5]);
         }
     }
 }

@@ -258,7 +258,7 @@ pub type Opstamp = u64;
 /// the document to the search query.
 pub type Score = f32;
 
-/// A `SegmentOrdinal` identifies a segment, within a `Searcher`.
+/// A `SegmentOrdinal` identifies a segment, within a `Searcher` or `Merger`.
 pub type SegmentOrdinal = u32;
 
 impl DocAddress {
