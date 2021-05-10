@@ -1,5 +1,4 @@
 use super::doc_id_mapping::DocIdMapping;
-use crate::common::HasLen;
 use crate::docset::{DocSet, TERMINATED};
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
@@ -18,6 +17,7 @@ use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
+use crate::{common::HasLen, fastfield::MultiValueLength};
 use crate::{common::MAX_DOC_LIMIT, IndexSettings};
 use crate::{core::Segment, indexer::doc_id_mapping::expect_field_id_for_sort_field};
 use crate::{core::SegmentReader, Order};
@@ -356,33 +356,28 @@ impl IndexMerger {
         Ok(sorted_doc_ids)
     }
 
-    fn write_fast_field_idx(
-        &self,
+    fn write_multi_value_fast_field_idx_generic(
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        reader_and_field_accessors: Vec<(&SegmentReader, impl MultiValueLength)>,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
-        let mut u64s_readers: Vec<MultiValuedFastFieldReader<u64>> = Vec::new();
         // In the first pass, we compute the total number of vals.
         //
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
-        for reader in &self.readers {
-            let u64s_reader = reader.fast_fields()
-                .typed_fast_field_multi_reader(field)
-                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+        for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
-                        let num_vals = u64s_reader.num_vals(doc) as u64;
+                        let num_vals = u64s_reader.get_len(doc) as u64;
                         total_num_vals += num_vals;
                     }
                 }
             } else {
-                total_num_vals += u64s_reader.total_num_vals();
+                total_num_vals += u64s_reader.get_total_len();
             }
-            u64s_readers.push(u64s_reader);
         }
 
         // We can now create our `idx` serializer, and in a second pass,
@@ -398,7 +393,7 @@ impl IndexMerger {
                 .typed_fast_field_multi_reader(field)
                 .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
                 serialize_idx.add_val(offset)?;
-                offset += u64s_reader.num_vals(*doc_id) as u64;
+                offset += u64s_reader.get_len(*doc_id) as u64;
             }
             serialize_idx.add_val(offset as u64)?;
 
@@ -407,16 +402,36 @@ impl IndexMerger {
             let mut serialize_idx =
                 fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
             let mut idx = 0;
-            for (segment_reader, u64s_reader) in self.readers.iter().zip(&u64s_readers) {
+            for (segment_reader, u64s_reader) in reader_and_field_accessors.iter() {
                 for doc in segment_reader.doc_ids_alive() {
                     serialize_idx.add_val(idx)?;
-                    idx += u64s_reader.num_vals(doc) as u64;
+                    idx += u64s_reader.get_len(doc) as u64;
                 }
             }
             serialize_idx.add_val(idx)?;
             serialize_idx.close_field()?;
         }
         Ok(())
+    }
+    fn write_multi_value_fast_field_idx(
+        &self,
+        field: Field,
+        fast_field_serializer: &mut FastFieldSerializer,
+        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+    ) -> crate::Result<()> {
+        let reader_and_field_accessors = self.readers.iter().map(|reader|{
+            let u64s_reader: MultiValuedFastFieldReader<u64> = reader.fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+            (reader, u64s_reader)
+        }).collect::<Vec<_>>();
+
+        Self::write_multi_value_fast_field_idx_generic(
+            field,
+            fast_field_serializer,
+            doc_id_mapping,
+            reader_and_field_accessors,
+        )
     }
 
     fn write_hierarchical_facet_field(
@@ -431,7 +446,7 @@ impl IndexMerger {
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        self.write_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
+        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
         // We can now write the actual fast field values.
         // In the case of hierarchical facets, they are actually term ordinals.
@@ -472,7 +487,7 @@ impl IndexMerger {
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        self.write_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
+        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();
@@ -544,42 +559,24 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        _doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
     ) -> crate::Result<()> {
-        let mut total_num_vals = 0u64;
-        let mut bytes_readers: Vec<BytesFastFieldReader> = Vec::new();
+        let reader_and_field_accessors = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let bytes_reader = reader.fast_fields().bytes(field)
+                    .expect("Failed to find index for bytes field. This is a bug in tantivy, please report.");
+                (reader, bytes_reader)
+            })
+            .collect::<Vec<_>>();
 
-        for reader in &self.readers {
-            let bytes_reader = reader.fast_fields().bytes(field)?;
-            if let Some(delete_bitset) = reader.delete_bitset() {
-                for doc in 0u32..reader.max_doc() {
-                    if delete_bitset.is_alive(doc) {
-                        let num_vals = bytes_reader.get_bytes(doc).len() as u64;
-                        total_num_vals += num_vals;
-                    }
-                }
-            } else {
-                total_num_vals += bytes_reader.total_num_bytes() as u64;
-            }
-            bytes_readers.push(bytes_reader);
-        }
-
-        {
-            // We can now create our `idx` serializer, and in a second pass,
-            // can effectively push the different indexes.
-            let mut serialize_idx =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
-            let mut idx = 0;
-            for (segment_reader, bytes_reader) in self.readers.iter().zip(&bytes_readers) {
-                for doc in segment_reader.doc_ids_alive() {
-                    serialize_idx.add_val(idx)?;
-                    idx += bytes_reader.num_bytes(doc) as u64;
-                }
-            }
-            serialize_idx.add_val(idx)?;
-            serialize_idx.close_field()?;
-        }
-
+        Self::write_multi_value_fast_field_idx_generic(
+            field,
+            fast_field_serializer,
+            doc_id_mapping,
+            reader_and_field_accessors,
+        )?;
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
         for segment_reader in &self.readers {
             let bytes_reader = segment_reader.fast_fields().bytes(field)

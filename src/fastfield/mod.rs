@@ -33,7 +33,6 @@ pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::common;
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
 use crate::schema::Value;
@@ -41,6 +40,7 @@ use crate::{
     chrono::{NaiveDateTime, Utc},
     schema::Type,
 };
+use crate::{common, DocId};
 
 mod bytes;
 mod delete;
@@ -51,6 +51,15 @@ mod reader;
 mod readers;
 mod serializer;
 mod writer;
+
+/// Trait for `BytesFastFieldReader` and `MultiValuedFastFieldReader` to return the length of data
+/// for a doc_id
+pub trait MultiValueLength {
+    /// returns the num of values associated to a doc_id
+    fn get_len(&self, doc_id: DocId) -> u64;
+    /// returns the sum of num of all values for all doc_ids
+    fn get_total_len(&self) -> u64;
+}
 
 /// Trait for types that are allowed for fast fields: (u64, i64 and f64).
 pub trait FastValue: Clone + Copy + Send + Sync + PartialOrd + 'static {

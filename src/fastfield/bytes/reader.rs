@@ -1,7 +1,7 @@
-use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::fastfield::FastFieldReader;
 use crate::DocId;
+use crate::{directory::FileSlice, fastfield::MultiValueLength};
 
 /// Reader for byte array fast fields
 ///
@@ -49,5 +49,14 @@ impl BytesFastFieldReader {
     /// Returns the overall number of bytes in this bytes fast field.
     pub fn total_num_bytes(&self) -> usize {
         self.values.len()
+    }
+}
+
+impl MultiValueLength for BytesFastFieldReader {
+    fn get_len(&self, doc_id: DocId) -> u64 {
+        self.num_bytes(doc_id) as u64
+    }
+    fn get_total_len(&self) -> u64 {
+        self.total_num_bytes() as u64
     }
 }
