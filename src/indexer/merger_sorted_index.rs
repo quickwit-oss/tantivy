@@ -1,51 +1,54 @@
 #[cfg(test)]
 mod tests {
-    use crate::core::Index;
     use crate::schema;
     use crate::schema::Cardinality;
-    use crate::schema::Document;
     use crate::schema::IntOptions;
     use crate::IndexSettings;
     use crate::IndexSortByField;
-    use crate::IndexWriter;
     use crate::Order;
+    use crate::{core::Index, fastfield::MultiValuedFastFieldReader};
     use futures::executor::block_on;
 
-    #[test]
-    fn test_merge_sorted_index_int_field_desc() {
+    fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
+        let multi_numbers = schema_builder.add_u64_field(
+            "multi_numbers",
+            IntOptions::default().set_fast(Cardinality::MultiValues),
+        );
         let schema = schema_builder.build();
 
-        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "intval".to_string(),
-                order: Order::Desc,
-            }),
-        });
+        let mut index_builder = Index::builder().schema(schema);
+        if let Some(settings) = index_settings {
+            index_builder = index_builder.settings(settings);
+        }
         let index = index_builder.create_in_ram().unwrap();
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-            let index_doc = |index_writer: &mut IndexWriter, val: u64| {
-                let mut doc = Document::default();
-                doc.add_u64(int_field, val);
-                index_writer.add_document(doc);
-            };
-            index_doc(&mut index_writer, 1);
-            index_doc(&mut index_writer, 3);
-            index_doc(&mut index_writer, 2);
+
+            index_writer.add_document(doc!(int_field=>1_u64));
+            index_writer.add_document(
+                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64),
+            );
+            index_writer.add_document(
+                doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64),
+            );
+
             assert!(index_writer.commit().is_ok());
-            index_doc(&mut index_writer, 20);
+            index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
             assert!(index_writer.commit().is_ok());
-            index_doc(&mut index_writer, 10);
-            index_doc(&mut index_writer, 1_000);
+            index_writer.add_document(
+                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64),
+            );
+            index_writer.add_document(
+                doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64),
+            );
             assert!(index_writer.commit().is_ok());
         }
-        let reader = index.reader().unwrap();
 
         // Merging the segments
         {
@@ -56,7 +59,20 @@ mod tests {
             assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
             assert!(index_writer.wait_merging_threads().is_ok());
         }
-        reader.reload().unwrap();
+        index
+    }
+
+    #[test]
+    fn test_merge_sorted_index_int_field_desc() {
+        let index = create_test_index(Some(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "intval".to_string(),
+                order: Order::Desc,
+            }),
+        }));
+
+        let int_field = index.schema().get_field("intval").unwrap();
+        let reader = index.reader().unwrap();
 
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
@@ -74,51 +90,16 @@ mod tests {
 
     #[test]
     fn test_merge_sorted_index_int_field_asc() {
-        let mut schema_builder = schema::Schema::builder();
-        let int_options = IntOptions::default()
-            .set_fast(Cardinality::SingleValue)
-            .set_indexed();
-        let int_field = schema_builder.add_u64_field("intval", int_options);
-        let schema = schema_builder.build();
-
-        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+        let index = create_test_index(Some(IndexSettings {
             sort_by_field: Some(IndexSortByField {
                 field: "intval".to_string(),
                 order: Order::Asc,
             }),
-        });
-        let index = index_builder.create_in_ram().unwrap();
+        }));
 
-        {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            let index_doc = |index_writer: &mut IndexWriter, val: u64| {
-                let mut doc = Document::default();
-                doc.add_u64(int_field, val);
-                index_writer.add_document(doc);
-            };
-            index_doc(&mut index_writer, 1);
-            index_doc(&mut index_writer, 3);
-            index_doc(&mut index_writer, 2);
-            assert!(index_writer.commit().is_ok());
-            index_doc(&mut index_writer, 20);
-            assert!(index_writer.commit().is_ok());
-            index_doc(&mut index_writer, 10);
-            index_doc(&mut index_writer, 1_000);
-            assert!(index_writer.commit().is_ok());
-        }
+        let int_field = index.schema().get_field("intval").unwrap();
+        let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
         let reader = index.reader().unwrap();
-
-        // Merging the segments
-        {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
-            assert!(index_writer.wait_merging_threads().is_ok());
-        }
-        reader.reload().unwrap();
-
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_readers().last().unwrap();
@@ -131,6 +112,20 @@ mod tests {
         assert_eq!(fast_field.get(3u32), 10u64);
         assert_eq!(fast_field.get(4u32), 20u64);
         assert_eq!(fast_field.get(5u32), 1_000u64);
+
+        let get_vals = |fast_field: &MultiValuedFastFieldReader<u64>, doc_id: u32| -> Vec<u64> {
+            let mut vals = vec![];
+            fast_field.get_vals(doc_id, &mut vals);
+            vals
+        };
+        let fast_fields = segment_reader.fast_fields();
+        let fast_field = fast_fields.u64s(multi_numbers).unwrap();
+        assert_eq!(&get_vals(&fast_field, 0), &[] as &[u64]);
+        assert_eq!(&get_vals(&fast_field, 1), &[2, 3]);
+        assert_eq!(&get_vals(&fast_field, 2), &[3, 4]);
+        assert_eq!(&get_vals(&fast_field, 3), &[10, 11]);
+        assert_eq!(&get_vals(&fast_field, 4), &[20]);
+        assert_eq!(&get_vals(&fast_field, 5), &[1001, 1002]);
     }
 }
 
@@ -156,6 +151,7 @@ mod bench_sorted_index_merge {
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
+        let int_field = schema_builder.add_u64_field("intval", int_options);
         let int_field = schema_builder.add_u64_field("intval", int_options);
         let schema = schema_builder.build();
 

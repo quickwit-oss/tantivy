@@ -265,6 +265,7 @@ impl IndexMerger {
             }).expect("Unexpected error, empty readers in IndexMerger");
 
         if let Some(doc_id_mapping) = doc_id_mapping {
+            // TODO accessing the reader on every iteration has probably considerable overhead
             let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
                     let u64_reader: FastFieldReader<u64> = reader
                     .fast_fields()
@@ -362,27 +363,7 @@ impl IndexMerger {
         doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
-        //if let Some(doc_id_mapping) = doc_id_mapping {
-        ////writing the offset index
-        //let mut serialize_idx =
-        //fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
-
-        //let mut offset = 0;
-        //for (doc_id, reader) in doc_id_mapping {
-        //let u64_reader: FastFieldReader<u64> = reader
-        //.fast_fields()
-        //.typed_fast_field_reader(field)
-        //.expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-        //serialize_idx.add_val(offset)?;
-        ////offset += vals.len() as u64;
-        ////let vals = reader.f
-        //}
-        //serialize_idx.add_val(offset as u64)?;
-
-        //serialize_idx.close_field()?;
-        //}
         let mut u64s_readers: Vec<MultiValuedFastFieldReader<u64>> = Vec::new();
-
         // In the first pass, we compute the total number of vals.
         //
         // This is required by the bitpacker, as it needs to know
@@ -406,26 +387,35 @@ impl IndexMerger {
 
         // We can now create our `idx` serializer, and in a second pass,
         // can effectively push the different indexes.
-        let mut serialize_idx =
-            fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
         if let Some(doc_id_mapping) = doc_id_mapping {
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
-                    let u64_reader: FastFieldReader<u64> = reader
-                    .fast_fields()
-                    .typed_fast_field_reader(field)
-                    .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                    (doc_id, reader, u64_reader)
-                });
-        }
-        let mut idx = 0;
-        for (segment_reader, u64s_reader) in self.readers.iter().zip(&u64s_readers) {
-            for doc in segment_reader.doc_ids_alive() {
-                serialize_idx.add_val(idx)?;
-                idx += u64s_reader.num_vals(doc) as u64;
+            let mut serialize_idx =
+                fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
+
+            let mut offset = 0;
+            for (doc_id, reader) in doc_id_mapping {
+                // TODO accessing the reader on every iteration has probably considerable overhead
+                let u64s_reader : MultiValuedFastFieldReader<u64> = reader.fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+                serialize_idx.add_val(offset)?;
+                offset += u64s_reader.num_vals(*doc_id) as u64;
             }
+            serialize_idx.add_val(offset as u64)?;
+
+            serialize_idx.close_field()?;
+        } else {
+            let mut serialize_idx =
+                fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
+            let mut idx = 0;
+            for (segment_reader, u64s_reader) in self.readers.iter().zip(&u64s_readers) {
+                for doc in segment_reader.doc_ids_alive() {
+                    serialize_idx.add_val(idx)?;
+                    idx += u64s_reader.num_vals(doc) as u64;
+                }
+            }
+            serialize_idx.add_val(idx)?;
+            serialize_idx.close_field()?;
         }
-        serialize_idx.add_val(idx)?;
-        serialize_idx.close_field()?;
         Ok(())
     }
 
@@ -522,9 +512,20 @@ impl IndexMerger {
         }
 
         // We can now initialize our serializer, and push it the different values
-        {
-            let mut serialize_vals = fast_field_serializer
-                .new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+        let mut serialize_vals =
+            fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+        if let Some(doc_id_mapping) = doc_id_mapping {
+            for (doc_id, reader) in doc_id_mapping {
+                // TODO accessing the reader on every iteration has probably considerable overhead
+                let ff_reader : MultiValuedFastFieldReader<u64> = reader.fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+                ff_reader.get_vals(*doc_id, &mut vals);
+                for &val in &vals {
+                    serialize_vals.add_val(val)?;
+                }
+            }
+        } else {
             for (reader, ff_reader) in self.readers.iter().zip(ff_readers) {
                 // TODO optimize if no deletes
                 for doc in reader.doc_ids_alive() {
@@ -534,8 +535,8 @@ impl IndexMerger {
                     }
                 }
             }
-            serialize_vals.close_field()?;
         }
+        serialize_vals.close_field()?;
         Ok(())
     }
 
