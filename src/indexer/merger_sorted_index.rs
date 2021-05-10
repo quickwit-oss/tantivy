@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::schema;
     use crate::schema::Cardinality;
     use crate::schema::IntOptions;
+    use crate::schema::{self, BytesOptions};
     use crate::IndexSettings;
     use crate::IndexSortByField;
     use crate::Order;
@@ -15,6 +15,10 @@ mod tests {
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
+
+        let bytes_options = BytesOptions::default().set_fast().set_indexed();
+        let bytes_field = schema_builder.add_bytes_field("bytes", bytes_options);
+
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
             IntOptions::default().set_fast(Cardinality::MultiValues),

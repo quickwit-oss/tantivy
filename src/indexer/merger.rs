@@ -1,6 +1,5 @@
 use super::doc_id_mapping::DocIdMapping;
 use crate::docset::{DocSet, TERMINATED};
-use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
@@ -54,6 +53,34 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
                 count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
             })
             .sum::<u64>())
+}
+
+/// `ReaderWithOrdinal` is used to be able to easier associate
+/// data with a `SegmentReader`. The ordinal is supposed to be
+/// used as an index access.
+///
+/// The ordinal is the position in the self.readers vec.
+#[derive(Clone, Copy)]
+pub struct ReaderWithOrdinal<'a> {
+    reader: &'a SegmentReader,
+    ordinal: usize,
+}
+
+impl<'a> ReaderWithOrdinal<'a> {
+    fn reader(&self) -> &'a SegmentReader {
+        self.reader
+    }
+    fn ordinal(&self) -> usize {
+        self.ordinal
+    }
+}
+impl<'a> From<(usize, &'a SegmentReader)> for ReaderWithOrdinal<'a> {
+    fn from(data: (usize, &'a SegmentReader)) -> Self {
+        ReaderWithOrdinal {
+            reader: data.1,
+            ordinal: data.0,
+        }
+    }
 }
 
 pub struct IndexMerger {
@@ -201,7 +228,7 @@ impl IndexMerger {
         &self,
         fast_field_serializer: &mut FastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
@@ -250,7 +277,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let (min_value, max_value) = self.readers.iter().map(|reader|{
                 let u64_reader: FastFieldReader<u64> = reader
@@ -267,7 +294,7 @@ impl IndexMerger {
         if let Some(doc_id_mapping) = doc_id_mapping {
             // TODO accessing the reader on every iteration has probably considerable overhead
             let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
-                    let u64_reader: FastFieldReader<u64> = reader
+                    let u64_reader: FastFieldReader<u64> = reader.reader()
                     .fast_fields()
                     .typed_fast_field_reader(field)
                     .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
@@ -316,14 +343,22 @@ impl IndexMerger {
     pub(crate) fn generate_doc_id_mapping(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<Vec<(DocId, &SegmentReader)>> {
+    ) -> crate::Result<Vec<(DocId, ReaderWithOrdinal)>> {
         let reader_and_field_accessors = self
             .readers
             .iter()
+            .enumerate()
             .map(|reader| {
-                let field_id = expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
-                let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
-                Ok((reader, value_accessor))
+                let reader_with_id: ReaderWithOrdinal = reader.into();
+                let field_id = expect_field_id_for_sort_field(
+                    &reader_with_id.reader().schema(),
+                    &sort_by_field,
+                )?; // for now expect fastfield, but not strictly required
+                let value_accessor = reader_with_id
+                    .reader()
+                    .fast_fields()
+                    .u64_lenient(field_id)?;
+                Ok((reader_with_id, value_accessor))
             })
             .collect::<crate::Result<Vec<_>>>()?; // Collecting to bind the lifetime of value_accessor into the vec, or can't be used as a reference.
                                                   // Loading the field accessor on demand causes a 15x regression
@@ -331,16 +366,23 @@ impl IndexMerger {
         // create iterators over segment/sort_accessor/docid  tuple
         let doc_id_reader_pair = reader_and_field_accessors
             .iter()
-            .map(|reader| {
-                reader
+            .map(|reader_and_field_accessor| {
+                reader_and_field_accessor
                     .0
+                    .reader()
                     .doc_ids_alive()
-                    .map(move |doc_id| (doc_id, reader.0, &reader.1))
+                    .map(move |doc_id| {
+                        (
+                            doc_id,
+                            reader_and_field_accessor.0,
+                            &reader_and_field_accessor.1,
+                        )
+                    })
             })
             .collect::<Vec<_>>();
 
         // create iterator tuple of (old doc_id, reader) in order of the new doc_ids
-        let sorted_doc_ids: Vec<(DocId, &SegmentReader)> = doc_id_reader_pair
+        let sorted_doc_ids: Vec<(DocId, ReaderWithOrdinal)> = doc_id_reader_pair
             .into_iter()
             .kmerge_by(|a, b| {
                 let val1 = a.2.get(a.0);
@@ -351,15 +393,20 @@ impl IndexMerger {
                     val1 > val2
                 }
             })
-            .map(|(doc_id, reader, _)| (doc_id, reader))
+            .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id))
             .collect::<Vec<_>>();
         Ok(sorted_doc_ids)
     }
 
+    // Creating the index file generic over `BytesFastFieldReader` and
+    // `MultiValuedFastFieldReader`
+    //
+    // Important: reader_and_field_accessor needs
+    // to have the same order as self.readers
     fn write_multi_value_fast_field_idx_generic(
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
         reader_and_field_accessors: Vec<(&SegmentReader, impl MultiValueLength)>,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
@@ -388,12 +435,9 @@ impl IndexMerger {
 
             let mut offset = 0;
             for (doc_id, reader) in doc_id_mapping {
-                // TODO accessing the reader on every iteration has probably considerable overhead
-                let u64s_reader : MultiValuedFastFieldReader<u64> = reader.fast_fields()
-                .typed_fast_field_multi_reader(field)
-                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+                let reader = &reader_and_field_accessors[reader.ordinal()].1;
                 serialize_idx.add_val(offset)?;
-                offset += u64s_reader.get_len(*doc_id) as u64;
+                offset += reader.get_len(*doc_id) as u64;
             }
             serialize_idx.add_val(offset as u64)?;
 
@@ -417,7 +461,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self.readers.iter().map(|reader|{
             let u64s_reader: MultiValuedFastFieldReader<u64> = reader.fast_fields()
@@ -439,7 +483,7 @@ impl IndexMerger {
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
@@ -480,7 +524,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
@@ -532,7 +576,7 @@ impl IndexMerger {
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (doc_id, reader) in doc_id_mapping {
                 // TODO accessing the reader on every iteration has probably considerable overhead
-                let ff_reader : MultiValuedFastFieldReader<u64> = reader.fast_fields()
+                let ff_reader : MultiValuedFastFieldReader<u64> = reader.reader().fast_fields()
                 .typed_fast_field_multi_reader(field)
                 .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
                 ff_reader.get_vals(*doc_id, &mut vals);
@@ -559,7 +603,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
-        doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self
             .readers
@@ -578,13 +622,22 @@ impl IndexMerger {
             reader_and_field_accessors,
         )?;
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
-        for segment_reader in &self.readers {
-            let bytes_reader = segment_reader.fast_fields().bytes(field)
-                .expect("Failed to find bytes field in fast field reader. This is a bug in tantivy. Please report.");
-            // TODO: optimize if no deletes
-            for doc in segment_reader.doc_ids_alive() {
-                let val = bytes_reader.get_bytes(doc);
+        if let Some(doc_id_mapping) = doc_id_mapping {
+            for (doc_id, reader) in doc_id_mapping {
+                // TODO accessing the reader on every iteration has probably considerable overhead
+                let bytes_reader = reader.reader().fast_fields().bytes(field)?;
+                let val = bytes_reader.get_bytes(*doc_id);
                 serialize_vals.write_all(val)?;
+            }
+        } else {
+            for segment_reader in &self.readers {
+                let bytes_reader = segment_reader.fast_fields().bytes(field)
+                .expect("Failed to find bytes field in fast field reader. This is a bug in tantivy. Please report.");
+                // TODO: optimize if no deletes
+                for doc in segment_reader.doc_ids_alive() {
+                    let val = bytes_reader.get_bytes(doc);
+                    serialize_vals.write_all(val)?;
+                }
             }
         }
         serialize_vals.flush()?;
