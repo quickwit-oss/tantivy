@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::schema::Cardinality;
-    use crate::schema::IntOptions;
     use crate::schema::{self, BytesOptions};
+    use crate::schema::{Cardinality, TextFieldIndexing};
+    use crate::schema::{IntOptions, TextOptions};
     use crate::IndexSettings;
     use crate::IndexSortByField;
     use crate::Order;
@@ -23,6 +23,11 @@ mod tests {
             "multi_numbers",
             IntOptions::default().set_fast(Cardinality::MultiValues),
         );
+        let text_field_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+        );
+        let text_field = schema_builder.add_text_field("text_field", text_field_options);
         let schema = schema_builder.build();
 
         let mut index_builder = Index::builder().schema(schema);
@@ -36,7 +41,7 @@ mod tests {
 
             index_writer.add_document(doc!(int_field=>1_u64));
             index_writer.add_document(
-                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3]),
+                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text"),
             );
             index_writer.add_document(
                 doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64),
@@ -136,6 +141,16 @@ mod tests {
         assert_eq!(fast_field.get_bytes(0), &[] as &[u8]);
         assert_eq!(fast_field.get_bytes(2), &[1, 2, 3]);
         assert_eq!(fast_field.get_bytes(5), &[5, 5]);
+
+        // test new field norm mapping
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let fieldnorm_reader = segment_reader.get_fieldnorms_reader(my_text_field).unwrap();
+            assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(2), 2); // some text
+            assert_eq!(fieldnorm_reader.fieldnorm(3), 0);
+        }
     }
 }
 

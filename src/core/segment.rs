@@ -97,6 +97,10 @@ pub trait SerializableSegment {
     ///
     /// # Returns
     /// The number of documents in the segment.
+    ///
+    /// doc_id_map is used when index is created and sorted, to map to the new doc_id order.
+    /// It is not used by the `IndexMerger`, since the doc_id_mapping on cross-segments works
+    /// differently
     fn write(
         &self,
         serializer: SegmentSerializer,

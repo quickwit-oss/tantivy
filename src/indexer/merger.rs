@@ -206,16 +206,25 @@ impl IndexMerger {
     fn write_fieldnorms(
         &self,
         mut fieldnorms_serializer: FieldNormsSerializer,
+        doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
         for field in fields {
             fieldnorms_data.clear();
-            for reader in &self.readers {
-                let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
-                for doc_id in reader.doc_ids_alive() {
-                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
+            if let Some(doc_id_mapping) = doc_id_mapping {
+                for (doc_id, reader) in doc_id_mapping {
+                    let fieldnorms_reader = reader.reader().get_fieldnorms_reader(field)?;
+                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(*doc_id);
                     fieldnorms_data.push(fieldnorm_id);
+                }
+            } else {
+                for reader in &self.readers {
+                    let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
+                    for doc_id in reader.doc_ids_alive() {
+                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
+                        fieldnorms_data.push(fieldnorm_id);
+                    }
                 }
             }
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
@@ -341,7 +350,7 @@ impl IndexMerger {
     }
 
     /// Generates the doc_id mapping where position in the vec=new docid.
-    /// ReaderWithOrdinal will include the ordinal posiiton of the
+    /// ReaderWithOrdinal will include the ordinal position of the
     /// reader in self.readers.
     pub(crate) fn generate_doc_id_mapping(
         &self,
@@ -407,7 +416,7 @@ impl IndexMerger {
     // Important: reader_and_field_accessor needs
     // to have the same order as self.readers since ReaderWithOrdinal
     // is used to index the reader_and_field_accessors vec.
-    fn write_multi_value_fast_field_idx_generic(
+    fn write_1_n_fast_field_idx_generic(
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, ReaderWithOrdinal)>>,
@@ -474,7 +483,7 @@ impl IndexMerger {
             (reader, u64s_reader)
         }).collect::<Vec<_>>();
 
-        Self::write_multi_value_fast_field_idx_generic(
+        Self::write_1_n_fast_field_idx_generic(
             field,
             fast_field_serializer,
             doc_id_mapping,
@@ -619,7 +628,7 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
 
-        Self::write_multi_value_fast_field_idx_generic(
+        Self::write_1_n_fast_field_idx_generic(
             field,
             fast_field_serializer,
             doc_id_mapping,
@@ -842,7 +851,7 @@ impl SerializableSegment for IndexMerger {
     fn write(
         &self,
         mut serializer: SegmentSerializer,
-        _doc_id_mapping: Option<&DocIdMapping>,
+        _: Option<&DocIdMapping>,
     ) -> crate::Result<u32> {
         let doc_id_mapping = if let Some(sort_by_field) = self
             .index_settings
@@ -855,7 +864,7 @@ impl SerializableSegment for IndexMerger {
         };
 
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-            self.write_fieldnorms(fieldnorms_serializer)?;
+            self.write_fieldnorms(fieldnorms_serializer, &doc_id_mapping)?;
         }
         let fieldnorm_data = serializer
             .segment()
