@@ -32,10 +32,12 @@ mod tests {
             "multi_numbers",
             IntOptions::default().set_fast(Cardinality::MultiValues),
         );
-        let text_field_options = TextOptions::default().set_indexing_options(
-            TextFieldIndexing::default()
-                .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
-        );
+        let text_field_options = TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+            )
+            .set_stored();
         let text_field = schema_builder.add_text_field("text_field", text_field_options);
         let schema = schema_builder.build();
 
@@ -135,6 +137,15 @@ mod tests {
             assert_eq!(do_search("blubber"), vec![2]);
             assert_eq!(do_search("biggest"), vec![0]);
         }
+
+        // access doc store
+        {
+            let doc = searcher.doc(DocAddress::new(0, 2)).unwrap();
+            assert_eq!(
+                doc.get_first(my_text_field).unwrap().text(),
+                Some("blubber")
+            );
+        }
     }
 
     #[test]
@@ -193,7 +204,6 @@ mod tests {
             assert_eq!(fieldnorm_reader.fieldnorm(5), 3); // the biggest num
         }
 
-        let my_text_field = index.schema().get_field("text_field").unwrap();
         let searcher = index.reader().unwrap().searcher();
         {
             let my_text_field = index.schema().get_field("text_field").unwrap();

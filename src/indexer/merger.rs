@@ -854,16 +854,28 @@ impl IndexMerger {
         Ok(term_ordinal_mappings)
     }
 
-    fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> crate::Result<()> {
-        for reader in &self.readers {
-            let store_reader = reader.get_store_reader()?;
-            if reader.num_deleted_docs() > 0 {
-                for doc_id in reader.doc_ids_alive() {
-                    let doc = store_reader.get(doc_id)?;
-                    store_writer.store(&doc)?;
+    fn write_storable_fields(
+        &self,
+        store_writer: &mut StoreWriter,
+        doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
+    ) -> crate::Result<()> {
+        if let Some(doc_id_mapping) = doc_id_mapping {
+            for (old_doc_id, reader) in doc_id_mapping {
+                let store_reader = reader.reader().get_store_reader()?;
+                let doc = store_reader.get(*old_doc_id)?;
+                store_writer.store(&doc)?;
+            }
+        } else {
+            for reader in &self.readers {
+                let store_reader = reader.get_store_reader()?;
+                if reader.num_deleted_docs() > 0 {
+                    for doc_id in reader.doc_ids_alive() {
+                        let doc = store_reader.get(doc_id)?;
+                        store_writer.store(&doc)?;
+                    }
+                } else {
+                    store_writer.stack(&store_reader)?;
                 }
-            } else {
-                store_writer.stack(&store_reader)?;
             }
         }
         Ok(())
@@ -903,7 +915,7 @@ impl SerializableSegment for IndexMerger {
             term_ord_mappings,
             &doc_id_mapping,
         )?;
-        self.write_storable_fields(serializer.get_store_writer())?;
+        self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
         serializer.close()?;
         Ok(self.max_doc)
     }
