@@ -40,6 +40,12 @@ impl BytesFastFieldReader {
         &self.values.as_slice()[start..stop]
     }
 
+    /// Returns the length of the bytes associated to the given `doc`
+    pub fn num_bytes(&self, doc: DocId) -> usize {
+        let (start, stop) = self.range(doc);
+        stop - start
+    }
+
     /// Returns the overall number of bytes in this bytes fast field.
     pub fn total_num_bytes(&self) -> usize {
         self.values.len()

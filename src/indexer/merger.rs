@@ -237,7 +237,7 @@ impl IndexMerger {
                 }
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
-                        self.write_bytes_fast_field(field, fast_field_serializer)?;
+                        self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;
                     }
                 }
             }
@@ -544,6 +544,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
+        _doc_id_mapping: &Option<Vec<(DocId, &SegmentReader)>>,
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
         let mut bytes_readers: Vec<BytesFastFieldReader> = Vec::new();
@@ -572,7 +573,7 @@ impl IndexMerger {
             for (segment_reader, bytes_reader) in self.readers.iter().zip(&bytes_readers) {
                 for doc in segment_reader.doc_ids_alive() {
                     serialize_idx.add_val(idx)?;
-                    idx += bytes_reader.get_bytes(doc).len() as u64;
+                    idx += bytes_reader.num_bytes(doc) as u64;
                 }
             }
             serialize_idx.add_val(idx)?;
