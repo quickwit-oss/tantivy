@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::IndexSettings;
     use crate::IndexSortByField;
     use crate::Order;
     use crate::{
@@ -16,6 +15,7 @@ mod tests {
         schema::{self, BytesOptions},
         DocAddress,
     };
+    use crate::{IndexSettings, Term};
     use futures::executor::block_on;
 
     fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
@@ -54,19 +54,24 @@ mod tests {
             index_writer.add_document(
                 doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text"),
             );
+            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
             index_writer.add_document(
                 doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64),
             );
 
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
+            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(
                 doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber"),
             );
+            index_writer.add_document(doc!(int_field=>5_u64, text_field=> "deleteme"));
             index_writer.add_document(
                 doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5],text_field => "the biggest num")
             );
+
+            index_writer.delete_term(Term::from_field_text(text_field, "deleteme"));
             assert!(index_writer.commit().is_ok());
         }
 
