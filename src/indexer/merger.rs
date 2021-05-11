@@ -509,19 +509,39 @@ impl IndexMerger {
             let mut serialize_vals =
                 fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
             let mut vals = Vec::with_capacity(100);
-            for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
-                let term_ordinal_mapping: &[TermOrdinal] =
-                    term_ordinal_mappings.get_segment(segment_ord);
-                let ff_reader: MultiValuedFastFieldReader<u64> = segment_reader
-                    .fast_fields()
-                    .u64s(field)
-                    .expect("Could not find multivalued u64 fast value reader.");
-                // TODO optimize if no deletes
-                for doc in segment_reader.doc_ids_alive() {
-                    ff_reader.get_vals(doc, &mut vals);
+            if let Some(doc_id_mapping) = doc_id_mapping {
+                for (old_doc_id, reader_with_ordinal) in doc_id_mapping {
+                    let term_ordinal_mapping: &[TermOrdinal] =
+                        term_ordinal_mappings.get_segment(reader_with_ordinal.ordinal as usize);
+
+                    // todo precalculate and access fast field
+                    let ff_reader: MultiValuedFastFieldReader<u64> = reader_with_ordinal
+                        .reader
+                        .fast_fields()
+                        .u64s(field)
+                        .expect("Could not find multivalued u64 fast value reader.");
+
+                    ff_reader.get_vals(*old_doc_id, &mut vals);
                     for &prev_term_ord in &vals {
                         let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
                         serialize_vals.add_val(new_term_ord)?;
+                    }
+                }
+            } else {
+                for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
+                    let term_ordinal_mapping: &[TermOrdinal] =
+                        term_ordinal_mappings.get_segment(segment_ord);
+                    let ff_reader: MultiValuedFastFieldReader<u64> = segment_reader
+                        .fast_fields()
+                        .u64s(field)
+                        .expect("Could not find multivalued u64 fast value reader.");
+                    // TODO optimize if no deletes
+                    for doc in segment_reader.doc_ids_alive() {
+                        ff_reader.get_vals(doc, &mut vals);
+                        for &prev_term_ord in &vals {
+                            let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
+                            serialize_vals.add_val(new_term_ord)?;
+                        }
                     }
                 }
             }
@@ -734,7 +754,9 @@ impl IndexMerger {
         // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
         // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
         //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
-        // ...
+        //
+        // This stacking applies only when the index is not sorted, in that case the
+        // doc_ids are kmerged by their sort property
         let mut field_serializer =
             serializer.new_field(indexed_field, total_num_tokens, fieldnorm_reader)?;
 
@@ -747,6 +769,7 @@ impl IndexMerger {
         );
 
         let mut segment_postings_containing_the_term: Vec<(usize, SegmentPostings)> = vec![];
+        let mut doc_id_and_positions = vec![];
 
         while merged_terms.advance() {
             segment_postings_containing_the_term.clear();
@@ -803,17 +826,38 @@ impl IndexMerger {
                 while doc != TERMINATED {
                     // deleted doc are skipped as they do not have a `remapped_doc_id`.
                     if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
-                        // we make sure to only write the term iff
+                        // we make sure to only write the term if
                         // there is at least one document.
                         let term_freq = segment_postings.term_freq();
                         segment_postings.positions(&mut positions_buffer);
-
-                        let delta_positions = delta_computer.compute_delta(&positions_buffer);
-                        field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
+                        // if doc_id_mapping exists, the docids are reordered, they are
+                        // not just stacked. The field serializer expects monotonically increasing
+                        // docids, so we collect and sort them first, before writing.
+                        //
+                        // I think this is not strictly necessary, it would be possible to
+                        // avoid the loading into a vec via some form of kmerge, but then the merge
+                        // logic would deviate much more from the stacking case (unsorted index)
+                        if doc_id_mapping.is_some() {
+                            doc_id_and_positions.push((
+                                remapped_doc_id,
+                                term_freq,
+                                positions_buffer.to_vec(),
+                            ));
+                        } else {
+                            let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                            field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
+                        }
                     }
 
                     doc = segment_postings.advance();
                 }
+            }
+            if doc_id_mapping.is_some() {
+                doc_id_and_positions.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
+                for (doc_id, term_freq, positions) in &doc_id_and_positions {
+                    field_serializer.write_doc(*doc_id, *term_freq, positions);
+                }
+                doc_id_and_positions.clear();
             }
 
             // closing the term.

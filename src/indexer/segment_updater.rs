@@ -140,7 +140,7 @@ fn merge(
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
 
-    let num_docs = merger.write(segment_serializer, None)?; // todo map doc_id on merge
+    let num_docs = merger.write(segment_serializer, None)?;
 
     let merged_segment_id = merged_segment.id();
 

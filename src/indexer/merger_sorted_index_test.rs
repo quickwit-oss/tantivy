@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::IndexSortByField;
-    use crate::Order;
     use crate::{
         collector::TopDocs,
         schema::{Cardinality, TextFieldIndexing},
@@ -11,12 +9,54 @@ mod tests {
         query::QueryParser,
         schema::{IntOptions, TextOptions},
     };
+    use crate::{schema::Facet, IndexSortByField};
+    use crate::{schema::INDEXED, Order};
     use crate::{
         schema::{self, BytesOptions},
         DocAddress,
     };
     use crate::{IndexSettings, Term};
     use futures::executor::block_on;
+
+    fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
+        let mut schema_builder = schema::Schema::builder();
+        let int_options = IntOptions::default()
+            .set_fast(Cardinality::SingleValue)
+            .set_indexed();
+        let int_field = schema_builder.add_u64_field("intval", int_options);
+
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+
+        let schema = schema_builder.build();
+
+        let mut index_builder = Index::builder().schema(schema);
+        if let Some(settings) = index_settings {
+            index_builder = index_builder.settings(settings);
+        }
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer = index.writer_for_tests().unwrap();
+
+            index_writer.add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")));
+
+            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>5_u64, facet_field=> Facet::from("/fanta")));
+
+            assert!(index_writer.commit().is_ok());
+        }
+
+        // Merging the segments
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_for_tests().unwrap();
+            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+            assert!(index_writer.wait_merging_threads().is_ok());
+        }
+        index
+    }
 
     fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
@@ -27,6 +67,7 @@ mod tests {
 
         let bytes_options = BytesOptions::default().set_fast().set_indexed();
         let bytes_field = schema_builder.add_bytes_field("bytes", bytes_options);
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
@@ -52,7 +93,7 @@ mod tests {
 
             index_writer.add_document(doc!(int_field=>1_u64));
             index_writer.add_document(
-                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text"),
+                doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text", facet_field=> Facet::from("/book/crime")),
             );
             index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
             index_writer.add_document(
@@ -61,10 +102,10 @@ mod tests {
 
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
-            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
+            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme", facet_field=> Facet::from("/book/crime")));
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(
-                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber"),
+                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber", facet_field=> Facet::from("/book/fantasy")),
             );
             index_writer.add_document(doc!(int_field=>5_u64, text_field=> "deleteme"));
             index_writer.add_document(
@@ -85,6 +126,16 @@ mod tests {
             assert!(index_writer.wait_merging_threads().is_ok());
         }
         index
+    }
+
+    #[test]
+    fn test_merge_sorted_postinglist_sort_issue() {
+        create_test_index_posting_list_issue(Some(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "intval".to_string(),
+                order: Order::Desc,
+            }),
+        }));
     }
 
     #[test]
@@ -271,7 +322,7 @@ mod bench_sorted_index_merge {
             // 3 segments with 10_000 values in the fast fields
             for _ in 0..3 {
                 index_doc(&mut index_writer, 5000); // fix to make it unordered
-                for i in 0..100 {
+                for i in 0..10_000 {
                     index_doc(&mut index_writer, i);
                 }
                 index_writer.commit().unwrap();
