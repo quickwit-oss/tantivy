@@ -15,7 +15,7 @@ use crate::{DocId, DocSet};
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
     similarity_weight: Bm25Weight,
-    score_needed: bool,
+    scoring_enabled: bool,
 }
 
 impl PhraseWeight {
@@ -23,18 +23,22 @@ impl PhraseWeight {
     pub fn new(
         phrase_terms: Vec<(usize, Term)>,
         similarity_weight: Bm25Weight,
-        score_needed: bool,
+        scoring_enabled: bool,
     ) -> PhraseWeight {
         PhraseWeight {
             phrase_terms,
             similarity_weight,
-            score_needed,
+            scoring_enabled,
         }
     }
 
     fn fieldnorm_reader(&self, reader: &SegmentReader) -> crate::Result<FieldNormReader> {
         let field = self.phrase_terms[0].1.field();
-        reader.get_fieldnorms_reader(field)
+        if self.scoring_enabled {
+            reader.get_fieldnorms_reader(field)
+        } else {
+            Ok(FieldNormReader::constant(reader.max_doc(), 1))
+        }
     }
 
     fn phrase_scorer(
@@ -60,7 +64,7 @@ impl PhraseWeight {
                 term_postings_list,
                 similarity_weight,
                 fieldnorm_reader,
-                self.score_needed,
+                self.scoring_enabled,
             )))
         } else {
             let mut term_postings_list = Vec::new();
@@ -78,7 +82,7 @@ impl PhraseWeight {
                 term_postings_list,
                 similarity_weight,
                 fieldnorm_reader,
-                self.score_needed,
+                self.scoring_enabled,
             )))
         }
     }

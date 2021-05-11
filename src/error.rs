@@ -83,6 +83,9 @@ pub enum TantivyError {
     /// An Error happened in one of the thread.
     #[error("An error occurred in a thread: '{0}'")]
     ErrorInThread(String),
+    /// An Error appeared related to opening or creating a index.
+    #[error("Missing required index builder argument when open/create index: '{0}'")]
+    IndexBuilderMissingArgument(&'static str),
     /// An Error appeared related to the schema.
     #[error("Schema error: '{0}'")]
     SchemaError(String),

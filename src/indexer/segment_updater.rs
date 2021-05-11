@@ -1,6 +1,7 @@
 use super::segment_manager::{get_mergeable_segments, SegmentManager};
 use crate::core::Index;
 use crate::core::IndexMeta;
+use crate::core::IndexSettings;
 use crate::core::Segment;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
@@ -43,9 +44,14 @@ const NUM_MERGE_THREADS: usize = 4;
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-pub fn save_new_metas(schema: Schema, directory: &dyn Directory) -> crate::Result<()> {
+pub fn save_new_metas(
+    schema: Schema,
+    index_settings: Option<IndexSettings>,
+    directory: &dyn Directory,
+) -> crate::Result<()> {
     save_metas(
         &IndexMeta {
+            index_settings,
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
@@ -182,7 +188,11 @@ pub fn merge_segments<Dir: Directory>(
         segments.extend(index.searchable_segments()?);
     }
 
-    let mut merged_index = Index::create(output_directory, target_schema.clone())?;
+    let mut merged_index = Index::create(
+        output_directory,
+        target_schema.clone(),
+        indices[0].settings().clone(),
+    )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
@@ -204,6 +214,7 @@ pub fn merge_segments<Dir: Directory>(
     );
 
     let index_meta = IndexMeta {
+        index_settings: indices[0].load_metas()?.index_settings, // index_settings of all segments should be the same
         segments: vec![segment_meta],
         schema: target_schema,
         opstamp: 0u64,
@@ -368,6 +379,7 @@ impl SegmentUpdater {
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
             commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
             let index_meta = IndexMeta {
+                index_settings: None,
                 segments: commited_segment_metas,
                 schema: index.schema(),
                 opstamp,

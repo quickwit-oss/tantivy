@@ -193,6 +193,9 @@ impl InnerSegmentMeta {
     }
 }
 
+/// Search Index Settings
+#[derive(Clone, Default, Serialize)]
+pub struct IndexSettings {}
 /// Meta information about the `Index`.
 ///
 /// This object is serialized on disk in the `meta.json` file.
@@ -203,6 +206,9 @@ impl InnerSegmentMeta {
 ///
 #[derive(Clone, Serialize)]
 pub struct IndexMeta {
+    /// `IndexSettings` to configure index options.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index_settings: Option<IndexSettings>,
     /// List of `SegmentMeta` informations associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
@@ -230,6 +236,7 @@ struct UntrackedIndexMeta {
 impl UntrackedIndexMeta {
     pub fn track(self, inventory: &SegmentMetaInventory) -> IndexMeta {
         IndexMeta {
+            index_settings: None,
             segments: self
                 .segments
                 .into_iter()
@@ -250,6 +257,7 @@ impl IndexMeta {
     /// Opstamp will the value `0u64`.
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
+            index_settings: None,
             segments: vec![],
             schema,
             opstamp: 0u64,
@@ -292,6 +300,7 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
+            index_settings: None,
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
