@@ -200,8 +200,7 @@ pub fn merge_segments<Dir: Directory>(
         segments.extend(index.searchable_segments()?);
     }
 
-    let mut merged_index =
-        Index::create(output_directory, target_schema.clone(), target_settings)?;
+    let mut merged_index = Index::create(output_directory, target_schema.clone(), target_settings)?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger = IndexMerger::open(
