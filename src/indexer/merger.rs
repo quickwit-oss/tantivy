@@ -313,7 +313,7 @@ impl IndexMerger {
                     .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
                     (doc_id, reader, u64_reader)
                 });
-            // add values in order of the new docids
+            // add values in order of the new doc_ids
             let mut fast_single_field_serializer =
                 fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
@@ -353,7 +353,8 @@ impl IndexMerger {
         }
     }
 
-    /// Generates the doc_id mapping where position in the vec=new docid.
+    /// Generates the doc_id mapping where position in the vec=new
+    /// doc_id.
     /// ReaderWithOrdinal will include the ordinal position of the
     /// reader in self.readers.
     pub(crate) fn generate_doc_id_mapping(
@@ -379,7 +380,7 @@ impl IndexMerger {
             .collect::<crate::Result<Vec<_>>>()?; // Collecting to bind the lifetime of value_accessor into the vec, or can't be used as a reference.
                                                   // Loading the field accessor on demand causes a 15x regression
 
-        // create iterators over segment/sort_accessor/docid  tuple
+        // create iterators over segment/sort_accessor/doc_id  tuple
         let doc_id_reader_pair = reader_and_field_accessors
             .iter()
             .map(|reader_and_field_accessor| {

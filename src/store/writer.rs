@@ -50,10 +50,10 @@ impl StoreWriter {
         self.intermediary_buffer.capacity() + self.current_block.capacity()
     }
 
-    /// Store bytes of a serialzed document.
+    /// Store bytes of a serialized document.
     ///
-    /// The document id is implicitely the number of times
-    /// this method has been called.
+    /// The document id is implicitely the current number
+    /// of documents.
     ///
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
         let doc_num_bytes = serialized_document.len();
@@ -68,8 +68,8 @@ impl StoreWriter {
 
     /// Store a new document.
     ///
-    /// The document id is implicitely the number of times
-    /// this method has been called.
+    /// The document id is implicitely the current number
+    /// of documents.
     ///
     pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
