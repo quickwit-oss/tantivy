@@ -198,7 +198,7 @@ impl InnerSegmentMeta {
 ///
 /// Contains settings which are applied on the whole
 /// index, like presort documents.
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Default, Serialize, Deserialize, Eq, PartialEq)]
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
@@ -235,8 +235,8 @@ pub enum Order {
 #[derive(Clone, Serialize)]
 pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub index_settings: Option<IndexSettings>,
+    #[serde(default)]
+    pub index_settings: IndexSettings,
     /// List of `SegmentMeta` informations associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
     /// Index `Schema`
@@ -255,7 +255,7 @@ pub struct IndexMeta {
 #[derive(Deserialize)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
-    pub index_settings: Option<IndexSettings>,
+    pub index_settings: IndexSettings,
     pub schema: Schema,
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -286,7 +286,7 @@ impl IndexMeta {
     /// Opstamp will the value `0u64`.
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
-            index_settings: None,
+            index_settings: IndexSettings::default(),
             segments: vec![],
             schema,
             opstamp: 0u64,
@@ -332,12 +332,12 @@ mod tests {
             schema_builder.build()
         };
         let index_metas = IndexMeta {
-            index_settings: Some(IndexSettings {
+            index_settings: IndexSettings {
                 sort_by_field: Some(IndexSortByField {
                     field: "text".to_string(),
                     order: Order::Asc,
                 }),
-            }),
+            },
             segments: Vec::new(),
             schema,
             opstamp: 0u64,

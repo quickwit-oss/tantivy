@@ -46,7 +46,7 @@ const NUM_MERGE_THREADS: usize = 4;
 /// This method is not part of tantivy's public API
 pub fn save_new_metas(
     schema: Schema,
-    index_settings: Option<IndexSettings>,
+    index_settings: IndexSettings,
     directory: &dyn Directory,
 ) -> crate::Result<()> {
     save_metas(
@@ -392,7 +392,7 @@ impl SegmentUpdater {
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
             commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
             let index_meta = IndexMeta {
-                index_settings: None,
+                index_settings: index.settings().clone(),
                 segments: commited_segment_metas,
                 schema: index.schema(),
                 opstamp,

@@ -108,8 +108,8 @@ impl SegmentWriter {
             .segment()
             .index()
             .settings()
-            .as_ref()
-            .and_then(|settings| settings.sort_by_field.clone())
+            .sort_by_field
+            .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
         write(

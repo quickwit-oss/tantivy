@@ -391,14 +391,7 @@ mod tests_indexsorting {
             get_text_options(),
         );
         assert_eq!(
-            index
-                .settings()
-                .as_ref()
-                .unwrap()
-                .sort_by_field
-                .as_ref()
-                .unwrap()
-                .field,
+            index.settings().sort_by_field.as_ref().unwrap().field,
             "my_number".to_string()
         );
 

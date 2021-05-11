@@ -88,7 +88,7 @@ impl<'a> From<(usize, &'a SegmentReader)> for SegmentReaderWithOrdinal<'a> {
 }
 
 pub struct IndexMerger {
-    index_settings: Option<IndexSettings>,
+    index_settings: IndexSettings,
     schema: Schema,
     readers: Vec<SegmentReader>,
     max_doc: u32,
@@ -179,7 +179,7 @@ impl DeltaComputer {
 impl IndexMerger {
     pub fn open(
         schema: Schema,
-        index_settings: Option<IndexSettings>,
+        index_settings: IndexSettings,
         segments: &[Segment],
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
@@ -889,10 +889,7 @@ impl SerializableSegment for IndexMerger {
         mut serializer: SegmentSerializer,
         _: Option<&DocIdMapping>,
     ) -> crate::Result<u32> {
-        let doc_id_mapping = if let Some(sort_by_field) = self
-            .index_settings
-            .as_ref()
-            .and_then(|settings| settings.sort_by_field.as_ref())
+        let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
             Some(self.generate_doc_id_mapping(sort_by_field)?)
         } else {

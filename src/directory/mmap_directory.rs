@@ -485,10 +485,13 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
-    use crate::schema::{Schema, SchemaBuilder, TEXT};
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::{common::HasLen, indexer::LogMergePolicy};
+    use crate::{
+        schema::{Schema, SchemaBuilder, TEXT},
+        IndexSettings,
+    };
 
     #[test]
     fn test_open_non_existent_path() {
@@ -585,7 +588,8 @@ mod tests {
         let schema = schema_builder.build();
 
         {
-            let index = Index::create(mmap_directory.clone(), schema, None).unwrap();
+            let index =
+                Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
 
             let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();

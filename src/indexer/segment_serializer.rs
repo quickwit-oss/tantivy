@@ -24,7 +24,7 @@ impl SegmentSerializer {
         // If the segment is going to be sorted, we stream the docs first to a temporary file.
         // In the merge case this is not necessary because we can kmerge the already sorted
         // segments
-        let remapping_required = segment.index().settings().is_some() && !is_in_merge;
+        let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
         let store_component = if remapping_required {
             SegmentComponent::TempStore
         } else {
