@@ -296,19 +296,28 @@ impl IndexMerger {
                 (a.0.min(b.0), a.1.max(b.1))
             }).expect("Unexpected error, empty readers in IndexMerger");
 
-        if let Some(doc_id_mapping) = doc_id_mapping {
-            // TODO accessing the reader on every iteration has probably considerable overhead
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)|{
-                    let u64_reader: FastFieldReader<u64> = reader_with_ordinal.reader
+        let fast_field_reader = self
+            .readers
+            .iter()
+            .map(|reader| {
+               let u64_reader: FastFieldReader<u64> = reader
                     .fast_fields()
                     .typed_fast_field_reader(field)
                     .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                    (doc_id, reader_with_ordinal, u64_reader)
-                });
+                u64_reader
+            })
+            .collect::<Vec<_>>();
+        if let Some(doc_id_mapping) = doc_id_mapping {
+            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
+                (
+                    doc_id,
+                    &fast_field_reader[reader_with_ordinal.ordinal as usize],
+                )
+            });
             // add values in order of the new doc_ids
             let mut fast_single_field_serializer =
                 fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
-            for (doc_id, _reader, field_reader) in sorted_doc_ids {
+            for (doc_id, field_reader) in sorted_doc_ids {
                 let val = field_reader.get(*doc_id);
                 fast_single_field_serializer.add_val(val)?;
             }
@@ -417,7 +426,7 @@ impl IndexMerger {
         field: Field,
         fast_field_serializer: &mut FastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
-        reader_and_field_accessors: Vec<(&SegmentReader, impl MultiValueLength)>,
+        reader_and_field_accessors: &[(&SegmentReader, impl MultiValueLength)],
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
         // In the first pass, we compute the total number of vals.
@@ -484,7 +493,7 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            reader_and_field_accessors,
+            &reader_and_field_accessors,
         )
     }
 
@@ -502,6 +511,17 @@ impl IndexMerger {
         // First we merge the idx fast field.
         self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
+        let fast_field_reader = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let ff_reader: MultiValuedFastFieldReader<u64> = reader
+                    .fast_fields()
+                    .u64s(field)
+                    .expect("Could not find multivalued u64 fast value reader.");
+                ff_reader
+            })
+            .collect::<Vec<_>>();
         // We can now write the actual fast field values.
         // In the case of hierarchical facets, they are actually term ordinals.
         let max_term_ord = term_ordinal_mappings.max_term_ord();
@@ -514,13 +534,7 @@ impl IndexMerger {
                     let term_ordinal_mapping: &[TermOrdinal] =
                         term_ordinal_mappings.get_segment(reader_with_ordinal.ordinal as usize);
 
-                    // todo precalculate and access fast field
-                    let ff_reader: MultiValuedFastFieldReader<u64> = reader_with_ordinal
-                        .reader
-                        .fast_fields()
-                        .u64s(field)
-                        .expect("Could not find multivalued u64 fast value reader.");
-
+                    let ff_reader = &fast_field_reader[reader_with_ordinal.ordinal as usize];
                     ff_reader.get_vals(*old_doc_id, &mut vals);
                     for &prev_term_ord in &vals {
                         let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
@@ -531,10 +545,7 @@ impl IndexMerger {
                 for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
                     let term_ordinal_mapping: &[TermOrdinal] =
                         term_ordinal_mappings.get_segment(segment_ord);
-                    let ff_reader: MultiValuedFastFieldReader<u64> = segment_reader
-                        .fast_fields()
-                        .u64s(field)
-                        .expect("Could not find multivalued u64 fast value reader.");
+                    let ff_reader = &fast_field_reader[segment_ord as usize];
                     // TODO optimize if no deletes
                     for doc in segment_reader.doc_ids_alive() {
                         ff_reader.get_vals(doc, &mut vals);
@@ -600,15 +611,23 @@ impl IndexMerger {
             max_value = 0;
         }
 
+        let fast_field_reader = self
+            .readers
+            .iter()
+            .map(|reader| {
+                let ff_reader : MultiValuedFastFieldReader<u64> = reader.fast_fields()
+                .typed_fast_field_multi_reader(field)
+                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+                ff_reader
+            })
+            .collect::<Vec<_>>();
+
         // We can now initialize our serializer, and push it the different values
         let mut serialize_vals =
             fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (doc_id, reader_with_ordinal) in doc_id_mapping {
-                // TODO accessing the reader on every iteration has probably considerable overhead
-                let ff_reader : MultiValuedFastFieldReader<u64> = reader_with_ordinal.reader.fast_fields()
-                .typed_fast_field_multi_reader(field)
-                .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
+                let ff_reader = &fast_field_reader[reader_with_ordinal.ordinal as usize];
                 ff_reader.get_vals(*doc_id, &mut vals);
                 for &val in &vals {
                     serialize_vals.add_val(val)?;
@@ -649,13 +668,13 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            reader_and_field_accessors,
+            &reader_and_field_accessors,
         )?;
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (doc_id, reader_with_ordinal) in doc_id_mapping {
-                // TODO accessing the reader on every iteration has probably considerable overhead
-                let bytes_reader = reader_with_ordinal.reader.fast_fields().bytes(field)?;
+                let bytes_reader =
+                    &reader_and_field_accessors[reader_with_ordinal.ordinal as usize].1;
                 let val = bytes_reader.get_bytes(*doc_id);
                 serialize_vals.write_all(val)?;
             }
@@ -899,16 +918,16 @@ impl IndexMerger {
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (old_doc_id, reader_with_ordinal) in doc_id_mapping {
                 let store_reader = reader_with_ordinal.reader.get_store_reader()?;
-                let doc = store_reader.get(*old_doc_id)?;
-                store_writer.store(&doc)?;
+                let (block, start_pos, end_pos) = store_reader.get_raw(*old_doc_id)?;
+                store_writer.store_bytes(&block[start_pos..end_pos])?;
             }
         } else {
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
                 if reader.num_deleted_docs() > 0 {
                     for doc_id in reader.doc_ids_alive() {
-                        let doc = store_reader.get(doc_id)?;
-                        store_writer.store(&doc)?;
+                        let (block, start_pos, end_pos) = store_reader.get_raw(doc_id)?;
+                        store_writer.store_bytes(&block[start_pos..end_pos])?;
                     }
                 } else {
                     store_writer.stack(&store_reader)?;
