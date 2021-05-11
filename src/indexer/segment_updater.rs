@@ -172,7 +172,7 @@ pub fn merge_segments<Dir: Directory>(
     }
 
     let target_schema = indices[0].schema();
-    let target_setttings = indices[0].settings().clone();
+    let target_settings = indices[0].settings().clone();
 
     // let's check that all of the indices have the same schema
     if indices
@@ -188,7 +188,7 @@ pub fn merge_segments<Dir: Directory>(
     if indices
         .iter()
         .skip(1)
-        .any(|index| index.settings() != &target_setttings)
+        .any(|index| index.settings() != &target_settings)
     {
         return Err(crate::TantivyError::InvalidArgument(
             "Attempt to merge indices with different index_settings".to_string(),
@@ -201,7 +201,7 @@ pub fn merge_segments<Dir: Directory>(
     }
 
     let mut merged_index =
-        Index::create(output_directory, target_schema.clone(), target_setttings)?;
+        Index::create(output_directory, target_schema.clone(), target_settings)?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
     let merger: IndexMerger = IndexMerger::open(

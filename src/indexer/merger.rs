@@ -64,7 +64,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
 ///
 /// The ordinal identifies the position within `Merger` readers.
 #[derive(Clone, Copy)]
-pub struct SegmentReaderWithOrdinal<'a> {
+pub(crate) struct SegmentReaderWithOrdinal<'a> {
     reader: &'a SegmentReader,
     ordinal: SegmentOrdinal,
 }
