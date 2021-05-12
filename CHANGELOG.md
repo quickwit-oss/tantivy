@@ -12,6 +12,7 @@ Tantivy 0.15.0
 - Simplified positions index format (@fulmicoton) #1022
 - Moved bitpacking to bitpacker subcrate and add BlockedBitpacker, which bitpacks blocks of 128 elements (@PSeitz) #1030
 - Added support for more-like-this query in tantivy (@evanxg852000) #1011
+- Added support for sorting an index, e.g presorting documents in an index by a timestamp field. This can heavily improve performance for certain scenarios, by utilizing the sorted data (Top-n optimizations). #1026
 
 Tantivy 0.14.0
 =========================

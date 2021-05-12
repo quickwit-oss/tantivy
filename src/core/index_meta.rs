@@ -255,6 +255,7 @@ pub struct IndexMeta {
 #[derive(Deserialize)]
 struct UntrackedIndexMeta {
     pub segments: Vec<InnerSegmentMeta>,
+    #[serde(default)]
     pub index_settings: IndexSettings,
     pub schema: Schema,
     pub opstamp: Opstamp,

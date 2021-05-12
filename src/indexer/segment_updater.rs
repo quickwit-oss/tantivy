@@ -209,7 +209,7 @@ pub fn merge_segments<Dir: Directory>(
         &segments[..],
     )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
-    let num_docs = merger.write(segment_serializer, None)?; // todo doc_id mapping in merge
+    let num_docs = merger.write(segment_serializer, None)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 
@@ -522,7 +522,7 @@ impl SegmentUpdater {
         });
 
         Ok(merging_future_recv
-            .unwrap_or_else(|_| Err(crate::TantivyError::SystemError("Merge failed".to_string()))))
+            .unwrap_or_else(|e| Err(crate::TantivyError::SystemError("Merge failed:".to_string() + &e.to_string()))))
     }
 
     async fn consider_merge_options(&self) {
