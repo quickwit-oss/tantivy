@@ -918,16 +918,16 @@ impl IndexMerger {
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (old_doc_id, reader_with_ordinal) in doc_id_mapping {
                 let store_reader = reader_with_ordinal.reader.get_store_reader()?;
-                let (block, start_pos, end_pos) = store_reader.get_raw(*old_doc_id)?;
-                store_writer.store_bytes(&block[start_pos..end_pos])?;
+                let raw_doc = store_reader.get_raw(*old_doc_id)?;
+                store_writer.store_bytes(raw_doc.get_bytes())?;
             }
         } else {
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
                 if reader.num_deleted_docs() > 0 {
                     for doc_id in reader.doc_ids_alive() {
-                        let (block, start_pos, end_pos) = store_reader.get_raw(doc_id)?;
-                        store_writer.store_bytes(&block[start_pos..end_pos])?;
+                        let raw_doc = store_reader.get_raw(doc_id)?;
+                        store_writer.store_bytes(raw_doc.get_bytes())?;
                     }
                 } else {
                     store_writer.stack(&store_reader)?;

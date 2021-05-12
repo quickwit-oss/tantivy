@@ -355,10 +355,10 @@ fn write(
         )?;
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
             // todo serialize/deserialize should not be necessary
-            let (block, start_pos, end_pos) = store_read.get_raw(*old_doc_id)?;
+            let raw_doc = store_read.get_raw(*old_doc_id)?;
             serializer
                 .get_store_writer()
-                .store_bytes(&block[start_pos..end_pos])?;
+                .store_bytes(raw_doc.get_bytes())?;
         }
         // TODO delete temp store
     }
