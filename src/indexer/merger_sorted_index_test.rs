@@ -62,6 +62,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
+            .set_stored()
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
 
@@ -201,6 +202,8 @@ mod tests {
                 doc.get_first(my_text_field).unwrap().text(),
                 Some("blubber")
             );
+            let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1000));
         }
     }
 

@@ -88,6 +88,7 @@ impl StoreReader {
     /// Calling `.get(doc)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
+    /// For that reason a store reader should be kept and reused.
     ///
     /// It should not be called to score documents
     /// for instance.
@@ -103,6 +104,7 @@ impl StoreReader {
     /// Calling `.get(doc)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
+    /// For that reason a store reader should be kept and reused.
     ///
     pub fn get_raw(&self, doc_id: DocId) -> crate::Result<RawDocument> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {

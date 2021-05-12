@@ -521,8 +521,11 @@ impl SegmentUpdater {
             }
         });
 
-        Ok(merging_future_recv
-            .unwrap_or_else(|e| Err(crate::TantivyError::SystemError("Merge failed:".to_string() + &e.to_string()))))
+        Ok(merging_future_recv.unwrap_or_else(|e| {
+            Err(crate::TantivyError::SystemError(
+                "Merge failed:".to_string() + &e.to_string(),
+            ))
+        }))
     }
 
     async fn consider_merge_options(&self) {
