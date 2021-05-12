@@ -43,6 +43,9 @@ pub const MARGIN_IN_BYTES: usize = 1_000_000;
 pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
 pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
+// We impose the number of index writter thread to be at most this.
+pub const MAX_NUM_THREAD: usize = 8;
+
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
