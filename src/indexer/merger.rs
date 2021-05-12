@@ -296,7 +296,7 @@ impl IndexMerger {
                 (a.0.min(b.0), a.1.max(b.1))
             }).expect("Unexpected error, empty readers in IndexMerger");
 
-        let fast_field_reader = self
+        let fast_field_readers = self
             .readers
             .iter()
             .map(|reader| {
@@ -311,7 +311,7 @@ impl IndexMerger {
             let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
                 (
                     doc_id,
-                    &fast_field_reader[reader_with_ordinal.ordinal as usize],
+                    &fast_field_readers[reader_with_ordinal.ordinal as usize],
                 )
             });
             // add values in order of the new doc_ids
@@ -991,12 +991,14 @@ mod tests {
     use crate::schema::IntOptions;
     use crate::schema::Term;
     use crate::schema::TextFieldIndexing;
-    use crate::schema::INDEXED;
     use crate::schema::{Cardinality, TEXT};
     use crate::DocAddress;
+    use crate::IndexSettings;
+    use crate::IndexSortByField;
     use crate::IndexWriter;
     use crate::Searcher;
     use crate::{schema, DocSet, SegmentId};
+    use crate::{schema::INDEXED, Order};
     use byteorder::{BigEndian, ReadBytesExt};
     use futures::executor::block_on;
     use schema::FAST;
@@ -1454,20 +1456,56 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn test_merge_facets_sort_none() {
+        test_merge_facets(None)
+    }
 
     #[test]
-    fn test_merge_facets() {
+    fn test_merge_facets_sort_asc() {
+        // the data is already sorted asc, so this should have no effect, but go through the docid
+        // mapping code
+        test_merge_facets(Some(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "intval".to_string(),
+                order: Order::Asc,
+            }),
+        }));
+    }
+
+    #[test]
+    fn test_merge_facets_sort_desc() {
+        test_merge_facets(Some(IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "intval".to_string(),
+                order: Order::Desc,
+            }),
+        }));
+    }
+    fn test_merge_facets(index_settings: Option<IndexSettings>) {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", INDEXED);
-        let index = Index::create_in_ram(schema_builder.build());
+        let int_options = IntOptions::default()
+            .set_fast(Cardinality::SingleValue)
+            .set_indexed();
+        let int_field = schema_builder.add_u64_field("intval", int_options);
+        let mut index_builder = Index::builder().schema(schema_builder.build());
+        if let Some(settings) = index_settings {
+            index_builder = index_builder.settings(settings);
+        }
+        let index = index_builder.create_in_ram().unwrap();
+        //let index = Index::create_in_ram(schema_builder.build());
         let reader = index.reader().unwrap();
+        let mut int_val = 0;
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-            let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
+            let mut index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
                 let mut doc = Document::default();
                 for facet in doc_facets {
                     doc.add_facet(facet_field, Facet::from(facet));
                 }
+                doc.add_u64(int_field, int_val);
+                int_val += 1;
                 index_writer.add_document(doc);
             };
 
