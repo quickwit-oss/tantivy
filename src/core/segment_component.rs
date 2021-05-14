@@ -4,7 +4,7 @@ use std::slice;
 /// Each component is stored in its own file,
 /// using the pattern `segment_uuid`.`component_extension`,
 /// except the delete component that takes an `segment_uuid`.`delete_opstamp`.`component_extension`
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum SegmentComponent {
     /// Postings (or inverted list). Sorted lists of document ids, associated to terms
     Postings,

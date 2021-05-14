@@ -4,9 +4,9 @@ use crate::schema::Schema;
 use crate::Opstamp;
 use census::{Inventory, TrackedObject};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::fmt;
 use std::path::PathBuf;
+use std::{collections::HashSet, sync::atomic::AtomicBool};
+use std::{fmt, sync::Arc};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {
@@ -33,6 +33,7 @@ impl SegmentMetaInventory {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: None,
         };
         SegmentMeta::from(self.inventory.track(inner))
@@ -80,6 +81,15 @@ impl SegmentMeta {
         self.tracked.segment_id
     }
 
+    /// Removes the Component::TempStore from the alive list and
+    /// therefore marks the temp docstore file to be deleted by
+    /// the garbage collection.
+    pub fn untrack_temp_docstore(&self) {
+        self.tracked
+            .include_temp_doc_store
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// Returns the number of deleted documents.
     pub fn num_deleted_docs(&self) -> u32 {
         self.tracked
@@ -96,9 +106,20 @@ impl SegmentMeta {
     /// is by removing all files that have been created by tantivy
     /// and are not used by any segment anymore.
     pub fn list_files(&self) -> HashSet<PathBuf> {
-        SegmentComponent::iterator()
-            .map(|component| self.relative_path(*component))
-            .collect::<HashSet<PathBuf>>()
+        if self
+            .tracked
+            .include_temp_doc_store
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            SegmentComponent::iterator()
+                .map(|component| self.relative_path(*component))
+                .collect::<HashSet<PathBuf>>()
+        } else {
+            SegmentComponent::iterator()
+                .filter(|comp| *comp != &SegmentComponent::TempStore)
+                .map(|component| self.relative_path(*component))
+                .collect::<HashSet<PathBuf>>()
+        }
     }
 
     /// Returns the relative path of a component of our segment.
@@ -160,6 +181,7 @@ impl SegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc,
             deletes: None,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
         });
         SegmentMeta { tracked }
     }
@@ -173,6 +195,7 @@ impl SegmentMeta {
         let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
             segment_id: inner_meta.segment_id,
             max_doc: inner_meta.max_doc,
+            include_temp_doc_store: Arc::new(AtomicBool::new(true)),
             deletes: Some(delete_meta),
         });
         SegmentMeta { tracked }
@@ -184,6 +207,14 @@ struct InnerSegmentMeta {
     segment_id: SegmentId,
     max_doc: u32,
     deletes: Option<DeleteMeta>,
+    /// If you want to avoid the SegmentComponent::TempStore file to be covered by
+    /// garbage collection and deleted, set this to true. This is used during merge.
+    #[serde(skip)]
+    #[serde(default = "default_temp_store")]
+    pub(crate) include_temp_doc_store: Arc<AtomicBool>,
+}
+fn default_temp_store() -> Arc<AtomicBool> {
+    Arc::new(AtomicBool::new(false))
 }
 
 impl InnerSegmentMeta {

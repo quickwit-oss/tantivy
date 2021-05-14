@@ -246,7 +246,7 @@ pub(crate) struct InnerSegmentUpdater {
     //
     // This should be up to date as all update happen through
     // the unique active `SegmentUpdater`.
-    active_metas: RwLock<Arc<IndexMeta>>,
+    active_index_meta: RwLock<Arc<IndexMeta>>,
     pool: ThreadPool,
     merge_thread_pool: ThreadPool,
 
@@ -286,7 +286,7 @@ impl SegmentUpdater {
             })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
-            active_metas: RwLock::new(Arc::new(index_meta)),
+            active_index_meta: RwLock::new(Arc::new(index_meta)),
             pool,
             merge_thread_pool,
             index,
@@ -443,15 +443,15 @@ impl SegmentUpdater {
     }
 
     fn store_meta(&self, index_meta: &IndexMeta) {
-        *self.active_metas.write().unwrap() = Arc::new(index_meta.clone());
+        *self.active_index_meta.write().unwrap() = Arc::new(index_meta.clone());
     }
 
-    fn load_metas(&self) -> Arc<IndexMeta> {
-        self.active_metas.read().unwrap().clone()
+    fn load_meta(&self) -> Arc<IndexMeta> {
+        self.active_index_meta.read().unwrap().clone()
     }
 
     pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
-        let commit_opstamp = self.load_metas().opstamp;
+        let commit_opstamp = self.load_meta().opstamp;
         MergeOperation::new(&self.merge_operations, commit_opstamp, segment_ids.to_vec())
     }
 
@@ -546,7 +546,7 @@ impl SegmentUpdater {
             })
             .collect();
 
-        let commit_opstamp = self.load_metas().opstamp;
+        let commit_opstamp = self.load_meta().opstamp;
         let committed_merge_candidates = merge_policy
             .compute_merge_candidates(&committed_segments)
             .into_iter()
@@ -577,7 +577,7 @@ impl SegmentUpdater {
             {
                 let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                 if let Some(delete_operation) = delete_cursor.get() {
-                    let committed_opstamp = segment_updater.load_metas().opstamp;
+                    let committed_opstamp = segment_updater.load_meta().opstamp;
                     if delete_operation.opstamp < committed_opstamp {
                         let index = &segment_updater.index;
                         let segment = index.segment(after_merge_segment_entry.meta().clone());
@@ -601,7 +601,7 @@ impl SegmentUpdater {
                         }
                     }
                 }
-                let previous_metas = segment_updater.load_metas();
+                let previous_metas = segment_updater.load_meta();
                 let segments_status = segment_updater
                     .segment_manager
                     .end_merge(merge_operation.segment_ids(), after_merge_segment_entry)?;
@@ -613,6 +613,7 @@ impl SegmentUpdater {
 
                 segment_updater.consider_merge_options().await;
             } // we drop all possible handle to a now useless `SegmentMeta`.
+
             let _ = garbage_collect_files(segment_updater).await;
             Ok(())
         });

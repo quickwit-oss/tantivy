@@ -239,11 +239,10 @@ fn index_documents(
         last_docstamp,
     )?;
 
-    let segment_entry = SegmentEntry::new(
-        segment_with_max_doc.meta().clone(),
-        delete_cursor,
-        delete_bitset_opt,
-    );
+    let meta = segment_with_max_doc.meta().clone();
+    meta.untrack_temp_docstore();
+    // update segment_updater inventory to remove tempstore
+    let segment_entry = SegmentEntry::new(meta, delete_cursor, delete_bitset_opt);
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
     Ok(true)
 }
