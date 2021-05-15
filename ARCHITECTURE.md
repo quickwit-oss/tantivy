@@ -19,7 +19,7 @@ A more abstract description of the problem space tantivy is trying to address is
 
 Ingest a large set of documents, create an index that makes it possible to
 rapidly select all documents matching a given predicate (also known as a query) and
-collect some information about them (See collector).
+collect some information about them ([See collector](#collector-define-what-to-do-with-matched-documents)).
 
 Roughly speaking the design is following these guiding principles:
 - Search should be O(1) in memory.
