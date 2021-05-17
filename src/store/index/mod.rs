@@ -18,7 +18,7 @@ pub use self::skip_index_builder::SkipIndexBuilder;
 /// All of the intervals here defined are semi-open.
 /// The checkpoint describes that the block within the `byte_range`
 /// and spans over the `doc_range`.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Default)]
 pub struct Checkpoint {
     pub doc_range: Range<DocId>,
     pub byte_range: Range<usize>,

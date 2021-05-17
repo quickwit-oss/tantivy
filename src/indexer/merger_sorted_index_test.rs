@@ -281,6 +281,22 @@ mod tests {
             assert_eq!(do_search("blubber"), vec![3]);
             assert_eq!(do_search("biggest"), vec![5]);
         }
+
+        // access doc store
+        {
+            let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1));
+            let doc = searcher.doc(DocAddress::new(0, 1)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(2));
+            let doc = searcher.doc(DocAddress::new(0, 2)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(3));
+            let doc = searcher.doc(DocAddress::new(0, 3)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(10));
+            let doc = searcher.doc(DocAddress::new(0, 4)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(20));
+            let doc = searcher.doc(DocAddress::new(0, 5)).unwrap();
+            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1_000));
+        }
     }
 }
 

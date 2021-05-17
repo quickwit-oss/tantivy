@@ -1,12 +1,12 @@
 use super::decompress;
 use super::index::SkipIndex;
-use crate::common::VInt;
 use crate::common::{BinarySerializable, HasLen};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
+use crate::{common::VInt, fastfield::DeleteBitSet};
 use lru::LruCache;
 use std::io;
 use std::mem::size_of;
@@ -126,6 +126,102 @@ impl StoreReader {
             start_pos,
             end_pos,
         })
+    }
+
+    /// Iterator over all Documents in their order as they are stored in the doc store.
+    /// Use this, if you want to extract all Documents from the doc store.
+    /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    pub fn iter<'a: 'b, 'b>(
+        &'b self,
+        delete_bitset: Option<&'a DeleteBitSet>,
+    ) -> impl Iterator<Item = crate::Result<Document>> + 'b {
+        self.iter_raw(delete_bitset).map(|raw_doc| {
+            let raw_doc = raw_doc?;
+            let mut cursor = raw_doc.get_bytes();
+            Ok(Document::deserialize(&mut cursor)?)
+        })
+    }
+
+    /// Iterator over all RawDocuments in their order as they are stored in the doc store.
+    /// Use this, if you want to extract all Documents from the doc store.
+    /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    pub fn iter_raw<'a: 'b, 'b>(
+        &'b self,
+        delete_bitset: Option<&'a DeleteBitSet>,
+    ) -> impl Iterator<Item = crate::Result<RawDocument>> + 'b {
+        let last_docid = self
+            .block_checkpoints()
+            .last()
+            .map(|checkpoint| checkpoint.doc_range.end)
+            .unwrap_or(0);
+        let mut checkpoint_block_iter = self.block_checkpoints();
+        let mut curr_checkpoint = checkpoint_block_iter.next();
+        let mut curr_block = curr_checkpoint
+            .as_ref()
+            .map(|checkpoint| self.read_block(&checkpoint));
+        let mut block_start_pos = 0;
+        let mut num_skipped = 0;
+        (0..last_docid)
+            .filter_map(move |doc_id| {
+                // filter_map is only used to resolve lifetime issues between the two closures on
+                // the outer variables
+                let alive = delete_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
+                if !alive {
+                    // we keep the number of skipped documents to move forward in the map block
+                    num_skipped += 1;
+                }
+                // check move to next checkpoint
+                let mut reset_block_pos = false;
+                if doc_id >= curr_checkpoint.as_ref().unwrap().doc_range.end {
+                    curr_checkpoint = checkpoint_block_iter.next();
+                    curr_block = curr_checkpoint
+                        .as_ref()
+                        .map(|checkpoint| self.read_block(&checkpoint));
+                    reset_block_pos = true;
+                    num_skipped = 0;
+                }
+
+                if alive {
+                    let ret = Some((
+                        curr_block.as_ref().unwrap().as_ref().unwrap().clone(), // todo forward errors
+                        num_skipped,
+                        reset_block_pos,
+                    ));
+                    // the map block will move over the num_skipped, so we reset to 0
+                    num_skipped = 0;
+                    ret
+                } else {
+                    None
+                }
+            })
+            .map(move |(block, num_skipped, reset_block_pos)| {
+                if reset_block_pos {
+                    block_start_pos = 0;
+                }
+                let mut cursor = &block[block_start_pos..];
+                let mut pos = 0;
+                let doc_length = loop {
+                    let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+                    let num_bytes_read = block[block_start_pos..].len() - cursor.len();
+                    block_start_pos += num_bytes_read;
+
+                    pos += 1;
+                    if pos == num_skipped + 1 {
+                        break doc_length;
+                    } else {
+                        block_start_pos += doc_length;
+                        cursor = &block[block_start_pos..];
+                    }
+                };
+                let end_pos = block_start_pos + doc_length;
+                let raw_doc = RawDocument {
+                    block,
+                    start_pos: block_start_pos,
+                    end_pos,
+                };
+                block_start_pos = end_pos;
+                Ok(raw_doc)
+            })
     }
 
     /// Summarize total space usage of this store reader.
