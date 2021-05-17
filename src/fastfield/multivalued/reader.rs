@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::fastfield::{FastFieldReader, FastValue};
+use crate::fastfield::{FastFieldReader, FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -56,6 +56,15 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     }
 }
 
+impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
+    fn get_len(&self, doc_id: DocId) -> u64 {
+        self.num_vals(doc_id) as u64
+    }
+
+    fn get_total_len(&self) -> u64 {
+        self.total_num_vals() as u64
+    }
+}
 #[cfg(test)]
 mod tests {
 

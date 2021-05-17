@@ -160,7 +160,10 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use crate::common::HasLen;
 pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::{Executor, SegmentComponent};
-pub use crate::core::{Index, IndexMeta, IndexSettings, Searcher, Segment, SegmentId, SegmentMeta};
+pub use crate::core::{
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher, Segment,
+    SegmentId, SegmentMeta,
+};
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
 pub use crate::indexer::merge_segments;
@@ -255,7 +258,7 @@ pub type Opstamp = u64;
 /// the document to the search query.
 pub type Score = f32;
 
-/// A `SegmentOrdinal` identifies a segment, within a `Searcher`.
+/// A `SegmentOrdinal` identifies a segment, within a `Searcher` or `Merger`.
 pub type SegmentOrdinal = u32;
 
 impl DocAddress {

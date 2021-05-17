@@ -50,14 +50,33 @@ impl StoreWriter {
         self.intermediary_buffer.capacity() + self.current_block.capacity()
     }
 
+    /// Store bytes of a serialized document.
+    ///
+    /// The document id is implicitely the current number
+    /// of documents.
+    ///
+    pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
+        let doc_num_bytes = serialized_document.len();
+        VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
+        self.current_block.write_all(&serialized_document)?;
+        self.doc += 1;
+        if self.current_block.len() > BLOCK_SIZE {
+            self.write_and_compress_block()?;
+        }
+        Ok(())
+    }
+
     /// Store a new document.
     ///
-    /// The document id is implicitely the number of times
-    /// this method has been called.
+    /// The document id is implicitely the current number
+    /// of documents.
     ///
     pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
         stored_document.serialize(&mut self.intermediary_buffer)?;
+        // calling store bytes would be preferable for code reuse, but then we can't use
+        // intermediary_buffer due to the borrow checker
+        // a new buffer costs ~1% indexing performance
         let doc_num_bytes = self.intermediary_buffer.len();
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
         self.current_block

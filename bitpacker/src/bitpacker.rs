@@ -4,7 +4,11 @@ pub struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,
 }
-
+impl Default for BitPacker {
+    fn default() -> Self {
+        BitPacker::new()
+    }
+}
 impl BitPacker {
     pub fn new() -> BitPacker {
         BitPacker {

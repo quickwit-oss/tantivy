@@ -109,7 +109,7 @@ impl Facet {
         self.0.push_str(facet_str);
     }
 
-    /// Returns `true` iff other is a subfacet of `self`.
+    /// Returns `true` if other is a subfacet of `self`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
         let self_str = self.encoded_str();
         let other_str = other.encoded_str();

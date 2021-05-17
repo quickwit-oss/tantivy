@@ -41,7 +41,7 @@ pub fn write_delete_bitset(
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: OwnedBytes,
-    len: usize,
+    num_deleted: usize,
 }
 
 impl DeleteBitSet {
@@ -73,7 +73,7 @@ impl DeleteBitSet {
             .sum();
         Ok(DeleteBitSet {
             data: bytes,
-            len: num_deleted,
+            num_deleted,
         })
     }
 
@@ -99,7 +99,7 @@ impl DeleteBitSet {
 
 impl HasLen for DeleteBitSet {
     fn len(&self) -> usize {
-        self.len
+        self.num_deleted
     }
 }
 

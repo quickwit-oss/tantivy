@@ -9,7 +9,7 @@ use crate::store::StoreWriter;
 /// the data accumulated and sorted by the `SegmentWriter`.
 pub struct SegmentSerializer {
     segment: Segment,
-    store_writer: StoreWriter,
+    pub(crate) store_writer: StoreWriter,
     fast_field_serializer: FastFieldSerializer,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
     postings_serializer: InvertedIndexSerializer,
@@ -17,8 +17,20 @@ pub struct SegmentSerializer {
 
 impl SegmentSerializer {
     /// Creates a new `SegmentSerializer`.
-    pub fn for_segment(mut segment: Segment) -> crate::Result<SegmentSerializer> {
-        let store_write = segment.open_write(SegmentComponent::Store)?;
+    pub fn for_segment(
+        mut segment: Segment,
+        is_in_merge: bool,
+    ) -> crate::Result<SegmentSerializer> {
+        // If the segment is going to be sorted, we stream the docs first to a temporary file.
+        // In the merge case this is not necessary because we can kmerge the already sorted
+        // segments
+        let remapping_required = segment.index().settings().sort_by_field.is_some() && !is_in_merge;
+        let store_component = if remapping_required {
+            SegmentComponent::TempStore
+        } else {
+            SegmentComponent::Store
+        };
+        let store_write = segment.open_write(store_component)?;
 
         let fast_field_write = segment.open_write(SegmentComponent::FastFields)?;
         let fast_field_serializer = FastFieldSerializer::from_write(fast_field_write)?;
@@ -43,6 +55,10 @@ impl SegmentSerializer {
 
     pub fn segment(&self) -> &Segment {
         &self.segment
+    }
+
+    pub fn segment_mut(&mut self) -> &mut Segment {
+        &mut self.segment
     }
 
     /// Accessor to the `PostingsSerializer`.

@@ -86,28 +86,68 @@ impl StoreReader {
     /// Reads a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
-    /// decompressing a compressed block.
+    /// decompressing a compressed block. The store utilizes a LRU cache,
+    /// so accessing docs from the same compressed block should be faster.
+    /// For that reason a store reader should be kept and reused.
     ///
     /// It should not be called to score documents
     /// for instance.
     pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
+        let raw_doc = self.get_raw(doc_id)?;
+        let mut cursor = raw_doc.get_bytes();
+        Ok(Document::deserialize(&mut cursor)?)
+    }
+
+    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a document and its start and end
+    /// position within the block.
+    ///
+    /// Calling `.get(doc)` is relatively costly as it requires
+    /// decompressing a compressed block. The store utilizes a LRU cache,
+    /// so accessing docs from the same compressed block should be faster.
+    /// For that reason a store reader should be kept and reused.
+    ///
+    pub fn get_raw(&self, doc_id: DocId) -> crate::Result<RawDocument> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
-        let mut cursor = &self.read_block(&checkpoint)?[..];
+        let block = self.read_block(&checkpoint)?;
+        let mut cursor = &block[..];
+        let cursor_len_before = cursor.len();
         for _ in checkpoint.doc_range.start..doc_id {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
             cursor = &cursor[doc_length..];
         }
 
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
-        cursor = &cursor[..doc_length];
-        Ok(Document::deserialize(&mut cursor)?)
+        let start_pos = cursor_len_before - cursor.len();
+        let end_pos = cursor_len_before - cursor.len() + doc_length;
+        Ok(RawDocument {
+            block,
+            start_pos,
+            end_pos,
+        })
     }
 
     /// Summarize total space usage of this store reader.
     pub fn space_usage(&self) -> StoreSpaceUsage {
         self.space_usage.clone()
+    }
+}
+
+/// Get the bytes of a serialized `Document` in a decompressed block.
+pub struct RawDocument {
+    /// the block of data containing multiple documents
+    block: Arc<Vec<u8>>,
+    /// start position of the document in the block
+    start_pos: usize,
+    /// end position of the document in the block
+    end_pos: usize,
+}
+
+impl RawDocument {
+    /// Get the bytes of a serialized `Document` in a decompressed block.
+    pub fn get_bytes(&self) -> &[u8] {
+        &self.block[self.start_pos..self.end_pos]
     }
 }
 

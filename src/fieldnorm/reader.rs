@@ -117,8 +117,8 @@ impl FieldNormReader {
     /// The fieldnorm is a value approximating the number
     /// of tokens in a given field of the `doc_id`.
     ///
-    /// It is imprecise, and always lower than the actual
-    /// number of tokens.
+    /// It is imprecise, and equal or lower than
+    /// the actual number of tokens.
     ///
     /// The fieldnorm is effectively decoded from the
     /// `fieldnorm_id` by doing a simple table lookup.

@@ -64,31 +64,42 @@ fn load_metas(
 ///
 /// ```
 /// use tantivy::schema::*;
-/// use tantivy::{Index, IndexSettings};
+/// use tantivy::{Index, IndexSettings, IndexSortByField, Order};
 ///
 /// let mut schema_builder = Schema::builder();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
+/// let number_field = schema_builder.add_u64_field(
+///     "number",
+///     IntOptions::default().set_fast(Cardinality::SingleValue),
+/// );
+///
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings::default();
+/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc})};
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 ///
 /// ```
 pub struct IndexBuilder {
     schema: Option<Schema>,
-    index_settings: Option<IndexSettings>,
+    index_settings: IndexSettings,
+}
+impl Default for IndexBuilder {
+    fn default() -> Self {
+        IndexBuilder::new()
+    }
 }
 impl IndexBuilder {
+    /// Creates a new `IndexBuilder`
     pub fn new() -> Self {
         Self {
             schema: None,
-            index_settings: None,
+            index_settings: IndexSettings::default(),
         }
     }
     /// Set the settings
     pub fn settings(mut self, settings: IndexSettings) -> Self {
-        self.index_settings = Some(settings);
+        self.index_settings = settings;
         self
     }
     /// Set the schema
@@ -131,15 +142,11 @@ impl IndexBuilder {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         self.create(mmap_directory)
     }
-    fn get_settings_or_default(&self) -> Option<IndexSettings> {
-        self.index_settings.as_ref().cloned()
-    }
     fn get_expect_schema(&self) -> crate::Result<Schema> {
-        Ok(self
-            .schema
+        self.schema
             .as_ref()
             .cloned()
-            .ok_or_else(|| TantivyError::IndexBuilderMissingArgument("schema"))?)
+            .ok_or(TantivyError::IndexBuilderMissingArgument("schema"))
     }
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
@@ -162,11 +169,11 @@ impl IndexBuilder {
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
             self.get_expect_schema()?,
-            self.get_settings_or_default(),
+            self.index_settings.clone(),
             &directory,
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
-        metas.index_settings = self.get_settings_or_default();
+        metas.index_settings = self.index_settings.clone();
         let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         Ok(index)
     }
@@ -177,7 +184,7 @@ impl IndexBuilder {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
-    settings: Option<IndexSettings>,
+    settings: IndexSettings,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
     inventory: SegmentMetaInventory,
@@ -265,12 +272,10 @@ impl Index {
     pub fn create<Dir: Directory>(
         dir: Dir,
         schema: Schema,
-        settings: Option<IndexSettings>,
+        settings: IndexSettings,
     ) -> crate::Result<Index> {
         let mut builder = IndexBuilder::new().schema(schema);
-        if let Some(settings) = settings {
-            builder = builder.settings(settings);
-        }
+        builder = builder.settings(settings);
         builder.create(dir)
     }
 
@@ -423,7 +428,7 @@ impl Index {
 
     /// Helper to create an index writer for tests.
     ///
-    /// That index writer only simply has a single thread and a heap of 5 MB.
+    /// That index writer only simply has a single thread and a heap of 10 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
     pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
@@ -452,7 +457,7 @@ impl Index {
 
     /// Accessor to the index settings
     ///
-    pub fn settings(&self) -> &Option<IndexSettings> {
+    pub fn settings(&self) -> &IndexSettings {
         &self.settings
     }
     /// Accessor to the index schema
@@ -523,11 +528,14 @@ impl fmt::Debug for Index {
 
 #[cfg(test)]
 mod tests {
-    use crate::directory::{RamDirectory, WatchCallback};
     use crate::schema::Field;
     use crate::schema::{Schema, INDEXED, TEXT};
     use crate::IndexReader;
     use crate::ReloadPolicy;
+    use crate::{
+        directory::{RamDirectory, WatchCallback},
+        IndexSettings,
+    };
     use crate::{Directory, Index};
 
     #[test]
@@ -548,7 +556,12 @@ mod tests {
     fn test_index_exists() {
         let directory = RamDirectory::create();
         assert!(!Index::exists(&directory).unwrap());
-        assert!(Index::create(directory.clone(), throw_away_schema(), None).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
     }
 
@@ -563,7 +576,12 @@ mod tests {
     #[test]
     fn open_or_create_should_open() {
         let directory = RamDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema(), None).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
@@ -571,15 +589,30 @@ mod tests {
     #[test]
     fn create_should_wipeoff_existing() {
         let directory = RamDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema(), None).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
-        assert!(Index::create(directory.clone(), Schema::builder().build(), None).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            Schema::builder().build(),
+            IndexSettings::default()
+        )
+        .is_ok());
     }
 
     #[test]
     fn open_or_create_exists_but_schema_does_not_match() {
         let directory = RamDirectory::create();
-        assert!(Index::create(directory.clone(), throw_away_schema(), None).is_ok());
+        assert!(Index::create(
+            directory.clone(),
+            throw_away_schema(),
+            IndexSettings::default()
+        )
+        .is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
         let err = Index::open_or_create(directory, Schema::builder().build());
@@ -714,7 +747,7 @@ mod tests {
         let directory = RamDirectory::create();
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
-        let index = Index::create(directory.clone(), schema, None).unwrap();
+        let index = Index::create(directory.clone(), schema, IndexSettings::default()).unwrap();
 
         let mut writer = index.writer_with_num_threads(8, 24_000_000).unwrap();
         for i in 0u64..8_000u64 {

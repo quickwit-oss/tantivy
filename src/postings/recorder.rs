@@ -1,7 +1,10 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
-use crate::common::{read_u32_vint, write_u32_vint};
 use crate::postings::FieldSerializer;
 use crate::DocId;
+use crate::{
+    common::{read_u32_vint, write_u32_vint},
+    indexer::doc_id_mapping::DocIdMapping,
+};
 
 const POSITION_END: u32 = 0;
 
@@ -73,6 +76,7 @@ pub(crate) trait Recorder: Copy + 'static {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     );
     /// Returns the number of document containing this term.
     ///
@@ -113,12 +117,25 @@ impl Recorder for NothingRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     ) {
-        let buffer = buffer_lender.lend_u8();
+        let (buffer, doc_ids) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer);
-        // TODO avoid reading twice.
-        for doc in VInt32Reader::new(&buffer[..]) {
-            serializer.write_doc(doc as u32, 0u32, &[][..]);
+        //TODO avoid reading twice.
+        if let Some(doc_id_map) = doc_id_map {
+            doc_ids.extend(
+                VInt32Reader::new(&buffer[..])
+                    .map(|old_doc_id| doc_id_map.get_new_doc_id(old_doc_id)),
+            );
+            doc_ids.sort_unstable();
+
+            for doc in doc_ids {
+                serializer.write_doc(*doc, 0u32, &[][..]);
+            }
+        } else {
+            for doc in VInt32Reader::new(&buffer[..]) {
+                serializer.write_doc(doc, 0u32, &[][..]);
+            }
         }
     }
 
@@ -140,7 +157,7 @@ impl Recorder for TermFrequencyRecorder {
     fn new() -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(),
-            current_doc: u32::max_value(),
+            current_doc: 0,
             current_tf: 0u32,
             term_doc_freq: 0u32,
         }
@@ -171,13 +188,27 @@ impl Recorder for TermFrequencyRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
-        while let Some(doc) = u32_it.next() {
-            let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(doc as u32, term_freq, &[][..]);
+        if let Some(doc_id_map) = doc_id_map {
+            let mut doc_id_and_tf = vec![];
+            while let Some(old_doc_id) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                doc_id_and_tf.push((doc_id_map.get_new_doc_id(old_doc_id), term_freq));
+            }
+            doc_id_and_tf.sort_unstable_by_key(|&(doc_id, _)| doc_id);
+
+            for (doc_id, tf) in doc_id_and_tf {
+                serializer.write_doc(doc_id, tf, &[][..]);
+            }
+        } else {
+            while let Some(doc) = u32_it.next() {
+                let term_freq = u32_it.next().unwrap_or(self.current_tf);
+                serializer.write_doc(doc, term_freq, &[][..]);
+            }
         }
     }
 
@@ -225,10 +256,12 @@ impl Recorder for TfAndPositionRecorder {
         buffer_lender: &mut BufferLender,
         serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);
         let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+        let mut doc_id_and_positions = vec![];
         while let Some(doc) = u32_it.next() {
             let mut prev_position_plus_one = 1u32;
             buffer_positions.clear();
@@ -244,7 +277,19 @@ impl Recorder for TfAndPositionRecorder {
                     }
                 }
             }
-            serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
+            if let Some(doc_id_map) = doc_id_map {
+                // this simple variant to remap may consume to much memory
+                doc_id_and_positions
+                    .push((doc_id_map.get_new_doc_id(doc), buffer_positions.to_vec()));
+            } else {
+                serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions);
+            }
+        }
+        if doc_id_map.is_some() {
+            doc_id_and_positions.sort_unstable_by_key(|&(doc_id, _)| doc_id);
+            for (doc_id, positions) in doc_id_and_positions {
+                serializer.write_doc(doc_id, positions.len() as u32, &positions);
+            }
         }
     }
 

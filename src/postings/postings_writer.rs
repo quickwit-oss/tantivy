@@ -1,6 +1,5 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
-use crate::fieldnorm::FieldNormReaders;
 use crate::postings::recorder::{
     BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
 };
@@ -12,6 +11,7 @@ use crate::termdict::TermOrdinal;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
 use crate::DocId;
+use crate::{fieldnorm::FieldNormReaders, indexer::doc_id_mapping::DocIdMapping};
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -130,6 +130,7 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
             self.term_index.iter().collect();
@@ -175,6 +176,7 @@ impl MultiFieldPostingsWriter {
                 &mut field_serializer,
                 &self.term_index.heap,
                 &self.heap,
+                doc_id_map,
             )?;
             field_serializer.close()?;
         }
@@ -211,6 +213,7 @@ pub trait PostingsWriter {
         serializer: &mut FieldSerializer<'_>,
         term_heap: &MemoryArena,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -236,7 +239,7 @@ pub trait PostingsWriter {
                     heap,
                 );
             } else {
-                info!(
+                warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
                      MAX_TOKEN_LEN in the documentation for more information.",
                     token.text.len(),
@@ -307,13 +310,14 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         serializer: &mut FieldSerializer<'_>,
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = termdict_heap.read(addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(&term_bytes[4..], term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap);
+            recorder.serialize(&mut buffer_lender, serializer, heap, doc_id_map);
             serializer.close_term()?;
         }
         Ok(())

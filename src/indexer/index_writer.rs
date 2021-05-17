@@ -53,7 +53,7 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 // Group of operations.
 // Most of the time, users will send operation one-by-one, but it can be useful to
 // send them as a small block to ensure that
-// - all docs in the operation will happen on the same segment and continuous docids.
+// - all docs in the operation will happen on the same segment and continuous doc_ids.
 // - all operations in the group are committed at the same time, making the group
 // atomic.
 type OperationGroup = SmallVec<[AddOperation; 4]>;
@@ -239,11 +239,10 @@ fn index_documents(
         last_docstamp,
     )?;
 
-    let segment_entry = SegmentEntry::new(
-        segment_with_max_doc.meta().clone(),
-        delete_cursor,
-        delete_bitset_opt,
-    );
+    let meta = segment_with_max_doc.meta().clone();
+    meta.untrack_temp_docstore();
+    // update segment_updater inventory to remove tempstore
+    let segment_entry = SegmentEntry::new(meta, delete_cursor, delete_bitset_opt);
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
     Ok(true)
 }

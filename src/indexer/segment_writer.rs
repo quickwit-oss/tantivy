@@ -1,6 +1,7 @@
-use super::operation::AddOperation;
-use crate::core::Segment;
-use crate::core::SerializableSegment;
+use super::{
+    doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping},
+    operation::AddOperation,
+};
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -15,6 +16,8 @@ use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
+use crate::{core::Segment, store::StoreWriter};
+use crate::{core::SerializableSegment, store::StoreReader};
 use crate::{DocId, SegmentComponent};
 
 /// Computes the initial size of the hash table.
@@ -39,12 +42,12 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
 /// They creates the postings list in anonymous memory.
 /// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
-    max_doc: DocId,
-    multifield_postings: MultiFieldPostingsWriter,
-    segment_serializer: SegmentSerializer,
-    fast_field_writers: FastFieldsWriter,
-    fieldnorms_writer: FieldNormsWriter,
-    doc_opstamps: Vec<Opstamp>,
+    pub(crate) max_doc: DocId,
+    pub(crate) multifield_postings: MultiFieldPostingsWriter,
+    pub(crate) segment_serializer: SegmentSerializer,
+    pub(crate) fast_field_writers: FastFieldsWriter,
+    pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     term_buffer: Term,
 }
@@ -66,7 +69,7 @@ impl SegmentWriter {
     ) -> crate::Result<SegmentWriter> {
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_num_bits = initial_table_size(memory_budget)?;
-        let segment_serializer = SegmentSerializer::for_segment(segment)?;
+        let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
         let tokenizers = schema
             .fields()
@@ -100,11 +103,21 @@ impl SegmentWriter {
     /// be used afterwards.
     pub fn finalize(mut self) -> crate::Result<Vec<u64>> {
         self.fieldnorms_writer.fill_up_to_max_doc(self.max_doc);
+        let mapping: Option<DocIdMapping> = self
+            .segment_serializer
+            .segment()
+            .index()
+            .settings()
+            .sort_by_field
+            .clone()
+            .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
+            .transpose()?;
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
+            mapping.as_ref(),
         )?;
         Ok(self.doc_opstamps)
     }
@@ -168,7 +181,7 @@ impl SegmentWriter {
                             });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
                             self.fast_field_writers
-                                .get_multivalue_writer(field)
+                                .get_multivalue_writer_mut(field)
                                 .expect("writer for facet missing")
                                 .add_val(unordered_term_id);
                         }
@@ -308,29 +321,63 @@ fn write(
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
+    doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
-        fieldnorms_writer.serialize(fieldnorms_serializer)?;
+        fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
     let fieldnorm_data = serializer
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    let term_ord_map =
-        multifield_postings.serialize(serializer.get_postings_serializer(), fieldnorm_readers)?;
-    fast_field_writers.serialize(serializer.get_fast_field_serializer(), &term_ord_map)?;
+    let term_ord_map = multifield_postings.serialize(
+        serializer.get_postings_serializer(),
+        fieldnorm_readers,
+        doc_id_map,
+    )?;
+    fast_field_writers.serialize(
+        serializer.get_fast_field_serializer(),
+        &term_ord_map,
+        doc_id_map,
+    )?;
+    // finalize temp docstore and create version, which reflects the doc_id_map
+    if let Some(doc_id_map) = doc_id_map {
+        let store_write = serializer
+            .segment_mut()
+            .open_write(SegmentComponent::Store)?;
+        let old_store_writer =
+            std::mem::replace(&mut serializer.store_writer, StoreWriter::new(store_write));
+        old_store_writer.close()?;
+        let store_read = StoreReader::open(
+            serializer
+                .segment()
+                .open_read(SegmentComponent::TempStore)?,
+        )?;
+        for old_doc_id in doc_id_map.iter_old_doc_ids() {
+            let raw_doc = store_read.get_raw(*old_doc_id)?;
+            serializer
+                .get_store_writer()
+                .store_bytes(raw_doc.get_bytes())?;
+        }
+        // TODO delete temp store
+    }
     serializer.close()?;
     Ok(())
 }
 
 impl SerializableSegment for SegmentWriter {
-    fn write(&self, serializer: SegmentSerializer) -> crate::Result<u32> {
+    fn write(
+        &self,
+        serializer: SegmentSerializer,
+        doc_id_map: Option<&DocIdMapping>,
+    ) -> crate::Result<u32> {
         let max_doc = self.max_doc;
         write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             serializer,
+            doc_id_map,
         )?;
         Ok(max_doc)
     }

@@ -46,7 +46,7 @@ const NUM_MERGE_THREADS: usize = 4;
 /// This method is not part of tantivy's public API
 pub fn save_new_metas(
     schema: Schema,
-    index_settings: Option<IndexSettings>,
+    index_settings: IndexSettings,
     directory: &dyn Directory,
 ) -> crate::Result<()> {
     save_metas(
@@ -134,12 +134,13 @@ fn merge(
         .collect();
 
     // An IndexMerger is like a "view" of our merged segments.
-    let merger: IndexMerger = IndexMerger::open(index.schema(), &segments[..])?;
+    let merger: IndexMerger =
+        IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
 
-    // ... we just serialize this index merger in our new segment to merge the two segments.
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone())?;
+    // ... we just serialize this index merger in our new segment to merge the segments.
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
 
-    let num_docs = merger.write(segment_serializer)?;
+    let num_docs = merger.write(segment_serializer, None)?;
 
     let merged_segment_id = merged_segment.id();
 
@@ -171,6 +172,7 @@ pub fn merge_segments<Dir: Directory>(
     }
 
     let target_schema = indices[0].schema();
+    let target_settings = indices[0].settings().clone();
 
     // let's check that all of the indices have the same schema
     if indices
@@ -182,22 +184,32 @@ pub fn merge_segments<Dir: Directory>(
             "Attempt to merge different schema indices".to_string(),
         ));
     }
+    // let's check that all of the indices have the same index settings
+    if indices
+        .iter()
+        .skip(1)
+        .any(|index| index.settings() != &target_settings)
+    {
+        return Err(crate::TantivyError::InvalidArgument(
+            "Attempt to merge indices with different index_settings".to_string(),
+        ));
+    }
 
     let mut segments: Vec<Segment> = Vec::new();
     for index in indices {
         segments.extend(index.searchable_segments()?);
     }
 
-    let mut merged_index = Index::create(
-        output_directory,
-        target_schema.clone(),
-        indices[0].settings().clone(),
-    )?;
+    let mut merged_index = Index::create(output_directory, target_schema.clone(), target_settings)?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger = IndexMerger::open(merged_index.schema(), &segments[..])?;
-    let segment_serializer = SegmentSerializer::for_segment(merged_segment)?;
-    let num_docs = merger.write(segment_serializer)?;
+    let merger: IndexMerger = IndexMerger::open(
+        merged_index.schema(),
+        merged_index.settings().clone(),
+        &segments[..],
+    )?;
+    let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
+    let num_docs = merger.write(segment_serializer, None)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 
@@ -234,7 +246,7 @@ pub(crate) struct InnerSegmentUpdater {
     //
     // This should be up to date as all update happen through
     // the unique active `SegmentUpdater`.
-    active_metas: RwLock<Arc<IndexMeta>>,
+    active_index_meta: RwLock<Arc<IndexMeta>>,
     pool: ThreadPool,
     merge_thread_pool: ThreadPool,
 
@@ -274,7 +286,7 @@ impl SegmentUpdater {
             })?;
         let index_meta = index.load_metas()?;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
-            active_metas: RwLock::new(Arc::new(index_meta)),
+            active_index_meta: RwLock::new(Arc::new(index_meta)),
             pool,
             merge_thread_pool,
             index,
@@ -379,7 +391,7 @@ impl SegmentUpdater {
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
             commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
             let index_meta = IndexMeta {
-                index_settings: None,
+                index_settings: index.settings().clone(),
                 segments: commited_segment_metas,
                 schema: index.schema(),
                 opstamp,
@@ -431,15 +443,15 @@ impl SegmentUpdater {
     }
 
     fn store_meta(&self, index_meta: &IndexMeta) {
-        *self.active_metas.write().unwrap() = Arc::new(index_meta.clone());
+        *self.active_index_meta.write().unwrap() = Arc::new(index_meta.clone());
     }
 
-    fn load_metas(&self) -> Arc<IndexMeta> {
-        self.active_metas.read().unwrap().clone()
+    fn load_meta(&self) -> Arc<IndexMeta> {
+        self.active_index_meta.read().unwrap().clone()
     }
 
     pub(crate) fn make_merge_operation(&self, segment_ids: &[SegmentId]) -> MergeOperation {
-        let commit_opstamp = self.load_metas().opstamp;
+        let commit_opstamp = self.load_meta().opstamp;
         MergeOperation::new(&self.merge_operations, commit_opstamp, segment_ids.to_vec())
     }
 
@@ -509,8 +521,11 @@ impl SegmentUpdater {
             }
         });
 
-        Ok(merging_future_recv
-            .unwrap_or_else(|_| Err(crate::TantivyError::SystemError("Merge failed".to_string()))))
+        Ok(merging_future_recv.unwrap_or_else(|e| {
+            Err(crate::TantivyError::SystemError(
+                "Merge failed:".to_string() + &e.to_string(),
+            ))
+        }))
     }
 
     async fn consider_merge_options(&self) {
@@ -531,7 +546,7 @@ impl SegmentUpdater {
             })
             .collect();
 
-        let commit_opstamp = self.load_metas().opstamp;
+        let commit_opstamp = self.load_meta().opstamp;
         let committed_merge_candidates = merge_policy
             .compute_merge_candidates(&committed_segments)
             .into_iter()
@@ -562,7 +577,7 @@ impl SegmentUpdater {
             {
                 let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
                 if let Some(delete_operation) = delete_cursor.get() {
-                    let committed_opstamp = segment_updater.load_metas().opstamp;
+                    let committed_opstamp = segment_updater.load_meta().opstamp;
                     if delete_operation.opstamp < committed_opstamp {
                         let index = &segment_updater.index;
                         let segment = index.segment(after_merge_segment_entry.meta().clone());
@@ -586,7 +601,7 @@ impl SegmentUpdater {
                         }
                     }
                 }
-                let previous_metas = segment_updater.load_metas();
+                let previous_metas = segment_updater.load_meta();
                 let segments_status = segment_updater
                     .segment_manager
                     .end_merge(merge_operation.segment_ids(), after_merge_segment_entry)?;
@@ -598,6 +613,7 @@ impl SegmentUpdater {
 
                 segment_updater.consider_merge_options().await;
             } // we drop all possible handle to a now useless `SegmentMeta`.
+
             let _ = garbage_collect_files(segment_updater).await;
             Ok(())
         });
