@@ -1,12 +1,15 @@
 use super::decompress;
 use super::index::SkipIndex;
-use crate::common::{BinarySerializable, HasLen};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 use crate::{common::VInt, fastfield::DeleteBitSet};
+use crate::{
+    common::{BinarySerializable, HasLen},
+    error::DataCorruption,
+};
 use lru::LruCache;
 use std::io;
 use std::mem::size_of;
@@ -152,7 +155,7 @@ impl StoreReader {
         let mut curr_checkpoint = checkpoint_block_iter.next();
         let mut curr_block = curr_checkpoint
             .as_ref()
-            .map(|checkpoint| self.read_block(&checkpoint));
+            .map(|checkpoint| self.read_block(&checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
         let mut block_start_pos = 0;
         let mut num_skipped = 0;
         (0..last_docid)
@@ -170,17 +173,13 @@ impl StoreReader {
                     curr_checkpoint = checkpoint_block_iter.next();
                     curr_block = curr_checkpoint
                         .as_ref()
-                        .map(|checkpoint| self.read_block(&checkpoint));
+                        .map(|checkpoint| self.read_block(&checkpoint).map_err(|e| e.kind()));
                     reset_block_pos = true;
                     num_skipped = 0;
                 }
 
                 if alive {
-                    let ret = Some((
-                        curr_block.as_ref().unwrap().as_ref().unwrap().clone(), // todo forward errors
-                        num_skipped,
-                        reset_block_pos,
-                    ));
+                    let ret = Some((curr_block.clone(), num_skipped, reset_block_pos));
                     // the map block will move over the num_skipped, so we reset to 0
                     num_skipped = 0;
                     ret
@@ -189,11 +188,22 @@ impl StoreReader {
                 }
             })
             .map(move |(block, num_skipped, reset_block_pos)| {
+                let block = block
+                    .ok_or_else(|| {
+                        DataCorruption::comment_only(
+                            "the current checkpoint in the doc store iterator is none, this should never happen",
+                        )
+                    })?
+                    .map_err(|error_kind| {
+                        std::io::Error::new(error_kind, "error when reading block in doc store")
+                    })?;
+                // this flag is set, when filter_map moved to the next block
                 if reset_block_pos {
                     block_start_pos = 0;
                 }
                 let mut cursor = &block[block_start_pos..];
                 let mut pos = 0;
+                // move forward 1 doc + num_skipped in block and return length of current doc
                 let doc_length = loop {
                     let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
                     let num_bytes_read = block[block_start_pos..].len() - cursor.len();
