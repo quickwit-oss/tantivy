@@ -14,7 +14,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
 
     compressed.extend_from_slice(&[0, 0, 0, 0]);
     unsafe {
-        compressed.set_len(maximum_ouput_size);
+        compressed.set_len(maximum_ouput_size + 4);
     }
     let bytes_written = compress_into(uncompressed, compressed, 4)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
