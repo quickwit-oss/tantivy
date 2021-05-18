@@ -354,10 +354,8 @@ fn write(
                 .open_read(SegmentComponent::TempStore)?,
         )?;
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
-            let raw_doc = store_read.get_raw(*old_doc_id)?;
-            serializer
-                .get_store_writer()
-                .store_bytes(raw_doc.get_bytes())?;
+            let doc_bytes = store_read.get_document_bytes(*old_doc_id)?;
+            serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }
         // TODO delete temp store
     }
