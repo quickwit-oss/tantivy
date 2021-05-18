@@ -1,5 +1,6 @@
 use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
+//use tantivy_fst::FakeArr;
 use std::convert::TryInto;
 use std::mem;
 use std::ops::Deref;
@@ -21,6 +22,24 @@ impl FileHandle for OwnedBytes {
         Ok(self.slice(from, to))
     }
 }
+
+
+/*impl FakeArr for OwnedBytes {
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn read_into(&self, offset: usize, buf: &mut [u8]) -> std::io::Result<()> {
+        let bytes = self.read_bytes(offset, offset + buf.len())?;
+        buf.copy_from_slice(&bytes[..]);
+        Ok(())
+    }
+
+    fn as_dyn(&self) -> &dyn FakeArr {
+        self
+    }
+}*/
+
 
 impl OwnedBytes {
     /// Creates an empty `OwnedBytes`.
@@ -120,8 +139,8 @@ impl fmt::Debug for OwnedBytes {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // We truncate the bytes in order to make sure the debug string
         // is not too long.
-        let bytes_truncated: &[u8] = if self.len() > 8 {
-            &self.as_slice()[..10]
+        let bytes_truncated: &[u8] = if self.len() > 1000 {
+            &self.as_slice()[..1000]
         } else {
             self.as_slice()
         };

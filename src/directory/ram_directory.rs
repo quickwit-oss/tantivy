@@ -80,7 +80,7 @@ impl TerminatingWrite for VecWriter {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, FileSlice>,
     watch_router: WatchCallbackList,
@@ -119,18 +119,12 @@ impl InnerDirectory {
     }
 }
 
-impl fmt::Debug for RAMDirectory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RAMDirectory")
-    }
-}
-
 /// A Directory storing everything in anonymous memory.
 ///
 /// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
 ///
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct RAMDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
 }

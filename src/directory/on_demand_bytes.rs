@@ -23,7 +23,9 @@ impl FakeArr for OnDemandBytes {
     }
 
     fn read_into(&self, offset: usize, buf: &mut [u8]) -> std::io::Result<()> {
+        assert!(offset + buf.len() <= self.len(), "{} <= {}", offset + buf.len(), self.len());
         let bytes = self.file.read_bytes(offset, offset + buf.len())?;
+        assert_eq!(buf.len(), bytes.len());
         buf.copy_from_slice(&bytes[..]);
         Ok(())
     }

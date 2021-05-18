@@ -1,11 +1,12 @@
 use stable_deref_trait::StableDeref;
+use tantivy_fst::FakeArr;
 
+use super::OnDemandBytes;
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
+use std::fmt::Debug;
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
-use std::fmt::Debug;
-use super::OnDemandBytes;
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -23,6 +24,21 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + Debug {
     ///
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes>;
+}
+
+impl FakeArr for FileSlice {
+    fn len(&self) -> usize {
+        self.stop - self.start
+    }
+
+    fn read_into(&self, offset: usize, buf: &mut [u8]) -> io::Result<()> {
+        buf.copy_from_slice(&self.read_bytes_slice(offset, offset + buf.len())?);
+        Ok(())
+    }
+
+    fn as_dyn(&self) -> &dyn FakeArr {
+        self
+    }
 }
 
 impl FileHandle for &'static [u8] {
@@ -81,7 +97,7 @@ impl FileSlice {
     ///
     /// Panics if `to < from` or if `to` exceeds the filesize.
     pub fn slice(&self, from: usize, to: usize) -> FileSlice {
-        assert!(to <= self.len());
+        assert!(to <= <FileSlice as HasLen>::len(&self));
         assert!(to >= from);
         FileSlice {
             data: self.data.clone(),
@@ -135,7 +151,7 @@ impl FileSlice {
     /// Splits the file slice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     pub fn split_from_end(self, right_len: usize) -> (FileSlice, FileSlice) {
-        let left_len = self.len() - right_len;
+        let left_len = HasLen::len(&self) - right_len;
         self.split(left_len)
     }
 
@@ -144,7 +160,7 @@ impl FileSlice {
     ///
     /// Equivalent to `.slice(from_offset, self.len())`
     pub fn slice_from(&self, from_offset: usize) -> FileSlice {
-        self.slice(from_offset, self.len())
+        self.slice(from_offset, <FileSlice as HasLen>::len(&self))
     }
 
     /// Like `.slice(...)` but enforcing only the `to`

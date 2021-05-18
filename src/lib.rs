@@ -282,7 +282,7 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
 #[cfg(test)]
 mod tests {
-    use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
+    use crate::{Directory, collector::tests::TEST_COLLECTOR_WITH_SCORE};
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
     use crate::query::BooleanQuery;
@@ -633,10 +633,12 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        let negative_val = -1i64;
+        let negative_val = 242i64;
         index_writer.add_document(doc!(value_field => negative_val));
         index_writer.commit()?;
+        println!("dir: {:#?}", index.directory());
         let reader = index.reader()?;
+        
         let searcher = reader.searcher();
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher

@@ -86,15 +86,15 @@ where
     }
 }
 
-fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<OnDemandBytes>> {
+fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<FileSlice>> {
     println!("open_fst_index()");
-    let bytes = fst_file.read_ondemand()?;
-    let fst = Fst::new(bytes)
+    let fst = Fst::new(fst_file)
         .map_err(|err| DataCorruption::comment_only(format!("Fst data is corrupted: {:?}", err)))?;
     let ret = Ok(tantivy_fst::Map::from(fst));
     println!("open_fst_index RET");
     return ret;
 }
+
 
 
 static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
@@ -113,7 +113,7 @@ static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
 /// possible to fetch the associated `TermInfo`.
 #[derive(Debug)]
 pub struct TermDictionary {
-    fst_index: tantivy_fst::Map<OnDemandBytes>,
+    fst_index: tantivy_fst::Map<FileSlice>,
     term_info_store: TermInfoStore,
 }
 

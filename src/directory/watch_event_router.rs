@@ -3,11 +3,16 @@ use futures::{Future, TryFutureExt};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
+use std::fmt::Debug;
 
 /// Cloneable wrapper for callbacks registered when watching files of a `Directory`.
 #[derive(Clone)]
 pub struct WatchCallback(Arc<dyn Fn() + Sync + Send>);
-
+impl Debug for WatchCallback {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
 impl WatchCallback {
     /// Wraps a `Fn()` to create a WatchCallback.
     pub fn new<F: Fn() + Sync + Send + 'static>(op: F) -> Self {
@@ -23,7 +28,7 @@ impl WatchCallback {
 ///
 /// It registers callbacks (See `.subscribe(...)`) and
 /// calls them upon calls to `.broadcast(...)`.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct WatchCallbackList {
     router: RwLock<Vec<Weak<WatchCallback>>>,
 }
