@@ -56,7 +56,7 @@ impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
         let mut size_sorted_segments = segments
             .iter()
-            .filter(|s| s.num_docs() <= (self.max_merge_size as u32))
+            .filter(|segment_meta| segment_meta.num_docs() <= (self.max_merge_size as u32))
             .collect::<Vec<&SegmentMeta>>();
 
         if size_sorted_segments.len() <= 1 {
@@ -72,7 +72,7 @@ impl MergePolicy for LogMergePolicy {
         if let Some(&(first_segment, log_size)) = sorted_segments_with_log_size.first() {
             let mut current_max_log_size = log_size;
             let mut levels = vec![vec![first_segment]];
-            for &(segment, segment_log_size) in (&sorted_segments_with_log_size).iter().skip(1) {
+            for &(segment, segment_log_size) in sorted_segments_with_log_size.iter().skip(1) {
                 if segment_log_size < (current_max_log_size - self.level_log_size) {
                     current_max_log_size = segment_log_size;
                     levels.push(Vec::new());
