@@ -12,8 +12,8 @@ const DEFAULT_MAX_MERGE_SIZE: usize = 10_000_000;
 /// documents.
 #[derive(Debug, Clone)]
 pub struct LogMergePolicy {
-    min_merge_size: usize,
-    max_merge_size: usize,
+    min_num_segments: usize,
+    max_docs_before_merge: usize,
     min_layer_size: u32,
     level_log_size: f64,
 }
@@ -23,15 +23,16 @@ impl LogMergePolicy {
         cmp::max(self.min_layer_size, size)
     }
 
-    /// Set the minimum number of segment that may be merge together.
-    pub fn set_min_merge_size(&mut self, min_merge_size: usize) {
-        self.min_merge_size = min_merge_size;
+    /// Set the minimum number of segments that may be merged together in a layer.
+    pub fn set_min_num_segments(&mut self, min_num_segments: usize) {
+        self.min_num_segments = min_num_segments;
     }
 
     /// Set the maximum number docs in a segment for it to be considered for
-    /// merging.
-    pub fn set_max_merge_size(&mut self, max_merge_size: usize) {
-        self.max_merge_size = max_merge_size;
+    /// merging. A segment can still reach more than max_docs, by merging many
+    /// smaller ones.
+    pub fn set_max_docs_before_merge(&mut self, max_docs_merge_size: usize) {
+        self.max_docs_before_merge = max_docs_merge_size;
     }
 
     /// Set the minimum segment size under which all segment belong
@@ -42,7 +43,7 @@ impl LogMergePolicy {
 
     /// Set the ratio between two consecutive levels.
     ///
-    /// Segment are group in levels according to their sizes.
+    /// Segments are grouped in levels according to their sizes.
     /// These levels are defined as intervals of exponentially growing sizes.
     /// level_log_size define the factor by which one should multiply the limit
     /// to reach a level, in order to get the limit to reach the following
@@ -56,22 +57,22 @@ impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
         let mut size_sorted_segments = segments
             .iter()
-            .filter(|segment_meta| segment_meta.num_docs() <= (self.max_merge_size as u32))
+            .filter(|segment_meta| segment_meta.num_docs() <= (self.max_docs_before_merge as u32))
             .collect::<Vec<&SegmentMeta>>();
 
         if size_sorted_segments.len() <= 1 {
             return vec![];
         }
-        size_sorted_segments.sort_by_key(|seg| seg.num_docs());
+        size_sorted_segments.sort_by_key(|seg| std::cmp::Reverse(seg.num_docs()));
 
         let sorted_segments_with_log_size: Vec<_> = size_sorted_segments
             .into_iter()
             .map(|seg| (seg, f64::from(self.clip_min_size(seg.num_docs())).log2()))
             .collect();
 
-        if let Some(&(first_segment, log_size)) = sorted_segments_with_log_size.first() {
+        if let Some(&(largest_segment, log_size)) = sorted_segments_with_log_size.first() {
             let mut current_max_log_size = log_size;
-            let mut levels = vec![vec![first_segment]];
+            let mut levels = vec![vec![largest_segment]];
             for &(segment, segment_log_size) in sorted_segments_with_log_size.iter().skip(1) {
                 if segment_log_size < (current_max_log_size - self.level_log_size) {
                     current_max_log_size = segment_log_size;
@@ -81,7 +82,7 @@ impl MergePolicy for LogMergePolicy {
             }
             levels
                 .iter()
-                .filter(|level| level.len() >= self.min_merge_size)
+                .filter(|level| level.len() >= self.min_num_segments)
                 .map(|segments| MergeCandidate(segments.iter().map(|&seg| seg.id()).collect()))
                 .collect()
         } else {
@@ -93,8 +94,8 @@ impl MergePolicy for LogMergePolicy {
 impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
         LogMergePolicy {
-            min_merge_size: DEFAULT_MIN_MERGE_SIZE,
-            max_merge_size: DEFAULT_MAX_MERGE_SIZE,
+            min_num_segments: DEFAULT_MIN_MERGE_SIZE,
+            max_docs_before_merge: DEFAULT_MAX_MERGE_SIZE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
         }
@@ -125,8 +126,8 @@ mod tests {
 
         {
             let mut log_merge_policy = LogMergePolicy::default();
-            log_merge_policy.set_min_merge_size(1);
-            log_merge_policy.set_max_merge_size(1);
+            log_merge_policy.set_min_num_segments(1);
+            log_merge_policy.set_max_docs_before_merge(1);
             log_merge_policy.set_min_layer_size(0);
 
             let mut index_writer = index.writer_for_tests().unwrap();
@@ -175,8 +176,8 @@ mod tests {
 
     fn test_merge_policy() -> LogMergePolicy {
         let mut log_merge_policy = LogMergePolicy::default();
-        log_merge_policy.set_min_merge_size(3);
-        log_merge_policy.set_max_merge_size(100_000);
+        log_merge_policy.set_min_num_segments(3);
+        log_merge_policy.set_max_docs_before_merge(100_000);
         log_merge_policy.set_min_layer_size(2);
         log_merge_policy
     }

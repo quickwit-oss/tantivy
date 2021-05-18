@@ -1828,7 +1828,7 @@ mod tests {
 
         // Make sure we'll attempt to merge every created segment
         let mut policy = crate::indexer::LogMergePolicy::default();
-        policy.set_min_merge_size(2);
+        policy.set_min_num_segments(2);
         writer.set_merge_policy(Box::new(policy));
 
         for i in 0..100 {

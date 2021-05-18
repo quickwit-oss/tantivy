@@ -593,7 +593,7 @@ mod tests {
 
             let mut index_writer = index.writer_for_tests().unwrap();
             let mut log_merge_policy = LogMergePolicy::default();
-            log_merge_policy.set_min_merge_size(3);
+            log_merge_policy.set_min_num_segments(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));
             for _num_commits in 0..10 {
                 for _ in 0..10 {
