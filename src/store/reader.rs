@@ -145,7 +145,7 @@ impl StoreReader {
     /// Iterator over all RawDocuments in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
     /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
-    pub fn iter_raw<'a: 'b, 'b>(
+    pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
         delete_bitset: Option<&'a DeleteBitSet>,
     ) -> impl Iterator<Item = crate::Result<RawDocument>> + 'b {
