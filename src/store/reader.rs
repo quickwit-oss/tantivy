@@ -231,7 +231,7 @@ mod tests {
                 .unwrap()
                 .peek_lru()
                 .map(|(&k, _)| k as usize),
-            Some(9249)
+            Some(9210)
         );
 
         Ok(())
