@@ -1,4 +1,5 @@
 use super::doc_id_mapping::DocIdMapping;
+use crate::error::DataCorruption;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
@@ -927,19 +928,25 @@ impl IndexMerger {
             .collect();
         if let Some(doc_id_mapping) = doc_id_mapping {
             for (old_doc_id, reader_with_ordinal) in doc_id_mapping {
-                let store_reader = &mut document_iterators[reader_with_ordinal.ordinal as usize];
-                let raw_doc = store_reader.next().expect(&format!(
-                    "unexpected missing document in docstore on merge, doc id {:?}",
-                    old_doc_id
-                ))?;
-                store_writer.store_bytes(raw_doc.get_bytes())?;
+                let doc_bytes_it = &mut document_iterators[reader_with_ordinal.ordinal as usize];
+                if let Some(doc_bytes_res) = doc_bytes_it.next() {
+                    let doc_bytes = doc_bytes_res?;
+                    store_writer.store_bytes(&doc_bytes)?;
+                } else {
+                    return Err(DataCorruption::comment_only(&format!(
+                        "unexpected missing document in docstore on merge, doc id {:?}",
+                        old_doc_id
+                    ))
+                    .into());
+                }
             }
         } else {
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
                 if reader.num_deleted_docs() > 0 {
-                    for raw_doc in store_reader.iter_raw(reader.delete_bitset()) {
-                        store_writer.store_bytes(raw_doc?.get_bytes())?;
+                    for doc_bytes_res in store_reader.iter_raw(reader.delete_bitset()) {
+                        let doc_bytes = doc_bytes_res?;
+                        store_writer.store_bytes(&doc_bytes)?;
                     }
                 } else {
                     store_writer.stack(&store_reader)?;

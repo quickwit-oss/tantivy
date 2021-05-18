@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 const LRU_CACHE_CAPACITY: usize = 100;
 
-type Block = Arc<Vec<u8>>;
+type Block = OwnedBytes;
 
 type BlockCache = Arc<Mutex<LruCache<usize, Block>>>;
 
@@ -74,7 +74,7 @@ impl StoreReader {
         let mut decompressed_block = vec![];
         decompress(compressed_block.as_slice(), &mut decompressed_block)?;
 
-        let block = Arc::new(decompressed_block);
+        let block = OwnedBytes::new(decompressed_block);
         self.cache
             .lock()
             .unwrap()
@@ -93,9 +93,8 @@ impl StoreReader {
     /// It should not be called to score documents
     /// for instance.
     pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
-        let raw_doc = self.get_raw(doc_id)?;
-        let mut cursor = raw_doc.get_bytes();
-        Ok(Document::deserialize(&mut cursor)?)
+        let mut doc_bytes = self.get_document_bytes(doc_id)?;
+        Ok(Document::deserialize(&mut doc_bytes)?)
     }
 
     /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a document and its start and end
@@ -106,7 +105,7 @@ impl StoreReader {
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
     ///
-    pub fn get_raw(&self, doc_id: DocId) -> crate::Result<RawDocument> {
+    pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
@@ -121,11 +120,7 @@ impl StoreReader {
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
         let start_pos = cursor_len_before - cursor.len();
         let end_pos = cursor_len_before - cursor.len() + doc_length;
-        Ok(RawDocument {
-            block,
-            start_pos,
-            end_pos,
-        })
+        Ok(block.slice(start_pos..end_pos))
     }
 
     /// Iterator over all Documents in their order as they are stored in the doc store.
@@ -135,10 +130,9 @@ impl StoreReader {
         &'b self,
         delete_bitset: Option<&'a DeleteBitSet>,
     ) -> impl Iterator<Item = crate::Result<Document>> + 'b {
-        self.iter_raw(delete_bitset).map(|raw_doc| {
-            let raw_doc = raw_doc?;
-            let mut cursor = raw_doc.get_bytes();
-            Ok(Document::deserialize(&mut cursor)?)
+        self.iter_raw(delete_bitset).map(|doc_bytes_res| {
+            let mut doc_bytes = doc_bytes_res?;
+            Ok(Document::deserialize(&mut doc_bytes)?)
         })
     }
 
@@ -148,7 +142,7 @@ impl StoreReader {
     pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
         delete_bitset: Option<&'a DeleteBitSet>,
-    ) -> impl Iterator<Item = crate::Result<RawDocument>> + 'b {
+    ) -> impl Iterator<Item = crate::Result<OwnedBytes>> + 'b {
         let last_docid = self
             .block_checkpoints()
             .last()
@@ -214,36 +208,15 @@ impl StoreReader {
                     }
                 };
                 let end_pos = block_start_pos + doc_length;
-                let raw_doc = RawDocument {
-                    block,
-                    start_pos: block_start_pos,
-                    end_pos,
-                };
+                let doc_bytes = block.slice(block_start_pos..end_pos);
                 block_start_pos = end_pos;
-                Ok(raw_doc)
+                Ok(doc_bytes)
             })
     }
 
     /// Summarize total space usage of this store reader.
     pub fn space_usage(&self) -> StoreSpaceUsage {
         self.space_usage.clone()
-    }
-}
-
-/// Get the bytes of a serialized `Document` in a decompressed block.
-pub struct RawDocument {
-    /// the block of data containing multiple documents
-    block: Arc<Vec<u8>>,
-    /// start position of the document in the block
-    start_pos: usize,
-    /// end position of the document in the block
-    end_pos: usize,
-}
-
-impl RawDocument {
-    /// Get the bytes of a serialized `Document` in a decompressed block.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.block[self.start_pos..self.end_pos]
     }
 }
 

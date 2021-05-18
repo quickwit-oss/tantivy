@@ -36,7 +36,6 @@ and should rely on either
 mod index;
 mod reader;
 mod writer;
-pub use self::reader::RawDocument;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
