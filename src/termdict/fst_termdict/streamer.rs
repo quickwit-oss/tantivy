@@ -3,7 +3,7 @@ use std::io;
 use super::TermDictionary;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::{FakeArr, automaton::AlwaysMatch};
 use tantivy_fst::map::{Stream, StreamBuilder};
 use tantivy_fst::Automaton;
 use tantivy_fst::{IntoStreamer, Streamer};
@@ -95,7 +95,7 @@ where
     pub fn advance(&mut self) -> bool {
         if let Some((term, term_ord)) = self.stream.next() {
             self.current_key.clear();
-            self.current_key.extend_from_slice(term);
+            self.current_key.extend_from_slice(&term.to_vec());
             self.term_ord = term_ord;
             self.current_value = self.fst_map.term_info_from_ord(term_ord);
             true

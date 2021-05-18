@@ -1,13 +1,14 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
-use crate::common::{BinarySerializable, CountingWriter};
+use crate::{common::{BinarySerializable, CountingWriter}, directory::OnDemandBox};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::error::DataCorruption;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
+use crate::directory::OnDemandBytes;
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
-use tantivy_fst::raw::Fst;
+use tantivy_fst::{FakeArr, raw::Fst};
 use tantivy_fst::Automaton;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
@@ -85,12 +86,16 @@ where
     }
 }
 
-fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<OwnedBytes>> {
-    let bytes = fst_file.read_bytes()?;
+fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<OnDemandBytes>> {
+    println!("open_fst_index()");
+    let bytes = fst_file.read_ondemand()?;
     let fst = Fst::new(bytes)
         .map_err(|err| DataCorruption::comment_only(format!("Fst data is corrupted: {:?}", err)))?;
-    Ok(tantivy_fst::Map::from(fst))
+    let ret = Ok(tantivy_fst::Map::from(fst));
+    println!("open_fst_index RET");
+    return ret;
 }
+
 
 static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
     let term_dictionary_data: Vec<u8> = TermDictionaryBuilder::create(Vec::<u8>::new())
@@ -106,8 +111,9 @@ static EMPTY_TERM_DICT_FILE: Lazy<FileSlice> = Lazy::new(|| {
 /// The `Fst` crate is used to associate terms to their
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
+#[derive(Debug)]
 pub struct TermDictionary {
-    fst_index: tantivy_fst::Map<OwnedBytes>,
+    fst_index: tantivy_fst::Map<OnDemandBytes>,
     term_info_store: TermInfoStore,
 }
 
@@ -139,7 +145,10 @@ impl TermDictionary {
 
     /// Returns the ordinal associated to a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
-        Ok(self.fst_index.get(key))
+        println!("termdict.term_ord({:?})", String::from_utf8_lossy(key.as_ref()));
+        let ret = Ok(self.fst_index.get(key));
+        println!("termdict.term_ord RET");
+        return ret;
     }
 
     /// Returns the term associated to a given term ordinal.

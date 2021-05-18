@@ -737,6 +737,7 @@ mod tests {
             let searcher = index_reader.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(text_field)?;
+            println!("terms: {:?}", inverted_index.terms());
             let term_abcd = Term::from_field_text(text_field, "abcd");
             assert!(inverted_index
                 .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)?

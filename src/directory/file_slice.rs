@@ -4,6 +4,8 @@ use crate::common::HasLen;
 use crate::directory::OwnedBytes;
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
+use std::fmt::Debug;
+use super::OnDemandBytes;
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -16,7 +18,7 @@ pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 /// The underlying behavior is therefore specific to the `Directory` that created it.
 /// Despite its name, a `FileSlice` may or may not directly map to an actual file
 /// on the filesystem.
-pub trait FileHandle: 'static + Send + Sync + HasLen {
+pub trait FileHandle: 'static + Send + Sync + HasLen + Debug {
     /// Reads a slice of bytes.
     ///
     /// This method may panic if the range requested is invalid.
@@ -49,7 +51,7 @@ where
 //
 /// It can be cloned and sliced cheaply.
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FileSlice {
     data: Arc<dyn FileHandle>,
     start: usize,
@@ -102,6 +104,10 @@ impl FileSlice {
     /// to handle caching if needed.
     pub fn read_bytes(&self) -> io::Result<OwnedBytes> {
         self.data.read_bytes(self.start, self.stop)
+    }
+
+    pub fn read_ondemand(&self) -> io::Result<OnDemandBytes> {
+        Ok(OnDemandBytes::new(self.data.clone()))
     }
 
     /// Reads a specific slice of data.
