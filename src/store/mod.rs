@@ -36,6 +36,7 @@ and should rely on either
 mod index;
 mod reader;
 mod writer;
+pub use self::reader::RawDocument;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
@@ -98,11 +99,13 @@ use self::compression_snap::{compress, decompress};
 pub mod tests {
 
     use super::*;
-    use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::schema::Document;
-    use crate::schema::FieldValue;
-    use crate::schema::Schema;
-    use crate::schema::TextOptions;
+    use crate::schema::{self, FieldValue, TextFieldIndexing};
+    use crate::schema::{Document, TextOptions};
+    use crate::{
+        directory::{Directory, RamDirectory, WritePtr},
+        Term,
+    };
+    use crate::{schema::Schema, Index};
     use std::path::Path;
 
     pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
@@ -161,6 +164,53 @@ pub mod tests {
                     .text()
                     .unwrap(),
                 format!("Doc {}", i)
+            );
+        }
+        for (i, doc) in store.iter(None).enumerate() {
+            assert_eq!(
+                *doc?.get_first(field_title).unwrap().text().unwrap(),
+                format!("Doc {}", i)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_store_with_delete() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+
+        let text_field_options = TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+            )
+            .set_stored();
+        let text_field = schema_builder.add_text_field("text_field", text_field_options);
+        let schema = schema_builder.build();
+        let index_builder = Index::builder().schema(schema);
+
+        let index = index_builder.create_in_ram().unwrap();
+
+        {
+            let mut index_writer = index.writer_for_tests().unwrap();
+
+            index_writer.add_document(doc!(text_field=> "deleteme"));
+            index_writer.add_document(doc!(text_field=> "deletemenot"));
+            index_writer.add_document(doc!(text_field=> "deleteme"));
+            index_writer.add_document(doc!(text_field=> "deletemenot"));
+            index_writer.add_document(doc!(text_field=> "deleteme"));
+
+            index_writer.delete_term(Term::from_field_text(text_field, "deleteme"));
+            assert!(index_writer.commit().is_ok());
+        }
+
+        let searcher = index.reader().unwrap().searcher();
+        let reader = searcher.segment_reader(0);
+        let store = reader.get_store_reader().unwrap();
+        for doc in store.iter(reader.delete_bitset()) {
+            assert_eq!(
+                *doc?.get_first(text_field).unwrap().text().unwrap(),
+                "deletemenot".to_string()
             );
         }
         Ok(())
