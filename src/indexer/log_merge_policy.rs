@@ -6,8 +6,8 @@ use std::f64;
 
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
-const DEFAULT_MIN_MERGE_SIZE: usize = 8;
-const DEFAULT_MAX_MERGE_SIZE: usize = 10_000_000;
+const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
+const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
@@ -91,8 +91,8 @@ impl MergePolicy for LogMergePolicy {
 impl Default for LogMergePolicy {
     fn default() -> LogMergePolicy {
         LogMergePolicy {
-            min_num_segments: DEFAULT_MIN_MERGE_SIZE,
-            max_docs_before_merge: DEFAULT_MAX_MERGE_SIZE,
+            min_num_segments: DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE,
+            max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
         }
