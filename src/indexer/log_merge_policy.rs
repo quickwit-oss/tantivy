@@ -1,5 +1,6 @@
 use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::core::SegmentMeta;
+use itertools::Itertools;
 use std::cmp;
 use std::f64;
 
@@ -65,29 +66,27 @@ impl MergePolicy for LogMergePolicy {
         }
         size_sorted_segments.sort_by_key(|seg| std::cmp::Reverse(seg.num_docs()));
 
-        let sorted_segments_with_log_size: Vec<_> = size_sorted_segments
-            .into_iter()
-            .map(|seg| (seg, f64::from(self.clip_min_size(seg.num_docs())).log2()))
-            .collect();
-
-        if let Some(&(largest_segment, log_size)) = sorted_segments_with_log_size.first() {
-            let mut current_max_log_size = log_size;
-            let mut levels = vec![vec![largest_segment]];
-            for &(segment, segment_log_size) in sorted_segments_with_log_size.iter().skip(1) {
-                if segment_log_size < (current_max_log_size - self.level_log_size) {
-                    current_max_log_size = segment_log_size;
-                    levels.push(Vec::new());
-                }
-                levels.last_mut().unwrap().push(segment);
+        let mut current_max_log_size = f64::MAX;
+        let mut levels = vec![];
+        for (_, merge_group) in &size_sorted_segments.into_iter().group_by(|segment| {
+            let segment_log_size = f64::from(self.clip_min_size(segment.num_docs())).log2();
+            if segment_log_size < (current_max_log_size - self.level_log_size) {
+                // update current_max_log_size to create a new group
+                current_max_log_size = segment_log_size;
+                current_max_log_size
+            } else {
+                // return current_max_log_size to be grouped to the current group
+                current_max_log_size
             }
-            levels
-                .iter()
-                .filter(|level| level.len() >= self.min_num_segments)
-                .map(|segments| MergeCandidate(segments.iter().map(|&seg| seg.id()).collect()))
-                .collect()
-        } else {
-            return vec![];
+        }) {
+            levels.push(merge_group.collect::<Vec<&SegmentMeta>>());
         }
+
+        levels
+            .iter()
+            .filter(|level| level.len() >= self.min_num_segments)
+            .map(|segments| MergeCandidate(segments.iter().map(|&seg| seg.id()).collect()))
+            .collect()
     }
 }
 
