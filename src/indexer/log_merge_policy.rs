@@ -24,7 +24,7 @@ impl LogMergePolicy {
         cmp::max(self.min_layer_size, size)
     }
 
-    /// Set the minimum number of segments that may be merged together in a layer.
+    /// Set the minimum number of segments that may be merged together.
     pub fn set_min_num_segments(&mut self, min_num_segments: usize) {
         self.min_num_segments = min_num_segments;
     }
@@ -73,11 +73,9 @@ impl MergePolicy for LogMergePolicy {
             if segment_log_size < (current_max_log_size - self.level_log_size) {
                 // update current_max_log_size to create a new group
                 current_max_log_size = segment_log_size;
-                current_max_log_size
-            } else {
-                // return current_max_log_size to be grouped to the current group
-                current_max_log_size
             }
+            // return current_max_log_size to be grouped to the current group
+            current_max_log_size
         }) {
             levels.push(merge_group.collect::<Vec<&SegmentMeta>>());
         }
