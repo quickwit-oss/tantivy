@@ -39,6 +39,7 @@ mod tests {
             let mut index_writer = index.writer_for_tests().unwrap();
 
             index_writer.add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")));
+            index_writer.add_document(doc!(int_field=>6_u64, facet_field=> Facet::from("/crime")));
 
             assert!(index_writer.commit().is_ok());
             index_writer.add_document(doc!(int_field=>5_u64, facet_field=> Facet::from("/fanta")));
@@ -58,7 +59,12 @@ mod tests {
         index
     }
 
-    fn create_test_index(index_settings: Option<IndexSettings>) -> Index {
+    // force_disjunct_segment_sort_values forces the field, by which the index is sorted have disjunct
+    // ranges between segments, e.g. values in segment [1-3] [10 - 20] [50 - 500]
+    fn create_test_index(
+        index_settings: Option<IndexSettings>,
+        force_disjunct_segment_sort_values: bool,
+    ) -> Index {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
@@ -92,6 +98,7 @@ mod tests {
         {
             let mut index_writer = index.writer_for_tests().unwrap();
 
+            // segment 1 - range 1-3
             index_writer.add_document(doc!(int_field=>1_u64));
             index_writer.add_document(
                 doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text", facet_field=> Facet::from("/book/crime")),
@@ -102,13 +109,26 @@ mod tests {
             );
 
             assert!(index_writer.commit().is_ok());
+            // segment 2 - range 1-20 , with force_disjunct_segment_sort_values 10-20
             index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
-            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme", facet_field=> Facet::from("/book/crime")));
+
+            let in_val = if force_disjunct_segment_sort_values {
+                10_u64
+            } else {
+                1
+            };
+            index_writer.add_document(doc!(int_field=>in_val, text_field=> "deleteme", facet_field=> Facet::from("/book/crime")));
             assert!(index_writer.commit().is_ok());
-            index_writer.add_document(
-                doc!(int_field=>10_u64, multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber", facet_field=> Facet::from("/book/fantasy")),
+            // segment 3 - range 5-1000, with force_disjunct_segment_sort_values 50-1000
+            let int_vals = if force_disjunct_segment_sort_values {
+                [100_u64, 50]
+            } else {
+                [10, 5]
+            };
+            index_writer.add_document( // position of this doc after delete in desc sorting = [2], in disjunct case [1]
+                doc!(int_field=>int_vals[0], multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber", facet_field=> Facet::from("/book/fantasy")),
             );
-            index_writer.add_document(doc!(int_field=>5_u64, text_field=> "deleteme"));
+            index_writer.add_document(doc!(int_field=>int_vals[1], text_field=> "deleteme"));
             index_writer.add_document(
                 doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5],text_field => "the biggest num")
             );
@@ -140,13 +160,24 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_sorted_index_desc() {
-        let index = create_test_index(Some(IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "intval".to_string(),
-                order: Order::Desc,
+    fn test_merge_sorted_index_desc_not_disjunct() {
+        test_merge_sorted_index_desc_(false);
+    }
+    #[test]
+    fn test_merge_sorted_index_desc_disjunct() {
+        test_merge_sorted_index_desc_(true);
+    }
+
+    fn test_merge_sorted_index_desc_(force_disjunct_segment_sort_values: bool) {
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Desc,
+                }),
             }),
-        }));
+            force_disjunct_segment_sort_values,
+        );
 
         let int_field = index.schema().get_field("intval").unwrap();
         let reader = index.reader().unwrap();
@@ -160,8 +191,13 @@ mod tests {
         assert_eq!(fast_field.get(5u32), 1u64);
         assert_eq!(fast_field.get(4u32), 2u64);
         assert_eq!(fast_field.get(3u32), 3u64);
-        assert_eq!(fast_field.get(2u32), 10u64);
-        assert_eq!(fast_field.get(1u32), 20u64);
+        if force_disjunct_segment_sort_values {
+            assert_eq!(fast_field.get(2u32), 20u64);
+            assert_eq!(fast_field.get(1u32), 100u64);
+        } else {
+            assert_eq!(fast_field.get(2u32), 10u64);
+            assert_eq!(fast_field.get(1u32), 20u64);
+        }
         assert_eq!(fast_field.get(0u32), 1_000u64);
 
         // test new field norm mapping
@@ -169,8 +205,13 @@ mod tests {
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let fieldnorm_reader = segment_reader.get_fieldnorms_reader(my_text_field).unwrap();
             assert_eq!(fieldnorm_reader.fieldnorm(0), 3); // the biggest num
-            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
-            assert_eq!(fieldnorm_reader.fieldnorm(2), 1); // blubber
+            if force_disjunct_segment_sort_values {
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 1); // blubber
+                assert_eq!(fieldnorm_reader.fieldnorm(2), 0);
+            } else {
+                assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+                assert_eq!(fieldnorm_reader.fieldnorm(2), 1); // blubber
+            }
             assert_eq!(fieldnorm_reader.fieldnorm(3), 2); // some text
             assert_eq!(fieldnorm_reader.fieldnorm(5), 0);
         }
@@ -191,13 +232,22 @@ mod tests {
             };
 
             assert_eq!(do_search("some"), vec![3]);
-            assert_eq!(do_search("blubber"), vec![2]);
+            if force_disjunct_segment_sort_values {
+                assert_eq!(do_search("blubber"), vec![1]);
+            } else {
+                assert_eq!(do_search("blubber"), vec![2]);
+            }
             assert_eq!(do_search("biggest"), vec![0]);
         }
 
         // access doc store
         {
-            let doc = searcher.doc(DocAddress::new(0, 2)).unwrap();
+            let blubber_pos = if force_disjunct_segment_sort_values {
+                1
+            } else {
+                2
+            };
+            let doc = searcher.doc(DocAddress::new(0, blubber_pos)).unwrap();
             assert_eq!(
                 doc.get_first(my_text_field).unwrap().text(),
                 Some("blubber")
@@ -209,12 +259,15 @@ mod tests {
 
     #[test]
     fn test_merge_sorted_index_asc() {
-        let index = create_test_index(Some(IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "intval".to_string(),
-                order: Order::Asc,
+        let index = create_test_index(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Asc,
+                }),
             }),
-        }));
+            false,
+        );
 
         let int_field = index.schema().get_field("intval").unwrap();
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();
