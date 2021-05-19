@@ -1,5 +1,6 @@
 use crate::common::FixedSize;
 use bitpacking::{BitPacker, BitPacker4x};
+use tantivy_fst::FakeArr;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;
@@ -148,7 +149,7 @@ pub trait VIntDecoder {
     /// The value given in `padding` will be used to fill the remaining `128 - num_els` values.
     fn uncompress_vint_sorted(
         &mut self,
-        compressed_data: &[u8],
+        compressed_data: &dyn FakeArr,
         offset: u32,
         num_els: usize,
         padding: u32,
@@ -163,7 +164,7 @@ pub trait VIntDecoder {
     /// The value given in `padding` will be used to fill the remaining `128 - num_els` values.
     fn uncompress_vint_unsorted(
         &mut self,
-        compressed_data: &[u8],
+        compressed_data: &dyn FakeArr,
         num_els: usize,
         padding: u32,
     ) -> usize;
@@ -182,7 +183,7 @@ impl VIntEncoder for BlockEncoder {
 impl VIntDecoder for BlockDecoder {
     fn uncompress_vint_sorted(
         &mut self,
-        compressed_data: &[u8],
+        compressed_data: &dyn FakeArr,
         offset: u32,
         num_els: usize,
         padding: u32,
@@ -194,7 +195,7 @@ impl VIntDecoder for BlockDecoder {
 
     fn uncompress_vint_unsorted(
         &mut self,
-        compressed_data: &[u8],
+        compressed_data: &dyn FakeArr,
         num_els: usize,
         padding: u32,
     ) -> usize {

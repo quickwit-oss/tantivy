@@ -14,8 +14,8 @@ mod file_watcher;
 mod footer;
 mod managed_directory;
 mod owned_bytes;
-mod on_demand_bytes;
 mod ram_directory;
+mod fs_directory;
 mod watch_event_router;
 
 /// Errors specific to the directory module.
@@ -25,9 +25,8 @@ pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub(crate) use self::file_slice::{ArcBytes, WeakArcBytes};
-pub use self::file_slice::{FileHandle, FileSlice};
+pub use self::file_slice::{FileHandle, FileSlice, FakeArr};
 pub use self::owned_bytes::OwnedBytes;
-pub use self::on_demand_bytes::{OnDemandBytes, OnDemandBox};
 pub use self::ram_directory::RAMDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
 use std::io::{self, BufWriter, Write};
@@ -49,6 +48,7 @@ pub struct GarbageCollectionResult {
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
+pub use self::fs_directory::FsDirectory;
 
 pub use self::managed_directory::ManagedDirectory;
 

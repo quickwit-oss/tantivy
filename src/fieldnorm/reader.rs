@@ -1,5 +1,7 @@
+use tantivy_fst::FakeArr;
+
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use crate::common::CompositeFile;
+use crate::{HasLen, common::CompositeFile};
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::schema::Field;
@@ -71,7 +73,7 @@ impl From<ReaderImplEnum> for FieldNormReader {
 
 #[derive(Clone)]
 enum ReaderImplEnum {
-    FromData(OwnedBytes),
+    FromData(FileSlice),
     Const {
         num_docs: u32,
         fieldnorm_id: u8,
@@ -97,18 +99,17 @@ impl FieldNormReader {
 
     /// Opens a field norm reader given its file.
     pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
-        let data = fieldnorm_file.read_bytes()?;
-        Ok(FieldNormReader::new(data))
+        Ok(FieldNormReader::new(fieldnorm_file))
     }
 
-    fn new(data: OwnedBytes) -> Self {
+    fn new(data: FileSlice) -> Self {
         ReaderImplEnum::FromData(data).into()
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => data.len() as u32,
+            ReaderImplEnum::FromData(data) => HasLen::len(data) as u32,
             ReaderImplEnum::Const { num_docs, .. } => *num_docs,
         }
     }
@@ -125,7 +126,7 @@ impl FieldNormReader {
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
         match &self.0 {
             ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                let fieldnorm_id = data.get_byte(doc_id as usize);
                 id_to_fieldnorm(fieldnorm_id)
             }
             ReaderImplEnum::Const { fieldnorm, .. } => *fieldnorm,
@@ -137,7 +138,7 @@ impl FieldNormReader {
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
             ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.as_slice()[doc_id as usize];
+                let fieldnorm_id = data.get_byte(doc_id as usize);
                 fieldnorm_id
             }
             ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,

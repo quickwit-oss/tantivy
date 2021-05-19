@@ -1,14 +1,13 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
-use crate::{common::{BinarySerializable, CountingWriter}, directory::OnDemandBox};
+use crate::{common::{BinarySerializable, CountingWriter}};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::error::DataCorruption;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use crate::directory::OnDemandBytes;
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
-use tantivy_fst::{FakeArr, raw::Fst};
+use tantivy_fst::{raw::Fst};
 use tantivy_fst::Automaton;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {

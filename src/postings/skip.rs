@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 
-use crate::directory::OwnedBytes;
+use tantivy_fst::FakeArr;
+
+use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
 use crate::query::BM25Weight;
 use crate::schema::IndexRecordOption;
@@ -71,7 +73,7 @@ impl SkipSerializer {
 pub(crate) struct SkipReader {
     last_doc_in_block: DocId,
     pub(crate) last_doc_in_previous_block: DocId,
-    owned_read: OwnedBytes,
+    owned_read: FileSlice,
     skip_info: IndexRecordOption,
     byte_offset: usize,
     remaining_docs: u32, // number of docs remaining, including the
@@ -102,7 +104,7 @@ impl Default for BlockInfo {
 }
 
 impl SkipReader {
-    pub fn new(data: OwnedBytes, doc_freq: u32, skip_info: IndexRecordOption) -> SkipReader {
+    pub fn new(data: FileSlice, doc_freq: u32, skip_info: IndexRecordOption) -> SkipReader {
         let mut skip_reader = SkipReader {
             last_doc_in_block: if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
                 0
@@ -123,7 +125,7 @@ impl SkipReader {
         skip_reader
     }
 
-    pub fn reset(&mut self, data: OwnedBytes, doc_freq: u32) {
+    pub fn reset(&mut self, data: FileSlice, doc_freq: u32) {
         self.last_doc_in_block = if doc_freq >= COMPRESSION_BLOCK_SIZE as u32 {
             0
         } else {
@@ -169,7 +171,7 @@ impl SkipReader {
     }
 
     fn read_block_info(&mut self) {
-        let bytes = self.owned_read.as_slice();
+        let bytes = &self.owned_read.slice_to(std::cmp::min(11, self.owned_read.len())).to_vec();
         let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
         let doc_num_bits = bytes[4];
@@ -212,7 +214,7 @@ impl SkipReader {
                 };
             }
         }
-        self.owned_read.advance(advance_len);
+        self.owned_read = self.owned_read.slice_from(advance_len);
     }
 
     pub fn block_info(&self) -> BlockInfo {

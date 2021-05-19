@@ -1,7 +1,6 @@
 use stable_deref_trait::StableDeref;
-use tantivy_fst::FakeArr;
+pub use tantivy_fst::FakeArr;
 
-use super::OnDemandBytes;
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
 use std::fmt::Debug;
@@ -122,10 +121,6 @@ impl FileSlice {
         self.data.read_bytes(self.start, self.stop)
     }
 
-    pub fn read_ondemand(&self) -> io::Result<OnDemandBytes> {
-        Ok(OnDemandBytes::new(self.data.clone()))
-    }
-
     /// Reads a specific slice of data.
     ///
     /// This is equivalent to running `file_slice.slice(from, to).read_bytes()`.
@@ -133,7 +128,7 @@ impl FileSlice {
         assert!(from <= to);
         assert!(
             self.start + to <= self.stop,
-            "`to` exceeds the fileslice length"
+            "`to` exceeds the fileslice length, {}, {}, {}", self.start, to, self.stop
         );
         self.data.read_bytes(self.start + from, self.start + to)
     }

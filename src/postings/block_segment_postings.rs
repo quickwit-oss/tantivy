@@ -11,6 +11,7 @@ use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::query::BM25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
+use tantivy_fst::FakeArr;
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     if let Some(first) = it.next() {
@@ -37,19 +38,30 @@ pub struct BlockSegmentPostings {
 
     doc_freq: u32,
 
-    data: OwnedBytes,
+    data: FileSlice,
     pub(crate) skip_reader: SkipReader,
 }
 
 fn decode_bitpacked_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
-    data: &[u8],
+    data: &dyn FakeArr,
     doc_offset: DocId,
     doc_num_bits: u8,
     tf_num_bits: u8,
 ) {
-    let num_consumed_bytes = doc_decoder.uncompress_block_sorted(data, doc_offset, doc_num_bits);
+    let num_bytes_docs = 128 * (doc_num_bits as usize) / 8; // 128 integers per bitpacker4x block. should be same as num_consumed_bytes returned by uncompress block
+    let num_bytes_freqs = freq_decoder_opt.as_ref()
+        .map(|_| 128 * (tf_num_bits as usize) / 8)
+        .unwrap_or(0);
+    let num_toconsume_bytes = num_bytes_docs + num_bytes_freqs;
+    let data = data.slice((0..num_bytes_docs + num_bytes_freqs).into()).to_vec();
+    let num_consumed_bytes = doc_decoder.uncompress_block_sorted(&data, doc_offset, doc_num_bits);
+    assert_eq!(num_bytes_docs, num_consumed_bytes);
+    println!(
+        "ofs={}, bits={}, consumed={}",
+        doc_offset, doc_num_bits, num_consumed_bytes
+    );
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
     }
@@ -58,7 +70,7 @@ fn decode_bitpacked_block(
 fn decode_vint_block(
     doc_decoder: &mut BlockDecoder,
     freq_decoder_opt: Option<&mut BlockDecoder>,
-    data: &[u8],
+    data: &dyn FakeArr,
     doc_offset: DocId,
     num_vint_docs: usize,
 ) {
@@ -66,22 +78,24 @@ fn decode_vint_block(
         doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs, TERMINATED);
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_vint_unsorted(
-            &data[num_consumed_bytes..],
+            &data.slice((num_consumed_bytes..).into()),
             num_vint_docs,
             TERMINATED,
         );
     }
 }
 
-fn split_into_skips_and_postings(
-    doc_freq: u32,
-    mut bytes: OwnedBytes,
-) -> (Option<OwnedBytes>, OwnedBytes) {
+fn split_into_skips_and_postings(doc_freq: u32, data: FileSlice) -> (Option<FileSlice>, FileSlice) {
     if doc_freq < COMPRESSION_BLOCK_SIZE as u32 {
-        return (None, bytes);
+        return (None, data);
     }
-    let skip_len = VInt::deserialize(&mut bytes).expect("Data corrupted").0 as usize;
-    let (skip_data, postings_data) = bytes.split(skip_len);
+    // hacky code
+    let slice = &mut data.full_slice();
+    let inx_before = slice.get_offset();
+    let skip_len = VInt::deserialize(slice).expect("Data corrupted").0 as usize;
+    let inx_after = slice.get_offset();
+    let data = data.slice_from(inx_after - inx_before);
+    let (skip_data, postings_data) = data.split(skip_len);
     (Some(skip_data), postings_data)
 }
 
@@ -98,11 +112,10 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let (skip_data_opt, postings_data) =
-            split_into_skips_and_postings(doc_freq, data.read_bytes()?);
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, doc_freq, record_option),
-            None => SkipReader::new(OwnedBytes::empty(), doc_freq, record_option),
+            None => SkipReader::new(FileSlice::empty(), doc_freq, record_option),
         };
 
         let mut block_segment_postings = BlockSegmentPostings {
@@ -172,7 +185,7 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedBytes) {
+    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: FileSlice) {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         self.data = postings_data;
         self.block_max_score_cache = None;
@@ -180,7 +193,7 @@ impl BlockSegmentPostings {
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {
-            self.skip_reader.reset(OwnedBytes::empty(), doc_freq);
+            self.skip_reader.reset(FileSlice::empty(), doc_freq);
         }
         self.doc_freq = doc_freq;
         self.load_block();
@@ -297,7 +310,7 @@ impl BlockSegmentPostings {
                     } else {
                         None
                     },
-                    &self.data.as_slice()[offset..],
+                    &self.data.slice(offset, self.data.len()),
                     self.skip_reader.last_doc_in_previous_block,
                     doc_num_bits,
                     tf_num_bits,
@@ -306,9 +319,9 @@ impl BlockSegmentPostings {
             BlockInfo::VInt { num_docs } => {
                 let data = {
                     if num_docs == 0 {
-                        &[]
+                        FileSlice::empty()
                     } else {
-                        &self.data.as_slice()[offset..]
+                        self.data.slice(offset, self.data.len())
                     }
                 };
                 decode_vint_block(
@@ -318,7 +331,7 @@ impl BlockSegmentPostings {
                     } else {
                         None
                     },
-                    data,
+                    &data,
                     self.skip_reader.last_doc_in_previous_block,
                     num_docs as usize,
                 );
@@ -344,8 +357,8 @@ impl BlockSegmentPostings {
             freq_reading_option: FreqReadingOption::NoFreq,
             block_max_score_cache: None,
             doc_freq: 0,
-            data: OwnedBytes::empty(),
-            skip_reader: SkipReader::new(OwnedBytes::empty(), 0, IndexRecordOption::Basic),
+            data: FileSlice::empty(),
+            skip_reader: SkipReader::new(FileSlice::empty(), 0, IndexRecordOption::Basic),
         }
     }
 }

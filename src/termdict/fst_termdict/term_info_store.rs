@@ -1,6 +1,6 @@
-use crate::common::compute_num_bits;
+use crate::{HasLen, common::compute_num_bits};
 use crate::common::{bitpacker::BitPacker, BinarySerializable, FixedSize};
-use crate::directory::{FileSlice, OwnedBytes};
+use crate::directory::{FileSlice, FakeArr};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
@@ -58,7 +58,7 @@ impl TermInfoBlockMeta {
     // Here inner_offset is the offset within the block, WITHOUT the first term_info.
     // In other word, term_info #1,#2,#3 gets inner_offset 0,1,2... While term_info #0
     // is encoded without bitpacking.
-    fn deserialize_term_info(&self, data: &[u8], inner_offset: usize) -> TermInfo {
+    fn deserialize_term_info(&self, data: &dyn FakeArr, inner_offset: usize) -> TermInfo {
         assert!(inner_offset < BLOCK_LEN - 1);
         let num_bits = self.num_bits() as usize;
 
@@ -88,22 +88,22 @@ impl TermInfoBlockMeta {
 #[derive(Debug)]
 pub struct TermInfoStore {
     num_terms: usize,
-    block_meta_bytes: OwnedBytes,
-    term_info_bytes: OwnedBytes,
+    block_meta_bytes: FileSlice,
+    term_info_bytes: FileSlice,
 }
 
-fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
+fn extract_bits(data: &dyn FakeArr, addr_bits: usize, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
     let val_unshifted_unmasked: u64 = if data.len() >= addr_byte + 8 {
-        LittleEndian::read_u64(&data[addr_byte..][..8])
+        LittleEndian::read_u64(&data.slice((addr_byte..addr_byte + 8).into()).to_vec())
     } else {
         // the buffer is not large enough.
         // Let's copy the few remaining bytes to a 8 byte buffer
         // padded with 0s.
         let mut buf = [0u8; 8];
-        let data_to_copy = &data[addr_byte..];
+        let data_to_copy = &data.slice((addr_byte..).into()).to_vec();
         let nbytes = data_to_copy.len();
         buf[..nbytes].copy_from_slice(data_to_copy);
         LittleEndian::read_u64(&buf)
@@ -120,27 +120,26 @@ impl TermInfoStore {
         let len = u64::deserialize(&mut bytes)? as usize;
         let num_terms = u64::deserialize(&mut bytes)? as usize;
         let (block_meta_file, term_info_file) = main_slice.split(len);
-        let term_info_bytes = term_info_file.read_bytes()?;
         Ok(TermInfoStore {
             num_terms,
-            block_meta_bytes: block_meta_file.read_bytes()?,
-            term_info_bytes,
+            block_meta_bytes: block_meta_file,
+            term_info_bytes: term_info_file,
         })
     }
 
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
         let block_id = (term_ord as usize) / BLOCK_LEN;
-        let buffer = self.block_meta_bytes.as_slice();
-        let mut block_data: &[u8] = &buffer[block_id * TermInfoBlockMeta::SIZE_IN_BYTES..];
+        let block_data = self.block_meta_bytes.slice(block_id * TermInfoBlockMeta::SIZE_IN_BYTES, HasLen::len(&self.block_meta_bytes));
+        let mut block_data = block_data.full_slice();
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
             .expect("Failed to deserialize terminfoblockmeta");
         let inner_offset = (term_ord as usize) % BLOCK_LEN;
         if inner_offset == 0 {
             return term_info_block_data.ref_term_info;
         }
-        let term_info_data = self.term_info_bytes.as_slice();
+        let term_info_data = self.term_info_bytes.slice(term_info_block_data.offset as usize, HasLen::len(&self.term_info_bytes));
         term_info_block_data.deserialize_term_info(
-            &term_info_data[term_info_block_data.offset as usize..],
+            &term_info_data,
             inner_offset - 1,
         )
     }
@@ -304,9 +303,9 @@ mod tests {
         assert_eq!(compute_num_bits(51), 6);
         bitpack.close(&mut buffer).unwrap();
         assert_eq!(buffer.len(), 3 + 7);
-        assert_eq!(extract_bits(&buffer[..], 0, 9), 321u64);
-        assert_eq!(extract_bits(&buffer[..], 9, 2), 2u64);
-        assert_eq!(extract_bits(&buffer[..], 11, 6), 51u64);
+        assert_eq!(extract_bits(buffer, 0, 9), 321u64);
+        assert_eq!(extract_bits(buffer, 9, 2), 2u64);
+        assert_eq!(extract_bits(buffer, 11, 6), 51u64);
     }
 
     #[test]

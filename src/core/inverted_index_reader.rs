@@ -93,7 +93,7 @@ impl InvertedIndexReader {
         let start_offset = term_info.postings_start_offset as usize;
         let stop_offset = term_info.postings_stop_offset as usize;
         let postings_slice = self.postings_file_slice.slice(start_offset, stop_offset);
-        block_postings.reset(term_info.doc_freq, postings_slice.read_bytes()?);
+        block_postings.reset(term_info.doc_freq, postings_slice);
         Ok(())
     }
 
