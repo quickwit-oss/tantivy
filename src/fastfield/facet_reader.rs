@@ -95,7 +95,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()));
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher
@@ -118,7 +118,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()));
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher
@@ -141,7 +141,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()));
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher
@@ -164,7 +164,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()));
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let facet_reader = searcher
@@ -187,7 +187,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b")));
+        index_writer.add_document(doc!(facet_field=>Facet::from_text("/a/b").unwrap()));
         index_writer.add_document(Document::default());
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();

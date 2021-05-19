@@ -92,7 +92,7 @@ fn main() -> tantivy::Result<()> {
 
     // Check the reference doc for different ways to create a `Facet` object.
     {
-        let facet = Facet::from_text("/Felidae/Pantherinae");
+        let facet = Facet::from("/Felidae/Pantherinae");
         let facet_term = Term::from_facet(classification, &facet);
         let facet_term_query = TermQuery::new(facet_term, IndexRecordOption::Basic);
         let mut facet_collector = FacetCollector::for_field(classification);

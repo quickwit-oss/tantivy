@@ -1,4 +1,5 @@
 use crate::common::BinarySerializable;
+use crate::TantivyError;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -75,11 +76,47 @@ impl Facet {
     /// It is conceptually, if one of the steps of this path
     /// contains a `/` or a `\`, it should be escaped
     /// using an anti-slash `/`.
-    pub fn from_text<T>(path: &T) -> Facet
+    pub fn from_text<T>(path: &T) -> Result<Facet, TantivyError>
     where
         T: ?Sized + AsRef<str>,
     {
-        From::from(path)
+        #[derive(Copy, Clone)]
+        enum State {
+            Escaped,
+            Idle,
+        }
+        let path_ = path.as_ref();
+        if path_.is_empty() {
+            return Err(TantivyError::InvalidArgument(path_.to_string()));
+        }
+        if !path_.starts_with('/') {
+            return Err(TantivyError::InvalidArgument(path_.to_string()));
+        }
+        let mut facet_encoded = String::new();
+        let mut state = State::Idle;
+        let path_bytes = path_.as_bytes();
+        let mut last_offset = 1;
+        for i in 1..path_bytes.len() {
+            let c = path_bytes[i];
+            match (state, c) {
+                (State::Idle, ESCAPE_BYTE) => {
+                    facet_encoded.push_str(&path_[last_offset..i]);
+                    last_offset = i + 1;
+                    state = State::Escaped
+                }
+                (State::Idle, SLASH_BYTE) => {
+                    facet_encoded.push_str(&path_[last_offset..i]);
+                    facet_encoded.push(FACET_SEP_CHAR);
+                    last_offset = i + 1;
+                }
+                (State::Escaped, _escaped_char) => {
+                    state = State::Idle;
+                }
+                (State::Idle, _any_char) => {}
+            }
+        }
+        facet_encoded.push_str(&path_[last_offset..]);
+        Ok(Facet(facet_encoded))
     }
 
     /// Returns a `Facet` from an iterator over the different
@@ -137,39 +174,7 @@ impl Borrow<str> for Facet {
 
 impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
     fn from(path_asref: &'a T) -> Facet {
-        #[derive(Copy, Clone)]
-        enum State {
-            Escaped,
-            Idle,
-        }
-        let path: &str = path_asref.as_ref();
-        assert!(!path.is_empty());
-        assert!(path.starts_with('/'));
-        let mut facet_encoded = String::new();
-        let mut state = State::Idle;
-        let path_bytes = path.as_bytes();
-        let mut last_offset = 1;
-        for i in 1..path_bytes.len() {
-            let c = path_bytes[i];
-            match (state, c) {
-                (State::Idle, ESCAPE_BYTE) => {
-                    facet_encoded.push_str(&path[last_offset..i]);
-                    last_offset = i + 1;
-                    state = State::Escaped
-                }
-                (State::Idle, SLASH_BYTE) => {
-                    facet_encoded.push_str(&path[last_offset..i]);
-                    facet_encoded.push(FACET_SEP_CHAR);
-                    last_offset = i + 1;
-                }
-                (State::Escaped, _escaped_char) => {
-                    state = State::Idle;
-                }
-                (State::Idle, _any_char) => {}
-            }
-        }
-        facet_encoded.push_str(&path[last_offset..]);
-        Facet(facet_encoded)
+        Facet::from_text(path_asref).unwrap()
     }
 }
 

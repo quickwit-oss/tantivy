@@ -13,6 +13,7 @@ use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
 use crate::Score;
+use crate::TantivyError;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
@@ -68,6 +69,9 @@ pub enum QueryParserError {
     /// The format for the date field is not RFC 3339 compliant.
     #[error("The date field has an invalid format")]
     DateFormatError(chrono::ParseError),
+    /// The format for the facet field invalid.
+    #[error("The facet field is malformed")]
+    FacetFormatError(String),
 }
 
 impl From<ParseIntError> for QueryParserError {
@@ -358,10 +362,15 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet(_) => {
-                let facet = Facet::from_text(phrase);
-                Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
-            }
+            FieldType::HierarchicalFacet(_) => match Facet::from_text(phrase) {
+                Ok(facet) => Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))]),
+                Err(e) => match e {
+                    TantivyError::InvalidArgument(path) => {
+                        Err(QueryParserError::FacetFormatError(path))
+                    }
+                    _ => Err(QueryParserError::SyntaxError),
+                },
+            },
             FieldType::Bytes(_) => {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 let term = Term::from_field_bytes(field, &bytes);
