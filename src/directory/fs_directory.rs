@@ -102,10 +102,9 @@ impl FSFile {
         let len = to - from;
 
         eprintln!(
-            "READ {} @ {}, len {}",
+            "READ {} chunk {}",
             self.path.to_string_lossy(),
-            from,
-            len
+            from / CS
         );
         if len == 51616 {
             println!("{:?}", backtrace::Backtrace::new());
@@ -127,12 +126,12 @@ impl FSFile {
 impl FileHandle for FSFile {
     fn read_bytes(&self, from: usize, to: usize) -> std::io::Result<OwnedBytes> {
         let len = to - from;
-        eprintln!(
+        /*eprintln!(
             "GET {} @ {}, len {}",
             self.path.to_string_lossy(),
             from,
             len
-        );
+        );*/
         let starti = from / CS;
         let endi = to / CS;
         let startofs = from % CS;
@@ -148,7 +147,6 @@ impl FileHandle for FSFile {
                 self.read_bytes_real(i * CS, std::cmp::min((i + 1) * CS, self.len()))
             });
             let chunk = &chunk[startofs..endofs];
-            println!("{} {} {} {}", out_buf.len(), startofs, endofs, chunk.len());
             let write_len = std::cmp::min(chunk.len(), len);
             out_buf[written..written + write_len]
                 .copy_from_slice(&chunk);

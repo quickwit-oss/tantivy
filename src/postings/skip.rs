@@ -171,7 +171,7 @@ impl SkipReader {
     }
 
     fn read_block_info(&mut self) {
-        let bytes = &self.owned_read.slice_to(std::cmp::min(11, self.owned_read.len())).to_vec();
+        let bytes = &self.owned_read.slice_to(std::cmp::min(12, self.owned_read.len())).to_vec();
         let advance_len: usize;
         self.last_doc_in_block = read_u32(bytes);
         let doc_num_bits = bytes[4];

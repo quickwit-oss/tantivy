@@ -54,14 +54,9 @@ fn decode_bitpacked_block(
     let num_bytes_freqs = freq_decoder_opt.as_ref()
         .map(|_| 128 * (tf_num_bits as usize) / 8)
         .unwrap_or(0);
-    let num_toconsume_bytes = num_bytes_docs + num_bytes_freqs;
     let data = data.slice((0..num_bytes_docs + num_bytes_freqs).into()).to_vec();
     let num_consumed_bytes = doc_decoder.uncompress_block_sorted(&data, doc_offset, doc_num_bits);
     assert_eq!(num_bytes_docs, num_consumed_bytes);
-    println!(
-        "ofs={}, bits={}, consumed={}",
-        doc_offset, doc_num_bits, num_consumed_bytes
-    );
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
     }
