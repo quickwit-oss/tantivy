@@ -14,7 +14,7 @@ pub use self::vint::{
     read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt,
 };
 pub use byteorder::LittleEndian as Endianness;
-
+use tantivy_fst::Ulen;
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
 /// We do not allow segments with more than
@@ -69,7 +69,7 @@ pub(crate) fn compute_num_bits(n: u64) -> u8 {
 /// Has length trait
 pub trait HasLen {
     /// Return length
-    fn len(&self) -> usize;
+    fn len(&self) -> Ulen;
 
     /// Returns true iff empty.
     fn is_empty(&self) -> bool {

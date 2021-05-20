@@ -115,7 +115,7 @@ impl InnerDirectory {
     }
 
     fn total_mem_usage(&self) -> usize {
-        self.fs.values().map(|f| f.len()).sum()
+        self.fs.values().map(|f| f.len() as usize).sum()
     }
 }
 

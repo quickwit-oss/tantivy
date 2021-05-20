@@ -3,7 +3,7 @@ use bitpacking::{BitPacker, BitPacker4x};
 use tantivy_fst::FakeArr;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
-const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES as usize;
 
 mod vint;
 

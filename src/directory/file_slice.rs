@@ -1,5 +1,6 @@
 use stable_deref_trait::StableDeref;
 pub use tantivy_fst::FakeArr;
+use tantivy_fst::Ulen;
 
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
@@ -22,15 +23,15 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + Debug {
     /// Reads a slice of bytes.
     ///
     /// This method may panic if the range requested is invalid.
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes>;
+    fn read_bytes(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes>;
 }
 
 impl FakeArr for FileSlice {
-    fn len(&self) -> usize {
+    fn len(&self) -> Ulen {
         self.stop - self.start
     }
 
-    fn read_into(&self, offset: usize, buf: &mut [u8]) -> io::Result<()> {
+    fn read_into(&self, offset: Ulen, buf: &mut [u8]) -> io::Result<()> {
         buf.copy_from_slice(&self.read_bytes_slice(offset, offset + buf.len())?);
         Ok(())
     }
@@ -41,15 +42,15 @@ impl FakeArr for FileSlice {
 }
 
 impl FileHandle for &'static [u8] {
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
-        let bytes = &self[from..to];
+    fn read_bytes(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes> {
+        let bytes = &self[from as usize..to as usize];
         Ok(OwnedBytes::new(bytes))
     }
 }
 
 impl<T: Deref<Target = [u8]>> HasLen for T {
-    fn len(&self) -> usize {
-        self.as_ref().len()
+    fn len(&self) -> Ulen {
+        self.as_ref().len() as Ulen
     }
 }
 
@@ -69,8 +70,8 @@ where
 #[derive(Clone, Debug)]
 pub struct FileSlice {
     data: Arc<dyn FileHandle>,
-    start: usize,
-    stop: usize,
+    start: Ulen,
+    stop: Ulen,
 }
 
 impl FileSlice {
@@ -82,7 +83,7 @@ impl FileSlice {
 
     /// Wraps a FileHandle.
     #[doc(hidden)]
-    pub fn new_with_num_bytes(file_handle: Box<dyn FileHandle>, num_bytes: usize) -> Self {
+    pub fn new_with_num_bytes(file_handle: Box<dyn FileHandle>, num_bytes: Ulen) -> Self {
         FileSlice {
             data: Arc::from(file_handle),
             start: 0,
@@ -95,7 +96,7 @@ impl FileSlice {
     /// # Panics
     ///
     /// Panics if `to < from` or if `to` exceeds the filesize.
-    pub fn slice(&self, from: usize, to: usize) -> FileSlice {
+    pub fn slice(&self, from: Ulen, to: Ulen) -> FileSlice {
         assert!(to <= <FileSlice as HasLen>::len(&self));
         assert!(to >= from);
         FileSlice {
@@ -124,7 +125,7 @@ impl FileSlice {
     /// Reads a specific slice of data.
     ///
     /// This is equivalent to running `file_slice.slice(from, to).read_bytes()`.
-    pub fn read_bytes_slice(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+    pub fn read_bytes_slice(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes> {
         assert!(from <= to);
         assert!(
             self.start + to <= self.stop,
@@ -137,7 +138,7 @@ impl FileSlice {
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
     ///
     /// This operation is cheap and must not copy any underlying data.
-    pub fn split(self, left_len: usize) -> (FileSlice, FileSlice) {
+    pub fn split(self, left_len: Ulen) -> (FileSlice, FileSlice) {
         let left = self.slice_to(left_len);
         let right = self.slice_from(left_len);
         (left, right)
@@ -145,7 +146,7 @@ impl FileSlice {
 
     /// Splits the file slice at the given offset and return two file slices.
     /// `file_slice[..split_offset]` and `file_slice[split_offset..]`.
-    pub fn split_from_end(self, right_len: usize) -> (FileSlice, FileSlice) {
+    pub fn split_from_end(self, right_len: Ulen) -> (FileSlice, FileSlice) {
         let left_len = HasLen::len(&self) - right_len;
         self.split(left_len)
     }
@@ -154,7 +155,7 @@ impl FileSlice {
     /// boundary.
     ///
     /// Equivalent to `.slice(from_offset, self.len())`
-    pub fn slice_from(&self, from_offset: usize) -> FileSlice {
+    pub fn slice_from(&self, from_offset: Ulen) -> FileSlice {
         self.slice(from_offset, <FileSlice as HasLen>::len(&self))
     }
 
@@ -162,19 +163,19 @@ impl FileSlice {
     /// boundary.
     ///
     /// Equivalent to `.slice(0, to_offset)`
-    pub fn slice_to(&self, to_offset: usize) -> FileSlice {
+    pub fn slice_to(&self, to_offset: Ulen) -> FileSlice {
         self.slice(0, to_offset)
     }
 }
 
 impl FileHandle for FileSlice {
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
+    fn read_bytes(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes> {
         self.read_bytes_slice(from, to)
     }
 }
 
 impl HasLen for FileSlice {
-    fn len(&self) -> usize {
+    fn len(&self) -> Ulen {
         self.stop - self.start
     }
 }

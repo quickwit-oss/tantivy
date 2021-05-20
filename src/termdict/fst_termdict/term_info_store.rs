@@ -4,6 +4,7 @@ use crate::directory::{FileSlice, FakeArr};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
+use tantivy_fst::Ulen;
 use std::cmp;
 use std::io::{self, Read, Write};
 
@@ -92,7 +93,7 @@ pub struct TermInfoStore {
     term_info_bytes: FileSlice,
 }
 
-fn extract_bits(data: &dyn FakeArr, addr_bits: usize, num_bits: u8) -> u64 {
+fn extract_bits(data: &dyn FakeArr, addr_bits: Ulen, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;

@@ -1,6 +1,7 @@
 use crate::common::Endianness;
 use crate::common::VInt;
 use byteorder::{ReadBytesExt, WriteBytesExt};
+use tantivy_fst::Ulen;
 use std::fmt;
 use std::io;
 use std::io::Read;
@@ -17,7 +18,7 @@ pub trait BinarySerializable: fmt::Debug + Sized {
 /// `FixedSize` marks a `BinarySerializable` as
 /// always serializing to the same size.
 pub trait FixedSize: BinarySerializable {
-    const SIZE_IN_BYTES: usize;
+    const SIZE_IN_BYTES: Ulen;
 }
 
 impl BinarySerializable for () {

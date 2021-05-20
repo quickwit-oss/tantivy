@@ -1,11 +1,6 @@
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::{BufWriter, Read, Seek, SeekFrom, Write},
-    ops::DerefMut,
-    path::{Path, PathBuf},
-    sync::{Arc, RwLock},
-};
+use std::{collections::BTreeMap, convert::TryInto, fs::File, io::{BufWriter, Read, Seek, SeekFrom, Write}, ops::DerefMut, path::{Path, PathBuf}, sync::{Arc, RwLock}};
+
+use tantivy_fst::Ulen;
 
 use crate::{
     directory::{error::OpenWriteError, FileHandle, OwnedBytes, TerminatingWrite, WatchHandle},
@@ -82,10 +77,10 @@ impl Directory for FsDirectory {
 struct FSFile {
     path: PathBuf,
     file: Arc<RwLock<File>>,
-    len: usize,
-    cache: RwLock<BTreeMap<usize, Vec<u8>>>,
+    len: Ulen,
+    cache: RwLock<BTreeMap<Ulen, Vec<u8>>>,
 }
-const CS: usize = 4096;
+const CS: Ulen = 4096;
 
 impl FSFile {
     pub fn new(path: &Path) -> FSFile {
@@ -94,18 +89,14 @@ impl FSFile {
         FSFile {
             path: path.to_path_buf(),
             file: Arc::new(RwLock::new(f)),
-            len: len as usize,
+            len,
             cache: RwLock::new(BTreeMap::new()),
         }
     }
-    fn read_bytes_real(&self, from: usize, to: usize) -> Vec<u8> {
+    fn read_bytes_real(&self, from: Ulen, to: Ulen) -> Vec<u8> {
         let len = to - from;
 
-        eprintln!(
-            "READ {} chunk {}",
-            self.path.to_string_lossy(),
-            from / CS
-        );
+        eprintln!("READ {} chunk {}", self.path.to_string_lossy(), from / CS);
         if len == 51616 {
             println!("{:?}", backtrace::Backtrace::new());
         }
@@ -117,15 +108,15 @@ impl FSFile {
         }
         let mut f = self.file.write().unwrap();
         f.seek(SeekFrom::Start(from as u64)).unwrap();
-        let mut buf = Vec::with_capacity(len);
+        let mut buf = Vec::with_capacity(len.try_into().unwrap());
         let flonk = f.deref_mut();
         (flonk).take(len as u64).read_to_end(&mut buf).unwrap();
         return buf;
     }
 }
 impl FileHandle for FSFile {
-    fn read_bytes(&self, from: usize, to: usize) -> std::io::Result<OwnedBytes> {
-        let len = to - from;
+    fn read_bytes(&self, from: Ulen, to: Ulen) -> std::io::Result<OwnedBytes> {
+        let len: usize = (to - from).try_into().unwrap();
         /*eprintln!(
             "GET {} @ {}, len {}",
             self.path.to_string_lossy(),
@@ -134,22 +125,21 @@ impl FileHandle for FSFile {
         );*/
         let starti = from / CS;
         let endi = to / CS;
-        let startofs = from % CS;
-        let endofs = to % CS;
+        let startofs = (from % CS) as usize;
+        let endofs = (to % CS) as usize;
         let mut out_buf = vec![0u8; len];
         //let toget = vec![];
         let mut cache = self.cache.write().unwrap();
         let mut written = 0;
         for i in starti..=endi {
             let startofs = if i == starti { startofs } else { 0 };
-            let endofs = if i == endi { endofs } else { CS };
+            let endofs = if i == endi { endofs } else { CS as usize };
             let chunk = cache.entry(i).or_insert_with(|| {
                 self.read_bytes_real(i * CS, std::cmp::min((i + 1) * CS, self.len()))
             });
             let chunk = &chunk[startofs..endofs];
-            let write_len = std::cmp::min(chunk.len(), len);
-            out_buf[written..written + write_len]
-                .copy_from_slice(&chunk);
+            let write_len = std::cmp::min(chunk.len(), len as usize);
+            out_buf[written..written + write_len].copy_from_slice(&chunk);
             written += write_len;
         }
 
@@ -157,7 +147,7 @@ impl FileHandle for FSFile {
     }
 }
 impl HasLen for FSFile {
-    fn len(&self) -> usize {
+    fn len(&self) -> Ulen {
         self.len
     }
 }

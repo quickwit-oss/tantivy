@@ -4,6 +4,7 @@ use crate::directory::FileSlice;
 use crate::directory::{AntiCallToken, TerminatingWrite};
 use crate::Version;
 use crc32fast::Hasher;
+use tantivy_fst::Ulen;
 use std::io;
 use std::io::Write;
 
@@ -77,9 +78,9 @@ impl Footer {
                 ),
             ));
         }
-        let (body_footer, footer_len_file) = file.split_from_end(u32::SIZE_IN_BYTES);
+        let (body_footer, footer_len_file) = file.split_from_end(u32::SIZE_IN_BYTES as Ulen);
         let mut footer_len_bytes = footer_len_file.read_bytes()?;
-        let footer_len = u32::deserialize(&mut footer_len_bytes)? as usize;
+        let footer_len = u32::deserialize(&mut footer_len_bytes)? as Ulen;
         let (body, footer) = body_footer.split_from_end(footer_len);
         let mut footer_bytes = footer.read_bytes()?;
         let footer = Footer::deserialize(&mut footer_bytes)?;

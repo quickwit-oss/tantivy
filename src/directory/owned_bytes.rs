@@ -1,5 +1,6 @@
 use crate::directory::FileHandle;
 use stable_deref_trait::StableDeref;
+use tantivy_fst::Ulen;
 //use tantivy_fst::FakeArr;
 use std::convert::TryInto;
 use std::mem;
@@ -18,8 +19,8 @@ pub struct OwnedBytes {
 }
 
 impl FileHandle for OwnedBytes {
-    fn read_bytes(&self, from: usize, to: usize) -> io::Result<OwnedBytes> {
-        Ok(self.slice(from, to))
+    fn read_bytes(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes> {
+        Ok(self.slice(from as usize, to as usize))
     }
 }
 
