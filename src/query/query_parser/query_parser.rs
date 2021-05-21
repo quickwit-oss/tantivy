@@ -69,7 +69,7 @@ pub enum QueryParserError {
     #[error("The date field has an invalid format")]
     DateFormatError(chrono::ParseError),
     /// The format for the facet field is invalid.
-    #[error("The facet field is malformed")]
+    #[error("The facet field is malformed: {0}")]
     FacetFormatError(FacetParseError),
 }
 
@@ -1034,6 +1034,19 @@ mod test {
         assert!(query_parser
             .parse_query("date:\"1985-04-12T23:20:50.52Z\"")
             .is_ok());
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_facet() {
+        let query_parser = make_query_parser();
+        match query_parser.parse_query("facet:INVALID") {
+            Ok(_) => panic!("should never succeed"),
+            Err(e) => assert_eq!(
+                "The facet field is malformed: Failed to parse the facet string: 'INVALID'",
+                format!("{}", e)
+            ),
+        }
+        assert!(query_parser.parse_query("facet:\"/foo/bar\"").is_ok());
     }
 
     #[test]
