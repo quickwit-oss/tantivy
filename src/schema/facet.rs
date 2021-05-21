@@ -85,27 +85,27 @@ impl Facet {
             Escaped,
             Idle,
         }
-        let path_ = path.as_ref();
-        if path_.is_empty() {
-            return Err(TantivyError::InvalidArgument(path_.to_string()));
+        let path_ref = path.as_ref();
+        if path_ref.is_empty() {
+            return Err(TantivyError::InvalidArgument(path_ref.to_string()));
         }
-        if !path_.starts_with('/') {
-            return Err(TantivyError::InvalidArgument(path_.to_string()));
+        if !path_ref.starts_with('/') {
+            return Err(TantivyError::InvalidArgument(path_ref.to_string()));
         }
         let mut facet_encoded = String::new();
         let mut state = State::Idle;
-        let path_bytes = path_.as_bytes();
+        let path_bytes = path_ref.as_bytes();
         let mut last_offset = 1;
         for i in 1..path_bytes.len() {
             let c = path_bytes[i];
             match (state, c) {
                 (State::Idle, ESCAPE_BYTE) => {
-                    facet_encoded.push_str(&path_[last_offset..i]);
+                    facet_encoded.push_str(&path_ref[last_offset..i]);
                     last_offset = i + 1;
                     state = State::Escaped
                 }
                 (State::Idle, SLASH_BYTE) => {
-                    facet_encoded.push_str(&path_[last_offset..i]);
+                    facet_encoded.push_str(&path_ref[last_offset..i]);
                     facet_encoded.push(FACET_SEP_CHAR);
                     last_offset = i + 1;
                 }
@@ -115,7 +115,7 @@ impl Facet {
                 (State::Idle, _any_char) => {}
             }
         }
-        facet_encoded.push_str(&path_[last_offset..]);
+        facet_encoded.push_str(&path_ref[last_offset..]);
         Ok(Facet(facet_encoded))
     }
 
