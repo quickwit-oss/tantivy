@@ -8,12 +8,11 @@ use crate::query::Query;
 use crate::query::RangeQuery;
 use crate::query::TermQuery;
 use crate::query::{AllQuery, BoostQuery};
-use crate::schema::{Facet, IndexRecordOption};
+use crate::schema::{Facet, FacetParseError, IndexRecordOption};
 use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
 use crate::Score;
-use crate::TantivyError;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
@@ -69,9 +68,9 @@ pub enum QueryParserError {
     /// The format for the date field is not RFC 3339 compliant.
     #[error("The date field has an invalid format")]
     DateFormatError(chrono::ParseError),
-    /// The format for the facet field invalid.
+    /// The format for the facet field is invalid.
     #[error("The facet field is malformed")]
-    FacetFormatError(String),
+    FacetFormatError(FacetParseError),
 }
 
 impl From<ParseIntError> for QueryParserError {
@@ -89,6 +88,12 @@ impl From<ParseFloatError> for QueryParserError {
 impl From<chrono::ParseError> for QueryParserError {
     fn from(err: chrono::ParseError) -> QueryParserError {
         QueryParserError::DateFormatError(err)
+    }
+}
+
+impl From<FacetParseError> for QueryParserError {
+    fn from(err: FacetParseError) -> QueryParserError {
+        QueryParserError::FacetFormatError(err)
     }
 }
 
@@ -364,12 +369,7 @@ impl QueryParser {
             }
             FieldType::HierarchicalFacet(_) => match Facet::from_text(phrase) {
                 Ok(facet) => Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))]),
-                Err(e) => match e {
-                    TantivyError::InvalidArgument(path) => {
-                        Err(QueryParserError::FacetFormatError(path))
-                    }
-                    _ => Err(QueryParserError::SyntaxError),
-                },
+                Err(e) => Err(QueryParserError::from(e)),
             },
             FieldType::Bytes(_) => {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;

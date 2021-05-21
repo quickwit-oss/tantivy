@@ -128,6 +128,7 @@ pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;
 
 pub use self::facet::Facet;
+pub use self::facet::FacetParseError;
 pub(crate) use self::facet::FACET_SEP_BYTE;
 pub use self::facet_options::FacetOptions;
 

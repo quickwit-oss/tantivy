@@ -1,5 +1,4 @@
 use crate::common::BinarySerializable;
-use crate::TantivyError;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -20,6 +19,14 @@ pub const FACET_SEP_BYTE: u8 = 0u8;
 /// `char` used as a level separation in the binary
 /// representation of facets. (It is the null codepoint.)
 pub const FACET_SEP_CHAR: char = '\u{0}';
+
+/// An error enum for facet parser.
+#[derive(Debug, PartialEq, Eq, Error)]
+pub enum FacetParseError {
+    /// The facet text representation is unparsable.
+    #[error("Failed to parse the facet string: '{0:?}'")]
+    FacetParseError(String),
+}
 
 /// A Facet represent a point in a given hierarchy.
 ///
@@ -76,7 +83,7 @@ impl Facet {
     /// It is conceptually, if one of the steps of this path
     /// contains a `/` or a `\`, it should be escaped
     /// using an anti-slash `/`.
-    pub fn from_text<T>(path: &T) -> Result<Facet, TantivyError>
+    pub fn from_text<T>(path: &T) -> Result<Facet, FacetParseError>
     where
         T: ?Sized + AsRef<str>,
     {
@@ -87,10 +94,10 @@ impl Facet {
         }
         let path_ref = path.as_ref();
         if path_ref.is_empty() {
-            return Err(TantivyError::InvalidArgument(path_ref.to_string()));
+            return Err(FacetParseError::FacetParseError(path_ref.to_string()));
         }
         if !path_ref.starts_with('/') {
-            return Err(TantivyError::InvalidArgument(path_ref.to_string()));
+            return Err(FacetParseError::FacetParseError(path_ref.to_string()));
         }
         let mut facet_encoded = String::new();
         let mut state = State::Idle;
