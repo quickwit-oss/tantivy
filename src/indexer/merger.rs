@@ -184,25 +184,7 @@ impl IndexMerger {
             }
         }
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
-            // presort the readers by their min_values, so that when they are disjunct, we can use
-            // the regular merge logic (implicitly sorted)
-            let mut readers_with_min_sort_values = readers
-                .into_iter()
-                .map(|reader| {
-                    let accessor = Self::get_sort_field_accessor(&reader, &sort_by_field)?;
-                    Ok((reader, accessor.min_value()))
-                })
-                .collect::<crate::Result<Vec<_>>>()?;
-            if sort_by_field.order.is_asc() {
-                readers_with_min_sort_values.sort_by_key(|(_, min_val)| *min_val);
-            } else {
-                readers_with_min_sort_values
-                    .sort_by_key(|(_, min_val)| std::cmp::Reverse(*min_val));
-            }
-            readers = readers_with_min_sort_values
-                .into_iter()
-                .map(|(reader, _)| reader)
-                .collect();
+            readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;
         }
         // sort segments by their natural sort setting
         if max_doc >= MAX_DOC_LIMIT {
@@ -219,6 +201,30 @@ impl IndexMerger {
             readers,
             max_doc,
         })
+    }
+
+    fn sort_readers_by_min_sort_field(
+        readers: Vec<SegmentReader>,
+        sort_by_field: &IndexSortByField,
+    ) -> crate::Result<Vec<SegmentReader>> {
+        // presort the readers by their min_values, so that when they are disjunct, we can use
+        // the regular merge logic (implicitly sorted)
+        let mut readers_with_min_sort_values = readers
+            .into_iter()
+            .map(|reader| {
+                let accessor = Self::get_sort_field_accessor(&reader, &sort_by_field)?;
+                Ok((reader, accessor.min_value()))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        if sort_by_field.order.is_asc() {
+            readers_with_min_sort_values.sort_by_key(|(_, min_val)| *min_val);
+        } else {
+            readers_with_min_sort_values.sort_by_key(|(_, min_val)| std::cmp::Reverse(*min_val));
+        }
+        Ok(readers_with_min_sort_values
+            .into_iter()
+            .map(|(reader, _)| reader)
+            .collect())
     }
 
     fn write_fieldnorms(
@@ -383,8 +389,7 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<bool> {
-        let reader_and_field_accessors =
-            Self::get_reader_with_sort_field_accessor(&self.readers, sort_by_field)?;
+        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
 
         let everything_is_in_order = reader_and_field_accessors
             .into_iter()
@@ -410,10 +415,11 @@ impl IndexMerger {
     }
     /// Collecting value_accessors into a vec to bind the lifetime.
     pub(crate) fn get_reader_with_sort_field_accessor<'a, 'b>(
-        readers: &'a [SegmentReader],
+        &'a self,
         sort_by_field: &'b IndexSortByField,
     ) -> crate::Result<Vec<(SegmentReaderWithOrdinal<'a>, FastFieldReader<u64>)>> {
-        let reader_and_field_accessors = readers
+        let reader_and_field_accessors = self
+            .readers
             .iter()
             .enumerate()
             .map(Into::into)
@@ -434,8 +440,7 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Vec<(DocId, SegmentReaderWithOrdinal)>> {
-        let reader_and_field_accessors =
-            Self::get_reader_with_sort_field_accessor(&self.readers, sort_by_field)?;
+        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
         // Loading the field accessor on demand causes a 15x regression
 
         // create iterators over segment/sort_accessor/doc_id  tuple
