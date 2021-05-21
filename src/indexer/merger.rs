@@ -183,6 +183,10 @@ impl IndexMerger {
                 readers.push(reader);
             }
         }
+        if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
+            readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;
+        }
+        // sort segments by their natural sort setting
         if max_doc >= MAX_DOC_LIMIT {
             let err_msg = format!(
                 "The segment resulting from this merge would have {} docs,\
@@ -197,6 +201,30 @@ impl IndexMerger {
             readers,
             max_doc,
         })
+    }
+
+    fn sort_readers_by_min_sort_field(
+        readers: Vec<SegmentReader>,
+        sort_by_field: &IndexSortByField,
+    ) -> crate::Result<Vec<SegmentReader>> {
+        // presort the readers by their min_values, so that when they are disjunct, we can use
+        // the regular merge logic (implicitly sorted)
+        let mut readers_with_min_sort_values = readers
+            .into_iter()
+            .map(|reader| {
+                let accessor = Self::get_sort_field_accessor(&reader, &sort_by_field)?;
+                Ok((reader, accessor.min_value()))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        if sort_by_field.order.is_asc() {
+            readers_with_min_sort_values.sort_by_key(|(_, min_val)| *min_val);
+        } else {
+            readers_with_min_sort_values.sort_by_key(|(_, min_val)| std::cmp::Reverse(*min_val));
+        }
+        Ok(readers_with_min_sort_values
+            .into_iter()
+            .map(|(reader, _)| reader)
+            .collect())
     }
 
     fn write_fieldnorms(
@@ -355,6 +383,55 @@ impl IndexMerger {
         }
     }
 
+    /// Checks if the readers are disjunct for their sort property and in the correct order to be
+    /// able to just stack them.
+    pub(crate) fn is_disjunct_and_sorted_on_sort_property(
+        &self,
+        sort_by_field: &IndexSortByField,
+    ) -> crate::Result<bool> {
+        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
+
+        let everything_is_in_order = reader_and_field_accessors
+            .into_iter()
+            .map(|reader| reader.1)
+            .tuple_windows()
+            .all(|(field_accessor1, field_accessor2)| {
+                if sort_by_field.order.is_asc() {
+                    return field_accessor1.max_value() <= field_accessor2.min_value();
+                } else {
+                    return field_accessor1.min_value() >= field_accessor2.max_value();
+                }
+            });
+        Ok(everything_is_in_order)
+    }
+
+    pub(crate) fn get_sort_field_accessor<'a, 'b>(
+        reader: &SegmentReader,
+        sort_by_field: &'b IndexSortByField,
+    ) -> crate::Result<FastFieldReader<u64>> {
+        let field_id = expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
+        let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
+        Ok(value_accessor)
+    }
+    /// Collecting value_accessors into a vec to bind the lifetime.
+    pub(crate) fn get_reader_with_sort_field_accessor<'a, 'b>(
+        &'a self,
+        sort_by_field: &'b IndexSortByField,
+    ) -> crate::Result<Vec<(SegmentReaderWithOrdinal<'a>, FastFieldReader<u64>)>> {
+        let reader_and_field_accessors = self
+            .readers
+            .iter()
+            .enumerate()
+            .map(Into::into)
+            .map(|reader_with_ordinal: SegmentReaderWithOrdinal| {
+                let value_accessor =
+                    Self::get_sort_field_accessor(reader_with_ordinal.reader, sort_by_field)?;
+                Ok((reader_with_ordinal, value_accessor))
+            })
+            .collect::<crate::Result<Vec<_>>>()?;
+        Ok(reader_and_field_accessors)
+    }
+
     /// Generates the doc_id mapping where position in the vec=new
     /// doc_id.
     /// ReaderWithOrdinal will include the ordinal position of the
@@ -363,24 +440,8 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<Vec<(DocId, SegmentReaderWithOrdinal)>> {
-        let reader_and_field_accessors = self
-            .readers
-            .iter()
-            .enumerate()
-            .map(|reader| {
-                let reader_with_ordinal: SegmentReaderWithOrdinal = reader.into();
-                let field_id = expect_field_id_for_sort_field(
-                    &reader_with_ordinal.reader.schema(),
-                    &sort_by_field,
-                )?; // for now expect fastfield, but not strictly required
-                let value_accessor = reader_with_ordinal
-                    .reader
-                    .fast_fields()
-                    .u64_lenient(field_id)?;
-                Ok((reader_with_ordinal, value_accessor))
-            })
-            .collect::<crate::Result<Vec<_>>>()?; // Collecting to bind the lifetime of value_accessor into the vec, or can't be used as a reference.
-                                                  // Loading the field accessor on demand causes a 15x regression
+        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
+        // Loading the field accessor on demand causes a 15x regression
 
         // create iterators over segment/sort_accessor/doc_id  tuple
         let doc_id_reader_pair = reader_and_field_accessors
@@ -965,7 +1026,13 @@ impl SerializableSegment for IndexMerger {
     ) -> crate::Result<u32> {
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
-            Some(self.generate_doc_id_mapping(sort_by_field)?)
+            // If the documents are already sorted and stackable, we ignore the mapping and execute
+            // it as if there was no sorting
+            if self.is_disjunct_and_sorted_on_sort_property(sort_by_field)? {
+                None
+            } else {
+                Some(self.generate_doc_id_mapping(sort_by_field)?)
+            }
         } else {
             None
         };
@@ -1477,31 +1544,61 @@ mod tests {
     }
     #[test]
     fn test_merge_facets_sort_none() {
-        test_merge_facets(None)
+        test_merge_facets(None, true)
     }
 
     #[test]
     fn test_merge_facets_sort_asc() {
-        // the data is already sorted asc, so this should have no effect, but go through the docid
-        // mapping code
-        test_merge_facets(Some(IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "intval".to_string(),
-                order: Order::Asc,
+        // In the merge case this will go through the docid mapping code
+        test_merge_facets(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Desc,
+                }),
             }),
-        }));
+            true,
+        );
+        // In the merge case this will not go through the docid mapping code, because the data is
+        // sorted and disjunct
+        test_merge_facets(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Desc,
+                }),
+            }),
+            false,
+        );
     }
 
     #[test]
     fn test_merge_facets_sort_desc() {
-        test_merge_facets(Some(IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "intval".to_string(),
-                order: Order::Desc,
+        // In the merge case this will go through the docid mapping code
+        test_merge_facets(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Desc,
+                }),
             }),
-        }));
+            true,
+        );
+        // In the merge case this will not go through the docid mapping code, because the data is
+        // sorted and disjunct
+        test_merge_facets(
+            Some(IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "intval".to_string(),
+                    order: Order::Desc,
+                }),
+            }),
+            false,
+        );
     }
-    fn test_merge_facets(index_settings: Option<IndexSettings>) {
+    // force_segment_value_overlap forces the int value for sorting to have overlapping min and max
+    // ranges between segments so that merge algorithm can't apply certain optimizations
+    fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap: bool) {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let int_options = IntOptions::default()
@@ -1518,32 +1615,47 @@ mod tests {
         let mut int_val = 0;
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-            let mut index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
-                let mut doc = Document::default();
-                for facet in doc_facets {
-                    doc.add_facet(facet_field, Facet::from(facet));
-                }
-                doc.add_u64(int_field, int_val);
-                int_val += 1;
-                index_writer.add_document(doc);
-            };
+            let index_doc =
+                |index_writer: &mut IndexWriter, doc_facets: &[&str], int_val: &mut u64| {
+                    let mut doc = Document::default();
+                    for facet in doc_facets {
+                        doc.add_facet(facet_field, Facet::from(facet));
+                    }
+                    doc.add_u64(int_field, *int_val);
+                    *int_val += 1;
+                    index_writer.add_document(doc);
+                };
 
-            index_doc(&mut index_writer, &["/top/a/firstdoc", "/top/b"]);
-            index_doc(&mut index_writer, &["/top/a/firstdoc", "/top/b", "/top/c"]);
-            index_doc(&mut index_writer, &["/top/a", "/top/b"]);
-            index_doc(&mut index_writer, &["/top/a"]);
+            index_doc(
+                &mut index_writer,
+                &["/top/a/firstdoc", "/top/b"],
+                &mut int_val,
+            );
+            index_doc(
+                &mut index_writer,
+                &["/top/a/firstdoc", "/top/b", "/top/c"],
+                &mut int_val,
+            );
+            index_doc(&mut index_writer, &["/top/a", "/top/b"], &mut int_val);
+            index_doc(&mut index_writer, &["/top/a"], &mut int_val);
 
-            index_doc(&mut index_writer, &["/top/b", "/top/d"]);
-            index_doc(&mut index_writer, &["/top/d"]);
-            index_doc(&mut index_writer, &["/top/e"]);
+            index_doc(&mut index_writer, &["/top/b", "/top/d"], &mut int_val);
+            if force_segment_value_overlap {
+                index_doc(&mut index_writer, &["/top/d"], &mut 0);
+                index_doc(&mut index_writer, &["/top/e"], &mut 10);
+                index_writer.commit().expect("committed");
+                index_doc(&mut index_writer, &["/top/a"], &mut 5); // 5 is between 0 - 10 so the segments don' have disjunct ranges
+            } else {
+                index_doc(&mut index_writer, &["/top/d"], &mut int_val);
+                index_doc(&mut index_writer, &["/top/e"], &mut int_val);
+                index_writer.commit().expect("committed");
+                index_doc(&mut index_writer, &["/top/a"], &mut int_val);
+            }
+            index_doc(&mut index_writer, &["/top/b"], &mut int_val);
+            index_doc(&mut index_writer, &["/top/c"], &mut int_val);
             index_writer.commit().expect("committed");
 
-            index_doc(&mut index_writer, &["/top/a"]);
-            index_doc(&mut index_writer, &["/top/b"]);
-            index_doc(&mut index_writer, &["/top/c"]);
-            index_writer.commit().expect("committed");
-
-            index_doc(&mut index_writer, &["/top/e", "/top/f"]);
+            index_doc(&mut index_writer, &["/top/e", "/top/f"], &mut int_val);
             index_writer.commit().expect("committed");
         }
 

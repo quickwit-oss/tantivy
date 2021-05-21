@@ -255,6 +255,17 @@ pub enum Order {
     /// Descending Order
     Desc,
 }
+impl Order {
+    /// return if the Order is ascending
+    pub fn is_asc(&self) -> bool {
+        self == &Order::Asc
+    }
+    /// return if the Order is descending
+    pub fn is_desc(&self) -> bool {
+        self == &Order::Desc
+    }
+}
+
 /// Meta information about the `Index`.
 ///
 /// This object is serialized on disk in the `meta.json` file.
