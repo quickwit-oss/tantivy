@@ -24,7 +24,7 @@ pub const FACET_SEP_CHAR: char = '\u{0}';
 #[derive(Debug, PartialEq, Eq, Error)]
 pub enum FacetParseError {
     /// The facet text representation is unparsable.
-    #[error("Failed to parse the facet string: '{0:?}'")]
+    #[error("Failed to parse the facet string: '{0}'")]
     FacetParseError(String),
 }
 
@@ -238,7 +238,7 @@ impl Debug for Facet {
 #[cfg(test)]
 mod tests {
 
-    use super::Facet;
+    use super::{Facet, FacetParseError};
 
     #[test]
     fn test_root() {
@@ -299,5 +299,13 @@ mod tests {
         let v: Vec<&str> = vec![];
         let facet = Facet::from_path(v.iter());
         assert_eq!(facet.to_path_string(), "/");
+    }
+
+    #[test]
+    fn test_from_text() {
+        assert_eq!(
+            Err(FacetParseError::FacetParseError("INVALID".to_string())),
+            Facet::from_text("INVALID")
+        );
     }
 }
