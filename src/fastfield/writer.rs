@@ -7,6 +7,7 @@ use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
 use fnv::FnvHashMap;
+use tantivy_fst::Ulen;
 use std::collections::HashMap;
 use std::io;
 
@@ -158,7 +159,7 @@ impl FastFieldsWriter {
 pub struct IntFastFieldWriter {
     field: Field,
     vals: Vec<u8>,
-    val_count: usize,
+    val_count: Ulen,
     val_if_missing: u64,
     val_min: u64,
     val_max: u64,

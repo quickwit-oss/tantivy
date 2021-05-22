@@ -5,6 +5,7 @@ use crate::directory::{Directory, FileSlice, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::{common::HasLen, core::META_FILEPATH};
 use fail::fail_point;
+use tantivy_fst::Ulen;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
@@ -114,8 +115,8 @@ impl InnerDirectory {
         self.watch_router.subscribe(watch_handle)
     }
 
-    fn total_mem_usage(&self) -> usize {
-        self.fs.values().map(|f| f.len() as usize).sum()
+    fn total_mem_usage(&self) -> Ulen {
+        self.fs.values().map(|f| f.len() as Ulen).sum()
     }
 }
 
@@ -137,7 +138,7 @@ impl RAMDirectory {
 
     /// Returns the sum of the size of the different files
     /// in the RAMDirectory.
-    pub fn total_mem_usage(&self) -> usize {
+    pub fn total_mem_usage(&self) -> Ulen {
         self.fs.read().unwrap().total_mem_usage()
     }
 

@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::operation::DeleteOperation;
 use crate::Opstamp;
 use std::mem;
@@ -247,6 +249,8 @@ impl DeleteCursor {
 #[cfg(test)]
 mod tests {
 
+    use tantivy_fst::Ulen;
+
     use super::{DeleteOperation, DeleteQueue};
     use crate::schema::{Field, Term};
 
@@ -254,7 +258,7 @@ mod tests {
     fn test_deletequeue() {
         let delete_queue = DeleteQueue::new();
 
-        let make_op = |i: usize| {
+        let make_op = |i: Ulen| {
             let field = Field::from_field_id(1u32);
             DeleteOperation {
                 opstamp: i as u64,

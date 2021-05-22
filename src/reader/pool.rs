@@ -1,5 +1,6 @@
 use crossbeam::channel::unbounded;
 use crossbeam::channel::{Receiver, RecvError, Sender};
+use tantivy_fst::Ulen;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -187,17 +188,18 @@ mod tests {
     use super::Pool;
     use super::Queue;
     use crossbeam::channel;
+    use tantivy_fst::Ulen;
     use std::{iter, mem};
 
     #[test]
     fn test_pool() {
-        let items10: Vec<usize> = iter::repeat(10).take(10).collect();
+        let items10: Vec<Ulen> = iter::repeat(10).take(10).collect();
         let pool = Pool::new();
         pool.publish_new_generation(items10);
         for _ in 0..20 {
             assert_eq!(*pool.acquire(), 10);
         }
-        let items11: Vec<usize> = iter::repeat(11).take(10).collect();
+        let items11: Vec<Ulen> = iter::repeat(11).take(10).collect();
         pool.publish_new_generation(items11);
         for _ in 0..20 {
             assert_eq!(*pool.acquire(), 11);

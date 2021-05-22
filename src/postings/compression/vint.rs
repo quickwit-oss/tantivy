@@ -1,4 +1,4 @@
-use tantivy_fst::FakeArr;
+use tantivy_fst::{FakeArr, Ulen};
 
 #[inline(always)]
 pub fn compress_sorted<'a>(input: &[u32], output: &'a mut [u8], mut offset: u32) -> &'a [u8] {
@@ -45,12 +45,12 @@ pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a 
 
 #[inline(always)]
 pub fn uncompress_sorted(compressed_data: &dyn FakeArr, output: &mut [u32], offset: u32) -> usize {
-    let mut read_byte = 0;
+    let mut read_byte: usize = 0;
     let mut result = offset;
     for output_mut in output.iter_mut() {
         let mut shift = 0u32;
         loop {
-            let cur_byte = compressed_data.get_byte(read_byte);
+            let cur_byte = compressed_data.get_byte(read_byte as Ulen);
             read_byte += 1;
             result += u32::from(cur_byte % 128u8) << shift;
             if cur_byte & 128u8 != 0u8 {
@@ -65,12 +65,12 @@ pub fn uncompress_sorted(compressed_data: &dyn FakeArr, output: &mut [u32], offs
 
 #[inline(always)]
 pub(crate) fn uncompress_unsorted(compressed_data: &dyn FakeArr, output_arr: &mut [u32]) -> usize {
-    let mut read_byte = 0;
+    let mut read_byte: usize = 0;
     for output_mut in output_arr.iter_mut() {
         let mut result = 0u32;
         let mut shift = 0u32;
         loop {
-            let cur_byte = compressed_data.get_byte(read_byte);
+            let cur_byte = compressed_data.get_byte(read_byte as Ulen);
             read_byte += 1;
             result += u32::from(cur_byte % 128u8) << shift;
             if cur_byte & 128u8 != 0u8 {

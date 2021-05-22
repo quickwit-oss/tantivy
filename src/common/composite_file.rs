@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
 use crate::common::VInt;
@@ -14,11 +16,11 @@ use super::HasLen;
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
     field: Field,
-    idx: usize,
+    idx: Ulen,
 }
 
 impl FileAddr {
-    fn new(field: Field, idx: usize) -> FileAddr {
+    fn new(field: Field, idx: Ulen) -> FileAddr {
         FileAddr { field, idx }
     }
 }
@@ -32,7 +34,7 @@ impl BinarySerializable for FileAddr {
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let field = Field::deserialize(reader)?;
-        let idx = VInt::deserialize(reader)?.0 as usize;
+        let idx = VInt::deserialize(reader)?.0 as Ulen;
         Ok(FileAddr { field, idx })
     }
 }
@@ -59,7 +61,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
     }
 
     /// Start writing a new field.
-    pub fn for_field_with_idx(&mut self, field: Field, idx: usize) -> &mut CountingWriter<W> {
+    pub fn for_field_with_idx(&mut self, field: Field, idx: Ulen) -> &mut CountingWriter<W> {
         let offset = self.write.written_bytes();
         let file_addr = FileAddr::new(field, idx);
         assert!(!self.offsets.contains_key(&file_addr));
@@ -105,7 +107,7 @@ impl<W: TerminatingWrite + Write> CompositeWrite<W> {
 #[derive(Clone)]
 pub struct CompositeFile {
     data: FileSlice,
-    offsets_index: HashMap<FileAddr, (usize, usize)>,
+    offsets_index: HashMap<FileAddr, (Ulen, Ulen)>,
 }
 
 impl CompositeFile {
@@ -114,7 +116,7 @@ impl CompositeFile {
     pub fn open(data: &FileSlice) -> io::Result<CompositeFile> {
         let end = data.len();
         let footer_len_data = data.slice_from(end - 4).read_bytes()?;
-        let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
+        let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as Ulen;
         let footer_start = end - 4 - footer_len;
         let footer_data = data
             .slice(footer_start, footer_start + footer_len)
@@ -128,7 +130,7 @@ impl CompositeFile {
 
         let mut offset = 0;
         for _ in 0..num_fields {
-            offset += VInt::deserialize(&mut footer_buffer)?.0 as usize;
+            offset += VInt::deserialize(&mut footer_buffer)?.0 as Ulen;
             let file_addr = FileAddr::deserialize(&mut footer_buffer)?;
             offsets.push(offset);
             file_addrs.push(file_addr);
@@ -164,7 +166,7 @@ impl CompositeFile {
 
     /// Returns the `FileSlice` associated
     /// to a given `Field` and stored in a `CompositeFile`.
-    pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<FileSlice> {
+    pub fn open_read_with_idx(&self, field: Field, idx: Ulen) -> Option<FileSlice> {
         self.offsets_index
             .get(&FileAddr { field, idx })
             .map(|&(from, to)| self.data.slice(from, to))
@@ -176,7 +178,7 @@ impl CompositeFile {
             fields
                 .entry(field_addr.field)
                 .or_insert_with(|| FieldUsage::empty(field_addr.field))
-                .add_field_idx(field_addr.idx, end - start);
+                .add_field_idx(field_addr.idx as usize, end - start);
         }
         PerFieldSpaceUsage::new(fields)
     }

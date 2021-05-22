@@ -269,7 +269,7 @@ impl Collector for FacetCollector {
 
         let mut collapse_mapping = Vec::new();
         let mut counts = Vec::new();
-        let mut collapse_facet_ords = Vec::new();
+        let mut collapse_facet_ords: Vec<u64> = Vec::new();
 
         let mut collapse_facet_it = self.facets.iter().peekable();
         collapse_facet_ords.push(0);

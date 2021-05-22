@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::DocId;
 
 use super::fieldnorm_to_id;

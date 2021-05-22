@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::HasLen;
 use crate::docset::DocSet;
 use crate::fastfield::DeleteBitSet;
@@ -99,9 +101,9 @@ impl SegmentPostings {
         fieldnorms: Option<&[u32]>,
     ) -> SegmentPostings {
         use crate::directory::FileSlice;
+        use crate::fieldnorm::FieldNormReader;
         use crate::postings::serializer::PostingsSerializer;
         use crate::schema::IndexRecordOption;
-        use crate::fieldnorm::FieldNormReader;
         use crate::Score;
         let mut buffer: Vec<u8> = Vec::new();
         let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
@@ -165,7 +167,7 @@ impl DocSet for SegmentPostings {
     #[inline]
     fn advance(&mut self) -> DocId {
         debug_assert!(self.block_cursor.block_is_loaded());
-        if self.cur == COMPRESSION_BLOCK_SIZE - 1 {
+        if self.cur == (COMPRESSION_BLOCK_SIZE - 1) {
             self.cur = 0;
             self.block_cursor.advance();
         } else {
@@ -215,8 +217,8 @@ impl DocSet for SegmentPostings {
 }
 
 impl HasLen for SegmentPostings {
-    fn len(&self) -> usize {
-        self.block_cursor.doc_freq() as usize
+    fn len(&self) -> Ulen {
+        self.block_cursor.doc_freq() as Ulen
     }
 }
 

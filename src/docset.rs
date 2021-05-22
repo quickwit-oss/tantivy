@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::fastfield::DeleteBitSet;
 use crate::DocId;
 use std::borrow::Borrow;
@@ -67,10 +69,10 @@ pub trait DocSet: Send {
         for (i, buffer_val) in buffer.iter_mut().enumerate() {
             *buffer_val = self.doc();
             if self.advance() == TERMINATED {
-                return i + 1;
+                return i + 1 as usize;
             }
         }
-        buffer.len()
+        buffer.len() as usize
     }
 
     /// Returns the current document

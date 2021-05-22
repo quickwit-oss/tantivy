@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::VInt;
 use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
 use crate::DocId;
@@ -81,7 +83,7 @@ impl CheckpointBlock {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, ""));
         }
         self.checkpoints.clear();
-        let len = VInt::deserialize_u64(data)? as usize;
+        let len = VInt::deserialize_u64(data)? as Ulen;
         if len == 0 {
             return Ok(());
         }

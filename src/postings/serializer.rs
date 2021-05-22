@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::TermInfo;
 use crate::common::{BinarySerializable, VInt};
 use crate::common::{CompositeWrite, CountingWriter};
@@ -263,16 +265,16 @@ impl<'a> FieldSerializer<'a> {
 }
 
 struct Block {
-    doc_ids: [DocId; COMPRESSION_BLOCK_SIZE],
-    term_freqs: [u32; COMPRESSION_BLOCK_SIZE],
+    doc_ids: [DocId; COMPRESSION_BLOCK_SIZE as usize],
+    term_freqs: [u32; COMPRESSION_BLOCK_SIZE as usize],
     len: usize,
 }
 
 impl Block {
     fn new() -> Self {
         Block {
-            doc_ids: [0u32; COMPRESSION_BLOCK_SIZE],
-            term_freqs: [0u32; COMPRESSION_BLOCK_SIZE],
+            doc_ids: [0u32; COMPRESSION_BLOCK_SIZE as usize],
+            term_freqs: [0u32; COMPRESSION_BLOCK_SIZE as usize],
             len: 0,
         }
     }

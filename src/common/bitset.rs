@@ -1,6 +1,8 @@
 use std::fmt;
 use std::u64;
 
+use tantivy_fst::Ulen;
+
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) struct TinySet(u64);
 

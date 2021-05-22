@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use tantivy_fst::Ulen;
+
 use crate::common::HasLen;
 use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
@@ -43,8 +45,8 @@ impl DocSet for VecDocSet {
 }
 
 impl HasLen for VecDocSet {
-    fn len(&self) -> usize {
-        self.doc_ids.len()
+    fn len(&self) -> Ulen {
+        self.doc_ids.len() as Ulen
     }
 }
 

@@ -1,5 +1,7 @@
 use std::fmt;
 
+use tantivy_fst::Ulen;
+
 use super::Field;
 use crate::common;
 use crate::schema::Facet;

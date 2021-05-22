@@ -214,6 +214,7 @@ mod tests {
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
+    use tantivy_fst::Ulen;
     use std::collections::HashMap;
     use std::path::Path;
 
@@ -256,7 +257,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 36 as usize);
+        assert_eq!(file.len(), 36 as Ulen);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = FastFieldReader::<u64>::open(file)?;
@@ -287,7 +288,7 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(&path)?;
-        assert_eq!(file.len(), 61 as usize);
+        assert_eq!(file.len(), 61 as Ulen);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -323,7 +324,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 34 as usize);
+        assert_eq!(file.len(), 34 as Ulen);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -355,7 +356,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 80042 as usize);
+        assert_eq!(file.len(), 80042 as Ulen);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -394,7 +395,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 17709 as usize);
+        assert_eq!(file.len(), 17709 as Ulen);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();
@@ -589,7 +590,7 @@ mod bench {
             let n = test::black_box(7000u32);
             let mut a = 0u64;
             for i in (0u32..n / 7).map(|v| v * 7) {
-                a ^= permutation[i as usize];
+                a ^= permutation[i as Ulen];
             }
             a
         });
@@ -602,7 +603,7 @@ mod bench {
             let n = test::black_box(1000u32);
             let mut a = 0u64;
             for _ in 0u32..n {
-                a = permutation[a as usize];
+                a = permutation[a as Ulen];
             }
             a
         });

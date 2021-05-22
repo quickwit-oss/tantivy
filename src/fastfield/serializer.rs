@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::bitpacker::BitPacker;
 use crate::common::compute_num_bits;
 use crate::common::BinarySerializable;
@@ -55,7 +57,7 @@ impl FastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-        idx: usize,
+        idx: Ulen,
     ) -> io::Result<FastSingleFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastSingleFieldSerializer::open(field_write, min_value, max_value)
@@ -65,7 +67,7 @@ impl FastFieldSerializer {
     pub fn new_bytes_fast_field_with_idx(
         &mut self,
         field: Field,
-        idx: usize,
+        idx: Ulen,
     ) -> io::Result<FastBytesFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastBytesFieldSerializer::open(field_write)

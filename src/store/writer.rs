@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::compress;
 use super::index::SkipIndexBuilder;
 use super::StoreReader;
@@ -10,7 +12,7 @@ use crate::store::index::Checkpoint;
 use crate::DocId;
 use std::io::{self, Write};
 
-const BLOCK_SIZE: usize = 16_384;
+const BLOCK_SIZE: Ulen = 16_384;
 
 /// Write tantivy's [`Store`](./index.html)
 ///
@@ -58,7 +60,7 @@ impl StoreWriter {
         self.current_block
             .write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
-        if self.current_block.len() > BLOCK_SIZE {
+        if self.current_block.len() > BLOCK_SIZE as usize {
             self.write_and_compress_block()?;
         }
         Ok(())

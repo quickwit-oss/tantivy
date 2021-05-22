@@ -1,4 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use tantivy_fst::Ulen;
 use std::io;
 
 use crate::directory::OwnedBytes;
@@ -103,6 +104,8 @@ impl BitUnpacker {
 
 #[cfg(test)]
 mod test {
+    use tantivy_fst::Ulen;
+
     use super::{BitPacker, BitUnpacker};
     use crate::directory::OwnedBytes;
 

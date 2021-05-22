@@ -12,10 +12,11 @@ under-count actual resultant space usage by up to 4095 bytes per file.
 use crate::schema::Field;
 use crate::SegmentComponent;
 use serde::{Deserialize, Serialize};
+use tantivy_fst::Ulen;
 use std::collections::HashMap;
 
 /// Indicates space usage in bytes
-pub type ByteCount = usize;
+pub type ByteCount = Ulen;
 
 /// Enum containing any of the possible space usage results for segment components.
 pub enum ComponentSpaceUsage {

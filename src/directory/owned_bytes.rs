@@ -8,6 +8,8 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::{fmt, io};
 
+use super::FileSlice;
+
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a static slice.
 ///
@@ -26,11 +28,11 @@ impl FileHandle for OwnedBytes {
 
 
 /*impl FakeArr for OwnedBytes {
-    fn len(&self) -> usize {
+    fn len(&self) -> Ulen {
         self.data.len()
     }
 
-    fn read_into(&self, offset: usize, buf: &mut [u8]) -> std::io::Result<()> {
+    fn read_into(&self, offset: Ulen, buf: &mut [u8]) -> std::io::Result<()> {
         let bytes = self.read_bytes(offset, offset + buf.len())?;
         buf.copy_from_slice(&bytes[..]);
         Ok(())
@@ -76,10 +78,14 @@ impl OwnedBytes {
         self.data
     }
 
+    pub fn as_file_slice(self) -> FileSlice {
+        FileSlice::new(Box::new(self))
+    }
+
     /// Returns the len of the slice.
     #[inline(always)]
-    pub fn len(&self) -> usize {
-        self.data.len()
+    pub fn len(&self) -> Ulen {
+        self.data.len() as Ulen
     }
 
     /// Splits the OwnedBytes into two OwnedBytes `(left, right)`.
@@ -111,10 +117,10 @@ impl OwnedBytes {
 
     /// Drops the left most `advance_len` bytes.
     ///
-    /// See also [.clip(clip_len: usize))](#method.clip).
+    /// See also [.clip(clip_len: Ulen))](#method.clip).
     #[inline(always)]
     pub fn advance(&mut self, advance_len: usize) {
-        self.data = &self.data[advance_len..]
+        self.data = &self.data[advance_len as usize..]
     }
 
     /// Reads an `u8` from the `OwnedBytes` and advance by one byte.

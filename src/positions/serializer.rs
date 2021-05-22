@@ -3,6 +3,7 @@ use crate::common::CountingWriter;
 use crate::positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
 use bitpacking::BitPacker;
 use bitpacking::BitPacker4x;
+use tantivy_fst::Ulen;
 use std::io::{self, Write};
 
 pub struct PositionSerializer<W: io::Write> {

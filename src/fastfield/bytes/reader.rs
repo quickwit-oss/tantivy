@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::fastfield::FastFieldReader;
@@ -28,20 +30,20 @@ impl BytesFastFieldReader {
         Ok(BytesFastFieldReader { idx_reader, values })
     }
 
-    fn range(&self, doc: DocId) -> (usize, usize) {
-        let start = self.idx_reader.get(doc) as usize;
-        let stop = self.idx_reader.get(doc + 1) as usize;
+    fn range(&self, doc: DocId) -> (Ulen, Ulen) {
+        let start = self.idx_reader.get(doc) as Ulen;
+        let stop = self.idx_reader.get(doc + 1) as Ulen;
         (start, stop)
     }
 
     /// Returns the bytes associated to the given `doc`
     pub fn get_bytes(&self, doc: DocId) -> &[u8] {
         let (start, stop) = self.range(doc);
-        &self.values.as_slice()[start..stop]
+        &self.values.as_slice()[start as usize..stop as usize]
     }
 
     /// Returns the overall number of bytes in this bytes fast field.
-    pub fn total_num_bytes(&self) -> usize {
+    pub fn total_num_bytes(&self) -> Ulen {
         self.values.len()
     }
 }

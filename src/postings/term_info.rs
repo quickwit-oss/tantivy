@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::{BinarySerializable, FixedSize};
 use std::io;
 
@@ -29,7 +31,7 @@ impl FixedSize for TermInfo {
     /// This is large, but in practise, `TermInfo` are encoded in blocks and
     /// only the first `TermInfo` of a block is serialized uncompressed.
     /// The subsequent `TermInfo` are delta encoded and bitpacked.
-    const SIZE_IN_BYTES: usize = 2 * u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES;
+    const SIZE_IN_BYTES: Ulen = 2 * u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES;
 }
 
 impl BinarySerializable for TermInfo {

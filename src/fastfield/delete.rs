@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::{BitSet, HasLen};
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
@@ -41,7 +43,7 @@ pub fn write_delete_bitset(
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: OwnedBytes,
-    len: usize,
+    len: Ulen,
 }
 
 impl DeleteBitSet {
@@ -66,10 +68,10 @@ impl DeleteBitSet {
     /// Opens a delete bitset given its file.
     pub fn open(file: FileSlice) -> crate::Result<DeleteBitSet> {
         let bytes = file.read_bytes()?;
-        let num_deleted: usize = bytes
+        let num_deleted: Ulen = bytes
             .as_slice()
             .iter()
-            .map(|b| b.count_ones() as usize)
+            .map(|b| b.count_ones() as Ulen)
             .sum();
         Ok(DeleteBitSet {
             data: bytes,
@@ -98,7 +100,7 @@ impl DeleteBitSet {
 }
 
 impl HasLen for DeleteBitSet {
-    fn len(&self) -> usize {
+    fn len(&self) -> Ulen {
         self.len
     }
 }

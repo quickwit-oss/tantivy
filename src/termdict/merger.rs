@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::schema::Term;
 use crate::termdict::TermOrdinal;
 use crate::termdict::TermStreamer;

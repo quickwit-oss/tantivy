@@ -23,6 +23,7 @@ use futures::channel::oneshot;
 use futures::executor::{ThreadPool, ThreadPoolBuilder};
 use futures::future::Future;
 use futures::future::TryFutureExt;
+use tantivy_fst::Ulen;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::io::Write;

@@ -110,8 +110,9 @@ impl WatchCallbackList {
 mod tests {
     use crate::directory::{WatchCallback, WatchCallbackList};
     use futures::executor::block_on;
-    use std::mem;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tantivy_fst::Ulen;
+    use std::{mem, sync::atomic::AtomicUsize};
+    use std::sync::atomic::{Ordering};
     use std::sync::Arc;
 
     #[test]

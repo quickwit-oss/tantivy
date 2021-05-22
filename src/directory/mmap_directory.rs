@@ -14,6 +14,7 @@ use fs2::FileExt;
 use memmap::Mmap;
 use serde::{Deserialize, Serialize};
 use stable_deref_trait::StableDeref;
+use tantivy_fst::Ulen;
 use std::convert::From;
 use std::fmt;
 use std::fs::OpenOptions;
@@ -62,10 +63,10 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct CacheCounters {
     // Number of time the cache prevents to call `mmap`
-    pub hit: usize,
+    pub hit: Ulen,
     // Number of time tantivy had to call `mmap`
     // as no entry was in the cache.
-    pub miss: usize,
+    pub miss: Ulen,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

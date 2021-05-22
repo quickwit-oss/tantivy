@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::{BinarySerializable, VInt};
 use crate::directory::OwnedBytes;
 use crate::store::index::block::CheckpointBlock;

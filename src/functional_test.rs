@@ -3,6 +3,7 @@ use crate::Searcher;
 use crate::{doc, schema::*};
 use rand::thread_rng;
 use rand::Rng;
+use tantivy_fst::Ulen;
 use std::collections::HashSet;
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
@@ -37,7 +38,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut doc_id = 0u64;
     for iteration in 0..500 {
         dbg!(iteration);
-        let num_docs: usize = rng.gen_range(0..4);
+        let num_docs: Ulen = rng.gen_range(0..4);
         if doc_set.len() >= 1 {
             let doc_to_remove_id = rng.gen_range(0..doc_set.len());
             let removed_doc_id = doc_set.swap_remove(doc_to_remove_id);

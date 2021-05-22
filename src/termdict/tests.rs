@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
 
 use crate::directory::{Directory, FileSlice, RAMDirectory, TerminatingWrite};

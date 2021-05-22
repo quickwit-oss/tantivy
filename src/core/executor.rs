@@ -1,5 +1,6 @@
 use crossbeam::channel;
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use tantivy_fst::Ulen;
 
 /// Search executor whether search request are single thread or multithread.
 ///
@@ -87,12 +88,14 @@ impl Executor {
 #[cfg(test)]
 mod tests {
 
+    use tantivy_fst::Ulen;
+
     use super::Executor;
 
     #[test]
     #[should_panic(expected = "panic should propagate")]
     fn test_panic_propagates_single_thread() {
-        let _result: Vec<usize> = Executor::single_thread()
+        let _result: Vec<Ulen> = Executor::single_thread()
             .map(
                 |_| {
                     panic!("panic should propagate");
@@ -105,7 +108,7 @@ mod tests {
     #[test]
     #[should_panic] //< unfortunately the panic message is not propagated
     fn test_panic_propagates_multi_thread() {
-        let _result: Vec<usize> = Executor::multi_thread(1, "search-test")
+        let _result: Vec<Ulen> = Executor::multi_thread(1, "search-test")
             .unwrap()
             .map(
                 |_| {

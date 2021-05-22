@@ -1,4 +1,4 @@
-use tantivy_fst::FakeArr;
+use tantivy_fst::{FakeArr, Ulen};
 
 use super::{fieldnorm_to_id, id_to_fieldnorm};
 use crate::{HasLen, common::CompositeFile};
@@ -126,7 +126,7 @@ impl FieldNormReader {
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
         match &self.0 {
             ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.get_byte(doc_id as usize);
+                let fieldnorm_id = data.get_byte(doc_id as Ulen);
                 id_to_fieldnorm(fieldnorm_id)
             }
             ReaderImplEnum::Const { fieldnorm, .. } => *fieldnorm,
@@ -138,7 +138,7 @@ impl FieldNormReader {
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
             ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.get_byte(doc_id as usize);
+                let fieldnorm_id = data.get_byte(doc_id as Ulen);
                 fieldnorm_id
             }
             ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,
@@ -166,7 +166,7 @@ impl FieldNormReader {
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = OwnedBytes::new(field_norms_id);
-        FieldNormReader::new(field_norms_data)
+        FieldNormReader::new(field_norms_data.as_file_slice())
     }
 }
 

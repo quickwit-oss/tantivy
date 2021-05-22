@@ -9,6 +9,7 @@ use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Map as JsonObject, Value as JsonValue};
+use tantivy_fst::Ulen;
 use std::fmt;
 
 /// Tantivy has a very strict schema.

@@ -31,7 +31,7 @@ impl BinarySerializable for () {
 }
 
 impl FixedSize for () {
-    const SIZE_IN_BYTES: usize = 0;
+    const SIZE_IN_BYTES: Ulen = 0;
 }
 
 impl<T: BinarySerializable> BinarySerializable for Vec<T> {
@@ -74,7 +74,7 @@ impl BinarySerializable for u32 {
 }
 
 impl FixedSize for u32 {
-    const SIZE_IN_BYTES: usize = 4;
+    const SIZE_IN_BYTES: Ulen = 4;
 }
 
 impl BinarySerializable for u64 {
@@ -87,7 +87,7 @@ impl BinarySerializable for u64 {
 }
 
 impl FixedSize for u64 {
-    const SIZE_IN_BYTES: usize = 8;
+    const SIZE_IN_BYTES: Ulen = 8;
 }
 
 impl BinarySerializable for f32 {
@@ -100,7 +100,7 @@ impl BinarySerializable for f32 {
 }
 
 impl FixedSize for f32 {
-    const SIZE_IN_BYTES: usize = 4;
+    const SIZE_IN_BYTES: Ulen = 4;
 }
 
 impl BinarySerializable for i64 {
@@ -113,7 +113,7 @@ impl BinarySerializable for i64 {
 }
 
 impl FixedSize for i64 {
-    const SIZE_IN_BYTES: usize = 8;
+    const SIZE_IN_BYTES: Ulen = 8;
 }
 
 impl BinarySerializable for f64 {
@@ -126,7 +126,7 @@ impl BinarySerializable for f64 {
 }
 
 impl FixedSize for f64 {
-    const SIZE_IN_BYTES: usize = 8;
+    const SIZE_IN_BYTES: Ulen = 8;
 }
 
 impl BinarySerializable for u8 {
@@ -139,7 +139,7 @@ impl BinarySerializable for u8 {
 }
 
 impl FixedSize for u8 {
-    const SIZE_IN_BYTES: usize = 1;
+    const SIZE_IN_BYTES: Ulen = 1;
 }
 
 impl BinarySerializable for String {
@@ -168,7 +168,7 @@ pub mod test {
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();
-        assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
+        assert_eq!(buffer.len(), O::SIZE_IN_BYTES as usize);
     }
 
     fn serialize_test<T: BinarySerializable + Eq>(v: T) -> usize {

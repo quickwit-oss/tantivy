@@ -66,6 +66,8 @@ use self::compression_snap::{compress, decompress};
 #[cfg(test)]
 pub mod tests {
 
+    use tantivy_fst::Ulen;
+
     use super::*;
     use crate::directory::{Directory, RAMDirectory, WritePtr};
     use crate::schema::Document;
@@ -74,7 +76,7 @@ pub mod tests {
     use crate::schema::TextOptions;
     use std::path::Path;
 
-    pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
+    pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: Ulen) -> Schema {
         let mut schema_builder = Schema::builder();
         let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
         let field_title =

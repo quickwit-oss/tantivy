@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::*;
 use crate::common::BinarySerializable;
 use crate::common::VInt;
@@ -200,7 +202,7 @@ impl BinarySerializable for Document {
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let num_field_values = VInt::deserialize(reader)?.val() as usize;
+        let num_field_values = VInt::deserialize(reader)?.val() as Ulen;
         let field_values = (0..num_field_values)
             .map(|_| FieldValue::deserialize(reader))
             .collect::<io::Result<Vec<FieldValue>>>()?;

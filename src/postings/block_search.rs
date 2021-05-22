@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::postings::compression::AlignedBuffer;
 
 /// This modules define the logic used to search for a doc in a given
@@ -8,6 +10,8 @@ use crate::postings::compression::AlignedBuffer;
 
 #[cfg(target_arch = "x86_64")]
 mod sse2 {
+    use tantivy_fst::Ulen;
+
     use crate::postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
     use std::arch::x86_64::__m128i as DataType;
     use std::arch::x86_64::_mm_add_epi32 as op_add;
@@ -53,7 +57,7 @@ mod sse2 {
 
         #[test]
         fn test_linear_search_sse2_128_u32() {
-            let mut block = [0u32; COMPRESSION_BLOCK_SIZE];
+            let mut block = [0u32; COMPRESSION_BLOCK_SIZE as usize];
             for el in 0u32..128u32 {
                 block[el as usize] = el * 2 + 1 << 18;
             }
@@ -72,7 +76,7 @@ fn linear_search(arr: &[u32], target: u32) -> usize {
     arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
 }
 
-fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
+fn exponential_search(arr: &[u32], target: u32) -> (usize,usize) {
     let end = arr.len();
     let mut begin = 0;
     for &pivot in &[1, 3, 7, 15, 31, 63] {
@@ -159,6 +163,8 @@ impl Default for BlockSearcher {
 
 #[cfg(test)]
 mod tests {
+    use tantivy_fst::Ulen;
+
     use super::exponential_search;
     use super::linear_search;
     use super::BlockSearcher;
@@ -193,7 +199,7 @@ mod tests {
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
         assert!(block.len() < COMPRESSION_BLOCK_SIZE);
-        let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE];
+        let mut output_buffer = [TERMINATED; COMPRESSION_BLOCK_SIZE as usize];
         output_buffer[..block.len()].copy_from_slice(block);
         assert_eq!(
             block_searcher.search_in_block(&AlignedBuffer(output_buffer), target),

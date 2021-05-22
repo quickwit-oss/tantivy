@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use tantivy_fst::FakeArr;
+use tantivy_fst::{FakeArr, Ulen};
 
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::compression::{compressed_block_size, COMPRESSION_BLOCK_SIZE};
@@ -75,7 +75,7 @@ pub(crate) struct SkipReader {
     pub(crate) last_doc_in_previous_block: DocId,
     owned_read: FileSlice,
     skip_info: IndexRecordOption,
-    byte_offset: usize,
+    byte_offset: Ulen,
     remaining_docs: u32, // number of docs remaining, including the
     // documents in the current block.
     block_info: BlockInfo,
@@ -166,13 +166,13 @@ impl SkipReader {
     }
 
     #[inline(always)]
-    pub fn byte_offset(&self) -> usize {
+    pub fn byte_offset(&self) -> Ulen {
         self.byte_offset
     }
 
     fn read_block_info(&mut self) {
         let bytes = &self.owned_read.slice_to(std::cmp::min(12, self.owned_read.len())).to_vec();
-        let advance_len: usize;
+        let advance_len: Ulen;
         self.last_doc_in_block = read_u32(bytes);
         let doc_num_bits = bytes[4];
         match self.skip_info {
@@ -246,13 +246,13 @@ impl SkipReader {
                 ..
             } => {
                 self.remaining_docs -= COMPRESSION_BLOCK_SIZE as u32;
-                self.byte_offset += compressed_block_size(doc_num_bits + tf_num_bits);
+                self.byte_offset += compressed_block_size(doc_num_bits + tf_num_bits) as Ulen;
                 self.position_offset += tf_sum as u64;
             }
             BlockInfo::VInt { num_docs } => {
                 debug_assert_eq!(num_docs, self.remaining_docs);
                 self.remaining_docs = 0;
-                self.byte_offset = std::usize::MAX;
+                self.byte_offset = Ulen::MAX;
             }
         }
         self.last_doc_in_previous_block = self.last_doc_in_block;
@@ -273,7 +273,7 @@ mod tests {
     use super::BlockInfo;
     use super::IndexRecordOption;
     use super::{SkipReader, SkipSerializer};
-    use crate::directory::OwnedBytes;
+    use crate::directory::{FileSlice, OwnedBytes};
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 
     #[test]
@@ -308,7 +308,7 @@ mod tests {
         };
         let doc_freq = 3u32 + (COMPRESSION_BLOCK_SIZE * 2) as u32;
         let mut skip_reader =
-            SkipReader::new(OwnedBytes::new(buf), doc_freq, IndexRecordOption::WithFreqs);
+            SkipReader::new(OwnedBytes::new(buf).as_file_slice(), doc_freq, IndexRecordOption::WithFreqs);
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info,
@@ -350,7 +350,7 @@ mod tests {
         };
         let doc_freq = 3u32 + (COMPRESSION_BLOCK_SIZE * 2) as u32;
         let mut skip_reader =
-            SkipReader::new(OwnedBytes::new(buf), doc_freq, IndexRecordOption::Basic);
+            SkipReader::new(OwnedBytes::new(buf).as_file_slice(), doc_freq, IndexRecordOption::Basic);
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),
@@ -391,7 +391,7 @@ mod tests {
         };
         let doc_freq = COMPRESSION_BLOCK_SIZE as u32;
         let mut skip_reader =
-            SkipReader::new(OwnedBytes::new(buf), doc_freq, IndexRecordOption::Basic);
+            SkipReader::new(OwnedBytes::new(buf).as_file_slice(), doc_freq, IndexRecordOption::Basic);
         assert_eq!(skip_reader.last_doc_in_block(), 1u32);
         assert_eq!(
             skip_reader.block_info(),

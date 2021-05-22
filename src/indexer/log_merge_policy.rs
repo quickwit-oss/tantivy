@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::core::SegmentMeta;
 use std::cmp;

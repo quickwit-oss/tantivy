@@ -1,5 +1,7 @@
 use std::io;
 
+use tantivy_fst::Ulen;
+
 use crate::common::BinarySerializable;
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
@@ -90,8 +92,8 @@ impl InvertedIndexReader {
         term_info: &TermInfo,
         block_postings: &mut BlockSegmentPostings,
     ) -> io::Result<()> {
-        let start_offset = term_info.postings_start_offset as usize;
-        let stop_offset = term_info.postings_stop_offset as usize;
+        let start_offset = term_info.postings_start_offset as Ulen;
+        let stop_offset = term_info.postings_stop_offset as Ulen;
         let postings_slice = self.postings_file_slice.slice(start_offset, stop_offset);
         block_postings.reset(term_info.doc_freq, postings_slice);
         Ok(())
@@ -121,8 +123,8 @@ impl InvertedIndexReader {
         requested_option: IndexRecordOption,
     ) -> io::Result<BlockSegmentPostings> {
         let postings_data = self.postings_file_slice.slice(
-            term_info.postings_start_offset as usize,
-            term_info.postings_stop_offset as usize,
+            term_info.postings_start_offset as Ulen,
+            term_info.postings_stop_offset as Ulen,
         );
         BlockSegmentPostings::open(
             term_info.doc_freq,

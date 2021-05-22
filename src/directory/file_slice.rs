@@ -50,7 +50,7 @@ impl FileHandle for &'static [u8] {
 
 impl<T: Deref<Target = [u8]>> HasLen for T {
     fn len(&self) -> Ulen {
-        self.as_ref().len() as Ulen
+        (self.as_ref() as &[u8]).len() as Ulen
     }
 }
 
@@ -157,6 +157,11 @@ impl FileSlice {
     /// Equivalent to `.slice(from_offset, self.len())`
     pub fn slice_from(&self, from_offset: Ulen) -> FileSlice {
         self.slice(from_offset, <FileSlice as HasLen>::len(&self))
+    }
+
+    /// like slice_from but inplace
+    pub fn advance(&mut self, from_offset: Ulen) {
+        self.start += from_offset;
     }
 
     /// Like `.slice(...)` but enforcing only the `to`

@@ -7,7 +7,7 @@ use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
-use tantivy_fst::{raw::Fst};
+use tantivy_fst::{Ulen, raw::Fst};
 use tantivy_fst::Automaton;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
@@ -122,7 +122,7 @@ impl TermDictionary {
         let (main_slice, footer_len_slice) = file.split_from_end(8);
         let mut footer_len_bytes = footer_len_slice.read_bytes()?;
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
-        let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
+        let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as Ulen);
         let fst_index = open_fst_index(fst_file_slice)?;
         let term_info_store = TermInfoStore::open(values_file_slice)?;
         Ok(TermDictionary {
@@ -138,7 +138,7 @@ impl TermDictionary {
 
     /// Returns the number of terms in the dictionary.
     /// Term ordinals range from 0 to `num_terms() - 1`.
-    pub fn num_terms(&self) -> usize {
+    pub fn num_terms(&self) -> Ulen {
         self.term_info_store.num_terms()
     }
 

@@ -6,6 +6,7 @@ use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
 use fnv::FnvHashMap;
+use tantivy_fst::Ulen;
 use std::io;
 
 /// Writer for multi-valued (as in, more than one value per document)
@@ -136,10 +137,10 @@ impl MultiValuedFastFieldWriter {
                         .windows(2)
                         .map(|interval| (interval[0], interval[1]))
                         .chain(Some(last_interval).into_iter())
-                        .map(|(start, stop)| (start as usize, stop as usize))
+                        .map(|(start, stop)| (start as Ulen, stop as Ulen))
                     {
                         doc_vals.clear();
-                        let remapped_vals = self.vals[start..stop]
+                        let remapped_vals = self.vals[start as usize..stop as usize]
                             .iter()
                             .map(|val| *mapping.get(val).expect("Missing term ordinal"));
                         doc_vals.extend(remapped_vals);

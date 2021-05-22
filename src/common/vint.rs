@@ -1,5 +1,6 @@
 use super::BinarySerializable;
 use byteorder::{ByteOrder, LittleEndian};
+use tantivy_fst::Ulen;
 use std::io;
 use std::io::Read;
 use std::io::Write;

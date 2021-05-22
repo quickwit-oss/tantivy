@@ -29,8 +29,9 @@ mod serializer;
 pub use self::reader::PositionReader;
 pub use self::serializer::PositionSerializer;
 use bitpacking::{BitPacker, BitPacker4x};
+use tantivy_fst::Ulen;
 
-const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
+const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN as usize;
 const LONG_SKIP_IN_BLOCKS: usize = 1_024;
 const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) as u64;
 

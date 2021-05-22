@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::MAX_DOC_LIMIT;
 use crate::core::Segment;
 use crate::core::SegmentReader;
@@ -27,7 +29,7 @@ use std::sync::Arc;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
-    let mut count: [usize; 256] = [0; 256];
+    let mut count: [Ulen; 256] = [0; 256];
     for reader in readers {
         if reader.has_deletes() {
             // if there are deletes, then we use an approximation
@@ -725,6 +727,7 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt};
     use futures::executor::block_on;
     use schema::FAST;
+    use tantivy_fst::Ulen;
 
     #[test]
     fn test_index_merger_no_deletes() -> crate::Result<()> {

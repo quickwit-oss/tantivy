@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::fastfield::{FastFieldReader, FastValue};
 use crate::DocId;
 
@@ -37,15 +39,15 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     /// Returns the array of values associated to the given `doc`.
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let (start, stop) = self.range(doc);
-        let len = (stop - start) as usize;
-        vals.resize(len, Item::make_zero());
+        let len = (stop - start) as Ulen;
+        vals.resize(len as usize, Item::make_zero());
         self.vals_reader.get_range_u64(start, &mut vals[..]);
     }
 
     /// Returns the number of values associated with the document `DocId`.
-    pub fn num_vals(&self, doc: DocId) -> usize {
+    pub fn num_vals(&self, doc: DocId) -> Ulen {
         let (start, stop) = self.range(doc);
-        (stop - start) as usize
+        (stop - start) as Ulen
     }
 
     /// Returns the overall number of values in this field  .

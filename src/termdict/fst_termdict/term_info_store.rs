@@ -5,7 +5,7 @@ use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
 use tantivy_fst::Ulen;
-use std::cmp;
+use std::{cmp, convert::TryInto};
 use std::io::{self, Read, Write};
 
 const BLOCK_LEN: usize = 256;
@@ -47,7 +47,7 @@ impl BinarySerializable for TermInfoBlockMeta {
 }
 
 impl FixedSize for TermInfoBlockMeta {
-    const SIZE_IN_BYTES: usize =
+    const SIZE_IN_BYTES: Ulen =
         u64::SIZE_IN_BYTES + TermInfo::SIZE_IN_BYTES + 3 * u8::SIZE_IN_BYTES;
 }
 
@@ -61,13 +61,13 @@ impl TermInfoBlockMeta {
     // is encoded without bitpacking.
     fn deserialize_term_info(&self, data: &dyn FakeArr, inner_offset: usize) -> TermInfo {
         assert!(inner_offset < BLOCK_LEN - 1);
-        let num_bits = self.num_bits() as usize;
+        let num_bits = self.num_bits() as Ulen;
 
-        let posting_start_addr = num_bits * inner_offset;
+        let posting_start_addr = num_bits * inner_offset as Ulen;
         // the stop offset is the start offset of the next term info.
         let posting_stop_addr = posting_start_addr + num_bits;
-        let doc_freq_addr = posting_start_addr + self.postings_offset_nbits as usize;
-        let positions_idx_addr = doc_freq_addr + self.doc_freq_nbits as usize;
+        let doc_freq_addr = posting_start_addr + self.postings_offset_nbits as Ulen;
+        let positions_idx_addr = doc_freq_addr + self.doc_freq_nbits as Ulen;
 
         let postings_start_offset = self.ref_term_info.postings_start_offset
             + extract_bits(data, posting_start_addr, self.postings_offset_nbits);
@@ -88,7 +88,7 @@ impl TermInfoBlockMeta {
 
 #[derive(Debug)]
 pub struct TermInfoStore {
-    num_terms: usize,
+    num_terms: Ulen,
     block_meta_bytes: FileSlice,
     term_info_bytes: FileSlice,
 }
@@ -118,8 +118,8 @@ impl TermInfoStore {
     pub fn open(term_info_store_file: FileSlice) -> crate::Result<TermInfoStore> {
         let (len_slice, main_slice) = term_info_store_file.split(16);
         let mut bytes = len_slice.read_bytes()?;
-        let len = u64::deserialize(&mut bytes)? as usize;
-        let num_terms = u64::deserialize(&mut bytes)? as usize;
+        let len = u64::deserialize(&mut bytes)? as Ulen;
+        let num_terms = u64::deserialize(&mut bytes)? as Ulen;
         let (block_meta_file, term_info_file) = main_slice.split(len);
         Ok(TermInfoStore {
             num_terms,
@@ -129,23 +129,23 @@ impl TermInfoStore {
     }
 
     pub fn get(&self, term_ord: TermOrdinal) -> TermInfo {
-        let block_id = (term_ord as usize) / BLOCK_LEN;
+        let block_id = (term_ord) / (BLOCK_LEN as Ulen);
         let block_data = self.block_meta_bytes.slice(block_id * TermInfoBlockMeta::SIZE_IN_BYTES, HasLen::len(&self.block_meta_bytes));
         let mut block_data = block_data.full_slice();
         let term_info_block_data = TermInfoBlockMeta::deserialize(&mut block_data)
             .expect("Failed to deserialize terminfoblockmeta");
-        let inner_offset = (term_ord as usize) % BLOCK_LEN;
+        let inner_offset = (term_ord as Ulen) % (BLOCK_LEN as Ulen);
         if inner_offset == 0 {
             return term_info_block_data.ref_term_info;
         }
-        let term_info_data = self.term_info_bytes.slice(term_info_block_data.offset as usize, HasLen::len(&self.term_info_bytes));
+        let term_info_data = self.term_info_bytes.slice(term_info_block_data.offset, HasLen::len(&self.term_info_bytes));
         term_info_block_data.deserialize_term_info(
             &term_info_data,
-            inner_offset - 1,
+            (inner_offset - 1).try_into().unwrap(),
         )
     }
 
-    pub fn num_terms(&self) -> usize {
+    pub fn num_terms(&self) -> Ulen {
         self.num_terms
     }
 }
@@ -304,9 +304,9 @@ mod tests {
         assert_eq!(compute_num_bits(51), 6);
         bitpack.close(&mut buffer).unwrap();
         assert_eq!(buffer.len(), 3 + 7);
-        assert_eq!(extract_bits(buffer, 0, 9), 321u64);
-        assert_eq!(extract_bits(buffer, 9, 2), 2u64);
-        assert_eq!(extract_bits(buffer, 11, 6), 51u64);
+        assert_eq!(extract_bits(&buffer, 0, 9), 321u64);
+        assert_eq!(extract_bits(&buffer, 9, 2), 2u64);
+        assert_eq!(extract_bits(&buffer, 11, 6), 51u64);
     }
 
     #[test]

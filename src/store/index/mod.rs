@@ -5,6 +5,8 @@ mod block;
 mod skip_index;
 mod skip_index_builder;
 
+use tantivy_fst::Ulen;
+
 use crate::DocId;
 
 pub use self::skip_index::SkipIndex;
@@ -49,6 +51,7 @@ mod tests {
 
     use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
+    use tantivy_fst::Ulen;
 
     use crate::directory::OwnedBytes;
     use crate::indexer::NoMergePolicy;

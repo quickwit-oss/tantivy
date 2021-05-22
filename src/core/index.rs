@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::segment::Segment;
 use crate::core::Executor;
 use crate::core::IndexMeta;

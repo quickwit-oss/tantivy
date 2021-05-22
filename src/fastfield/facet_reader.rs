@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use super::MultiValuedFastFieldReader;
 use crate::error::DataCorruption;
 use crate::schema::Facet;
@@ -49,7 +51,7 @@ impl FacetReader {
     /// as deleted.
     ///
     /// `Facet` ordinals range from `0` to `num_facets() - 1`.
-    pub fn num_facets(&self) -> usize {
+    pub fn num_facets(&self) -> Ulen {
         self.term_dict.num_terms()
     }
 

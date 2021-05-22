@@ -7,6 +7,7 @@ use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::positions::LONG_SKIP_INTERVAL;
 use crate::positions::LONG_SKIP_IN_BLOCKS;
 use bitpacking::{BitPacker, BitPacker4x};
+use tantivy_fst::{FakeArr, Ulen};
 
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
@@ -33,7 +34,7 @@ struct Positions {
     bit_packer: BitPacker4x,
     skip_file: FileSlice,
     position_file: FileSlice,
-    long_skip_data: OwnedBytes,
+    long_skip_data: FileSlice,
 }
 
 impl Positions {
@@ -42,12 +43,11 @@ impl Positions {
         let footer_data = footer.read_bytes()?;
         let num_long_skips = u32::deserialize(&mut footer_data.as_slice())?;
         let (skip_file, long_skip_file) =
-            body.split_from_end(u64::SIZE_IN_BYTES * (num_long_skips as usize));
-        let long_skip_data = long_skip_file.read_bytes()?;
+            body.split_from_end(u64::SIZE_IN_BYTES * (num_long_skips as Ulen));
         Ok(Positions {
             bit_packer: BitPacker4x::new(),
             skip_file,
-            long_skip_data,
+            long_skip_data: long_skip_file,
             position_file,
         })
     }
@@ -55,26 +55,24 @@ impl Positions {
     /// Returns the offset of the block associated to the given `long_skip_id`.
     ///
     /// One `long_skip_id` means `LONG_SKIP_IN_BLOCKS` blocks.
-    fn long_skip(&self, long_skip_id: usize) -> u64 {
+    fn long_skip(&self, long_skip_id: Ulen) -> u64 {
         if long_skip_id == 0 {
             return 0;
         }
-        let long_skip_slice = self.long_skip_data.as_slice();
-        let mut long_skip_blocks: &[u8] = &long_skip_slice[(long_skip_id - 1) * 8..][..8];
+        let from = (long_skip_id - 1) * 8;
+        let mut long_skip_blocks: &[u8] = &self.long_skip_data.slice(from, from + 8).to_vec();
         u64::deserialize(&mut long_skip_blocks).expect("Index corrupted")
     }
 
     fn reader(&self, offset: u64) -> io::Result<PositionReader> {
-        let long_skip_id = (offset / LONG_SKIP_INTERVAL) as usize;
+        let long_skip_id = (offset / LONG_SKIP_INTERVAL) as Ulen;
         let offset_num_bytes: u64 = self.long_skip(long_skip_id);
         let position_read = self
             .position_file
-            .slice_from(offset_num_bytes as usize)
-            .read_bytes()?;
+            .slice_from(offset_num_bytes as Ulen);
         let skip_read = self
             .skip_file
-            .slice_from(long_skip_id * LONG_SKIP_IN_BLOCKS)
-            .read_bytes()?;
+            .slice_from(long_skip_id * LONG_SKIP_IN_BLOCKS as Ulen);
         Ok(PositionReader {
             bit_packer: self.bit_packer,
             skip_read,
@@ -89,10 +87,10 @@ impl Positions {
 
 #[derive(Clone)]
 pub struct PositionReader {
-    skip_read: OwnedBytes,
-    position_read: OwnedBytes,
+    skip_read: FileSlice,
+    position_read: FileSlice,
     bit_packer: BitPacker4x,
-    buffer: Box<[u32; COMPRESSION_BLOCK_SIZE]>,
+    buffer: Box<[u32; COMPRESSION_BLOCK_SIZE as usize]>,
 
     block_offset: u64,
     anchor_offset: u64,
@@ -110,15 +108,15 @@ impl PositionReader {
         positions.reader(offset)
     }
 
-    fn advance_num_blocks(&mut self, num_blocks: usize) {
-        let num_bits: usize = self.skip_read.as_ref()[..num_blocks]
+    fn advance_num_blocks(&mut self, num_blocks: Ulen) {
+        let num_bits: usize = self.skip_read.slice(0, num_blocks).to_vec()
             .iter()
             .cloned()
             .map(|num_bits| num_bits as usize)
             .sum();
         let num_bytes_to_skip = num_bits * COMPRESSION_BLOCK_SIZE / 8;
-        self.skip_read.advance(num_blocks as usize);
-        self.position_read.advance(num_bytes_to_skip);
+        self.skip_read.advance(num_blocks as Ulen);
+        self.position_read.advance(num_bytes_to_skip as Ulen);
     }
 
     /// Fills a buffer with the positions `[offset..offset+output.len())` integers.
@@ -137,22 +135,23 @@ impl PositionReader {
             // We need to decompress the first block.
             let delta_to_anchor_offset = offset - self.anchor_offset;
             let num_blocks_to_skip =
-                (delta_to_anchor_offset / (COMPRESSION_BLOCK_SIZE as u64)) as usize;
+                (delta_to_anchor_offset / (COMPRESSION_BLOCK_SIZE as u64)) as Ulen;
             self.advance_num_blocks(num_blocks_to_skip);
             self.anchor_offset = offset - (offset % COMPRESSION_BLOCK_SIZE as u64);
             self.block_offset = self.anchor_offset;
-            let num_bits = self.skip_read.as_slice()[0];
+            let num_bits = self.skip_read.get_byte(0);
             self.bit_packer
-                .decompress(self.position_read.as_ref(), self.buffer.as_mut(), num_bits);
+                .decompress(&self.position_read.to_vec(), self.buffer.as_mut(), num_bits);
         } else {
             let num_blocks_to_skip =
-                ((self.block_offset - self.anchor_offset) / COMPRESSION_BLOCK_SIZE as u64) as usize;
+                ((self.block_offset - self.anchor_offset) / COMPRESSION_BLOCK_SIZE as u64) as Ulen;
             self.advance_num_blocks(num_blocks_to_skip);
             self.anchor_offset = self.block_offset;
         }
 
-        let mut num_bits = self.skip_read.as_slice()[0];
-        let mut position_data = self.position_read.as_ref();
+        let mut num_bits = self.skip_read.get_byte(0);
+        let position_data = self.position_read.to_vec();
+        let mut position_data = position_data.as_slice();
 
         for i in 1.. {
             let offset_in_block = (offset as usize) % COMPRESSION_BLOCK_SIZE;
@@ -165,7 +164,7 @@ impl PositionReader {
             output = &mut output[remaining_in_block..];
             offset += remaining_in_block as u64;
             position_data = &position_data[(num_bits as usize * COMPRESSION_BLOCK_SIZE / 8)..];
-            num_bits = self.skip_read.as_slice()[i];
+            num_bits = self.skip_read.get_byte(i);
             self.bit_packer
                 .decompress(position_data, self.buffer.as_mut(), num_bits);
             self.block_offset += COMPRESSION_BLOCK_SIZE as u64;

@@ -8,12 +8,13 @@ use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
 use lru::LruCache;
+use tantivy_fst::Ulen;
 use std::io;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-const LRU_CACHE_CAPACITY: usize = 100;
+const LRU_CACHE_CAPACITY: Ulen = 100;
 
 type Block = Arc<Vec<u8>>;
 
@@ -38,7 +39,7 @@ impl StoreReader {
         let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
             data: data_file,
-            cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY))),
+            cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY as usize))),
             cache_hits: Default::default(),
             cache_misses: Default::default(),
             skip_index: Arc::new(skip_index),
@@ -61,8 +62,8 @@ impl StoreReader {
     fn compressed_block(&self, checkpoint: &Checkpoint) -> io::Result<OwnedBytes> {
         self.data
             .slice(
-                checkpoint.start_offset as usize,
-                checkpoint.end_offset as usize,
+                checkpoint.start_offset as Ulen,
+                checkpoint.end_offset as Ulen,
             )
             .read_bytes()
     }
@@ -117,10 +118,10 @@ impl StoreReader {
 }
 
 fn split_file(data: FileSlice) -> io::Result<(FileSlice, FileSlice)> {
-    let (data, footer_len_bytes) = data.split_from_end(size_of::<u64>());
+    let (data, footer_len_bytes) = data.split_from_end(size_of::<u64>() as Ulen);
     let serialized_offset: OwnedBytes = footer_len_bytes.read_bytes()?;
     let mut serialized_offset_buf = serialized_offset.as_slice();
-    let offset = u64::deserialize(&mut serialized_offset_buf)? as usize;
+    let offset = u64::deserialize(&mut serialized_offset_buf)? as Ulen;
     Ok(data.split(offset))
 }
 
@@ -162,7 +163,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .peek_lru()
-                .map(|(&k, _)| k as usize),
+                .map(|(&k, _)| k as Ulen),
             Some(0)
         );
 
@@ -179,7 +180,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .peek_lru()
-                .map(|(&k, _)| k as usize),
+                .map(|(&k, _)| k as Ulen),
             Some(0)
         );
 
@@ -195,7 +196,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .peek_lru()
-                .map(|(&k, _)| k as usize),
+                .map(|(&k, _)| k as Ulen),
             Some(18806)
         );
 

@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
 use crate::fastfield::MultiValuedFastFieldReader;
@@ -58,7 +60,7 @@ impl FastFieldReaders {
         self.fast_fields_composite.space_usage()
     }
 
-    fn fast_field_data(&self, field: Field, idx: usize) -> crate::Result<FileSlice> {
+    fn fast_field_data(&self, field: Field, idx: Ulen) -> crate::Result<FileSlice> {
         self.fast_fields_composite
             .open_read_with_idx(field, idx)
             .ok_or_else(|| {

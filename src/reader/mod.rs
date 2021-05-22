@@ -1,5 +1,7 @@
 mod pool;
 
+use tantivy_fst::Ulen;
+
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use crate::core::Segment;

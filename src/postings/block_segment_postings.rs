@@ -11,7 +11,7 @@ use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::query::BM25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
-use tantivy_fst::FakeArr;
+use tantivy_fst::{FakeArr, Ulen};
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     if let Some(first) = it.next() {
@@ -31,7 +31,7 @@ fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
 #[derive(Clone)]
 pub struct BlockSegmentPostings {
     pub(crate) doc_decoder: BlockDecoder,
-    loaded_offset: usize,
+    loaded_offset: Ulen,
     freq_decoder: BlockDecoder,
     freq_reading_option: FreqReadingOption,
     block_max_score_cache: Option<Score>,
@@ -50,13 +50,13 @@ fn decode_bitpacked_block(
     doc_num_bits: u8,
     tf_num_bits: u8,
 ) {
-    let num_bytes_docs = 128 * (doc_num_bits as usize) / 8; // 128 integers per bitpacker4x block. should be same as num_consumed_bytes returned by uncompress block
+    let num_bytes_docs = 128 * (doc_num_bits as Ulen) / 8; // 128 integers per bitpacker4x block. should be same as num_consumed_bytes returned by uncompress block
     let num_bytes_freqs = freq_decoder_opt.as_ref()
-        .map(|_| 128 * (tf_num_bits as usize) / 8)
+        .map(|_| 128 * (tf_num_bits as Ulen) / 8)
         .unwrap_or(0);
     let data = data.slice((0..num_bytes_docs + num_bytes_freqs).into()).to_vec();
     let num_consumed_bytes = doc_decoder.uncompress_block_sorted(&data, doc_offset, doc_num_bits);
-    assert_eq!(num_bytes_docs, num_consumed_bytes);
+    assert_eq!(num_bytes_docs, num_consumed_bytes as Ulen);
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_block_unsorted(&data[num_consumed_bytes..], tf_num_bits);
     }
@@ -73,7 +73,7 @@ fn decode_vint_block(
         doc_decoder.uncompress_vint_sorted(data, doc_offset, num_vint_docs, TERMINATED);
     if let Some(freq_decoder) = freq_decoder_opt {
         freq_decoder.uncompress_vint_unsorted(
-            &data.slice((num_consumed_bytes..).into()),
+            &data.slice((num_consumed_bytes as Ulen..).into()),
             num_vint_docs,
             TERMINATED,
         );
@@ -87,7 +87,7 @@ fn split_into_skips_and_postings(doc_freq: u32, data: FileSlice) -> (Option<File
     // hacky code
     let slice = &mut data.full_slice();
     let inx_before = slice.get_offset();
-    let skip_len = VInt::deserialize(slice).expect("Data corrupted").0 as usize;
+    let skip_len = VInt::deserialize(slice).expect("Data corrupted").0 as Ulen;
     let inx_after = slice.get_offset();
     let data = data.slice_from(inx_after - inx_before);
     let (skip_data, postings_data) = data.split(skip_len);
@@ -115,7 +115,7 @@ impl BlockSegmentPostings {
 
         let mut block_segment_postings = BlockSegmentPostings {
             doc_decoder: BlockDecoder::with_val(TERMINATED),
-            loaded_offset: std::usize::MAX,
+            loaded_offset: Ulen::MAX,
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
             block_max_score_cache: None,
@@ -184,7 +184,7 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         self.data = postings_data;
         self.block_max_score_cache = None;
-        self.loaded_offset = std::usize::MAX;
+        self.loaded_offset = Ulen::MAX;
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data, doc_freq);
         } else {

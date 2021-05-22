@@ -295,6 +295,7 @@ mod tests {
     use rand::distributions::Uniform;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+    use tantivy_fst::Ulen;
 
     /// Checks if left and right are close one to each other.
     /// Panics if the two values are more than 0.5% apart.

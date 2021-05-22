@@ -1,3 +1,5 @@
+use tantivy_fst::Ulen;
+
 use crate::collector::Collector;
 use crate::core::Executor;
 
