@@ -864,13 +864,11 @@ impl IndexMerger {
             let mut total_doc_freq = 0;
 
             // Let's compute the list of non-empty posting lists
-            for heap_item in merged_terms.current_kvs() {
-                let segment_ord = heap_item.segment_ord;
-                let term_info = heap_item.streamer.value();
-                let segment_reader = &self.readers[heap_item.segment_ord];
+            for (segment_ord, term_info) in merged_terms.current_kvs() {
+                let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
-                    .read_postings_from_terminfo(term_info, segment_postings_option)?;
+                    .read_postings_from_terminfo(&term_info, segment_postings_option)?;
                 let delete_bitset_opt = segment_reader.delete_bitset();
                 let doc_freq = if let Some(delete_bitset) = delete_bitset_opt {
                     segment_postings.doc_freq_given_deletes(delete_bitset)
