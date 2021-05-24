@@ -1004,7 +1004,22 @@ impl IndexMerger {
         } else {
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
-                if reader.num_deleted_docs() > 0 {
+                if reader.num_deleted_docs() > 0
+                    // If there is not enough data in the store, we avoid stacking in order to
+                    // avoid creating many small blocks in the doc store. Once we have 5 full blocks,
+                    // we start stacking. In the worst case 2/7 of the blocks would be very small. 
+                    // [segment 1 - {1 doc}][segment 2 - {fullblock * 5}{1doc}]  
+                    // => 5 * full blocks, 2 * 1 document blocks
+                    //
+                    // In a more realistic scenario the segments are of the same size, so 1/6 of
+                    // the doc stores would be on average half full, given total randomness (which 
+                    // is not the case here, but not sure how it behaves exactly).
+                    //
+                    // https://github.com/tantivy-search/tantivy/issues/1053
+                    //
+                    // take 7 in order to not walk over all checkpoints.
+                    || store_reader.block_checkpoints().take(7).count() < 6
+                {
                     for doc_bytes_res in store_reader.iter_raw(reader.delete_bitset()) {
                         let doc_bytes = doc_bytes_res?;
                         store_writer.store_bytes(&doc_bytes)?;
