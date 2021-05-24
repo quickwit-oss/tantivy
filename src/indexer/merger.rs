@@ -1571,6 +1571,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             true,
         );
@@ -1582,6 +1583,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             false,
         );
@@ -1596,6 +1598,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             true,
         );
@@ -1607,6 +1610,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             false,
         );

@@ -156,6 +156,7 @@ mod tests {
                 field: "intval".to_string(),
                 order: Order::Desc,
             }),
+            ..Default::default()
         }));
     }
 
@@ -175,6 +176,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             force_disjunct_segment_sort_values,
         );
@@ -265,6 +267,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             }),
             false,
         );

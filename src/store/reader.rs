@@ -1,18 +1,17 @@
-use super::decompress;
-use super::index::SkipIndex;
+use super::Compressor;
+use super::{footer::DocStoreFooter, index::SkipIndex};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use crate::{common::VInt, fastfield::DeleteBitSet};
 use crate::{
-    common::{BinarySerializable, HasLen},
+    common::{BinarySerializable, HasLen, VInt},
     error::DataCorruption,
+    fastfield::DeleteBitSet,
 };
 use lru::LruCache;
 use std::io;
-use std::mem::size_of;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +23,7 @@ type BlockCache = Arc<Mutex<LruCache<usize, Block>>>;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 pub struct StoreReader {
+    compressor: Compressor,
     data: FileSlice,
     cache: BlockCache,
     cache_hits: Arc<AtomicUsize>,
@@ -35,11 +35,14 @@ pub struct StoreReader {
 impl StoreReader {
     /// Opens a store reader
     pub fn open(store_file: FileSlice) -> io::Result<StoreReader> {
-        let (data_file, offset_index_file) = split_file(store_file)?;
+        let (footer, data_and_offset) = DocStoreFooter::extract_footer(store_file)?;
+
+        let (data_file, offset_index_file) = data_and_offset.split(footer.offset as usize);
         let index_data = offset_index_file.read_bytes()?;
         let space_usage = StoreSpaceUsage::new(data_file.len(), offset_index_file.len());
         let skip_index = SkipIndex::open(index_data);
         Ok(StoreReader {
+            compressor: footer.compressor,
             data: data_file,
             cache: Arc::new(Mutex::new(LruCache::new(LRU_CACHE_CAPACITY))),
             cache_hits: Default::default(),
@@ -75,7 +78,8 @@ impl StoreReader {
 
         let compressed_block = self.compressed_block(checkpoint)?;
         let mut decompressed_block = vec![];
-        decompress(compressed_block.as_slice(), &mut decompressed_block)?;
+        self.compressor
+            .decompress(compressed_block.as_slice(), &mut decompressed_block)?;
 
         let block = OwnedBytes::new(decompressed_block);
         self.cache
@@ -228,14 +232,6 @@ impl StoreReader {
     pub fn space_usage(&self) -> StoreSpaceUsage {
         self.space_usage.clone()
     }
-}
-
-fn split_file(data: FileSlice) -> io::Result<(FileSlice, FileSlice)> {
-    let (data, footer_len_bytes) = data.split_from_end(size_of::<u64>());
-    let serialized_offset: OwnedBytes = footer_len_bytes.read_bytes()?;
-    let mut serialized_offset_buf = serialized_offset.as_slice();
-    let offset = u64::deserialize(&mut serialized_offset_buf)? as usize;
-    Ok(data.split(offset))
 }
 
 #[cfg(test)]

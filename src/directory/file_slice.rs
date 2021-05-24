@@ -147,6 +147,13 @@ impl FileSlice {
         self.slice(from_offset..self.len())
     }
 
+    /// Returns a slice from the end.
+    ///
+    /// Equivalent to `.slice(self.len() - from_offset, self.len())`
+    pub fn slice_from_end(&self, from_offset: usize) -> FileSlice {
+        self.slice(self.len() - from_offset..self.len())
+    }
+
     /// Like `.slice(...)` but enforcing only the `to`
     /// boundary.
     ///

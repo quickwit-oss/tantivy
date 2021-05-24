@@ -345,8 +345,11 @@ fn write(
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
-        let old_store_writer =
-            std::mem::replace(&mut serializer.store_writer, StoreWriter::new(store_write));
+        let compressor = serializer.segment().index().settings().compressor;
+        let old_store_writer = std::mem::replace(
+            &mut serializer.store_writer,
+            StoreWriter::new(store_write, compressor),
+        );
         old_store_writer.close()?;
         let store_read = StoreReader::open(
             serializer
@@ -357,7 +360,6 @@ fn write(
             let doc_bytes = store_read.get_document_bytes(*old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }
-        // TODO delete temp store
     }
     serializer.close()?;
     Ok(())

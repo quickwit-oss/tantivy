@@ -76,7 +76,7 @@ fn load_metas(
 /// );
 ///
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc})};
+/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc}), ..Default::default()};
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 ///
 /// ```

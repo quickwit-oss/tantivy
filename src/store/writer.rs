@@ -1,6 +1,6 @@
-use super::compress;
 use super::index::SkipIndexBuilder;
 use super::StoreReader;
+use super::{compressors::Compressor, footer::DocStoreFooter};
 use crate::common::CountingWriter;
 use crate::common::{BinarySerializable, VInt};
 use crate::directory::TerminatingWrite;
@@ -21,6 +21,7 @@ const BLOCK_SIZE: usize = 16_384;
 /// The skip list index on the other hand, is built in memory.
 ///
 pub struct StoreWriter {
+    compressor: Compressor,
     doc: DocId,
     first_doc_in_block: DocId,
     offset_index_writer: SkipIndexBuilder,
@@ -34,8 +35,9 @@ impl StoreWriter {
     ///
     /// The store writer will writes blocks on disc as
     /// document are added.
-    pub fn new(writer: WritePtr) -> StoreWriter {
+    pub fn new(writer: WritePtr, compressor: Compressor) -> StoreWriter {
         StoreWriter {
+            compressor,
             doc: 0,
             first_doc_in_block: 0,
             offset_index_writer: SkipIndexBuilder::new(),
@@ -125,7 +127,8 @@ impl StoreWriter {
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         assert!(self.doc > 0);
         self.intermediary_buffer.clear();
-        compress(&self.current_block[..], &mut self.intermediary_buffer)?;
+        self.compressor
+            .compress(&self.current_block[..], &mut self.intermediary_buffer)?;
         let start_offset = self.writer.written_bytes() as usize;
         self.writer.write_all(&self.intermediary_buffer)?;
         let end_offset = self.writer.written_bytes() as usize;
@@ -147,8 +150,9 @@ impl StoreWriter {
             self.write_and_compress_block()?;
         }
         let header_offset: u64 = self.writer.written_bytes() as u64;
+        let footer = DocStoreFooter::new(header_offset, self.compressor);
         self.offset_index_writer.write(&mut self.writer)?;
-        header_offset.serialize(&mut self.writer)?;
+        footer.serialize(&mut self.writer)?;
         self.writer.terminate()
     }
 }
