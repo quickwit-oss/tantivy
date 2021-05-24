@@ -1,6 +1,6 @@
 use std::io;
 
-use tantivy_fst::Ulen;
+use tantivy_fst::{FakeArr, Ulen};
 
 use crate::common::BinarySerializable;
 use crate::directory::FileSlice;
@@ -108,8 +108,10 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> io::Result<Option<BlockSegmentPostings>> {
-        self.get_term_info(term)?
-            .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
+        crate::info_log(format!("reading term info for term {:?}", term));
+
+        let info = self.get_term_info(term)?;
+        info.map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
             .transpose()
     }
 
@@ -126,6 +128,8 @@ impl InvertedIndexReader {
             term_info.postings_start_offset as Ulen,
             term_info.postings_stop_offset as Ulen,
         );
+       
+        postings_data.to_vec();  // better force load it all at once
         BlockSegmentPostings::open(
             term_info.doc_freq,
             postings_data,
@@ -183,7 +187,10 @@ impl InvertedIndexReader {
         option: IndexRecordOption,
     ) -> io::Result<Option<SegmentPostings>> {
         self.get_term_info(term)?
-            .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
+            .map(move |term_info| {
+                crate::info_log(format!("Fetching document ids and frequencies matching term {:?}", term));
+                self.read_postings_from_terminfo(&term_info, option)
+            })
             .transpose()
     }
 

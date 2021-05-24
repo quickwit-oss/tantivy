@@ -170,7 +170,7 @@ pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
 use std::fmt;
 
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::{Deserialize, Serialize};
 
 /// Index format version.
@@ -280,9 +280,19 @@ impl DocAddress {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
+static INFO_LOG_HOOK: OnceCell<Box<Fn(&str) + Send + Sync + 'static>> = OnceCell::new();
+
+pub fn info_log(message: impl AsRef<str>) {
+    if let Some(log) = INFO_LOG_HOOK.get() {
+        log(message.as_ref());
+    }
+}
+pub fn set_info_log_hook(f: impl Fn(&str) + Send + Sync + 'static) {
+    INFO_LOG_HOOK.set(Box::new(f)).ok();
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Directory, collector::tests::TEST_COLLECTOR_WITH_SCORE};
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
     use crate::query::BooleanQuery;
@@ -291,6 +301,7 @@ mod tests {
     use crate::Index;
     use crate::Postings;
     use crate::ReloadPolicy;
+    use crate::{collector::tests::TEST_COLLECTOR_WITH_SCORE, Directory};
     use rand::distributions::Bernoulli;
     use rand::distributions::Uniform;
     use rand::rngs::StdRng;
@@ -639,7 +650,7 @@ mod tests {
         index_writer.commit()?;
         println!("dir: {:#?}", index.directory());
         let reader = index.reader()?;
-        
+
         let searcher = reader.searcher();
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher

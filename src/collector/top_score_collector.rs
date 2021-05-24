@@ -649,6 +649,7 @@ impl Collector for TopDocs {
                 threshold
             })?;
         } else {
+            crate::info_log(format!("Scoring results and collecting TOP {}", self.0.limit));
             weight.for_each_pruning(Score::MIN, reader, &mut |doc, score| {
                 let heap_item = ComparableDoc {
                     feature: score,

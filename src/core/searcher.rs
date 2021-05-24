@@ -58,7 +58,9 @@ impl Searcher {
     pub fn doc(&self, doc_address: DocAddress) -> crate::Result<Document> {
         let DocAddress(segment_local_id, doc_id) = doc_address;
         let store_reader = &self.store_readers[segment_local_id as usize];
-        store_reader.get(doc_id)
+        let doc = store_reader.get(doc_id)?;
+        crate::info_log(format!("read content of doc {:?}", doc.field_values()));
+        Ok(doc)
     }
 
     /// Access the schema associated to the index of this searcher.

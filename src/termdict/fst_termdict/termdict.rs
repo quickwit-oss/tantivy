@@ -86,11 +86,9 @@ where
 }
 
 fn open_fst_index(fst_file: FileSlice) -> crate::Result<tantivy_fst::Map<FileSlice>> {
-    println!("open_fst_index()");
     let fst = Fst::new(fst_file)
         .map_err(|err| DataCorruption::comment_only(format!("Fst data is corrupted: {:?}", err)))?;
     let ret = Ok(tantivy_fst::Map::from(fst));
-    println!("open_fst_index RET");
     return ret;
 }
 
@@ -144,9 +142,9 @@ impl TermDictionary {
 
     /// Returns the ordinal associated to a given term.
     pub fn term_ord<K: AsRef<[u8]>>(&self, key: K) -> io::Result<Option<TermOrdinal>> {
-        println!("termdict.term_ord({:?})", String::from_utf8_lossy(key.as_ref()));
+        crate::info_log(format!("Getting info for term {:?}", String::from_utf8_lossy(key.as_ref())));
         let ret = Ok(self.fst_index.get(key));
-        println!("termdict.term_ord RET");
+        //crate::info_log(format!("termdict.term_ord RET {:?}", ret));
         return ret;
     }
 

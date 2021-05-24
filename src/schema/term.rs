@@ -233,12 +233,16 @@ where
 
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Term(field={},bytes={:?})",
-            self.field().field_id(),
-            self.value_bytes()
-        )
+        if let Ok(s) = std::str::from_utf8(&self.0) {
+            write!(f, "Term(field={},text={:?})", self.field().field_id(), s)
+        } else {
+            write!(
+                f,
+                "Term(field={},bytes={:?})",
+                self.field().field_id(),
+                self.value_bytes()
+            )
+        }
     }
 }
 
