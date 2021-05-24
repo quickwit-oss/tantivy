@@ -10,7 +10,7 @@ pub trait StoreCompressor {
 /// Compressor can be used on `IndexSettings` to choose
 /// the compressor used to compress the doc store.
 ///
-/// The default is Lz4Block.
+/// The default is Lz4Block, but also depends on the enabled feature flags.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Compressor {
     /// Use the lz4 block format compressor
@@ -25,7 +25,19 @@ pub enum Compressor {
 
 impl Default for Compressor {
     fn default() -> Self {
-        Compressor::Lz4Block
+        if cfg!(feature = "lz4-block-compression") {
+            Compressor::Lz4Block
+        } else if cfg!(feature = "lz4-compression") {
+            Compressor::Lz4Frame
+        } else if cfg!(feature = "brotli-compression") {
+            Compressor::Brotli
+        } else if cfg!(feature = "snappy-compression") {
+            Compressor::Snap
+        } else {
+            panic!(
+                "all compressor feature flags like are disabled (e.g. lz4-block-compression), can't choose default compressor"
+            );
+        }
     }
 }
 
@@ -56,7 +68,7 @@ impl Compressor {
                 }
                 #[cfg(not(feature = "lz4_flex"))]
                 {
-                    panic!("lz4_flex feature flag not activated");
+                    panic!("lz4-block-compression feature flag not activated");
                 }
             }
             &Self::Lz4Frame => {
@@ -66,7 +78,7 @@ impl Compressor {
                 }
                 #[cfg(not(feature = "lz4"))]
                 {
-                    panic!("lz4 feature flag not activated");
+                    panic!("lz4-compression feature flag not activated");
                 }
             }
             &Self::Brotli => {
@@ -76,7 +88,7 @@ impl Compressor {
                 }
                 #[cfg(not(feature = "brotli"))]
                 {
-                    panic!("brotli feature flag not activated");
+                    panic!("brotli-compression feature flag not activated");
                 }
             }
             &Self::Snap => {
@@ -86,7 +98,7 @@ impl Compressor {
                 }
                 #[cfg(not(feature = "snap"))]
                 {
-                    panic!("snap feature flag not activated");
+                    panic!("snap-compression feature flag not activated");
                 }
             }
         }

@@ -79,10 +79,12 @@ overflow-checks = true
 [features]
 default = ["mmap", "lz4-block-compression" ]
 mmap = ["fs2", "tempfile", "memmap"]
+
 brotli-compression = ["brotli"]
 lz4-compression = ["lz4"]
 lz4-block-compression = ["lz4_flex"]
 snappy-compression = ["snap"]
+
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]

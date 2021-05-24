@@ -460,6 +460,13 @@ impl Index {
     pub fn settings(&self) -> &IndexSettings {
         &self.settings
     }
+
+    /// Accessor to the index settings
+    ///
+    pub fn settings_mut(&mut self) -> &mut IndexSettings {
+        &mut self.settings
+    }
+
     /// Accessor to the index schema
     ///
     /// The schema is actually cloned.

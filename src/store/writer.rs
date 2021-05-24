@@ -47,6 +47,10 @@ impl StoreWriter {
         }
     }
 
+    pub(crate) fn compressor(&self) -> Compressor {
+        self.compressor
+    }
+
     /// The memory used (inclusive childs)
     pub fn mem_usage(&self) -> usize {
         self.intermediary_buffer.capacity() + self.current_block.capacity()

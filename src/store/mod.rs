@@ -69,28 +69,31 @@ pub mod tests {
     use crate::{schema::Schema, Index};
     use std::path::Path;
 
-    pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
-        let mut schema_builder = Schema::builder();
-        let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
-        let field_title =
-            schema_builder.add_text_field("title", TextOptions::default().set_stored());
-        let schema = schema_builder.build();
-        let lorem = String::from(
-            "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
+    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
              do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
              Ut enim ad minim veniam, quis nostrud exercitation ullamco \
              laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
              dolor in reprehenderit in voluptate velit esse cillum dolore eu \
              fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
              proident, sunt in culpa qui officia deserunt mollit anim id est \
-             laborum.",
-        );
+             laborum.";
+
+    pub fn write_lorem_ipsum_store(
+        writer: WritePtr,
+        num_docs: usize,
+        compressor: Compressor,
+    ) -> Schema {
+        let mut schema_builder = Schema::builder();
+        let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
+        let field_title =
+            schema_builder.add_text_field("title", TextOptions::default().set_stored());
+        let schema = schema_builder.build();
         {
-            let mut store_writer = StoreWriter::new(writer, compressors::Compressor::Lz4Block);
+            let mut store_writer = StoreWriter::new(writer, compressor);
             for i in 0..num_docs {
                 let mut fields: Vec<FieldValue> = Vec::new();
                 {
-                    let field_value = FieldValue::new(field_body, From::from(lorem.clone()));
+                    let field_value = FieldValue::new(field_body, From::from(LOREM.to_string()));
                     fields.push(field_value);
                 }
                 {
@@ -107,12 +110,11 @@ pub mod tests {
         schema
     }
 
-    #[test]
-    fn test_store() -> crate::Result<()> {
+    fn test_store(compressor: Compressor) -> crate::Result<()> {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, 1_000);
+        let schema = write_lorem_ipsum_store(store_wrt, 1_000, compressor);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file)?;
@@ -134,6 +136,27 @@ pub mod tests {
             );
         }
         Ok(())
+    }
+
+    #[cfg(feature = "lz4-block-compression")]
+    #[test]
+    fn test_store_lz4_block() -> crate::Result<()> {
+        test_store(Compressor::Lz4Block)
+    }
+    #[cfg(feature = "snappy-compression")]
+    #[test]
+    fn test_store_snap() -> crate::Result<()> {
+        test_store(Compressor::Snap)
+    }
+    #[cfg(feature = "lz4-compression")]
+    #[test]
+    fn test_store_lz4() -> crate::Result<()> {
+        test_store(Compressor::Lz4Frame)
+    }
+    #[cfg(feature = "brotli-compression")]
+    #[test]
+    fn test_store_brotli() -> crate::Result<()> {
+        test_store(Compressor::Brotli)
     }
 
     #[test]
@@ -176,6 +199,67 @@ pub mod tests {
         }
         Ok(())
     }
+
+    #[cfg(feature = "snap")]
+    #[cfg(feature = "lz4_flex")]
+    #[test]
+    fn test_merge_with_changed_compressor() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+
+        let text_field = schema_builder.add_text_field("text_field", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index_builder = Index::builder().schema(schema);
+
+        let mut index = index_builder.create_in_ram().unwrap();
+        index.settings_mut().compressor = Compressor::Lz4Block;
+        {
+            let mut index_writer = index.writer_for_tests().unwrap();
+            // put enough data create enough blocks in the doc store to be considered for stacking
+            for _ in 0..200 {
+                index_writer.add_document(doc!(text_field=> LOREM));
+            }
+            assert!(index_writer.commit().is_ok());
+            for _ in 0..200 {
+                index_writer.add_document(doc!(text_field=> LOREM));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        assert_eq!(
+            index.reader().unwrap().searcher().segment_readers()[0]
+                .get_store_reader()
+                .unwrap()
+                .compressor(),
+            Compressor::Lz4Block
+        );
+        // Change compressor, this disables stacking on merging
+        let index_settings = index.settings_mut();
+        index_settings.compressor = Compressor::Snap;
+        // Merging the segments
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_for_tests().unwrap();
+            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+            assert!(index_writer.wait_merging_threads().is_ok());
+        }
+
+        let searcher = index.reader().unwrap().searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let reader = searcher.segment_readers().iter().last().unwrap();
+        let store = reader.get_store_reader().unwrap();
+
+        for doc in store.iter(reader.delete_bitset()).take(50) {
+            assert_eq!(
+                *doc?.get_first(text_field).unwrap().text().unwrap(),
+                LOREM.to_string()
+            );
+        }
+        assert_eq!(store.compressor(), Compressor::Snap);
+
+        Ok(())
+    }
+
     #[test]
     fn test_merge_of_small_segments() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
@@ -225,6 +309,7 @@ mod bench {
     use super::tests::write_lorem_ipsum_store;
     use crate::directory::Directory;
     use crate::directory::RamDirectory;
+    use crate::store::Compressor;
     use crate::store::StoreReader;
     use std::path::Path;
     use test::Bencher;
@@ -235,7 +320,11 @@ mod bench {
         let directory = RamDirectory::create();
         let path = Path::new("store");
         b.iter(|| {
-            write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
+            write_lorem_ipsum_store(
+                directory.open_write(path).unwrap(),
+                1_000,
+                Compressor::default(),
+            );
             directory.delete(path).unwrap();
         });
     }
@@ -244,11 +333,16 @@ mod bench {
     fn bench_store_decode(b: &mut Bencher) {
         let directory = RamDirectory::create();
         let path = Path::new("store");
-        write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
+        write_lorem_ipsum_store(
+            directory.open_write(path).unwrap(),
+            1_000,
+            Compressor::default(),
+        );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file).unwrap();
         b.iter(|| {
-            store.get(12).unwrap();
+            //store.get(12).unwrap();
+            store.iter(None).collect::<Vec<_>>()
         });
     }
 }
