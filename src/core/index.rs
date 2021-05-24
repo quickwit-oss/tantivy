@@ -173,7 +173,7 @@ impl IndexBuilder {
             &directory,
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
-        metas.index_settings = self.index_settings.clone();
+        metas.index_settings = self.index_settings;
         let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         Ok(index)
     }

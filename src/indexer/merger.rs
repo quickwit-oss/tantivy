@@ -196,8 +196,8 @@ impl IndexMerger {
             return Err(crate::TantivyError::InvalidArgument(err_msg));
         }
         Ok(IndexMerger {
-            schema,
             index_settings,
+            schema,
             readers,
             max_doc,
         })
@@ -397,15 +397,15 @@ impl IndexMerger {
             .tuple_windows()
             .all(|(field_accessor1, field_accessor2)| {
                 if sort_by_field.order.is_asc() {
-                    return field_accessor1.max_value() <= field_accessor2.min_value();
+                    field_accessor1.max_value() <= field_accessor2.min_value()
                 } else {
-                    return field_accessor1.min_value() >= field_accessor2.max_value();
+                    field_accessor1.min_value() >= field_accessor2.max_value()
                 }
             });
         Ok(everything_is_in_order)
     }
 
-    pub(crate) fn get_sort_field_accessor<'a, 'b>(
+    pub(crate) fn get_sort_field_accessor<'b>(
         reader: &SegmentReader,
         sort_by_field: &'b IndexSortByField,
     ) -> crate::Result<FastFieldReader<u64>> {

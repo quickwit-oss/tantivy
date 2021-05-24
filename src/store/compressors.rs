@@ -53,15 +53,15 @@ impl Compressor {
     }
     pub(crate) fn get_id(&self) -> u8 {
         match self {
-            &Self::Lz4Block => 1,
-            &Self::Lz4Frame => 2,
-            &Self::Brotli => 3,
-            &Self::Snap => 4,
+            Self::Lz4Block => 1,
+            Self::Lz4Frame => 2,
+            Self::Brotli => 3,
+            Self::Snap => 4,
         }
     }
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
         match self {
-            &Self::Lz4Block => {
+            Self::Lz4Block => {
                 #[cfg(feature = "lz4_flex")]
                 {
                     super::compression_lz4_block::compress(uncompressed, compressed)
@@ -71,7 +71,7 @@ impl Compressor {
                     panic!("lz4-block-compression feature flag not activated");
                 }
             }
-            &Self::Lz4Frame => {
+            Self::Lz4Frame => {
                 #[cfg(feature = "lz4")]
                 {
                     super::compression_lz4::compress(uncompressed, compressed)
@@ -81,7 +81,7 @@ impl Compressor {
                     panic!("lz4-compression feature flag not activated");
                 }
             }
-            &Self::Brotli => {
+            Self::Brotli => {
                 #[cfg(feature = "brotli")]
                 {
                     super::compression_brotli::compress(uncompressed, compressed)
@@ -91,7 +91,7 @@ impl Compressor {
                     panic!("brotli-compression feature flag not activated");
                 }
             }
-            &Self::Snap => {
+            Self::Snap => {
                 #[cfg(feature = "snap")]
                 {
                     super::compression_snap::compress(uncompressed, compressed)
@@ -110,7 +110,7 @@ impl Compressor {
         decompressed: &mut Vec<u8>,
     ) -> io::Result<()> {
         match self {
-            &Self::Lz4Block => {
+            Self::Lz4Block => {
                 #[cfg(feature = "lz4_flex")]
                 {
                     super::compression_lz4_block::decompress(compressed, decompressed)
@@ -120,7 +120,7 @@ impl Compressor {
                     panic!("lz4_flex feature flag not activated");
                 }
             }
-            &Self::Lz4Frame => {
+            Self::Lz4Frame => {
                 #[cfg(feature = "lz4")]
                 {
                     super::compression_lz4::decompress(compressed, decompressed)
@@ -130,7 +130,7 @@ impl Compressor {
                     panic!("lz4 feature flag not activated");
                 }
             }
-            &Self::Brotli => {
+            Self::Brotli => {
                 #[cfg(feature = "brotli")]
                 {
                     super::compression_brotli::decompress(compressed, decompressed)
@@ -140,7 +140,7 @@ impl Compressor {
                     panic!("brotli feature flag not activated");
                 }
             }
-            &Self::Snap => {
+            Self::Snap => {
                 #[cfg(feature = "snap")]
                 {
                     super::compression_snap::decompress(compressed, decompressed)
