@@ -209,9 +209,14 @@ impl IndexMerger {
         for field in fields {
             fieldnorms_data.clear();
             if let Some(doc_id_mapping) = doc_id_mapping {
+                let fieldnorms_readers: Vec<FieldNormReader> = self
+                    .readers
+                    .iter()
+                    .map(|reader| reader.get_fieldnorms_reader(field))
+                    .collect::<Result<_, _>>()?;
                 for (doc_id, reader_with_ordinal) in doc_id_mapping {
                     let fieldnorms_reader =
-                        reader_with_ordinal.reader.get_fieldnorms_reader(field)?;
+                        &fieldnorms_readers[reader_with_ordinal.ordinal as usize];
                     let fieldnorm_id = fieldnorms_reader.fieldnorm_id(*doc_id);
                     fieldnorms_data.push(fieldnorm_id);
                 }
