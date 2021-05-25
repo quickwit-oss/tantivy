@@ -206,7 +206,7 @@ pub mod tests {
         let index_builder = Index::builder().schema(schema);
 
         let mut index = index_builder.create_in_ram().unwrap();
-        index.settings_mut().compressor = Compressor::Lz4;
+        index.settings_mut().docstore_compression = Compressor::Lz4;
         {
             let mut index_writer = index.writer_for_tests().unwrap();
             // put enough data create enough blocks in the doc store to be considered for stacking
@@ -228,7 +228,7 @@ pub mod tests {
         );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
-        index_settings.compressor = Compressor::Snappy;
+        index_settings.docstore_compression = Compressor::Snappy;
         // Merging the segments
         {
             let segment_ids = index
