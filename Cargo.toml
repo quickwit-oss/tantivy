@@ -21,7 +21,6 @@ regex ={ version = "1.5.4", default-features = false, features = ["std"] }
 tantivy-fst = "0.3"
 memmap = {version = "0.7", optional=true}
 lz4_flex = { version = "0.8.0", default-features = false, features = ["checked-decode"], optional = true }
-lz4 = { version = "1.23.2", optional = true }
 brotli = { version = "3.3", optional = true }
 snap = { version = "1.0.5", optional = true }
 tempfile = { version = "3.2", optional = true }
@@ -77,12 +76,11 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
-default = ["mmap", "lz4-block-compression" ]
+default = ["mmap", "lz4-compression" ]
 mmap = ["fs2", "tempfile", "memmap"]
 
 brotli-compression = ["brotli"]
-lz4-compression = ["lz4"]
-lz4-block-compression = ["lz4_flex"]
+lz4-compression = ["lz4_flex"]
 snappy-compression = ["snap"]
 
 failpoints = ["fail/failpoints"]

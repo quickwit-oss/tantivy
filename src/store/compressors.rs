@@ -13,12 +13,9 @@ pub trait StoreCompressor {
 /// The default is Lz4Block, but also depends on the enabled feature flags.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Compressor {
-    #[serde(rename = "lz4-block")]
-    /// Use the lz4 block format compressor
-    Lz4Block,
-    #[serde(rename = "lz4-frame")]
-    /// Use the lz4 frame format compressor
-    Lz4Frame,
+    #[serde(rename = "lz4")]
+    /// Use the lz4 compressor (block format)
+    Lz4,
     #[serde(rename = "brotli")]
     /// Use the brotli compressor
     Brotli,
@@ -29,17 +26,15 @@ pub enum Compressor {
 
 impl Default for Compressor {
     fn default() -> Self {
-        if cfg!(feature = "lz4-block-compression") {
-            Compressor::Lz4Block
-        } else if cfg!(feature = "lz4-compression") {
-            Compressor::Lz4Frame
+        if cfg!(feature = "lz4-compression") {
+            Compressor::Lz4
         } else if cfg!(feature = "brotli-compression") {
             Compressor::Brotli
         } else if cfg!(feature = "snappy-compression") {
             Compressor::Snappy
         } else {
             panic!(
-                "all compressor feature flags like are disabled (e.g. lz4-block-compression), can't choose default compressor"
+                "all compressor feature flags like are disabled (e.g. lz4-compression), can't choose default compressor"
             );
         }
     }
@@ -48,39 +43,27 @@ impl Default for Compressor {
 impl Compressor {
     pub(crate) fn from_id(id: u8) -> Compressor {
         match id {
-            1 => Compressor::Lz4Block,
-            2 => Compressor::Lz4Frame,
-            3 => Compressor::Brotli,
-            4 => Compressor::Snappy,
+            1 => Compressor::Lz4,
+            2 => Compressor::Brotli,
+            3 => Compressor::Snappy,
             _ => panic!("unknown compressor id {:?}", id),
         }
     }
     pub(crate) fn get_id(&self) -> u8 {
         match self {
-            Self::Lz4Block => 1,
-            Self::Lz4Frame => 2,
-            Self::Brotli => 3,
-            Self::Snappy => 4,
+            Self::Lz4 => 1,
+            Self::Brotli => 2,
+            Self::Snappy => 3,
         }
     }
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
         match self {
-            Self::Lz4Block => {
+            Self::Lz4 => {
                 #[cfg(feature = "lz4_flex")]
                 {
                     super::compression_lz4_block::compress(uncompressed, compressed)
                 }
                 #[cfg(not(feature = "lz4_flex"))]
-                {
-                    panic!("lz4-block-compression feature flag not activated");
-                }
-            }
-            Self::Lz4Frame => {
-                #[cfg(feature = "lz4")]
-                {
-                    super::compression_lz4::compress(uncompressed, compressed)
-                }
-                #[cfg(not(feature = "lz4"))]
                 {
                     panic!("lz4-compression feature flag not activated");
                 }
@@ -114,7 +97,7 @@ impl Compressor {
         decompressed: &mut Vec<u8>,
     ) -> io::Result<()> {
         match self {
-            Self::Lz4Block => {
+            Self::Lz4 => {
                 #[cfg(feature = "lz4_flex")]
                 {
                     super::compression_lz4_block::decompress(compressed, decompressed)
@@ -122,16 +105,6 @@ impl Compressor {
                 #[cfg(not(feature = "lz4_flex"))]
                 {
                     panic!("lz4_flex feature flag not activated");
-                }
-            }
-            Self::Lz4Frame => {
-                #[cfg(feature = "lz4")]
-                {
-                    super::compression_lz4::decompress(compressed, decompressed)
-                }
-                #[cfg(not(feature = "lz4"))]
-                {
-                    panic!("lz4 feature flag not activated");
                 }
             }
             Self::Brotli => {

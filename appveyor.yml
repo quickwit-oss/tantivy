@@ -18,5 +18,6 @@ install:
 build: false
 
 test_script:
-  - REM SET RUST_LOG=tantivy,test & cargo test --all --verbose --no-default-features --features lz4-block-compression --features mmap
+  - REM SET RUST_LOG=tantivy,test & cargo test --all --verbose --no-default-features --features lz4-compression --features mmap
+  - REM SET RUST_LOG=tantivy,test & cargo test test_store --verbose --no-default-features --features lz4-compression --features snappy-compression --features brotli-compression --features mmap
   - REM SET RUST_BACKTRACE=1 & cargo build --examples

@@ -138,20 +138,15 @@ pub mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "lz4-block-compression")]
+    #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_store_lz4_block() -> crate::Result<()> {
-        test_store(Compressor::Lz4Block)
+        test_store(Compressor::Lz4)
     }
     #[cfg(feature = "snappy-compression")]
     #[test]
     fn test_store_snap() -> crate::Result<()> {
         test_store(Compressor::Snap)
-    }
-    #[cfg(feature = "lz4-compression")]
-    #[test]
-    fn test_store_lz4() -> crate::Result<()> {
-        test_store(Compressor::Lz4Frame)
     }
     #[cfg(feature = "brotli-compression")]
     #[test]
