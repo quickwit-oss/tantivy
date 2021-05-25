@@ -236,6 +236,7 @@ pub struct IndexSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_by_field: Option<IndexSortByField>,
     /// The `Compressor` used to compress the doc store.
+    #[serde(default)]
     pub docstore_compression: Compressor,
 }
 /// Settings to presort the documents in an index
