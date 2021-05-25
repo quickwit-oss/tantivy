@@ -345,7 +345,7 @@ fn write(
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
-        let compressor = serializer.segment().index().settings().compressor;
+        let compressor = serializer.segment().index().settings().docstore_compression;
         let old_store_writer = std::mem::replace(
             &mut serializer.store_writer,
             StoreWriter::new(store_write, compressor),

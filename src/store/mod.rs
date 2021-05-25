@@ -340,9 +340,6 @@ mod bench {
         );
         let store_file = directory.open_read(path).unwrap();
         let store = StoreReader::open(store_file).unwrap();
-        b.iter(|| {
-            //store.get(12).unwrap();
-            store.iter(None).collect::<Vec<_>>()
-        });
+        b.iter(|| store.iter(None).collect::<Vec<_>>());
     }
 }

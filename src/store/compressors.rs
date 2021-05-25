@@ -13,14 +13,18 @@ pub trait StoreCompressor {
 /// The default is Lz4Block, but also depends on the enabled feature flags.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Compressor {
+    #[serde(rename = "lz4-block")]
     /// Use the lz4 block format compressor
     Lz4Block,
+    #[serde(rename = "lz4-frame")]
     /// Use the lz4 frame format compressor
     Lz4Frame,
+    #[serde(rename = "brotli")]
     /// Use the brotli compressor
     Brotli,
+    #[serde(rename = "snappy")]
     /// Use the snap compressor
-    Snap,
+    Snappy,
 }
 
 impl Default for Compressor {
@@ -32,7 +36,7 @@ impl Default for Compressor {
         } else if cfg!(feature = "brotli-compression") {
             Compressor::Brotli
         } else if cfg!(feature = "snappy-compression") {
-            Compressor::Snap
+            Compressor::Snappy
         } else {
             panic!(
                 "all compressor feature flags like are disabled (e.g. lz4-block-compression), can't choose default compressor"
@@ -47,7 +51,7 @@ impl Compressor {
             1 => Compressor::Lz4Block,
             2 => Compressor::Lz4Frame,
             3 => Compressor::Brotli,
-            4 => Compressor::Snap,
+            4 => Compressor::Snappy,
             _ => panic!("unknown compressor id {:?}", id),
         }
     }
@@ -56,7 +60,7 @@ impl Compressor {
             Self::Lz4Block => 1,
             Self::Lz4Frame => 2,
             Self::Brotli => 3,
-            Self::Snap => 4,
+            Self::Snappy => 4,
         }
     }
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
@@ -91,7 +95,7 @@ impl Compressor {
                     panic!("brotli-compression feature flag not activated");
                 }
             }
-            Self::Snap => {
+            Self::Snappy => {
                 #[cfg(feature = "snap")]
                 {
                     super::compression_snap::compress(uncompressed, compressed)
@@ -140,7 +144,7 @@ impl Compressor {
                     panic!("brotli feature flag not activated");
                 }
             }
-            Self::Snap => {
+            Self::Snappy => {
                 #[cfg(feature = "snap")]
                 {
                     super::compression_snap::decompress(compressed, decompressed)

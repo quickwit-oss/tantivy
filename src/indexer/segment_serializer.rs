@@ -39,7 +39,7 @@ impl SegmentSerializer {
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
 
         let postings_serializer = InvertedIndexSerializer::open(&mut segment)?;
-        let compressor = segment.index().settings().compressor;
+        let compressor = segment.index().settings().docstore_compression;
         Ok(SegmentSerializer {
             segment,
             store_writer: StoreWriter::new(store_write, compressor),

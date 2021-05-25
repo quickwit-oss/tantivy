@@ -236,7 +236,7 @@ pub struct IndexSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_by_field: Option<IndexSortByField>,
     /// The `Compressor` used to compress the doc store.
-    pub compressor: Compressor,
+    pub docstore_compression: Compressor,
 }
 /// Settings to presort the documents in an index
 ///
@@ -393,7 +393,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"compressor":"Lz4Block"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4-block"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }

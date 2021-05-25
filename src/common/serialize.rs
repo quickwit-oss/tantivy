@@ -28,6 +28,7 @@ impl<T: BinarySerializable> DeserializeFrom<T> for &[u8] {
     }
 }
 
+/// `FixedSize` marks a `BinarySerializable` as
 /// always serializing to the same size.
 pub trait FixedSize: BinarySerializable {
     const SIZE_IN_BYTES: usize;

@@ -60,3 +60,10 @@ impl DocStoreFooter {
         Ok((footer, body))
     }
 }
+
+#[test]
+fn doc_store_footer_test() {
+    // This test is just to safe guard changes on the footer.
+    // When the doc store footer is updated, make sure to update also the serialize/deserialize methods
+    assert_eq!(core::mem::size_of::<DocStoreFooter>(), 16);
+}
