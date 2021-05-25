@@ -146,7 +146,7 @@ pub mod tests {
     #[cfg(feature = "snappy-compression")]
     #[test]
     fn test_store_snap() -> crate::Result<()> {
-        test_store(Compressor::Snap)
+        test_store(Compressor::Snappy)
     }
     #[cfg(feature = "brotli-compression")]
     #[test]
@@ -206,7 +206,7 @@ pub mod tests {
         let index_builder = Index::builder().schema(schema);
 
         let mut index = index_builder.create_in_ram().unwrap();
-        index.settings_mut().compressor = Compressor::Lz4Block;
+        index.settings_mut().compressor = Compressor::Lz4;
         {
             let mut index_writer = index.writer_for_tests().unwrap();
             // put enough data create enough blocks in the doc store to be considered for stacking
@@ -224,11 +224,11 @@ pub mod tests {
                 .get_store_reader()
                 .unwrap()
                 .compressor(),
-            Compressor::Lz4Block
+            Compressor::Lz4
         );
         // Change compressor, this disables stacking on merging
         let index_settings = index.settings_mut();
-        index_settings.compressor = Compressor::Snap;
+        index_settings.compressor = Compressor::Snappy;
         // Merging the segments
         {
             let segment_ids = index
@@ -250,7 +250,7 @@ pub mod tests {
                 LOREM.to_string()
             );
         }
-        assert_eq!(store.compressor(), Compressor::Snap);
+        assert_eq!(store.compressor(), Compressor::Snappy);
 
         Ok(())
     }
