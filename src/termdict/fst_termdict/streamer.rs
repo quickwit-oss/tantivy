@@ -78,8 +78,8 @@ pub struct TermStreamer<'a, A = AlwaysMatch>
 where
     A: Automaton,
 {
-    pub fst_map: &'a TermDictionary,
-    pub stream: Stream<'a, A>,
+    pub(crate) fst_map: &'a TermDictionary,
+    pub(crate) stream: Stream<'a, A>,
     term_ord: TermOrdinal,
     current_key: Vec<u8>,
     current_value: TermInfo,

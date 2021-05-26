@@ -17,8 +17,8 @@ use tantivy_fst::Streamer;
 pub struct TermMerger<'a> {
     dictionaries: Vec<&'a TermDictionary>,
     union: Union<'a>,
-    key: Vec<u8>,
-    matching_streams: Vec<IndexedValue>,
+    current_key: Vec<u8>,
+    current_segment_and_term_ordinals: Vec<IndexedValue>,
 }
 
 impl<'a> TermMerger<'a> {
@@ -34,13 +34,15 @@ impl<'a> TermMerger<'a> {
         TermMerger {
             dictionaries,
             union: op_builder.union(),
-            key: vec![],
-            matching_streams: vec![],
+            current_key: vec![],
+            current_segment_and_term_ordinals: vec![],
         }
     }
 
     pub fn matching_segments<'b: 'a>(&'b self) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
-        self.matching_streams.iter().map(|iv| (iv.index, iv.value))
+        self.current_segment_and_term_ordinals
+            .iter()
+            .map(|iv| (iv.index, iv.value))
     }
 
     /// Advance the term iterator to the next term.
@@ -48,11 +50,13 @@ impl<'a> TermMerger<'a> {
     /// False if there is none.
     pub fn advance(&mut self) -> bool {
         if let Some((k, values)) = self.union.next() {
-            self.key.clear();
-            self.key.extend_from_slice(k);
-            self.matching_streams.clear();
-            self.matching_streams.extend_from_slice(values);
-            self.matching_streams.sort_by_key(|iv| iv.index);
+            self.current_key.clear();
+            self.current_key.extend_from_slice(k);
+            self.current_segment_and_term_ordinals.clear();
+            self.current_segment_and_term_ordinals
+                .extend_from_slice(values);
+            self.current_segment_and_term_ordinals
+                .sort_by_key(|iv| iv.index);
             true
         } else {
             false
@@ -65,22 +69,25 @@ impl<'a> TermMerger<'a> {
     /// iff advance() has been called before
     /// and "true" was returned.
     pub fn key(&self) -> &[u8] {
-        &self.key
+        &self.current_key
     }
 
-    /// Returns the sorted list of segment ordinals
-    /// that include the current term.
+    /// Iterator over (segment ordinal, TermInfo) pairs iterator sorted by the ordinal.
     ///
     /// This method may be called
     /// iff advance() has been called before
     /// and "true" was returned.
-    pub fn current_kvs<'b: 'a>(&'b self) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
-        self.matching_streams.iter().map(move |iv| {
-            (
-                iv.index,
-                self.dictionaries[iv.index].term_info_from_ord(iv.value),
-            )
-        })
+    pub fn current_segment_ordinals_and_term_infos<'b: 'a>(
+        &'b self,
+    ) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
+        self.current_segment_and_term_ordinals
+            .iter()
+            .map(move |iv| {
+                (
+                    iv.index,
+                    self.dictionaries[iv.index].term_info_from_ord(iv.value),
+                )
+            })
     }
 }
 

@@ -864,7 +864,7 @@ impl IndexMerger {
             let mut total_doc_freq = 0;
 
             // Let's compute the list of non-empty posting lists
-            for (segment_ord, term_info) in merged_terms.current_kvs() {
+            for (segment_ord, term_info) in merged_terms.current_segment_ordinals_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
