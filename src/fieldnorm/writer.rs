@@ -94,15 +94,20 @@ impl FieldNormsWriter {
     ) -> io::Result<()> {
         for &field in self.fields.iter() {
             let fieldnorm_values: &[u8] = &self.fieldnorms_buffer[field.field_id() as usize][..];
+            let max_value = fieldnorm_values.iter().cloned().max().unwrap_or(0_u8);
             if let Some(doc_id_map) = doc_id_map {
                 let mut mapped_fieldnorm_values = vec![];
                 mapped_fieldnorm_values.resize(fieldnorm_values.len(), 0u8);
                 for (new_doc_id, old_doc_id) in doc_id_map.iter_old_doc_ids().enumerate() {
                     mapped_fieldnorm_values[new_doc_id] = fieldnorm_values[*old_doc_id as usize];
                 }
-                fieldnorms_serializer.serialize_field(field, &mapped_fieldnorm_values)?;
+                fieldnorms_serializer.serialize_field(
+                    field,
+                    &mapped_fieldnorm_values,
+                    max_value,
+                )?;
             } else {
-                fieldnorms_serializer.serialize_field(field, fieldnorm_values)?;
+                fieldnorms_serializer.serialize_field(field, fieldnorm_values, max_value)?;
             }
         }
         fieldnorms_serializer.close()?;

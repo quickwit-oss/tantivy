@@ -441,7 +441,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(text_field=>"a b c"));
+        index_writer.add_document(doc!(text_field=>"a b c d"));
         index_writer.add_document(doc!());
         index_writer.add_document(doc!(text_field=>"a b"));
         index_writer.commit()?;
@@ -449,7 +449,7 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field)?;
-        assert_eq!(fieldnorms_reader.fieldnorm(0), 3);
+        assert_eq!(fieldnorms_reader.fieldnorm(0), 4);
         assert_eq!(fieldnorms_reader.fieldnorm(1), 0);
         assert_eq!(fieldnorms_reader.fieldnorm(2), 2);
         Ok(())

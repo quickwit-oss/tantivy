@@ -257,7 +257,8 @@ impl IndexMerger {
                     }
                 }
             }
-            fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
+            let max_value = fieldnorms_data.iter().cloned().max().unwrap_or(0);
+            fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..], max_value)?;
         }
         fieldnorms_serializer.close()?;
         Ok(())

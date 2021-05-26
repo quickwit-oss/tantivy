@@ -1,4 +1,5 @@
 use super::{fieldnorm_to_id, id_to_fieldnorm};
+use crate::common::BinarySerializable;
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
@@ -6,6 +7,8 @@ use crate::schema::Field;
 use crate::space_usage::PerFieldSpaceUsage;
 use crate::DocId;
 use std::sync::Arc;
+use tantivy_bitpacker::compute_num_bits;
+use tantivy_bitpacker::BitUnpacker;
 
 /// Reader for the fieldnorm (for each document, the number of tokens indexed in the
 /// field) of all indexed fields in the index.
@@ -71,7 +74,12 @@ impl From<ReaderImplEnum> for FieldNormReader {
 
 #[derive(Clone)]
 enum ReaderImplEnum {
-    FromData(OwnedBytes),
+    FromData {
+        bytes: OwnedBytes,
+        bit_unpacker: BitUnpacker,
+        max_value: u8,
+        num_docs: u32,
+    },
     Const {
         num_docs: u32,
         fieldnorm_id: u8,
@@ -97,18 +105,27 @@ impl FieldNormReader {
 
     /// Opens a field norm reader given its file.
     pub fn open(fieldnorm_file: FileSlice) -> crate::Result<Self> {
-        let data = fieldnorm_file.read_bytes()?;
-        Ok(FieldNormReader::new(data))
+        let mut bytes = fieldnorm_file.read_bytes()?;
+        let max_value = u8::deserialize(&mut bytes)?;
+        let num_docs = u32::deserialize(&mut bytes)?;
+        Ok(FieldNormReader::new(bytes, max_value, num_docs))
     }
 
-    fn new(data: OwnedBytes) -> Self {
-        ReaderImplEnum::FromData(data).into()
+    fn new(data: OwnedBytes, max_value: u8, num_docs: u32) -> Self {
+        let num_bits = compute_num_bits(max_value as u64);
+        ReaderImplEnum::FromData {
+            bit_unpacker: BitUnpacker::new(num_bits),
+            bytes: data,
+            max_value,
+            num_docs,
+        }
+        .into()
     }
 
     /// Returns the number of documents in this segment.
     pub fn num_docs(&self) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => data.len() as u32,
+            ReaderImplEnum::FromData { num_docs, .. } => *num_docs,
             ReaderImplEnum::Const { num_docs, .. } => *num_docs,
         }
     }
@@ -124,8 +141,12 @@ impl FieldNormReader {
     /// `fieldnorm_id` by doing a simple table lookup.
     pub fn fieldnorm(&self, doc_id: DocId) -> u32 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.as_slice()[doc_id as usize];
+            ReaderImplEnum::FromData {
+                bit_unpacker,
+                bytes,
+                ..
+            } => {
+                let fieldnorm_id = bit_unpacker.get(doc_id as u64, bytes.as_slice()) as u8;
                 id_to_fieldnorm(fieldnorm_id)
             }
             ReaderImplEnum::Const { fieldnorm, .. } => *fieldnorm,
@@ -136,8 +157,12 @@ impl FieldNormReader {
     #[inline]
     pub fn fieldnorm_id(&self, doc_id: DocId) -> u8 {
         match &self.0 {
-            ReaderImplEnum::FromData(data) => {
-                let fieldnorm_id = data.as_slice()[doc_id as usize];
+            ReaderImplEnum::FromData {
+                bit_unpacker,
+                bytes,
+                ..
+            } => {
+                let fieldnorm_id = bit_unpacker.get(doc_id as u64, bytes.as_slice()) as u8;
                 fieldnorm_id
             }
             ReaderImplEnum::Const { fieldnorm_id, .. } => *fieldnorm_id,
@@ -159,13 +184,15 @@ impl FieldNormReader {
 
     #[cfg(test)]
     pub fn for_test(field_norms: &[u32]) -> FieldNormReader {
-        let field_norms_id = field_norms
+        let mut field_norms_id = field_norms
             .iter()
             .cloned()
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
+        let num_docs = field_norms_id.len() as u32;
+        field_norms_id.extend_from_slice(&[0; 7]); // add padding
         let field_norms_data = OwnedBytes::new(field_norms_id);
-        FieldNormReader::new(field_norms_data)
+        FieldNormReader::new(field_norms_data, 255, num_docs)
     }
 }
 
