@@ -539,10 +539,10 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.add_document(doc!(
-            facet_field => Facet::from_text(&"/subjects/A/a"),
-            facet_field => Facet::from_text(&"/subjects/B/a"),
-            facet_field => Facet::from_text(&"/subjects/A/b"),
-            facet_field => Facet::from_text(&"/subjects/B/b"),
+            facet_field => Facet::from_text(&"/subjects/A/a").unwrap(),
+            facet_field => Facet::from_text(&"/subjects/B/a").unwrap(),
+            facet_field => Facet::from_text(&"/subjects/A/b").unwrap(),
+            facet_field => Facet::from_text(&"/subjects/B/b").unwrap(),
         ));
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
@@ -563,16 +563,16 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(
-            facet_field => Facet::from_text(&"/A/A"),
+            facet_field => Facet::from_text(&"/A/A").unwrap(),
         ));
         index_writer.add_document(doc!(
-            facet_field => Facet::from_text(&"/A/B"),
+            facet_field => Facet::from_text(&"/A/B").unwrap(),
         ));
         index_writer.add_document(doc!(
-            facet_field => Facet::from_text(&"/A/C/A"),
+            facet_field => Facet::from_text(&"/A/C/A").unwrap(),
         ));
         index_writer.add_document(doc!(
-            facet_field => Facet::from_text(&"/D/C/A"),
+            facet_field => Facet::from_text(&"/D/C/A").unwrap(),
         ));
         index_writer.commit()?;
         let reader = index.reader()?;
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(searcher.num_docs(), 4);
 
         let count_facet = |facet_str: &str| {
-            let term = Term::from_facet(facet_field, &Facet::from_text(facet_str));
+            let term = Term::from_facet(facet_field, &Facet::from_text(facet_str).unwrap());
             searcher
                 .search(&TermQuery::new(term, IndexRecordOption::Basic), &Count)
                 .unwrap()

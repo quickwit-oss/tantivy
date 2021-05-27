@@ -8,7 +8,7 @@ use crate::query::Query;
 use crate::query::RangeQuery;
 use crate::query::TermQuery;
 use crate::query::{AllQuery, BoostQuery};
-use crate::schema::{Facet, IndexRecordOption};
+use crate::schema::{Facet, FacetParseError, IndexRecordOption};
 use crate::schema::{Field, Schema};
 use crate::schema::{FieldType, Term};
 use crate::tokenizer::TokenizerManager;
@@ -68,6 +68,9 @@ pub enum QueryParserError {
     /// The format for the date field is not RFC 3339 compliant.
     #[error("The date field has an invalid format")]
     DateFormatError(chrono::ParseError),
+    /// The format for the facet field is invalid.
+    #[error("The facet field is malformed: {0}")]
+    FacetFormatError(FacetParseError),
 }
 
 impl From<ParseIntError> for QueryParserError {
@@ -85,6 +88,12 @@ impl From<ParseFloatError> for QueryParserError {
 impl From<chrono::ParseError> for QueryParserError {
     fn from(err: chrono::ParseError) -> QueryParserError {
         QueryParserError::DateFormatError(err)
+    }
+}
+
+impl From<FacetParseError> for QueryParserError {
+    fn from(err: FacetParseError) -> QueryParserError {
+        QueryParserError::FacetFormatError(err)
     }
 }
 
@@ -358,10 +367,10 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet(_) => {
-                let facet = Facet::from_text(phrase);
-                Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))])
-            }
+            FieldType::HierarchicalFacet(_) => match Facet::from_text(phrase) {
+                Ok(facet) => Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))]),
+                Err(e) => Err(QueryParserError::from(e)),
+            },
             FieldType::Bytes(_) => {
                 let bytes = base64::decode(phrase).map_err(QueryParserError::ExpectedBase64)?;
                 let term = Term::from_field_bytes(field, &bytes);
@@ -1025,6 +1034,19 @@ mod test {
         assert!(query_parser
             .parse_query("date:\"1985-04-12T23:20:50.52Z\"")
             .is_ok());
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_facet() {
+        let query_parser = make_query_parser();
+        match query_parser.parse_query("facet:INVALID") {
+            Ok(_) => panic!("should never succeed"),
+            Err(e) => assert_eq!(
+                "The facet field is malformed: Failed to parse the facet string: 'INVALID'",
+                format!("{}", e)
+            ),
+        }
+        assert!(query_parser.parse_query("facet:\"/foo/bar\"").is_ok());
     }
 
     #[test]

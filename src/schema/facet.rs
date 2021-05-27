@@ -20,6 +20,14 @@ pub const FACET_SEP_BYTE: u8 = 0u8;
 /// representation of facets. (It is the null codepoint.)
 pub const FACET_SEP_CHAR: char = '\u{0}';
 
+/// An error enum for facet parser.
+#[derive(Debug, PartialEq, Eq, Error)]
+pub enum FacetParseError {
+    /// The facet text representation is unparsable.
+    #[error("Failed to parse the facet string: '{0}'")]
+    FacetParseError(String),
+}
+
 /// A Facet represent a point in a given hierarchy.
 ///
 /// They are typically represented similarly to a filepath.
@@ -75,11 +83,47 @@ impl Facet {
     /// It is conceptually, if one of the steps of this path
     /// contains a `/` or a `\`, it should be escaped
     /// using an anti-slash `/`.
-    pub fn from_text<T>(path: &T) -> Facet
+    pub fn from_text<T>(path: &T) -> Result<Facet, FacetParseError>
     where
         T: ?Sized + AsRef<str>,
     {
-        From::from(path)
+        #[derive(Copy, Clone)]
+        enum State {
+            Escaped,
+            Idle,
+        }
+        let path_ref = path.as_ref();
+        if path_ref.is_empty() {
+            return Err(FacetParseError::FacetParseError(path_ref.to_string()));
+        }
+        if !path_ref.starts_with('/') {
+            return Err(FacetParseError::FacetParseError(path_ref.to_string()));
+        }
+        let mut facet_encoded = String::new();
+        let mut state = State::Idle;
+        let path_bytes = path_ref.as_bytes();
+        let mut last_offset = 1;
+        for i in 1..path_bytes.len() {
+            let c = path_bytes[i];
+            match (state, c) {
+                (State::Idle, ESCAPE_BYTE) => {
+                    facet_encoded.push_str(&path_ref[last_offset..i]);
+                    last_offset = i + 1;
+                    state = State::Escaped
+                }
+                (State::Idle, SLASH_BYTE) => {
+                    facet_encoded.push_str(&path_ref[last_offset..i]);
+                    facet_encoded.push(FACET_SEP_CHAR);
+                    last_offset = i + 1;
+                }
+                (State::Escaped, _escaped_char) => {
+                    state = State::Idle;
+                }
+                (State::Idle, _any_char) => {}
+            }
+        }
+        facet_encoded.push_str(&path_ref[last_offset..]);
+        Ok(Facet(facet_encoded))
     }
 
     /// Returns a `Facet` from an iterator over the different
@@ -137,39 +181,7 @@ impl Borrow<str> for Facet {
 
 impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
     fn from(path_asref: &'a T) -> Facet {
-        #[derive(Copy, Clone)]
-        enum State {
-            Escaped,
-            Idle,
-        }
-        let path: &str = path_asref.as_ref();
-        assert!(!path.is_empty());
-        assert!(path.starts_with('/'));
-        let mut facet_encoded = String::new();
-        let mut state = State::Idle;
-        let path_bytes = path.as_bytes();
-        let mut last_offset = 1;
-        for i in 1..path_bytes.len() {
-            let c = path_bytes[i];
-            match (state, c) {
-                (State::Idle, ESCAPE_BYTE) => {
-                    facet_encoded.push_str(&path[last_offset..i]);
-                    last_offset = i + 1;
-                    state = State::Escaped
-                }
-                (State::Idle, SLASH_BYTE) => {
-                    facet_encoded.push_str(&path[last_offset..i]);
-                    facet_encoded.push(FACET_SEP_CHAR);
-                    last_offset = i + 1;
-                }
-                (State::Escaped, _escaped_char) => {
-                    state = State::Idle;
-                }
-                (State::Idle, _any_char) => {}
-            }
-        }
-        facet_encoded.push_str(&path[last_offset..]);
-        Facet(facet_encoded)
+        Facet::from_text(path_asref).unwrap()
     }
 }
 
@@ -226,7 +238,7 @@ impl Debug for Facet {
 #[cfg(test)]
 mod tests {
 
-    use super::Facet;
+    use super::{Facet, FacetParseError};
 
     #[test]
     fn test_root() {
@@ -287,5 +299,13 @@ mod tests {
         let v: Vec<&str> = vec![];
         let facet = Facet::from_path(v.iter());
         assert_eq!(facet.to_path_string(), "/");
+    }
+
+    #[test]
+    fn test_from_text() {
+        assert_eq!(
+            Err(FacetParseError::FacetParseError("INVALID".to_string())),
+            Facet::from_text("INVALID")
+        );
     }
 }
