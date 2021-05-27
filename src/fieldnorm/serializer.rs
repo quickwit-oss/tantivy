@@ -32,8 +32,6 @@ impl FieldNormsSerializer {
     ) -> io::Result<()> {
         let write = self.composite_write.for_field(field);
         max_value.serialize(write)?;
-        dbg!(max_value);
-        dbg!(fieldnorms_data.len() as u32);
         (fieldnorms_data.len() as u32).serialize(write)?; // num_docs
         let mut bitpacker = BitPacker::new();
         let num_bits = compute_num_bits(max_value as u64);
