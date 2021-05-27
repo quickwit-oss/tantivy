@@ -1,7 +1,7 @@
+use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
-use crate::fastfield::FastFieldReader;
+use crate::fastfield::{BitpackedFastFieldReader, FastFieldReader, MultiValueLength};
 use crate::DocId;
-use crate::{directory::FileSlice, fastfield::MultiValueLength};
 
 /// Reader for byte array fast fields
 ///
@@ -15,13 +15,13 @@ use crate::{directory::FileSlice, fastfield::MultiValueLength};
 /// and the start index for the next document, and keeping the bytes in between.
 #[derive(Clone)]
 pub struct BytesFastFieldReader {
-    idx_reader: FastFieldReader<u64>,
+    idx_reader: BitpackedFastFieldReader<u64>,
     values: OwnedBytes,
 }
 
 impl BytesFastFieldReader {
     pub(crate) fn open(
-        idx_reader: FastFieldReader<u64>,
+        idx_reader: BitpackedFastFieldReader<u64>,
         values_file: FileSlice,
     ) -> crate::Result<BytesFastFieldReader> {
         let values = values_file.read_bytes()?;

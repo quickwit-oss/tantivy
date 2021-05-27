@@ -4,7 +4,7 @@ use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::FastFieldReader;
+use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use crate::query::Weight;
 use crate::schema::Field;
 use crate::DocAddress;
@@ -129,7 +129,7 @@ impl fmt::Debug for TopDocs {
 }
 
 struct ScorerByFastFieldReader {
-    ff_reader: FastFieldReader<u64>,
+    ff_reader: DynamicFastFieldReader<u64>,
 }
 
 impl CustomSegmentScorer<u64> for ScorerByFastFieldReader {
@@ -151,7 +151,7 @@ impl CustomScorer<u64> for ScorerByField {
         // mapping is monotonic, so it is sufficient to compute our top-K docs.
         //
         // The conversion will then happen only on the top-K docs.
-        let ff_reader: FastFieldReader<u64> = segment_reader
+        let ff_reader = segment_reader
             .fast_fields()
             .typed_fast_field_reader(self.field)?;
         Ok(ScorerByFastFieldReader { ff_reader })
@@ -401,6 +401,7 @@ impl TopDocs {
     /// # use tantivy::query::QueryParser;
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
+    /// use tantivy::fastfield::FastFieldReader;
     /// use tantivy::schema::Field;
     ///
     /// fn create_schema() -> Schema {
@@ -508,6 +509,7 @@ impl TopDocs {
     /// use tantivy::SegmentReader;
     /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::Field;
+    /// use tantivy::fastfield::FastFieldReader;
     ///
     /// # fn create_schema() -> Schema {
     /// #    let mut schema_builder = Schema::builder();

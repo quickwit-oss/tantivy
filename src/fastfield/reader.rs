@@ -14,12 +14,94 @@ use std::path::Path;
 use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitUnpacker;
 
+/// FastFieldReader is the trait to access fast field data.
+pub trait FastFieldReader<Item: FastValue>: Clone {
+    /// Return the value associated to the given document.
+    ///
+    /// This accessor should return as fast as possible.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `doc` is greater than the segment
+    fn get(&self, doc: DocId) -> Item;
+
+    /// Fills an output buffer with the fast field values
+    /// associated with the `DocId` going from
+    /// `start` to `start + output.len()`.
+    ///
+    /// Regardless of the type of `Item`, this method works
+    /// - transmuting the output array
+    /// - extracting the `Item`s as if they were `u64`
+    /// - possibly converting the `u64` value to the right type.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `start + output.len()` is greater than
+    /// the segment's `maxdoc`.
+    fn get_range(&self, start: DocId, output: &mut [Item]);
+
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    fn min_value(&self) -> Item;
+
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    fn max_value(&self) -> Item;
+}
+
+#[derive(Clone)]
+/// DynamicFastFieldReader wraps different readers to access
+/// the various encoded fastfield data
+///
+pub enum DynamicFastFieldReader<Item: FastValue> {
+    /// Bitpacked compressed fastfield data.
+    Bitpacked(BitpackedFastFieldReader<Item>),
+}
+
+impl<Item: FastValue> DynamicFastFieldReader<Item> {
+    /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
+    pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
+        Ok(DynamicFastFieldReader::Bitpacked(
+            BitpackedFastFieldReader::open(file)?,
+        ))
+    }
+}
+
+impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
+    fn get(&self, doc: DocId) -> Item {
+        match self {
+            Self::Bitpacked(reader) => reader.get(doc),
+        }
+    }
+    fn get_range(&self, start: DocId, output: &mut [Item]) {
+        match self {
+            Self::Bitpacked(reader) => reader.get_range(start, output),
+        }
+    }
+    fn min_value(&self) -> Item {
+        match self {
+            Self::Bitpacked(reader) => reader.min_value(),
+        }
+    }
+    fn max_value(&self) -> Item {
+        match self {
+            Self::Bitpacked(reader) => reader.max_value(),
+        }
+    }
+}
+
 /// Trait for accessing a fastfield.
 ///
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct FastFieldReader<Item: FastValue> {
+pub struct BitpackedFastFieldReader<Item: FastValue> {
     bytes: OwnedBytes,
     bit_unpacker: BitUnpacker,
     min_value_u64: u64,
@@ -27,7 +109,7 @@ pub struct FastFieldReader<Item: FastValue> {
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue> FastFieldReader<Item> {
+impl<Item: FastValue> BitpackedFastFieldReader<Item> {
     /// Opens a fast field given a file.
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
@@ -36,7 +118,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
         let max_value = min_value + amplitude;
         let num_bits = compute_num_bits(amplitude);
         let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(FastFieldReader {
+        Ok(BitpackedFastFieldReader {
             bytes,
             min_value_u64: min_value,
             max_value_u64: max_value,
@@ -44,19 +126,6 @@ impl<Item: FastValue> FastFieldReader<Item> {
             _phantom: PhantomData,
         })
     }
-
-    /// Return the value associated to the given document.
-    ///
-    /// This accessor should return as fast as possible.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `doc` is greater than the segment
-    // `maxdoc`.
-    pub fn get(&self, doc: DocId) -> Item {
-        self.get_u64(u64::from(doc))
-    }
-
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
         Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc, &self.bytes))
     }
@@ -78,6 +147,20 @@ impl<Item: FastValue> FastFieldReader<Item> {
             *out = self.get_u64(start + (i as u64));
         }
     }
+}
+
+impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
+    /// Return the value associated to the given document.
+    ///
+    /// This accessor should return as fast as possible.
+    ///
+    /// # Panics
+    ///
+    /// May panic if `doc` is greater than the segment
+    // `maxdoc`.
+    fn get(&self, doc: DocId) -> Item {
+        self.get_u64(u64::from(doc))
+    }
 
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
@@ -92,7 +175,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    pub fn get_range(&self, start: DocId, output: &mut [Item]) {
+    fn get_range(&self, start: DocId, output: &mut [Item]) {
         self.get_range_u64(u64::from(start), output);
     }
 
@@ -101,7 +184,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     /// The max value does not take in account of possible
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
-    pub fn min_value(&self) -> Item {
+    fn min_value(&self) -> Item {
         Item::from_u64(self.min_value_u64)
     }
 
@@ -110,13 +193,13 @@ impl<Item: FastValue> FastFieldReader<Item> {
     /// The max value does not take in account of possible
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
-    pub fn max_value(&self) -> Item {
+    fn max_value(&self) -> Item {
         Item::from_u64(self.max_value_u64)
     }
 }
 
-impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
-    fn from(vals: Vec<Item>) -> FastFieldReader<Item> {
+impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
+    fn from(vals: Vec<Item>) -> BitpackedFastFieldReader<Item> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
@@ -148,6 +231,6 @@ impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
         let field_file = composite_file
             .open_read(field)
             .expect("File component not found");
-        FastFieldReader::open(field_file).unwrap()
+        BitpackedFastFieldReader::open(field_file).unwrap()
     }
 }

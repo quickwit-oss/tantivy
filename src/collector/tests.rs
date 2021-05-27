@@ -1,7 +1,8 @@
 use super::*;
 use crate::core::SegmentReader;
 use crate::fastfield::BytesFastFieldReader;
-use crate::fastfield::FastFieldReader;
+use crate::fastfield::DynamicFastFieldReader;
+use crate::fastfield::{FastFieldReader, MultiValueLength};
 use crate::schema::Field;
 use crate::DocId;
 use crate::Score;
@@ -162,7 +163,7 @@ pub struct FastFieldTestCollector {
 
 pub struct FastFieldSegmentCollector {
     vals: Vec<u64>,
-    reader: FastFieldReader<u64>,
+    reader: DynamicFastFieldReader<u64>,
 }
 
 impl FastFieldTestCollector {

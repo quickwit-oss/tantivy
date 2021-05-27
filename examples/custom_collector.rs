@@ -10,7 +10,7 @@
 // ---
 // Importing tantivy...
 use tantivy::collector::{Collector, SegmentCollector};
-use tantivy::fastfield::FastFieldReader;
+use tantivy::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
@@ -98,7 +98,7 @@ impl Collector for StatsCollector {
 }
 
 struct StatsSegmentCollector {
-    fast_field_reader: FastFieldReader<u64>,
+    fast_field_reader: DynamicFastFieldReader<u64>,
     stats: Stats,
 }
 

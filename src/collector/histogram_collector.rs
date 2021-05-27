@@ -1,5 +1,5 @@
 use crate::collector::{Collector, SegmentCollector};
-use crate::fastfield::{FastFieldReader, FastValue};
+use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
 use crate::schema::{Field, Type};
 use crate::{DocId, Score};
 use fastdivide::DividerU64;
@@ -84,7 +84,7 @@ impl HistogramComputer {
 }
 pub struct SegmentHistogramCollector {
     histogram_computer: HistogramComputer,
-    ff_reader: FastFieldReader<u64>,
+    ff_reader: DynamicFastFieldReader<u64>,
 }
 
 impl SegmentCollector for SegmentHistogramCollector {
