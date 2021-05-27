@@ -14,7 +14,7 @@ const FOOTER_MAX_LEN: u32 = 50_000;
 
 /// The magic byte of the footer to identify corruption
 /// or an old version of the footer.
-const FOOTER_MAGIC_BYTE: u32 = 1337;
+const FOOTER_MAGIC_NUMBER: u32 = 1337;
 
 type CrcHashU32 = u32;
 
@@ -39,7 +39,7 @@ impl Footer {
         counting_write.write_all(serde_json::to_string(&self)?.as_ref())?;
         let footer_payload_len = counting_write.written_bytes();
         BinarySerializable::serialize(&(footer_payload_len as u32), write)?;
-        BinarySerializable::serialize(&(FOOTER_MAGIC_BYTE as u32), write)?;
+        BinarySerializable::serialize(&(FOOTER_MAGIC_NUMBER as u32), write)?;
         Ok(())
     }
 
@@ -61,7 +61,7 @@ impl Footer {
             .as_ref()
             .deserialize()?;
 
-        if footer_magic_byte != FOOTER_MAGIC_BYTE {
+        if footer_magic_byte != FOOTER_MAGIC_NUMBER {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                     "Footer magic byte mismatch. File corrupted or index was created using old an tantivy version which is not supported anymore. Please use tantivy 0.15 or above to recreate the index.",
@@ -158,7 +158,7 @@ mod tests {
     use crate::directory::OwnedBytes;
     use crate::{
         common::BinarySerializable,
-        directory::{footer::FOOTER_MAGIC_BYTE, FileSlice},
+        directory::{footer::FOOTER_MAGIC_NUMBER, FileSlice},
     };
     use std::io;
 
@@ -193,7 +193,7 @@ mod tests {
     fn test_deserialize_footer_wrong_filesize() {
         let mut buf: Vec<u8> = vec![];
         BinarySerializable::serialize(&100_u32, &mut buf).unwrap();
-        BinarySerializable::serialize(&FOOTER_MAGIC_BYTE, &mut buf).unwrap();
+        BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, &mut buf).unwrap();
 
         let owned_bytes = OwnedBytes::new(buf);
 
@@ -212,7 +212,7 @@ mod tests {
 
         let footer_length = super::FOOTER_MAX_LEN + 1;
         BinarySerializable::serialize(&footer_length, &mut buf).unwrap();
-        BinarySerializable::serialize(&FOOTER_MAGIC_BYTE, &mut buf).unwrap();
+        BinarySerializable::serialize(&FOOTER_MAGIC_NUMBER, &mut buf).unwrap();
 
         let owned_bytes = OwnedBytes::new(buf);
 

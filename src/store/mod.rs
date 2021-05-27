@@ -42,16 +42,13 @@ pub use self::compressors::Compressor;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-#[cfg(feature = "lz4_flex")]
+#[cfg(feature = "lz4-compression")]
 mod compression_lz4_block;
 
-#[cfg(feature = "lz4")]
-mod compression_lz4;
-
-#[cfg(feature = "brotli")]
+#[cfg(feature = "brotli-compression")]
 mod compression_brotli;
 
-#[cfg(feature = "snap")]
+#[cfg(feature = "snappy-compression")]
 mod compression_snap;
 
 #[cfg(test)]
@@ -195,8 +192,8 @@ pub mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "snap")]
-    #[cfg(feature = "lz4_flex")]
+    #[cfg(feature = "snappy-compression")]
+    #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_merge_with_changed_compressor() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();

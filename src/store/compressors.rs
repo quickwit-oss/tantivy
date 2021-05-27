@@ -56,41 +56,43 @@ impl Compressor {
             Self::Snappy => 3,
         }
     }
+    #[inline]
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
         match self {
             Self::Lz4 => {
-                #[cfg(feature = "lz4_flex")]
+                #[cfg(feature = "lz4-compression")]
                 {
                     super::compression_lz4_block::compress(uncompressed, compressed)
                 }
-                #[cfg(not(feature = "lz4_flex"))]
+                #[cfg(not(feature = "lz4-compression"))]
                 {
                     panic!("lz4-compression feature flag not activated");
                 }
             }
             Self::Brotli => {
-                #[cfg(feature = "brotli")]
+                #[cfg(feature = "brotli-compression")]
                 {
                     super::compression_brotli::compress(uncompressed, compressed)
                 }
-                #[cfg(not(feature = "brotli"))]
+                #[cfg(not(feature = "brotli-compression"))]
                 {
-                    panic!("brotli-compression feature flag not activated");
+                    panic!("brotli-compression-compression feature flag not activated");
                 }
             }
             Self::Snappy => {
-                #[cfg(feature = "snap")]
+                #[cfg(feature = "snappy-compression")]
                 {
                     super::compression_snap::compress(uncompressed, compressed)
                 }
-                #[cfg(not(feature = "snap"))]
+                #[cfg(not(feature = "snappy-compression"))]
                 {
-                    panic!("snap-compression feature flag not activated");
+                    panic!("snappy-compression feature flag not activated");
                 }
             }
         }
     }
 
+    #[inline]
     pub(crate) fn decompress(
         &self,
         compressed: &[u8],
@@ -98,33 +100,33 @@ impl Compressor {
     ) -> io::Result<()> {
         match self {
             Self::Lz4 => {
-                #[cfg(feature = "lz4_flex")]
+                #[cfg(feature = "lz4-compression")]
                 {
                     super::compression_lz4_block::decompress(compressed, decompressed)
                 }
-                #[cfg(not(feature = "lz4_flex"))]
+                #[cfg(not(feature = "lz4-compression"))]
                 {
-                    panic!("lz4_flex feature flag not activated");
+                    panic!("lz4-compression feature flag not activated");
                 }
             }
             Self::Brotli => {
-                #[cfg(feature = "brotli")]
+                #[cfg(feature = "brotli-compression")]
                 {
                     super::compression_brotli::decompress(compressed, decompressed)
                 }
-                #[cfg(not(feature = "brotli"))]
+                #[cfg(not(feature = "brotli-compression"))]
                 {
-                    panic!("brotli feature flag not activated");
+                    panic!("brotli-compression feature flag not activated");
                 }
             }
             Self::Snappy => {
-                #[cfg(feature = "snap")]
+                #[cfg(feature = "snappy-compression")]
                 {
                     super::compression_snap::decompress(compressed, decompressed)
                 }
-                #[cfg(not(feature = "snap"))]
+                #[cfg(not(feature = "snappy-compression"))]
                 {
-                    panic!("snap feature flag not activated");
+                    panic!("snappy-compression feature flag not activated");
                 }
             }
         }
