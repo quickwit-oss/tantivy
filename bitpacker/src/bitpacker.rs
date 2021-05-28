@@ -17,6 +17,7 @@ impl BitPacker {
         }
     }
 
+    #[inline]
     pub fn write<TWrite: io::Write>(
         &mut self,
         val: u64,
@@ -79,6 +80,7 @@ impl BitUnpacker {
         }
     }
 
+    #[inline]
     pub fn get(&self, idx: u64, data: &[u8]) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
