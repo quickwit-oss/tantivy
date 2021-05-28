@@ -1,7 +1,7 @@
 use super::SegmentComponent;
-use crate::core::SegmentId;
 use crate::schema::Schema;
 use crate::Opstamp;
+use crate::{core::SegmentId, store::Compressor};
 use census::{Inventory, TrackedObject};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -233,7 +233,11 @@ impl InnerSegmentMeta {
 pub struct IndexSettings {
     /// Sorts the documents by information
     /// provided in `IndexSortByField`
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_by_field: Option<IndexSortByField>,
+    /// The `Compressor` used to compress the doc store.
+    #[serde(default)]
+    pub docstore_compression: Compressor,
 }
 /// Settings to presort the documents in an index
 ///
@@ -380,6 +384,7 @@ mod tests {
                     field: "text".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             },
             segments: Vec::new(),
             schema,
@@ -389,7 +394,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"}},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }

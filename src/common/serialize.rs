@@ -14,6 +14,20 @@ pub trait BinarySerializable: fmt::Debug + Sized {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self>;
 }
 
+pub trait DeserializeFrom<T: BinarySerializable> {
+    fn deserialize(&mut self) -> io::Result<T>;
+}
+
+/// Implement deserialize from &[u8] for all types which implement BinarySerializable.
+///
+/// TryFrom would actually be preferrable, but not possible because of the orphan
+/// rules (not completely sure if this could be resolved)
+impl<T: BinarySerializable> DeserializeFrom<T> for &[u8] {
+    fn deserialize(&mut self) -> io::Result<T> {
+        T::deserialize(self)
+    }
+}
+
 /// `FixedSize` marks a `BinarySerializable` as
 /// always serializing to the same size.
 pub trait FixedSize: BinarySerializable {
@@ -60,6 +74,11 @@ impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         Ok((Left::deserialize(reader)?, Right::deserialize(reader)?))
     }
+}
+impl<Left: BinarySerializable + FixedSize, Right: BinarySerializable + FixedSize> FixedSize
+    for (Left, Right)
+{
+    const SIZE_IN_BYTES: usize = Left::SIZE_IN_BYTES + Right::SIZE_IN_BYTES;
 }
 
 impl BinarySerializable for u32 {

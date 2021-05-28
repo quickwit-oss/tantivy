@@ -175,6 +175,7 @@ mod tests_indexsorting {
                         field: "my_number".to_string(),
                         order: Order::Asc,
                     }),
+                    ..Default::default()
                 }),
                 option.clone(),
             );
@@ -206,6 +207,7 @@ mod tests_indexsorting {
                         field: "my_number".to_string(),
                         order: Order::Desc,
                     }),
+                    ..Default::default()
                 }),
                 option.clone(),
             );
@@ -264,6 +266,7 @@ mod tests_indexsorting {
                     field: "my_number".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             }),
             get_text_options(),
         );
@@ -288,6 +291,7 @@ mod tests_indexsorting {
                     field: "my_number".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             get_text_options(),
         );
@@ -322,6 +326,7 @@ mod tests_indexsorting {
                     field: "my_number".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             }),
             get_text_options(),
         );
@@ -352,6 +357,7 @@ mod tests_indexsorting {
                     field: "my_number".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             get_text_options(),
         );
@@ -387,6 +393,7 @@ mod tests_indexsorting {
                     field: "my_number".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             }),
             get_text_options(),
         );

@@ -245,11 +245,7 @@ impl ManagedDirectory {
         let mut hasher = Hasher::new();
         hasher.update(bytes.as_slice());
         let crc = hasher.finalize();
-        Ok(footer
-            .versioned_footer
-            .crc()
-            .map(|v| v == crc)
-            .unwrap_or(false))
+        Ok(footer.crc() == crc)
     }
 
     /// List files for which checksum does not match content

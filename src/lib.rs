@@ -178,7 +178,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 /// Index format version.
-const INDEX_FORMAT_VERSION: u32 = 3;
+const INDEX_FORMAT_VERSION: u32 = 4;
 
 /// Structure version for the index.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,7 +187,6 @@ pub struct Version {
     minor: u32,
     patch: u32,
     index_format_version: u32,
-    store_compression: String,
 }
 
 impl fmt::Debug for Version {
@@ -201,14 +200,13 @@ static VERSION: Lazy<Version> = Lazy::new(|| Version {
     minor: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
     patch: env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
     index_format_version: INDEX_FORMAT_VERSION,
-    store_compression: crate::store::COMPRESSION.to_string(),
 });
 
 impl ToString for Version {
     fn to_string(&self) -> String {
         format!(
-            "tantivy v{}.{}.{}, index_format v{}, store_compression: {}",
-            self.major, self.minor, self.patch, self.index_format_version, self.store_compression
+            "tantivy v{}.{}.{}, index_format v{}",
+            self.major, self.minor, self.patch, self.index_format_version
         )
     }
 }

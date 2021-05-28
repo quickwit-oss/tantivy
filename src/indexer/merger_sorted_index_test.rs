@@ -156,6 +156,7 @@ mod tests {
                 field: "intval".to_string(),
                 order: Order::Desc,
             }),
+            ..Default::default()
         }));
     }
 
@@ -175,6 +176,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             force_disjunct_segment_sort_values,
         );
@@ -265,6 +267,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Asc,
                 }),
+                ..Default::default()
             }),
             false,
         );
@@ -368,7 +371,6 @@ mod bench_sorted_index_merge {
     use crate::IndexSortByField;
     use crate::IndexWriter;
     use crate::Order;
-    use futures::executor::block_on;
     use test::{self, Bencher};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
@@ -376,12 +378,12 @@ mod bench_sorted_index_merge {
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
-        let int_field = schema_builder.add_u64_field("intval", int_options);
         let schema = schema_builder.build();
 
-        let index_builder = Index::builder()
-            .schema(schema)
-            .settings(IndexSettings { sort_by_field });
+        let index_builder = Index::builder().schema(schema).settings(IndexSettings {
+            sort_by_field,
+            ..Default::default()
+        });
         let index = index_builder.create_in_ram().unwrap();
 
         {
@@ -419,7 +421,7 @@ mod bench_sorted_index_merge {
         b.iter(|| {
 
             let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
-            let u64_reader: FastFieldReader<u64> = reader
+            let u64_reader: FastFieldReader<u64> = reader.reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
@@ -444,7 +446,7 @@ mod bench_sorted_index_merge {
             order: Order::Desc,
         };
         let index = create_index(Some(sort_by_field.clone()));
-        let field = index.schema().get_field("intval").unwrap();
+        //let field = index.schema().get_field("intval").unwrap();
         let segments = index.searchable_segments().unwrap();
         let merger: IndexMerger =
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;

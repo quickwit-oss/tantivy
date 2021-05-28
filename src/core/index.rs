@@ -76,7 +76,7 @@ fn load_metas(
 /// );
 ///
 /// let schema = schema_builder.build();
-/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc})};
+/// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc}), ..Default::default()};
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
 ///
 /// ```
@@ -173,7 +173,7 @@ impl IndexBuilder {
             &directory,
         )?;
         let mut metas = IndexMeta::with_schema(self.get_expect_schema()?);
-        metas.index_settings = self.index_settings.clone();
+        metas.index_settings = self.index_settings;
         let index = Index::open_from_metas(directory, &metas, SegmentMetaInventory::default());
         Ok(index)
     }
@@ -460,6 +460,13 @@ impl Index {
     pub fn settings(&self) -> &IndexSettings {
         &self.settings
     }
+
+    /// Accessor to the index settings
+    ///
+    pub fn settings_mut(&mut self) -> &mut IndexSettings {
+        &mut self.settings
+    }
+
     /// Accessor to the index schema
     ///
     /// The schema is actually cloned.

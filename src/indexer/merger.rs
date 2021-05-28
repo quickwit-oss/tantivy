@@ -196,8 +196,8 @@ impl IndexMerger {
             return Err(crate::TantivyError::InvalidArgument(err_msg));
         }
         Ok(IndexMerger {
-            schema,
             index_settings,
+            schema,
             readers,
             max_doc,
         })
@@ -402,15 +402,15 @@ impl IndexMerger {
             .tuple_windows()
             .all(|(field_accessor1, field_accessor2)| {
                 if sort_by_field.order.is_asc() {
-                    return field_accessor1.max_value() <= field_accessor2.min_value();
+                    field_accessor1.max_value() <= field_accessor2.min_value()
                 } else {
-                    return field_accessor1.min_value() >= field_accessor2.max_value();
+                    field_accessor1.min_value() >= field_accessor2.max_value()
                 }
             });
         Ok(everything_is_in_order)
     }
 
-    pub(crate) fn get_sort_field_accessor<'a, 'b>(
+    pub(crate) fn get_sort_field_accessor<'b>(
         reader: &SegmentReader,
         sort_by_field: &'b IndexSortByField,
     ) -> crate::Result<FastFieldReader<u64>> {
@@ -1024,6 +1024,7 @@ impl IndexMerger {
                     //
                     // take 7 in order to not walk over all checkpoints.
                     || store_reader.block_checkpoints().take(7).count() < 6
+                    || store_reader.compressor() != store_writer.compressor()
                 {
                     for doc_bytes_res in store_reader.iter_raw(reader.delete_bitset()) {
                         let doc_bytes = doc_bytes_res?;
@@ -1576,6 +1577,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             true,
         );
@@ -1587,6 +1589,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             false,
         );
@@ -1601,6 +1604,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             true,
         );
@@ -1612,6 +1616,7 @@ mod tests {
                     field: "intval".to_string(),
                     order: Order::Desc,
                 }),
+                ..Default::default()
             }),
             false,
         );
