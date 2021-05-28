@@ -135,7 +135,7 @@ mod bench {
     }
 
     #[bench]
-    fn bench_termmerger_baseline(b: &mut Bencher) -> crate::Result<()> {
+    fn bench_termmerger(b: &mut Bencher) -> crate::Result<()> {
         let dict1 = rand_dict(100_000)?;
         let dict2 = rand_dict(100_000)?;
         b.iter(|| -> crate::Result<u32> {
