@@ -12,6 +12,9 @@ use super::{
     AntiCallToken, WatchCallback, WritePtr,
 };
 
+// for demonstration purposes only: a directory that dynamically reads from the filesystem without memory mapping with an integrated cache
+// this is *not used* in my wasm demo which uses different caching and hooks into the Web APIs.
+
 #[derive(Debug, Clone)]
 pub struct FsDirectory {
     root: PathBuf,
