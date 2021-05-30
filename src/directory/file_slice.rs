@@ -5,6 +5,7 @@ use tantivy_fst::Ulen;
 use crate::common::HasLen;
 use crate::directory::OwnedBytes;
 use std::fmt::Debug;
+use std::ops::Range;
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
 
@@ -24,6 +25,12 @@ pub trait FileHandle: 'static + Send + Sync + HasLen + Debug {
     ///
     /// This method may panic if the range requested is invalid.
     fn read_bytes(&self, from: Ulen, to: Ulen) -> io::Result<OwnedBytes>;
+
+    /// Optimization: read multiple at the same time if you can
+    fn read_bytes_multiple(&self, ranges: &[Range<Ulen>]) -> io::Result<Vec<OwnedBytes>> {
+        crate::info_log("warn: unoptimized read of multiple ranges");
+        ranges.iter().map(|r| self.read_bytes(r.start, r.end)).collect()
+    }
 }
 
 impl FakeArr for FileSlice {
@@ -132,6 +139,11 @@ impl FileSlice {
             "`to` exceeds the fileslice length, {}, {}, {}", self.start, to, self.stop
         );
         self.data.read_bytes(self.start + from, self.start + to)
+    }
+
+    pub fn read_bytes_slice_multiple(&self, ranges: &[Range<Ulen>]) -> io::Result<Vec<OwnedBytes>> {
+        let real_ranges: Vec<Range<Ulen>> = ranges.into_iter().map(|r| (r.start + self.start)..(r.end + self.start)).collect();
+        self.data.read_bytes_multiple(&real_ranges)
     }
 
     /// Splits the FileSlice at the given offset and return two file slices.

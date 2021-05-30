@@ -89,6 +89,15 @@ impl StoreReader {
         Ok(block)
     }
 
+    fn cache_blocks_multiple(&self, checkpoints: &[Checkpoint]) -> io::Result<()> {
+        // just to cache them so the next read is instant, TODO: don't rely on caching  within FileSlice, use self.cache instead?
+        // crate::info_log("caching multiple");
+        let ranges = checkpoints.iter().map(|c| (c.start_offset as Ulen)..(c.end_offset as Ulen)).collect::<Vec<_>>();
+        self.data.read_bytes_slice_multiple(&ranges)?;
+        // crate::info_log("caching multiple done");
+        Ok(())
+    }
+
     /// Reads a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
@@ -100,6 +109,7 @@ impl StoreReader {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
         })?;
+        crate::info_log(format!("decompressing block for doc {}", doc_id));
         let mut cursor = &self.read_block(&checkpoint)?[..];
         for _ in checkpoint.start_doc..doc_id {
             let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
@@ -109,6 +119,14 @@ impl StoreReader {
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
         cursor = &cursor[..doc_length];
         Ok(Document::deserialize(&mut cursor)?)
+    }
+
+    /// Reads the given document ids.
+    /// May be faster than getting them separately if the storage backend supports it
+    pub fn get_multiple(&self, doc_ids: &[DocId]) -> crate::Result<Vec<Document>> {
+        let checkpoints: Vec<Checkpoint> = doc_ids.iter().flat_map(|doc_id| self.block_checkpoint(*doc_id)).collect();
+        self.cache_blocks_multiple(&checkpoints)?;
+        doc_ids.iter().map(|d| self.get(*d)).collect()
     }
 
     /// Summarize total space usage of this store reader.

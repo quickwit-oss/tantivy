@@ -63,6 +63,15 @@ impl Searcher {
         Ok(doc)
     }
 
+    pub fn doc_multiple(&self, doc_addresses: Vec<DocAddress>) -> crate::Result<Vec<Document>> {
+        if doc_addresses.len() == 0 {
+            return Ok(vec![]);
+        }
+        assert!(doc_addresses.windows(2).all(|s| s[0].0 == s[1].0), "only supported on same segment for now");
+        let store_reader = &self.store_readers[doc_addresses[0].0 as usize];
+        store_reader.get_multiple(&doc_addresses.into_iter().map(|d| d.1).collect::<Vec<_>>())
+    }
+
     /// Access the schema associated to the index of this searcher.
     pub fn schema(&self) -> &Schema {
         &self.schema

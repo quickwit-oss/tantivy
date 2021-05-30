@@ -280,15 +280,15 @@ impl DocAddress {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DocAddress(pub SegmentLocalId, pub DocId);
 
-static INFO_LOG_HOOK: OnceCell<Box<Fn(&str) + Send + Sync + 'static>> = OnceCell::new();
+static INFO_LOG_HOOK: OnceCell<Box<dyn Fn(&str) + Send + Sync + 'static>> = OnceCell::new();
 
 pub fn info_log(message: impl AsRef<str>) {
     if let Some(log) = INFO_LOG_HOOK.get() {
         log(message.as_ref());
     }
 }
-pub fn set_info_log_hook(f: impl Fn(&str) + Send + Sync + 'static) {
-    INFO_LOG_HOOK.set(Box::new(f)).ok();
+pub fn set_info_log_hook(f: impl Fn(&str) + Send + Sync + 'static) -> std::result::Result<(), ()> {
+    INFO_LOG_HOOK.set(Box::new(f)).map_err(|_| ())
 }
 
 #[cfg(test)]
