@@ -18,7 +18,7 @@ Tantivy 0.15.0
 - Add detection to avoid small doc store blocks on merge (@PSeitz). #1054 
 - Make doc store compression dynamic (@PSeitz). #1060 
 - Switch to json for footer version handling (@PSeitz). #1060 
-
+- Updated TermMerger implementation to rely on the union feature of the FST (@scampi) #469
 
 Tantivy 0.14.0
 =========================
