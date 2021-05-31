@@ -80,6 +80,7 @@ impl BlockedBitpacker {
                 * std::mem::size_of_val(&self.buffer.get(0).cloned().unwrap_or_default())
     }
 
+    #[inline]
     pub fn add(&mut self, val: u64) {
         self.buffer.push(val);
         if self.buffer.len() == BLOCK_SIZE as usize {
@@ -122,6 +123,7 @@ impl BlockedBitpacker {
                 .resize(self.compressed_blocks.len() + 8, 0); // add padding for bitpacker
         }
     }
+    #[inline]
     pub fn get(&self, idx: usize) -> u64 {
         let metadata_pos = idx / BLOCK_SIZE as usize;
         let pos_in_block = idx % BLOCK_SIZE as usize;
