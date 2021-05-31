@@ -1,8 +1,11 @@
 use std::io;
 
+use crate::fastfield::serializer::FastFieldSerializer;
 use crate::schema::{Document, Field, Value};
 use crate::DocId;
-use crate::{fastfield::serializer::FastFieldSerializer, indexer::doc_id_mapping::DocIdMapping};
+use crate::{
+    fastfield::serializer::CompositeFastFieldSerializer, indexer::doc_id_mapping::DocIdMapping,
+};
 
 /// Writer for byte array (as in, any number of bytes per document) fast fields
 ///
@@ -104,7 +107,7 @@ impl BytesFastFieldWriter {
     /// Serializes the fast field values by pushing them to the `FastFieldSerializer`.
     pub fn serialize(
         &self,
-        serializer: &mut FastFieldSerializer,
+        serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         // writing the offset index

@@ -33,6 +33,7 @@ pub use self::reader::BitpackedFastFieldReader;
 pub use self::reader::DynamicFastFieldReader;
 pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
+pub use self::serializer::CompositeFastFieldSerializer;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::Cardinality;
@@ -256,7 +257,7 @@ mod tests {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             fast_field_writers.add_document(&doc!(*FIELD=>13u64));
             fast_field_writers.add_document(&doc!(*FIELD=>14u64));
@@ -283,7 +284,7 @@ mod tests {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
-            let mut serializer = FastFieldSerializer::from_write(write)?;
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             fast_field_writers.add_document(&doc!(*FIELD=>4u64));
             fast_field_writers.add_document(&doc!(*FIELD=>14_082_001u64));
@@ -323,7 +324,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for _ in 0..10_000 {
                 fast_field_writers.add_document(&doc!(*FIELD=>100_000u64));
@@ -353,7 +354,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             // forcing the amplitude to be high
             fast_field_writers.add_document(&doc!(*FIELD=>0u64));
@@ -392,7 +393,7 @@ mod tests {
         let schema = schema_builder.build();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             for i in -100i64..10_000i64 {
                 let mut doc = Document::default();
@@ -435,7 +436,7 @@ mod tests {
 
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             let doc = Document::default();
             fast_field_writers.add_document(&doc);
@@ -470,7 +471,7 @@ mod tests {
         let directory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
-            let mut serializer = FastFieldSerializer::from_write(write)?;
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)?;
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));

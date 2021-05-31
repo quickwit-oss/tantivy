@@ -4,7 +4,7 @@ use crate::common::CompositeFile;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::directory::{Directory, RamDirectory, WritePtr};
-use crate::fastfield::{FastFieldSerializer, FastFieldsWriter};
+use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
@@ -209,7 +209,7 @@ impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
             let write: WritePtr = directory
                 .open_write(path)
                 .expect("With a RamDirectory, this should never fail.");
-            let mut serializer = FastFieldSerializer::from_write(write)
+            let mut serializer = CompositeFastFieldSerializer::from_write(write)
                 .expect("With a RamDirectory, this should never fail.");
             let mut fast_field_writers = FastFieldsWriter::from_schema(&schema);
             {

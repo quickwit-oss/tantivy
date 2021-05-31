@@ -1,5 +1,6 @@
 use super::doc_id_mapping::DocIdMapping;
 use crate::error::DataCorruption;
+use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldReader;
@@ -266,7 +267,7 @@ impl IndexMerger {
 
     fn write_fast_fields(
         &self,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
@@ -316,7 +317,7 @@ impl IndexMerger {
     fn write_single_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let (min_value, max_value) = self.readers.iter().map(|reader|{
@@ -497,7 +498,7 @@ impl IndexMerger {
     // is used to index the reader_and_field_accessors vec.
     fn write_1_n_fast_field_idx_generic(
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
         reader_and_field_accessors: &[(&SegmentReader, impl MultiValueLength)],
     ) -> crate::Result<()> {
@@ -552,7 +553,7 @@ impl IndexMerger {
     fn write_multi_value_fast_field_idx(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self.readers.iter().map(|reader|{
@@ -574,7 +575,7 @@ impl IndexMerger {
         &self,
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
@@ -637,7 +638,7 @@ impl IndexMerger {
     fn write_multi_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
@@ -724,7 +725,7 @@ impl IndexMerger {
     fn write_bytes_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self

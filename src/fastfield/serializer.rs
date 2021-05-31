@@ -7,10 +7,12 @@ use std::io::{self, Write};
 use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitPacker;
 
-/// `FastFieldSerializer` is in charge of serializing
+use super::FastFieldReader;
+
+/// `CompositeFastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
 ///
-/// Fast fields are encoded using bit-packing.
+/// Fast fields have differnt encodings like bit-packing.
 ///
 /// `FastFieldWriter`s are in charge of pushing the data to
 /// the serializer.
@@ -27,16 +29,16 @@ use tantivy_bitpacker::BitPacker;
 /// * ...
 /// * `close_field()`
 /// * `close()`
-pub struct FastFieldSerializer {
+pub struct CompositeFastFieldSerializer {
     composite_write: CompositeWrite<WritePtr>,
 }
 
-impl FastFieldSerializer {
+impl CompositeFastFieldSerializer {
     /// Constructor
-    pub fn from_write(write: WritePtr) -> io::Result<FastFieldSerializer> {
+    pub fn from_write(write: WritePtr) -> io::Result<CompositeFastFieldSerializer> {
         // just making room for the pointer to header.
         let composite_write = CompositeWrite::wrap(write);
-        Ok(FastFieldSerializer { composite_write })
+        Ok(CompositeFastFieldSerializer { composite_write })
     }
 
     /// Start serializing a new u64 fast field
@@ -45,7 +47,7 @@ impl FastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<FastSingleFieldSerializer<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedFastFieldSerializer<'_, CountingWriter<WritePtr>>> {
         self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
@@ -56,9 +58,9 @@ impl FastFieldSerializer {
         min_value: u64,
         max_value: u64,
         idx: usize,
-    ) -> io::Result<FastSingleFieldSerializer<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedFastFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
-        FastSingleFieldSerializer::open(field_write, min_value, max_value)
+        BitpackedFastFieldSerializer::open(field_write, min_value, max_value)
     }
 
     /// Start serializing a new [u8] fast field
@@ -79,14 +81,84 @@ impl FastFieldSerializer {
     }
 }
 
-pub struct FastSingleFieldSerializer<'a, W: Write> {
+pub struct EstimationStats {}
+/// The FastFieldSerializer trait is the common interface
+/// implemented by every fastfield serializer variant.
+///
+/// `DynamicFastFieldSerializer` is the enum wrapping all variants.
+/// It is used to create an serializer instance.
+pub trait FastFieldSerializer {
+    /// add value to serializer
+    fn add_val(&mut self, val: u64) -> io::Result<()>;
+    /// returns an estimate of the compression ratio.
+    fn estimate(fastfield_accessor: impl FastFieldReader<u64>, stats: EstimationStats) -> f32;
+    /// finish serializing a field.
+    fn close_field(self) -> io::Result<()>;
+}
+
+pub trait ValueAccessor {}
+
+pub enum DynamicFastFieldSerializer<'a, W: Write> {
+    Bitpacked(BitpackedFastFieldSerializer<'a, W>),
+}
+
+impl<'a, W: Write> DynamicFastFieldSerializer<'a, W> {
+    /// Creates a new fast field serializer.
+    ///
+    /// The serializer in fact encode the values by bitpacking
+    /// `(val - min_value)`.
+    ///
+    /// It requires a `min_value` and a `max_value` to compute
+    /// compute the minimum number of bits required to encode
+    /// values.
+    pub fn open(
+        write: &'a mut W,
+        min_value: u64,
+        max_value: u64,
+    ) -> io::Result<DynamicFastFieldSerializer<'a, W>> {
+        assert!(min_value <= max_value);
+        min_value.serialize(write)?;
+        let amplitude = max_value - min_value;
+        amplitude.serialize(write)?;
+        let num_bits = compute_num_bits(amplitude);
+        let bit_packer = BitPacker::new();
+        Ok(DynamicFastFieldSerializer::Bitpacked(
+            BitpackedFastFieldSerializer {
+                bit_packer,
+                write,
+                min_value,
+                num_bits,
+            },
+        ))
+    }
+}
+impl<'a, W: Write> FastFieldSerializer for DynamicFastFieldSerializer<'a, W> {
+    fn add_val(&mut self, val: u64) -> io::Result<()> {
+        match self {
+            Self::Bitpacked(serializer) => serializer.add_val(val),
+        }
+    }
+    fn estimate(fastfield_accessor: impl FastFieldReader<u64>, stats: EstimationStats) -> f32 {
+        unimplemented!()
+        //match self {
+        //Self::Bitpacked(serializer) => 1.0,
+        //}
+    }
+    fn close_field(mut self) -> io::Result<()> {
+        match self {
+            Self::Bitpacked(serializer) => serializer.close_field(),
+        }
+    }
+}
+
+pub struct BitpackedFastFieldSerializer<'a, W: Write> {
     bit_packer: BitPacker,
     write: &'a mut W,
     min_value: u64,
     num_bits: u8,
 }
 
-impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
+impl<'a, W: Write> BitpackedFastFieldSerializer<'a, W> {
     /// Creates a new fast field serializer.
     ///
     /// The serializer in fact encode the values by bitpacking
@@ -99,30 +171,34 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
         write: &'a mut W,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<FastSingleFieldSerializer<'a, W>> {
+    ) -> io::Result<BitpackedFastFieldSerializer<'a, W>> {
         assert!(min_value <= max_value);
         min_value.serialize(write)?;
         let amplitude = max_value - min_value;
         amplitude.serialize(write)?;
         let num_bits = compute_num_bits(amplitude);
         let bit_packer = BitPacker::new();
-        Ok(FastSingleFieldSerializer {
+        Ok(BitpackedFastFieldSerializer {
             bit_packer,
             write,
             min_value,
             num_bits,
         })
     }
+}
 
+impl<'a, W: Write> FastFieldSerializer for BitpackedFastFieldSerializer<'a, W> {
     /// Pushes a new value to the currently open u64 fast field.
-    pub fn add_val(&mut self, val: u64) -> io::Result<()> {
+    fn add_val(&mut self, val: u64) -> io::Result<()> {
         let val_to_write: u64 = val - self.min_value;
         self.bit_packer
             .write(val_to_write, self.num_bits, &mut self.write)?;
         Ok(())
     }
-
-    pub fn close_field(mut self) -> io::Result<()> {
+    fn estimate(fastfield_accessor: impl FastFieldReader<u64>, stats: EstimationStats) -> f32 {
+        1.0
+    }
+    fn close_field(mut self) -> io::Result<()> {
         self.bit_packer.close(&mut self.write)
     }
 }
