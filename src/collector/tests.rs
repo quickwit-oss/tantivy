@@ -2,7 +2,7 @@ use super::*;
 use crate::core::SegmentReader;
 use crate::fastfield::BytesFastFieldReader;
 use crate::fastfield::DynamicFastFieldReader;
-use crate::fastfield::{FastFieldReader, MultiValueLength};
+use crate::fastfield::FastFieldReader;
 use crate::schema::Field;
 use crate::DocId;
 use crate::Score;
