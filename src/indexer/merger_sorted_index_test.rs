@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::fastfield::FastFieldReader;
     use crate::{
         collector::TopDocs,
         schema::{Cardinality, TextFieldIndexing},

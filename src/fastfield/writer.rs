@@ -1,6 +1,7 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use crate::common;
-use crate::fastfield::{BytesFastFieldWriter, FastFieldSerializer};
+use crate::fastfield::serializer::FastFieldSerializer;
+use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
@@ -148,7 +149,7 @@ impl FastFieldsWriter {
     /// order to the fast field serializer.
     pub fn serialize(
         &self,
-        serializer: &mut FastFieldSerializer,
+        serializer: &mut CompositeFastFieldSerializer,
         mapping: &HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
@@ -272,7 +273,7 @@ impl IntFastFieldWriter {
     /// Push the fast fields value to the `FastFieldWriter`.
     pub fn serialize(
         &self,
-        serializer: &mut FastFieldSerializer,
+        serializer: &mut CompositeFastFieldSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let (min, max) = if self.val_min > self.val_max {

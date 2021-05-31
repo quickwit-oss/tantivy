@@ -1,6 +1,8 @@
 use super::doc_id_mapping::DocIdMapping;
 use crate::error::DataCorruption;
+use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DeleteBitSet;
+use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldSerializer;
 use crate::fastfield::MultiValuedFastFieldReader;
@@ -87,7 +89,7 @@ pub struct IndexMerger {
 }
 
 fn compute_min_max_val(
-    u64_reader: &FastFieldReader<u64>,
+    u64_reader: &impl FastFieldReader<u64>,
     max_doc: DocId,
     delete_bitset_opt: Option<&DeleteBitSet>,
 ) -> Option<(u64, u64)> {
@@ -265,7 +267,7 @@ impl IndexMerger {
 
     fn write_fast_fields(
         &self,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
@@ -315,11 +317,11 @@ impl IndexMerger {
     fn write_single_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let (min_value, max_value) = self.readers.iter().map(|reader|{
-                let u64_reader: FastFieldReader<u64> = reader
+                let u64_reader: DynamicFastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
@@ -334,7 +336,7 @@ impl IndexMerger {
             .readers
             .iter()
             .map(|reader| {
-               let u64_reader: FastFieldReader<u64> = reader
+               let u64_reader: DynamicFastFieldReader<u64> = reader
                     .fast_fields()
                     .typed_fast_field_reader(field)
                     .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
@@ -362,7 +364,7 @@ impl IndexMerger {
             let u64_readers = self.readers.iter()
                 .filter(|reader|reader.max_doc() != reader.delete_bitset().map(|bit_set|bit_set.len() as u32).unwrap_or(0))
                 .map(|reader|{
-                let u64_reader: FastFieldReader<u64> = reader
+                let u64_reader: DynamicFastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
@@ -413,7 +415,7 @@ impl IndexMerger {
     pub(crate) fn get_sort_field_accessor<'b>(
         reader: &SegmentReader,
         sort_by_field: &'b IndexSortByField,
-    ) -> crate::Result<FastFieldReader<u64>> {
+    ) -> crate::Result<impl FastFieldReader<u64>> {
         let field_id = expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
         let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
         Ok(value_accessor)
@@ -422,7 +424,12 @@ impl IndexMerger {
     pub(crate) fn get_reader_with_sort_field_accessor<'a, 'b>(
         &'a self,
         sort_by_field: &'b IndexSortByField,
-    ) -> crate::Result<Vec<(SegmentReaderWithOrdinal<'a>, FastFieldReader<u64>)>> {
+    ) -> crate::Result<
+        Vec<(
+            SegmentReaderWithOrdinal<'a>,
+            impl FastFieldReader<u64> + Clone,
+        )>,
+    > {
         let reader_and_field_accessors = self
             .readers
             .iter()
@@ -491,7 +498,7 @@ impl IndexMerger {
     // is used to index the reader_and_field_accessors vec.
     fn write_1_n_fast_field_idx_generic(
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
         reader_and_field_accessors: &[(&SegmentReader, impl MultiValueLength)],
     ) -> crate::Result<()> {
@@ -546,7 +553,7 @@ impl IndexMerger {
     fn write_multi_value_fast_field_idx(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self.readers.iter().map(|reader|{
@@ -568,7 +575,7 @@ impl IndexMerger {
         &self,
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
@@ -631,7 +638,7 @@ impl IndexMerger {
     fn write_multi_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
@@ -718,7 +725,7 @@ impl IndexMerger {
     fn write_bytes_fast_field(
         &self,
         field: Field,
-        fast_field_serializer: &mut FastFieldSerializer,
+        fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self
@@ -1088,6 +1095,7 @@ mod tests {
     use crate::collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
     use crate::collector::{Count, FacetCollector};
     use crate::core::Index;
+    use crate::fastfield::FastFieldReader;
     use crate::query::AllQuery;
     use crate::query::BooleanQuery;
     use crate::query::Scorer;

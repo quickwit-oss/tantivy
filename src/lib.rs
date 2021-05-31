@@ -291,6 +291,7 @@ mod tests {
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::fastfield::FastFieldReader;
     use crate::query::BooleanQuery;
     use crate::schema::*;
     use crate::DocAddress;

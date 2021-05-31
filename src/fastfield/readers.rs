@@ -1,13 +1,16 @@
 use crate::common::CompositeFile;
 use crate::directory::FileSlice;
 use crate::fastfield::MultiValuedFastFieldReader;
+use crate::fastfield::{BitpackedFastFieldReader, FastFieldNotAvailableError};
 use crate::fastfield::{BytesFastFieldReader, FastValue};
-use crate::fastfield::{FastFieldNotAvailableError, FastFieldReader};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
 use crate::TantivyError;
 
-/// Provides access to all of the FastFieldReader.
+use super::reader::DynamicFastFieldReader;
+use super::FastFieldReader;
+
+/// Provides access to all of the BitpackedFastFieldReader.
 ///
 /// Internally, `FastFieldReaders` have preloaded fast field readers,
 /// and just wraps several `HashMap`.
@@ -100,9 +103,9 @@ impl FastFieldReaders {
     pub(crate) fn typed_fast_field_reader<TFastValue: FastValue>(
         &self,
         field: Field,
-    ) -> crate::Result<FastFieldReader<TFastValue>> {
+    ) -> crate::Result<DynamicFastFieldReader<TFastValue>> {
         let fast_field_slice = self.fast_field_data(field, 0)?;
-        FastFieldReader::open(fast_field_slice)
+        DynamicFastFieldReader::open(fast_field_slice)
     }
 
     pub(crate) fn typed_fast_field_multi_reader<TFastValue: FastValue>(
@@ -111,16 +114,16 @@ impl FastFieldReaders {
     ) -> crate::Result<MultiValuedFastFieldReader<TFastValue>> {
         let fast_field_slice_idx = self.fast_field_data(field, 0)?;
         let fast_field_slice_vals = self.fast_field_data(field, 1)?;
-        let idx_reader = FastFieldReader::open(fast_field_slice_idx)?;
-        let vals_reader: FastFieldReader<TFastValue> =
-            FastFieldReader::open(fast_field_slice_vals)?;
+        let idx_reader = BitpackedFastFieldReader::open(fast_field_slice_idx)?;
+        let vals_reader: BitpackedFastFieldReader<TFastValue> =
+            BitpackedFastFieldReader::open(fast_field_slice_vals)?;
         Ok(MultiValuedFastFieldReader::open(idx_reader, vals_reader))
     }
 
     /// Returns the `u64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a u64 fast field, this method returns an Error.
-    pub fn u64(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
+    pub fn u64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<u64>> {
         self.check_type(field, FastType::U64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -129,14 +132,14 @@ impl FastFieldReaders {
     /// field is effectively of type `u64` or not.
     ///
     /// If not, the fastfield reader will returns the u64-value associated to the original FastValue.
-    pub fn u64_lenient(&self, field: Field) -> crate::Result<FastFieldReader<u64>> {
+    pub fn u64_lenient(&self, field: Field) -> crate::Result<DynamicFastFieldReader<u64>> {
         self.typed_fast_field_reader(field)
     }
 
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn i64(&self, field: Field) -> crate::Result<FastFieldReader<i64>> {
+    pub fn i64(&self, field: Field) -> crate::Result<impl FastFieldReader<i64>> {
         self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -144,7 +147,7 @@ impl FastFieldReaders {
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn date(&self, field: Field) -> crate::Result<FastFieldReader<crate::DateTime>> {
+    pub fn date(&self, field: Field) -> crate::Result<impl FastFieldReader<crate::DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -152,7 +155,7 @@ impl FastFieldReaders {
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
-    pub fn f64(&self, field: Field) -> crate::Result<FastFieldReader<f64>> {
+    pub fn f64(&self, field: Field) -> crate::Result<impl FastFieldReader<f64>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -213,7 +216,7 @@ impl FastFieldReaders {
                 )));
             }
             let fast_field_idx_file = self.fast_field_data(field, 0)?;
-            let idx_reader = FastFieldReader::open(fast_field_idx_file)?;
+            let idx_reader = BitpackedFastFieldReader::open(fast_field_idx_file)?;
             let data = self.fast_field_data(field, 1)?;
             BytesFastFieldReader::open(idx_reader, data)
         } else {

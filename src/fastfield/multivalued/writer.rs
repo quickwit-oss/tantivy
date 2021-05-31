@@ -1,5 +1,6 @@
-use crate::fastfield::serializer::FastSingleFieldSerializer;
-use crate::fastfield::FastFieldSerializer;
+use crate::fastfield::serializer::DynamicFastFieldSerializer;
+use crate::fastfield::serializer::FastFieldSerializer;
+use crate::fastfield::CompositeFastFieldSerializer;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
@@ -134,7 +135,7 @@ impl MultiValuedFastFieldWriter {
     ///
     pub fn serialize(
         &self,
-        serializer: &mut FastFieldSerializer,
+        serializer: &mut CompositeFastFieldSerializer,
         mapping_opt: Option<&FnvHashMap<UnorderedTermId, TermOrdinal>>,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
@@ -154,7 +155,7 @@ impl MultiValuedFastFieldWriter {
         }
         {
             // writing the values themselves.
-            let mut value_serializer: FastSingleFieldSerializer<'_, _>;
+            let mut value_serializer: DynamicFastFieldSerializer<'_, _>;
             match mapping_opt {
                 Some(mapping) => {
                     value_serializer = serializer.new_u64_fast_field_with_idx(

@@ -1,6 +1,6 @@
 use crate::core::Segment;
 use crate::core::SegmentComponent;
-use crate::fastfield::FastFieldSerializer;
+use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::postings::InvertedIndexSerializer;
 use crate::store::StoreWriter;
@@ -10,7 +10,7 @@ use crate::store::StoreWriter;
 pub struct SegmentSerializer {
     segment: Segment,
     pub(crate) store_writer: StoreWriter,
-    fast_field_serializer: FastFieldSerializer,
+    fast_field_serializer: CompositeFastFieldSerializer,
     fieldnorms_serializer: Option<FieldNormsSerializer>,
     postings_serializer: InvertedIndexSerializer,
 }
@@ -33,7 +33,7 @@ impl SegmentSerializer {
         let store_write = segment.open_write(store_component)?;
 
         let fast_field_write = segment.open_write(SegmentComponent::FastFields)?;
-        let fast_field_serializer = FastFieldSerializer::from_write(fast_field_write)?;
+        let fast_field_serializer = CompositeFastFieldSerializer::from_write(fast_field_write)?;
 
         let fieldnorms_write = segment.open_write(SegmentComponent::FieldNorms)?;
         let fieldnorms_serializer = FieldNormsSerializer::from_write(fieldnorms_write)?;
@@ -68,7 +68,7 @@ impl SegmentSerializer {
     }
 
     /// Accessor to the `FastFieldSerializer`.
-    pub fn get_fast_field_serializer(&mut self) -> &mut FastFieldSerializer {
+    pub fn get_fast_field_serializer(&mut self) -> &mut CompositeFastFieldSerializer {
         &mut self.fast_field_serializer
     }
 

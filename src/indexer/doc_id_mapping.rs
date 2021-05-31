@@ -8,7 +8,6 @@ use crate::{
     DocId, IndexSortByField, Order, TantivyError,
 };
 use std::cmp::Reverse;
-
 /// Struct to provide mapping from old doc_id to new doc_id and vice versa
 pub struct DocIdMapping {
     new_doc_id_to_old: Vec<DocId>,
@@ -92,6 +91,7 @@ pub(crate) fn get_doc_id_mapping_from_field(
 
 #[cfg(test)]
 mod tests_indexsorting {
+    use crate::fastfield::FastFieldReader;
     use crate::{collector::TopDocs, query::QueryParser, schema::*};
     use crate::{schema::Schema, DocAddress};
     use crate::{Index, IndexSettings, IndexSortByField, Order};
