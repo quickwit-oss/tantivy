@@ -1,5 +1,4 @@
 use super::FastFieldDataAccess;
-use super::FastFieldSerializer;
 use super::FastFieldSerializerEstimate;
 use super::FastFieldStats;
 use crate::common::BinarySerializable;
@@ -9,63 +8,59 @@ use tantivy_bitpacker::BitPacker;
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference.
-pub struct LinearInterpolFastFieldSerializer<'a, W: 'a + Write> {
-    bit_packer: BitPacker,
-    write: &'a mut W,
-    min_value: u64,
-    num_bits: u8,
-}
+pub struct LinearInterpolFastFieldSerializer {}
 
-impl<'a, W: Write> LinearInterpolFastFieldSerializer<'a, W> {
+impl LinearInterpolFastFieldSerializer {
     /// Creates a new fast field serializer.
-    ///
-    /// The serializer in fact encode the values by bitpacking
-    /// `(val - min_value)`.
-    ///
-    /// It requires a `min_value` and a `max_value` to compute
-    /// compute the minimum number of bits required to encode
-    /// values.
     pub(crate) fn create(
-        write: &'a mut W,
-        fastfield_accessor: &impl FastFieldDataAccess,
+        write: &mut impl Write,
+        _fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
+        data_iter1: impl Iterator<Item = u64>,
+        data_iter2: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
+
+        let step = (stats.max_value - stats.min_value) as f64 / (stats.num_vals as u64 - 1) as f64;
+        // offset to ensure all values are positive
+        let offset = data_iter1
+            .enumerate()
+            .map(|(pos, val)| {
+                let calculated_value = stats.min_value + (pos as f64 * step) as u64;
+                val as i64 - calculated_value as i64
+            })
+            .min()
+            .unwrap()
+            .abs() as u64;
+
+        //calc new max
+        let rel_max = data_iter2
+            .enumerate()
+            .map(|(pos, val)| {
+                let calculated_value = stats.min_value + (pos as f64 * step) as u64;
+                (val + offset) - calculated_value
+            })
+            .max()
+            .unwrap();
+
         stats.min_value.serialize(write)?;
-        let amplitude = stats.max_value - stats.min_value;
+        let amplitude = rel_max;
         amplitude.serialize(write)?;
+        offset.serialize(write)?;
+        stats.min_value.serialize(write)?;
         let num_bits = compute_num_bits(amplitude);
-        let mut serializer = LinearInterpolFastFieldSerializer {
-            bit_packer: BitPacker::new(),
-            write,
-            min_value: stats.min_value,
-            num_bits,
-        };
-
+        let mut bit_packer = BitPacker::new();
         for val in data_iter {
-            serializer.add_val(val)?;
+            bit_packer.write(val, num_bits, write)?;
         }
-        serializer.close_field()?;
+        bit_packer.close(write)?;
 
         Ok(())
     }
 }
 
-impl<'a, W: 'a + Write> FastFieldSerializer for LinearInterpolFastFieldSerializer<'a, W> {
-    /// Pushes a new value to the currently open u64 fast field.
-    fn add_val(&mut self, val: u64) -> io::Result<()> {
-        let val_to_write: u64 = val - self.min_value;
-        self.bit_packer
-            .write(val_to_write, self.num_bits, &mut self.write)?;
-        Ok(())
-    }
-    fn close_field(mut self) -> io::Result<()> {
-        self.bit_packer.close(&mut self.write)
-    }
-}
-
-impl<'a, W: 'a + Write> FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer<'a, W> {
+impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     fn estimate(
         _fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
@@ -78,6 +73,6 @@ impl<'a, W: 'a + Write> FastFieldSerializerEstimate for LinearInterpolFastFieldS
         (ratio, name)
     }
     fn codec_id() -> (&'static str, u8) {
-        ("Bitpacked", 2)
+        ("LinearInterpol", 2)
     }
 }
