@@ -215,6 +215,7 @@ mod tests {
 
     use super::*;
     use crate::common::CompositeFile;
+    use crate::common::HasLen;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::BitpackedFastFieldReader;
     use crate::merge_policy::NoMergePolicy;
@@ -223,7 +224,6 @@ mod tests {
     use crate::schema::FAST;
     use crate::schema::{Document, IntOptions};
     use crate::{Index, SegmentId, SegmentReader};
-    use common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;

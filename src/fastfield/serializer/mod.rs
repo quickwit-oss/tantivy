@@ -7,21 +7,12 @@ use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;
 use crate::DocId;
-pub use bitpacked::BitpackedFastFieldSerializer;
+//pub use bitpacked::BitpackedFastFieldSerializer;
+pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
+pub use fastfield_codecs::FastFieldDataAccess;
+pub use fastfield_codecs::FastFieldSerializerEstimate;
+pub use fastfield_codecs::FastFieldStats;
 use std::io::{self, Write};
-
-/// FastFieldReader is the trait to access fast field data.
-pub trait FastFieldDataAccess: Clone {
-    //type IteratorType: Iterator<Item = u64>;
-    /// Return the value associated to the given document.
-    ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance reasons.
-    ///
-    /// # Panics
-    ///
-    /// May panic if `doc` is greater than the segment
-    fn get(&self, doc: DocId) -> u64;
-}
 
 /// `CompositeFastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
@@ -129,13 +120,6 @@ impl CompositeFastFieldSerializer {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct FastFieldStats {
-    pub min_value: u64,
-    pub max_value: u64,
-    pub num_vals: u64,
-}
-
 /// The FastFieldSerializer trait is the common interface
 /// implemented by every fastfield serializer variant.
 ///
@@ -146,18 +130,6 @@ pub trait FastFieldSerializer {
     fn add_val(&mut self, val: u64) -> io::Result<()>;
     /// finish serializing a field.
     fn close_field(self) -> io::Result<()>;
-}
-
-/// The FastFieldSerializerEstimate trait is required on all variants
-/// of fast field compressions, to decide which one to choose.
-pub trait FastFieldSerializerEstimate {
-    /// returns an estimate of the compression ratio.
-    fn estimate(
-        fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> (f32, &'static str);
-    /// the unique (name, id) of the compressor. Used to distinguish when de/serializing.
-    fn codec_id() -> (&'static str, u8);
 }
 
 pub struct FastBytesFieldSerializer<'a, W: Write> {

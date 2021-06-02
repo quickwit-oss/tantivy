@@ -8,6 +8,7 @@ use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
+use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -67,9 +68,9 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
-        let mut bytes = file.read_bytes()?;
+        let bytes = file.read_bytes()?;
         let (mut id_bytes, data_bytes) = bytes.split(1);
-        let id = u8::deserialize(&mut id_bytes)?;
+        let _id = u8::deserialize(&mut id_bytes)?;
 
         Ok(DynamicFastFieldReader::Bitpacked(
             BitpackedFastFieldReader::open_from_bytes(data_bytes)?,
@@ -106,10 +107,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
 /// fast field is required.
 #[derive(Clone)]
 pub struct BitpackedFastFieldReader<Item: FastValue> {
-    bytes: OwnedBytes,
-    bit_unpacker: BitUnpacker,
-    min_value_u64: u64,
-    max_value_u64: u64,
+    reader: BitpackedReader<'static>,
     _phantom: PhantomData<Item>,
 }
 
@@ -121,22 +119,15 @@ impl<Item: FastValue> BitpackedFastFieldReader<Item> {
         Self::open_from_bytes(bytes)
     }
     /// Opens a fast field given a file.
-    pub fn open_from_bytes(mut bytes: OwnedBytes) -> crate::Result<Self> {
-        let min_value = u64::deserialize(&mut bytes)?;
-        let amplitude = u64::deserialize(&mut bytes)?;
-        let max_value = min_value + amplitude;
-        let num_bits = compute_num_bits(amplitude);
-        let bit_unpacker = BitUnpacker::new(num_bits);
+    pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
+        let reader = BitpackedReader::open_from_bytes(bytes.into_slice())?;
         Ok(BitpackedFastFieldReader {
-            bytes,
-            min_value_u64: min_value,
-            max_value_u64: max_value,
-            bit_unpacker,
+            reader,
             _phantom: PhantomData,
         })
     }
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc, &self.bytes))
+        Item::from_u64(self.reader.get_u64(doc))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.
@@ -194,7 +185,7 @@ impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn min_value(&self) -> Item {
-        Item::from_u64(self.min_value_u64)
+        Item::from_u64(self.reader.min_value_u64)
     }
 
     /// Returns the maximum value for this fast field.
@@ -203,7 +194,7 @@ impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn max_value(&self) -> Item {
-        Item::from_u64(self.max_value_u64)
+        Item::from_u64(self.reader.max_value_u64)
     }
 }
 

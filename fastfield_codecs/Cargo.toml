@@ -1,0 +1,14 @@
+[package]
+name = "fastfield_codecs"
+version = "0.1.0"
+authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+common = { path = "../common/" }
+tantivy-bitpacker = { path = "../bitpacker/" }
+
+[dev-dependencies]
+rand = "0.8.3"

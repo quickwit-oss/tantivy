@@ -1,5 +1,5 @@
-use crate::common::Endianness;
-use crate::common::VInt;
+use crate::Endianness;
+use crate::VInt;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::fmt;
 use std::io;
