@@ -60,9 +60,8 @@ pub(crate) fn get_doc_id_mapping_from_field(
         })?;
 
     // create new doc_id to old doc_id index (used in fast_field_writers)
-    let data = fast_field.get_data();
-    let mut doc_id_and_data = data
-        .into_iter()
+    let mut doc_id_and_data = fast_field
+        .iter()
         .enumerate()
         .map(|el| (el.0 as DocId, el.1))
         .collect::<Vec<_>>();

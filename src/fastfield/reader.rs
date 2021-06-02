@@ -67,8 +67,12 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
+        let mut bytes = file.read_bytes()?;
+        let (mut id_bytes, data_bytes) = bytes.split(1);
+        let id = u8::deserialize(&mut id_bytes)?;
+
         Ok(DynamicFastFieldReader::Bitpacked(
-            BitpackedFastFieldReader::open(file)?,
+            BitpackedFastFieldReader::open_from_bytes(data_bytes)?,
         ))
     }
 }
@@ -113,6 +117,11 @@ impl<Item: FastValue> BitpackedFastFieldReader<Item> {
     /// Opens a fast field given a file.
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
+        let _id = u8::deserialize(&mut bytes)?;
+        Self::open_from_bytes(bytes)
+    }
+    /// Opens a fast field given a file.
+    pub fn open_from_bytes(mut bytes: OwnedBytes) -> crate::Result<Self> {
         let min_value = u64::deserialize(&mut bytes)?;
         let amplitude = u64::deserialize(&mut bytes)?;
         let max_value = min_value + amplitude;
@@ -198,8 +207,8 @@ impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
     }
 }
 
-impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
-    fn from(vals: Vec<Item>) -> BitpackedFastFieldReader<Item> {
+impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
+    fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
@@ -231,6 +240,6 @@ impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
         let field_file = composite_file
             .open_read(field)
             .expect("File component not found");
-        BitpackedFastFieldReader::open(field_file).unwrap()
+        DynamicFastFieldReader::open(field_file).unwrap()
     }
 }
