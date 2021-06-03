@@ -1,12 +1,9 @@
-mod bitpacked;
-mod linearinterpol;
-
 use crate::common::BinarySerializable;
 use crate::common::CompositeWrite;
 use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;
-use crate::DocId;
+use fastfield_codecs::CodecId;
 //pub use bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::FastFieldDataAccess;
@@ -57,13 +54,14 @@ impl CompositeFastFieldSerializer {
     ) -> io::Result<()> {
         let field_write = self.composite_write.for_field_with_idx(field, 0);
 
-        let (_ratio, (name, id)) = (
+        let (_ratio, name, id) = (
             BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&fastfield_accessor, stats.clone()),
-            BitpackedFastFieldSerializer::<Vec<u8>>::codec_id(),
+            BitpackedFastFieldSerializer::<Vec<u8>>::NAME,
+            BitpackedFastFieldSerializer::<Vec<u8>>::ID,
         );
 
         id.serialize(field_write)?;
-        if name == BitpackedFastFieldSerializer::<Vec<u8>>::codec_id().0 {
+        if name == BitpackedFastFieldSerializer::<Vec<u8>>::NAME {
             BitpackedFastFieldSerializer::create(
                 field_write,
                 &fastfield_accessor,
@@ -97,7 +95,7 @@ impl CompositeFastFieldSerializer {
     ) -> io::Result<BitpackedFastFieldSerializer<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         // Prepend codec id to field data for compatibility with DynamicFastFieldReader.
-        let (_name, id) = BitpackedFastFieldSerializer::<Vec<u8>>::codec_id();
+        let id = BitpackedFastFieldSerializer::<Vec<u8>>::ID;
         id.serialize(field_write)?;
         BitpackedFastFieldSerializer::open(field_write, min_value, max_value)
     }

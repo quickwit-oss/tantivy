@@ -56,12 +56,6 @@ impl OwnedBytes {
         self.data
     }
 
-    /// Returns the underlying slice of data.
-    /// `Deref` and `AsRef` are also available.
-    #[inline]
-    pub fn into_slice(self) -> &'static [u8] {
-        self.data
-    }
     /// Returns the len of the slice.
     #[inline]
     pub fn len(&self) -> usize {

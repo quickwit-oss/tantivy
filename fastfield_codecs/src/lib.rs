@@ -35,8 +35,15 @@ pub trait FastFieldSerializerEstimate {
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
     ) -> (f32, &'static str);
-    /// the unique (name, id) of the compressor. Used to distinguish when de/serializing.
-    fn codec_id() -> (&'static str, u8);
+}
+
+/// `CodecId` is required by each Codec.
+///
+/// It needs to provide a unique name and id, which is
+/// used for debugging and de/serialization.
+pub trait CodecId {
+    const NAME: &'static str;
+    const ID: u8;
 }
 
 #[derive(Debug, Clone)]
@@ -44,4 +51,16 @@ pub struct FastFieldStats {
     pub min_value: u64,
     pub max_value: u64,
     pub num_vals: u64,
+}
+
+impl<'a> FastFieldDataAccess for &'a [u64] {
+    fn get(&self, doc: u32) -> u64 {
+        self[doc as usize]
+    }
+}
+
+impl FastFieldDataAccess for Vec<u64> {
+    fn get(&self, doc: u32) -> u64 {
+        self[doc as usize]
+    }
 }

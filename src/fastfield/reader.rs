@@ -107,7 +107,8 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
 /// fast field is required.
 #[derive(Clone)]
 pub struct BitpackedFastFieldReader<Item: FastValue> {
-    reader: BitpackedReader<'static>,
+    reader: BitpackedReader,
+    bytes: OwnedBytes,
     _phantom: PhantomData<Item>,
 }
 
@@ -118,16 +119,17 @@ impl<Item: FastValue> BitpackedFastFieldReader<Item> {
         let _id = u8::deserialize(&mut bytes)?;
         Self::open_from_bytes(bytes)
     }
-    /// Opens a fast field given a file.
+    /// Opens a fast field given the bytes.
     pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
-        let reader = BitpackedReader::open_from_bytes(bytes.into_slice())?;
+        let reader = BitpackedReader::open_from_bytes(bytes.as_slice())?;
         Ok(BitpackedFastFieldReader {
             reader,
+            bytes,
             _phantom: PhantomData,
         })
     }
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.reader.get_u64(doc))
+        Item::from_u64(self.reader.get_u64(doc, self.bytes.as_slice()))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.
