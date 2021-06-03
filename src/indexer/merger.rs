@@ -412,9 +412,9 @@ impl IndexMerger {
         Ok(everything_is_in_order)
     }
 
-    pub(crate) fn get_sort_field_accessor<'b>(
+    pub(crate) fn get_sort_field_accessor(
         reader: &SegmentReader,
-        sort_by_field: &'b IndexSortByField,
+        sort_by_field: &IndexSortByField,
     ) -> crate::Result<impl FastFieldReader<u64>> {
         let field_id = expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
         let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
@@ -456,22 +456,22 @@ impl IndexMerger {
         // Loading the field accessor on demand causes a 15x regression
 
         // create iterators over segment/sort_accessor/doc_id  tuple
-        let doc_id_reader_pair = reader_and_field_accessors
-            .iter()
-            .map(|reader_and_field_accessor| {
-                reader_and_field_accessor
-                    .0
-                    .reader
-                    .doc_ids_alive()
-                    .map(move |doc_id| {
-                        (
-                            doc_id,
-                            reader_and_field_accessor.0,
-                            &reader_and_field_accessor.1,
-                        )
-                    })
-            })
-            .collect::<Vec<_>>();
+        let doc_id_reader_pair =
+            reader_and_field_accessors
+                .iter()
+                .map(|reader_and_field_accessor| {
+                    reader_and_field_accessor
+                        .0
+                        .reader
+                        .doc_ids_alive()
+                        .map(move |doc_id| {
+                            (
+                                doc_id,
+                                reader_and_field_accessor.0,
+                                &reader_and_field_accessor.1,
+                            )
+                        })
+                });
 
         // create iterator tuple of (old doc_id, reader) in order of the new doc_ids
         let sorted_doc_ids: Vec<(DocId, SegmentReaderWithOrdinal)> = doc_id_reader_pair
@@ -1017,12 +1017,12 @@ impl IndexMerger {
                 if reader.num_deleted_docs() > 0
                     // If there is not enough data in the store, we avoid stacking in order to
                     // avoid creating many small blocks in the doc store. Once we have 5 full blocks,
-                    // we start stacking. In the worst case 2/7 of the blocks would be very small. 
-                    // [segment 1 - {1 doc}][segment 2 - {fullblock * 5}{1doc}]  
+                    // we start stacking. In the worst case 2/7 of the blocks would be very small.
+                    // [segment 1 - {1 doc}][segment 2 - {fullblock * 5}{1doc}]
                     // => 5 * full blocks, 2 * 1 document blocks
                     //
                     // In a more realistic scenario the segments are of the same size, so 1/6 of
-                    // the doc stores would be on average half full, given total randomness (which 
+                    // the doc stores would be on average half full, given total randomness (which
                     // is not the case here, but not sure how it behaves exactly).
                     //
                     // https://github.com/tantivy-search/tantivy/issues/1053

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use super::PhraseWeight;
 use crate::core::searcher::Searcher;
 use crate::query::bm25::Bm25Weight;
@@ -5,7 +7,6 @@ use crate::query::Query;
 use crate::query::Weight;
 use crate::schema::IndexRecordOption;
 use crate::schema::{Field, Term};
-use std::collections::BTreeSet;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -113,9 +114,9 @@ impl Query for PhraseQuery {
         Ok(Box::new(phrase_weight))
     }
 
-    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
-        for (_, query_term) in &self.phrase_terms {
-            term_set.insert(query_term.clone());
+    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+        for (_, term) in &self.phrase_terms {
+            terms.insert(term.clone(), true);
         }
     }
 }

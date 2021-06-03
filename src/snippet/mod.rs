@@ -7,7 +7,6 @@ use crate::{Document, Score};
 use htmlescape::encode_minimal;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::ops::Range;
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
@@ -239,10 +238,10 @@ impl SnippetGenerator {
         query: &dyn Query,
         field: Field,
     ) -> crate::Result<SnippetGenerator> {
-        let mut terms = BTreeSet::new();
+        let mut terms = BTreeMap::new();
         query.query_terms(&mut terms);
         let mut terms_text: BTreeMap<String, Score> = Default::default();
-        for term in terms {
+        for (term, _) in terms {
             if term.field() != field {
                 continue;
             }

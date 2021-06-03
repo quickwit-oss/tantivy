@@ -6,7 +6,7 @@ use crate::query::Weight;
 use crate::schema::IndexRecordOption;
 use crate::schema::Term;
 use crate::Searcher;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
@@ -159,9 +159,9 @@ impl Query for BooleanQuery {
         Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
     }
 
-    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
+    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
         for (_occur, subquery) in &self.subqueries {
-            subquery.query_terms(term_set);
+            subquery.query_terms(terms);
         }
     }
 }

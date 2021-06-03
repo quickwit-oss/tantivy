@@ -5,7 +5,7 @@ use crate::query::{Explanation, Query};
 use crate::schema::IndexRecordOption;
 use crate::Searcher;
 use crate::Term;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// A Term query matches all of the documents
@@ -127,7 +127,7 @@ impl Query for TermQuery {
             self.specialized_weight(searcher, scoring_enabled)?,
         ))
     }
-    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
-        term_set.insert(self.term.clone());
+    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+        terms.insert(self.term.clone(), false);
     }
 }

@@ -66,7 +66,7 @@ mod tests {
     use crate::schema::{Schema, TEXT};
     use crate::Index;
     use crate::Term;
-    use std::collections::BTreeSet;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_query_terms() {
@@ -78,49 +78,49 @@ mod tests {
         let term_a = Term::from_field_text(text_field, "a");
         let term_b = Term::from_field_text(text_field, "b");
         {
-            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            let mut terms: BTreeMap<Term, bool> = Default::default();
             query_parser
                 .parse_query("a")
                 .unwrap()
-                .query_terms(&mut terms_set);
-            let terms: Vec<&Term> = terms_set.iter().collect();
-            assert_eq!(vec![&term_a], terms);
+                .query_terms(&mut terms);
+            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
+            assert_eq!(vec![(&term_a, &false)], terms);
         }
         {
-            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            let mut terms: BTreeMap<Term, bool> = Default::default();
             query_parser
                 .parse_query("a b")
                 .unwrap()
-                .query_terms(&mut terms_set);
-            let terms: Vec<&Term> = terms_set.iter().collect();
-            assert_eq!(vec![&term_a, &term_b], terms);
+                .query_terms(&mut terms);
+            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
+            assert_eq!(vec![(&term_a, &false), (&term_b, &false)], terms);
         }
         {
-            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            let mut terms: BTreeMap<Term, bool> = Default::default();
             query_parser
                 .parse_query("\"a b\"")
                 .unwrap()
-                .query_terms(&mut terms_set);
-            let terms: Vec<&Term> = terms_set.iter().collect();
-            assert_eq!(vec![&term_a, &term_b], terms);
+                .query_terms(&mut terms);
+            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
+            assert_eq!(vec![(&term_a, &true), (&term_b, &true)], terms);
         }
         {
-            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            let mut terms: BTreeMap<Term, bool> = Default::default();
             query_parser
                 .parse_query("a a a a a")
                 .unwrap()
-                .query_terms(&mut terms_set);
-            let terms: Vec<&Term> = terms_set.iter().collect();
-            assert_eq!(vec![&term_a], terms);
+                .query_terms(&mut terms);
+            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
+            assert_eq!(vec![(&term_a, &false)], terms);
         }
         {
-            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            let mut terms: BTreeMap<Term, bool> = Default::default();
             query_parser
                 .parse_query("a -b")
                 .unwrap()
-                .query_terms(&mut terms_set);
-            let terms: Vec<&Term> = terms_set.iter().collect();
-            assert_eq!(vec![&term_a, &term_b], terms);
+                .query_terms(&mut terms);
+            let terms: Vec<(&Term, &bool)> = terms.iter().collect();
+            assert_eq!(vec![(&term_a, &false), (&term_b, &false)], terms);
         }
     }
 }

@@ -13,12 +13,14 @@ Tantivy 0.15.0
 - Moved bitpacking to bitpacker subcrate and add BlockedBitpacker, which bitpacks blocks of 128 elements (@PSeitz) #1030
 - Added support for more-like-this query in tantivy (@evanxg852000) #1011
 - Added support for sorting an index, e.g presorting documents in an index by a timestamp field. This can heavily improve performance for certain scenarios, by utilizing the sorted data (Top-n optimizations)(@PSeitz). #1026
-- Add iterator over documents in doc store (@PSeitz). #1044 
-- Fix log merge policy (@PSeitz). #1043 
-- Add detection to avoid small doc store blocks on merge (@PSeitz). #1054 
-- Make doc store compression dynamic (@PSeitz). #1060 
-- Switch to json for footer version handling (@PSeitz). #1060 
+- Add iterator over documents in doc store (@PSeitz). #1044
+- Fix log merge policy (@PSeitz). #1043
+- Add detection to avoid small doc store blocks on merge (@PSeitz). #1054
+- Make doc store compression dynamic (@PSeitz). #1060
+- Switch to json for footer version handling (@PSeitz). #1060
 - Updated TermMerger implementation to rely on the union feature of the FST (@scampi) #469
+- Add boolean marking whether position is required in the query_terms API call (@fulmicoton). #1070
+
 
 Tantivy 0.14.0
 =========================
