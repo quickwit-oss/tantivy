@@ -4,7 +4,7 @@ use crate::query::Explanation;
 use crate::DocAddress;
 use crate::Term;
 use downcast_rs::impl_downcast;
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// The `Query` trait defines a set of documents and a scoring method
@@ -68,7 +68,10 @@ pub trait Query: QueryClone + Send + Sync + downcast_rs::Downcast + fmt::Debug {
 
     /// Extract all of the terms associated to the query and insert them in the
     /// term set given in arguments.
-    fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
+    ///
+    /// Each term is associated with a boolean indicating whether
+    /// Positions are required or not.
+    fn query_terms(&self, _term_set: &mut BTreeMap<Term, bool>) {}
 }
 
 /// Implements `box_clone`.
@@ -95,8 +98,8 @@ impl Query for Box<dyn Query> {
         self.as_ref().count(searcher)
     }
 
-    fn query_terms(&self, term_set: &mut BTreeSet<Term<Vec<u8>>>) {
-        self.as_ref().query_terms(term_set);
+    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+        self.as_ref().query_terms(terms);
     }
 }
 

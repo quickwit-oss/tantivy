@@ -2,7 +2,7 @@ use crate::fastfield::DeleteBitSet;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
 use crate::{DocId, DocSet, Score, Searcher, SegmentReader, Term};
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// `BoostQuery` is a wrapper over a query used to boost its score.
@@ -48,8 +48,8 @@ impl Query for BoostQuery {
         Ok(boosted_weight)
     }
 
-    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
-        self.query.query_terms(term_set)
+    fn query_terms(&self, terms: &mut BTreeMap<Term, bool>) {
+        self.query.query_terms(terms)
     }
 }
 
