@@ -233,10 +233,9 @@ impl MoreLikeThis {
             }
             FieldType::U64(_) => {
                 for field_value in field_values {
-                    let val = field_value
-                        .value()
-                        .u64_value()
-                        .ok_or(TantivyError::InvalidArgument("invalid value".to_string()))?;
+                    let val = field_value.value().u64_value().ok_or_else(|| {
+                        TantivyError::InvalidArgument("invalid value".to_string())
+                    })?;
                     if !self.is_noise_word(val.to_string()) {
                         let term = Term::from_field_u64(field, val);
                         *term_frequencies.entry(term).or_insert(0) += 1;
@@ -249,7 +248,7 @@ impl MoreLikeThis {
                     let val = field_value
                         .value()
                         .date_value()
-                        .ok_or(TantivyError::InvalidArgument("invalid value".to_string()))?
+                        .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
                         .timestamp();
                     if !self.is_noise_word(val.to_string()) {
                         let term = Term::from_field_i64(field, val);
@@ -259,10 +258,9 @@ impl MoreLikeThis {
             }
             FieldType::I64(_) => {
                 for field_value in field_values {
-                    let val = field_value
-                        .value()
-                        .i64_value()
-                        .ok_or(TantivyError::InvalidArgument("invalid value".to_string()))?;
+                    let val = field_value.value().i64_value().ok_or_else(|| {
+                        TantivyError::InvalidArgument("invalid value".to_string())
+                    })?;
                     if !self.is_noise_word(val.to_string()) {
                         let term = Term::from_field_i64(field, val);
                         *term_frequencies.entry(term).or_insert(0) += 1;
@@ -271,10 +269,9 @@ impl MoreLikeThis {
             }
             FieldType::F64(_) => {
                 for field_value in field_values {
-                    let val = field_value
-                        .value()
-                        .f64_value()
-                        .ok_or(TantivyError::InvalidArgument("invalid value".to_string()))?;
+                    let val = field_value.value().f64_value().ok_or_else(|| {
+                        TantivyError::InvalidArgument("invalid value".to_string())
+                    })?;
                     if !self.is_noise_word(val.to_string()) {
                         let term = Term::from_field_f64(field, val);
                         *term_frequencies.entry(term).or_insert(0) += 1;
@@ -306,7 +303,7 @@ impl MoreLikeThis {
         {
             return true;
         }
-        return self.stop_words.contains(&word);
+        self.stop_words.contains(&word)
     }
 
     /// Couputes the score for each term while ignoring not useful terms
