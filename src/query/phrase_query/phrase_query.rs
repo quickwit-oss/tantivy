@@ -76,7 +76,7 @@ impl PhraseQuery {
     ///
     /// This function is the same as `.weight(...)` except it returns
     /// a specialized type `PhraseWeight` instead of a Boxed trait.
-    pub(crate) fn phrase_weight(
+    pub fn phrase_weight(
         &self,
         searcher: &Searcher,
         scoring_enabled: bool,

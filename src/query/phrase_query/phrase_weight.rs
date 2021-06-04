@@ -41,7 +41,7 @@ impl PhraseWeight {
         }
     }
 
-    fn phrase_scorer(
+    pub fn phrase_scorer(
         &self,
         reader: &SegmentReader,
         boost: Score,

@@ -6,6 +6,7 @@ mod termdict;
 
 use self::sstable::value::{ValueReader, ValueWriter};
 use self::sstable::{BlockReader, SSTable};
+use std::iter::ExactSizeIterator;
 
 use crate::common::VInt;
 use crate::postings::TermInfo;

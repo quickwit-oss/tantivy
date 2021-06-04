@@ -57,7 +57,8 @@ impl FastFieldReaders {
         self.fast_fields_composite.space_usage()
     }
 
-    fn fast_field_data(&self, field: Field, idx: usize) -> crate::Result<FileSlice> {
+    #[doc(hidden)]
+    pub fn fast_field_data(&self, field: Field, idx: usize) -> crate::Result<FileSlice> {
         self.fast_fields_composite
             .open_read_with_idx(field, idx)
             .ok_or_else(|| {

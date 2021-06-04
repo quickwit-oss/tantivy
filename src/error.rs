@@ -12,6 +12,16 @@ use crate::{
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[doc(hidden)]
+pub enum AsyncIoError {
+    #[error("io::Error `{0}`")]
+    Io(#[from] io::Error),
+    #[error("Asynchronous API is unsupported by this directory")]
+    AsyncUnsupported,
+}
 
 /// Represents a `DataCorruption` error.
 ///
@@ -95,6 +105,17 @@ pub enum TantivyError {
     /// Index incompatible with current version of tantivy
     #[error("{0:?}")]
     IncompatibleIndex(Incompatibility),
+}
+
+impl From<AsyncIoError> for TantivyError {
+    fn from(async_io_err: AsyncIoError) -> Self {
+        match async_io_err {
+            AsyncIoError::Io(io_err) => TantivyError::from(io_err),
+            AsyncIoError::AsyncUnsupported => {
+                TantivyError::SystemError(format!("{:?}", async_io_err))
+            }
+        }
+    }
 }
 
 impl From<DataCorruption> for TantivyError {
