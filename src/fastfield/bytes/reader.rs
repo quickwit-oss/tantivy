@@ -1,5 +1,6 @@
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, MultiValueLength};
+use crate::directory::FileSlice;
 use crate::DocId;
 
 /// Reader for byte array fast fields

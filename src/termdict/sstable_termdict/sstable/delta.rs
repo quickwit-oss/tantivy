@@ -1,13 +1,14 @@
 use std::io::{self, BufWriter, Write};
+use std::ops::Range;
 
-use crate::common::CountingWriter;
+use common::CountingWriter;
 
 use super::value::ValueWriter;
 use super::{value, vint, BlockReader};
 
 const FOUR_BIT_LIMITS: usize = 1 << 4;
 const VINT_MODE: u8 = 1u8;
-const BLOCK_LEN: usize = 256_000;
+const BLOCK_LEN: usize = 32_000;
 
 pub struct DeltaWriter<W, TValueWriter>
 where
@@ -37,11 +38,11 @@ where
     W: io::Write,
     TValueWriter: value::ValueWriter,
 {
-    pub fn flush_block(&mut self) -> io::Result<Option<(u64, u64)>> {
+    pub fn flush_block(&mut self) -> io::Result<Option<Range<usize>>> {
         if self.block.is_empty() {
             return Ok(None);
         }
-        let start_offset = self.write.written_bytes();
+        let start_offset = self.write.written_bytes() as usize;
         // TODO avoid buffer allocation
         let mut buffer = Vec::new();
         self.value_writer.write_block(&mut buffer);
@@ -49,9 +50,9 @@ where
         self.write.write_all(&(block_len as u32).to_le_bytes())?;
         self.write.write_all(&buffer[..])?;
         self.write.write_all(&self.block[..])?;
-        let end_offset = self.write.written_bytes();
+        let end_offset = self.write.written_bytes() as usize;
         self.block.clear();
-        Ok(Some((start_offset, end_offset)))
+        Ok(Some(start_offset..end_offset))
     }
 
     fn encode_keep_add(&mut self, keep_len: usize, add_len: usize) {
@@ -77,7 +78,7 @@ where
         self.value_writer.write(value);
     }
 
-    pub fn flush_block_if_required(&mut self) -> io::Result<Option<(u64, u64)>> {
+    pub fn flush_block_if_required(&mut self) -> io::Result<Option<Range<usize>>> {
         if self.block.len() > BLOCK_LEN {
             return self.flush_block();
         }

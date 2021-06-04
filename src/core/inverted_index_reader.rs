@@ -7,6 +7,8 @@ use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term};
 use crate::termdict::TermDictionary;
+use common::BinarySerializable;
+use crate::AsyncIoResult;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -65,6 +67,11 @@ impl InvertedIndexReader {
         self.termdict.get(term.value_bytes())
     }
 
+    #[doc(hidden)]
+    pub(crate) async fn get_term_info_async(&self, term: &Term) -> AsyncIoResult<Option<TermInfo>> {
+        self.termdict.get_async(term.value_bytes()).await
+    }
+
     /// Return the term dictionary datastructure.
     pub fn terms(&self) -> &TermDictionary {
         &self.termdict
@@ -89,6 +96,25 @@ impl InvertedIndexReader {
             .postings_file_slice
             .slice(term_info.postings_range.clone());
         block_postings.reset(term_info.doc_freq, postings_slice.read_bytes()?);
+        Ok(())
+    }
+
+    /// Returns a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub async fn warm_postings(&self, term: &Term, with_positions: bool) -> AsyncIoResult<()> {
+        let term_info_opt = self.get_term_info_async(term).await?;
+        if let Some(term_info) = term_info_opt {
+            self.postings_file_slice
+                .read_bytes_slice_async(term_info.postings_range.clone())
+                .await?;
+            if with_positions {
+                self.positions_file_slice
+                    .read_bytes_slice_async(term_info.positions_range.clone())
+                    .await?;
+            }
+        }
         Ok(())
     }
 

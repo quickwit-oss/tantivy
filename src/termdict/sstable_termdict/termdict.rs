@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::common::BinarySerializable;
+use common::BinarySerializable;
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::sstable_termdict::sstable::sstable_index::BlockAddr;
@@ -11,6 +11,7 @@ use crate::termdict::sstable_termdict::{
     TermInfoReader, TermInfoWriter, TermSSTable, TermStreamer, TermStreamerBuilder,
 };
 use crate::termdict::TermOrdinal;
+use crate::AsyncIoResult;
 use once_cell::sync::Lazy;
 use tantivy_fst::automaton::AlwaysMatch;
 use tantivy_fst::Automaton;
@@ -49,6 +50,7 @@ impl<W: io::Write> TermDictionaryBuilder<W> {
     /// to insert_key and insert_value.
     ///
     /// Prefer using `.insert(key, value)`
+    #[allow(clippy::clippy::clippy::unnecessary_wraps)]
     pub(crate) fn insert_key(&mut self, key: &[u8]) -> io::Result<()> {
         self.sstable_writer.write_key(key);
         Ok(())
@@ -98,10 +100,18 @@ impl TermDictionary {
         &self,
         block_addr: BlockAddr,
     ) -> io::Result<Reader<'static, TermInfoReader>> {
-        let data = self.sstable_slice.read_bytes_slice(
-            block_addr.start_offset as usize,
-            block_addr.end_offset as usize,
-        )?;
+        let data = self.sstable_slice.read_bytes_slice(block_addr.byte_range)?;
+        Ok(TermInfoSSTable::reader(data))
+    }
+
+    pub(crate) async fn sstable_reader_block_async(
+        &self,
+        block_addr: BlockAddr,
+    ) -> AsyncIoResult<Reader<'static, TermInfoReader>> {
+        let data = self
+            .sstable_slice
+            .read_bytes_slice_async(block_addr.byte_range)
+            .await?;
         Ok(TermInfoSSTable::reader(data))
     }
 
@@ -204,6 +214,21 @@ impl TermDictionary {
         Ok(None)
     }
 
+    /// Lookups the value corresponding to the key.
+    pub async fn get_async<K: AsRef<[u8]>>(&self, key: K) -> AsyncIoResult<Option<TermInfo>> {
+        if let Some(block_addr) = self.sstable_index.search(key.as_ref()) {
+            let mut sstable_reader = self.sstable_reader_block_async(block_addr).await?;
+            let key_bytes = key.as_ref();
+            while sstable_reader.advance().unwrap_or(false) {
+                if sstable_reader.key() == key_bytes {
+                    let term_info = sstable_reader.value().clone();
+                    return Ok(Some(term_info));
+                }
+            }
+        }
+        Ok(None)
+    }
+
     // Returns a range builder, to stream all of the terms
     // within an interval.
     pub fn range(&self) -> TermStreamerBuilder<'_> {
@@ -222,5 +247,11 @@ impl TermDictionary {
         A::State: Clone,
     {
         TermStreamerBuilder::<A>::new(self, automaton)
+    }
+
+    #[doc(hidden)]
+    pub async fn warm_up_dictionary(&self) -> AsyncIoResult<()> {
+        self.sstable_slice.read_bytes_async().await?;
+        Ok(())
     }
 }

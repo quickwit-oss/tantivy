@@ -176,11 +176,10 @@ where
     }
 
     pub fn flush_block_if_required(&mut self) -> io::Result<()> {
-        if let Some((start_offset, end_offset)) = self.delta_writer.flush_block_if_required()? {
+        if let Some(byte_range) = self.delta_writer.flush_block_if_required()? {
             self.index_builder.add_block(
                 &self.previous_key[..],
-                start_offset,
-                end_offset,
+                byte_range,
                 self.first_ordinal_of_the_block,
             );
             self.first_ordinal_of_the_block = self.num_terms;
@@ -190,11 +189,10 @@ where
     }
 
     pub fn finalize(mut self) -> io::Result<W> {
-        if let Some((start_offset, end_offset)) = self.delta_writer.flush_block()? {
+        if let Some(byte_range) = self.delta_writer.flush_block()? {
             self.index_builder.add_block(
                 &self.previous_key[..],
-                start_offset,
-                end_offset,
+                byte_range,
                 self.first_ordinal_of_the_block,
             );
             self.first_ordinal_of_the_block = self.num_terms;
@@ -281,10 +279,10 @@ mod test {
                 17u8, 20u8, 0u8, 0u8, 0u8, 0u8, // no more blocks
                 // index
                 161, 102, 98, 108, 111, 99, 107, 115, 129, 162, 104, 108, 97, 115, 116, 95, 107,
-                101, 121, 130, 17, 20, 106, 98, 108, 111, 99, 107, 95, 97, 100, 100, 114, 163, 108,
-                115, 116, 97, 114, 116, 95, 111, 102, 102, 115, 101, 116, 0, 106, 101, 110, 100,
-                95, 111, 102, 102, 115, 101, 116, 11, 109, 102, 105, 114, 115, 116, 95, 111, 114,
-                100, 105, 110, 97, 108, 0, 15, 0, 0, 0, 0, 0, 0, 0, // offset for the index
+                101, 121, 130, 17, 20, 106, 98, 108, 111, 99, 107, 95, 97, 100, 100, 114, 162, 106,
+                98, 121, 116, 101, 95, 114, 97, 110, 103, 101, 162, 101, 115, 116, 97, 114, 116, 0,
+                99, 101, 110, 100, 11, 109, 102, 105, 114, 115, 116, 95, 111, 114, 100, 105, 110,
+                97, 108, 0, 15, 0, 0, 0, 0, 0, 0, 0, // offset for the index
                 3u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8 // num terms
             ]
         );

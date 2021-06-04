@@ -57,6 +57,7 @@ itertools = "0.10.0"
 measure_time = "0.8.0"
 pretty_assertions = "1.1.0"
 serde_cbor = "0.11"
+async-trait = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
