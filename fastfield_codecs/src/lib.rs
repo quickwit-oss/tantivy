@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn estimation_good_interpolation_case() {
-        let data = (10..=20_u64).collect::<Vec<_>>();
+        let data = (10..=200_u64).collect::<Vec<_>>();
 
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
@@ -117,7 +117,7 @@ mod tests {
 
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation, 0.3);
+        assert_le!(linear_interpol_estimation, 0.32);
 
         let bitpacked_estimation =
             BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
