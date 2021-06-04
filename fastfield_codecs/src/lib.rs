@@ -1,19 +1,9 @@
+#[cfg(test)]
+#[macro_use]
+extern crate more_asserts;
+
 pub mod bitpacked;
 pub mod linearinterpol;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
-        let min_value = data.iter().cloned().min().unwrap_or(0);
-        let max_value = data.iter().cloned().max().unwrap_or(0);
-        FastFieldStats {
-            min_value,
-            max_value,
-            num_vals: data.len() as u64,
-        }
-    }
-}
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
 pub trait FastFieldDataAccess: Clone {
@@ -31,6 +21,10 @@ pub trait FastFieldDataAccess: Clone {
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldSerializerEstimate {
     /// returns an estimate of the compression ratio.
+    /// The baseline is uncompressed 64bit data.
+    ///
+    /// It could make sense to also return a value representing
+    /// computational complexity.
     fn estimate(
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
@@ -62,5 +56,80 @@ impl<'a> FastFieldDataAccess for &'a [u64] {
 impl FastFieldDataAccess for Vec<u64> {
     fn get(&self, doc: u32) -> u64 {
         self[doc as usize]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        bitpacked::BitpackedFastFieldSerializer, linearinterpol::LinearInterpolFastFieldSerializer,
+    };
+
+    pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
+        let mut data_and_names = vec![];
+
+        let data = (10..=20_u64).collect::<Vec<_>>();
+        data_and_names.push((data, "simple monotonically increasing"));
+
+        data_and_names.push((
+            vec![5, 6, 7, 8, 9, 10, 99, 100],
+            "offset in linear interpol",
+        ));
+        data_and_names.push((vec![5, 50, 3, 13, 1, 1000, 35], "rand small"));
+        data_and_names.push((vec![10], "single value"));
+
+        data_and_names
+    }
+
+    use super::*;
+    pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
+        let min_value = data.iter().cloned().min().unwrap_or(0);
+        let max_value = data.iter().cloned().max().unwrap_or(0);
+        FastFieldStats {
+            min_value,
+            max_value,
+            num_vals: data.len() as u64,
+        }
+    }
+
+    #[test]
+    fn estimation_good_interpolation_case() {
+        let data = (10..=20_u64).collect::<Vec<_>>();
+
+        let linear_interpol_estimation =
+            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        assert_le!(linear_interpol_estimation.0, 0.1);
+
+        let bitpacked_estimation =
+            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+        assert_le!(linear_interpol_estimation.0, bitpacked_estimation.0);
+    }
+    #[test]
+    fn estimation_test_bad_interpolation_case() {
+        let data = vec![200, 10, 10, 10, 10, 1000, 20];
+
+        let linear_interpol_estimation =
+            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        assert_le!(linear_interpol_estimation.0, 0.3);
+
+        let bitpacked_estimation =
+            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+        assert_le!(bitpacked_estimation.0, linear_interpol_estimation.0);
+    }
+    #[test]
+    fn estimation_test_bad_interpolation_case_monotonically_increasing() {
+        let mut data = (200..=20000_u64).collect::<Vec<_>>();
+        data.push(1_000_000);
+
+        // in this case the linear interpolation can't in fact not be worse than bitpacking,
+        // but the estimator adds some threshold, which leads to estimated worse behavior
+        let linear_interpol_estimation =
+            LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        assert_le!(linear_interpol_estimation.0, 0.35);
+
+        let bitpacked_estimation =
+            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+        assert_le!(bitpacked_estimation.0, 0.32);
+        assert_le!(bitpacked_estimation.0, linear_interpol_estimation.0);
     }
 }

@@ -3,6 +3,7 @@ use crate::FastFieldDataAccess;
 use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
 use std::io::{self, Read, Write};
+use std::ops::Sub;
 use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitPacker;
 
@@ -58,11 +59,6 @@ impl LinearinterpolFastFieldReader {
     pub fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES);
         let footer = LinearInterpolFooter::deserialize(&mut footer)?;
-        //let rel_max_value = u64::deserialize(&mut footer)?;
-        //let offset = u64::deserialize(&mut footer)?;
-        //let first_value = u64::deserialize(&mut footer)?;
-        //let last_value = u64::deserialize(&mut footer)?;
-        //let num_vals = u64::deserialize(&mut footer)?;
         let slope = (footer.last_val as f64 - footer.first_val as f64)
             / (footer.num_vals as u64 - 1) as f64;
 
@@ -75,7 +71,7 @@ impl LinearinterpolFastFieldReader {
         })
     }
     pub fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let calculated_value = self.footer.first_val + (doc as f64 * self.slope) as u64;
+        let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
         (calculated_value + self.bit_unpacker.get(doc, &data)) - self.footer.offset
     }
 }
@@ -94,47 +90,43 @@ impl LinearInterpolFastFieldSerializer {
         stats: FastFieldStats,
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
-        data_iter2: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
-        // todo walk over data just once and calulate offset on the fly
+        // todo walk over data just once and calulate offset and max on the fly
         // offset to ensure all values are positive
-        let offset = data_iter1
-            .enumerate()
-            .map(|(pos, val)| {
-                let calculated_value = first_val + (pos as f64 * slope) as u64;
-                val as i64 - calculated_value as i64
-            })
-            .min()
-            .unwrap()
-            .abs() as u64;
+        let mut offset = 0;
+        let mut rel_positive_max = 0;
+        for (pos, actual_value) in data_iter1.enumerate() {
+            let calculated_value = get_calculated_value(first_val, pos as u64, slope);
+            if calculated_value > actual_value {
+                // negative value we need to apply an offset
+                // we ignore negative values in the max value calculation, because negative values
+                // will be offset to 0
+                offset = offset.max(calculated_value - actual_value);
+            } else {
+                //positive value no offset reuqired
+                rel_positive_max = rel_positive_max.max(actual_value - calculated_value);
+            }
+        }
 
-        //calc new max
-        let rel_max = data_iter2
-            .enumerate()
-            .map(|(pos, val)| {
-                let calculated_value = first_val + (pos as f64 * slope) as u64;
-                (val + offset) - calculated_value
-            })
-            .max()
-            .unwrap();
+        // rel_positive_max will be adjusted by offset
+        let relative_max_value = rel_positive_max + offset;
 
-        let amplitude = rel_max;
-        let num_bits = compute_num_bits(amplitude);
+        let num_bits = compute_num_bits(relative_max_value);
         let mut bit_packer = BitPacker::new();
         for (pos, val) in data_iter.enumerate() {
-            let calculated_value = first_val + (pos as f64 * slope) as u64;
+            let calculated_value = get_calculated_value(first_val, pos as u64, slope);
             let diff = (val + offset) - calculated_value;
             bit_packer.write(diff, num_bits, write)?;
         }
         bit_packer.close(write)?;
 
         let footer = LinearInterpolFooter {
-            relative_max_value: amplitude,
+            relative_max_value,
             offset,
             first_val,
             last_val,
@@ -148,17 +140,63 @@ fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f64 {
     (last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64
 }
 
+fn get_calculated_value(first_val: u64, pos: u64, slope: f64) -> u64 {
+    first_val + (pos as f64 * slope) as u64
+}
 impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima are for the deviation of the calculated value and
+    /// the offset is also unknown.
     fn estimate(
-        _fastfield_accessor: &impl FastFieldDataAccess,
+        fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
     ) -> (f32, &'static str) {
-        let amplitude = stats.max_value - stats.min_value;
-        let num_bits = compute_num_bits(amplitude);
-        let num_bits_uncompressed = 64;
+        let first_val = fastfield_accessor.get(0);
+        let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
+        let slope = get_slope(first_val, last_val, stats.num_vals);
+
+        // let's sample at 10%, 20%, 25%, 50%, 75%, 90%
+        let num_vals = stats.num_vals as f32 / 100.0;
+        let sample_positions = [
+            (num_vals * 10.0) as usize,
+            (num_vals * 20.0) as usize,
+            (num_vals * 25.0) as usize,
+            (num_vals * 50.0) as usize,
+            (num_vals * 75.0) as usize,
+            (num_vals * 90.0) as usize,
+        ];
+
+        let max_distance = sample_positions
+            .iter()
+            .map(|pos| {
+                let calculated_value = get_calculated_value(first_val, *pos as u64, slope);
+                let actual_value = fastfield_accessor.get(*pos as u32);
+                distance(calculated_value, actual_value)
+            })
+            .max()
+            .unwrap();
+
+        // the theory would be that we don't have the actual max_distance, but we are close within 50%
+        // threshold.
+        // It is multiplied by 2 because in a log case scenario the line would be as much above as
+        // below. So the offset would = max_distance
+        //
+        let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
+
+        let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
+            + LinearInterpolFooter::SIZE_IN_BYTES as u64;
+        let num_bits_uncompressed = 64 * stats.num_vals;
         let ratio = num_bits as f32 / num_bits_uncompressed as f32;
         let name = Self::NAME;
         (ratio, name)
+    }
+}
+
+fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
+    if x < y {
+        y - x
+    } else {
+        x - y
     }
 }
 
@@ -170,8 +208,9 @@ impl CodecId for LinearInterpolFastFieldSerializer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests::get_codec_test_data_sets;
 
-    fn create_and_validate(data: &[u64]) -> (u64, u64) {
+    fn create_and_validate(data: &[u64], name: &str) -> (u64, u64) {
         let mut out = vec![];
         LinearInterpolFastFieldSerializer::create(
             &mut out,
@@ -179,54 +218,52 @@ mod tests {
             crate::tests::stats_from_vec(&data),
             data.iter().cloned(),
             data.iter().cloned(),
-            data.iter().cloned(),
         )
         .unwrap();
 
         let reader = LinearinterpolFastFieldReader::open_from_bytes(&out).unwrap();
-        for (doc, val) in data.iter().enumerate() {
-            assert_eq!(reader.get_u64(doc as u64, &out), *val);
+        for (doc, orig_val) in data.iter().enumerate() {
+            //assert_eq!(reader.get_u64(doc as u64, &out), *val);
+            let val = reader.get_u64(doc as u64, &out);
+            if val != *orig_val {
+                panic!(
+                    "val {:?} does not match orig_val {:?}, in data set {}",
+                    val, orig_val, name
+                );
+            }
         }
         (reader.footer.relative_max_value, reader.footer.offset)
     }
 
     #[test]
+    fn test_with_codec_data_sets() {
+        let data_sets = get_codec_test_data_sets();
+        for (mut data, name) in data_sets {
+            create_and_validate(&data, name);
+            data.reverse();
+            create_and_validate(&data, name);
+        }
+    }
+    #[test]
     fn linear_interpol_fast_field_test_simple() {
         let data = (10..=20_u64).collect::<Vec<_>>();
 
-        let (rel_max_value, offset) = create_and_validate(&data);
+        let (rel_max_value, offset) = create_and_validate(&data, "simple monotonically");
 
         assert_eq!(offset, 0);
         assert_eq!(rel_max_value, 0);
     }
 
     #[test]
-    fn linear_interpol_fast_field_test_with_offset() {
-        //let data = vec![5, 50, 95, 96, 97, 98, 99, 100];
-        let mut data = vec![5, 6, 7, 8, 9, 10, 99, 100];
-        create_and_validate(&data);
-
-        data.reverse();
-        create_and_validate(&data);
-    }
-    #[test]
-    fn linear_interpol_fast_field_test_no_structure() {
-        let mut data = vec![5, 50, 3, 13, 1, 1000, 35];
-        create_and_validate(&data);
-
-        data.reverse();
-        create_and_validate(&data);
-    }
-    #[test]
     fn linear_interpol_fast_field_rand() {
         for _ in 0..500 {
             let mut data = (0..1 + rand::random::<u8>() as usize)
                 .map(|_| rand::random::<i64>() as u64 / 2 as u64)
                 .collect::<Vec<_>>();
-            create_and_validate(&data);
+            create_and_validate(&data, "random");
 
             data.reverse();
-            create_and_validate(&data);
+            create_and_validate(&data, "random");
         }
     }
 }

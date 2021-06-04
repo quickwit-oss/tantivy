@@ -11,4 +11,5 @@ common = { path = "../common/" }
 tantivy-bitpacker = { path = "../bitpacker/" }
 
 [dev-dependencies]
+more-asserts = "0.2.1"
 rand = "0.8.3"

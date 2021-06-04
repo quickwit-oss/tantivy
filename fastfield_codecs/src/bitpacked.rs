@@ -131,8 +131,8 @@ impl<'a, W: 'a + Write> CodecId for BitpackedFastFieldSerializer<'_, W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn create_and_validate(data: &[u64]) {
+    use crate::tests::get_codec_test_data_sets;
+    fn create_and_validate(data: &[u64], name: &str) {
         let mut out = vec![];
         BitpackedFastFieldSerializer::create(
             &mut out,
@@ -143,45 +143,37 @@ mod tests {
         .unwrap();
 
         let reader = BitpackedFastFieldReader::open_from_bytes(&out).unwrap();
-        for (doc, val) in data.iter().enumerate() {
-            assert_eq!(reader.get_u64(doc as u64, &out), *val);
+        for (doc, orig_val) in data.iter().enumerate() {
+            let val = reader.get_u64(doc as u64, &out);
+            if val != *orig_val {
+                panic!(
+                    "val {:?} does not match orig_val {:?}, in data set {}",
+                    val, orig_val, name
+                );
+            }
         }
     }
 
     #[test]
-    fn bitpacked_fast_field_test_simple() {
-        let data = (10..=20_u64).collect::<Vec<_>>();
-
-        create_and_validate(&data);
+    fn test_with_codec_data_sets() {
+        let data_sets = get_codec_test_data_sets();
+        for (mut data, name) in data_sets {
+            create_and_validate(&data, name);
+            data.reverse();
+            create_and_validate(&data, name);
+        }
     }
 
-    #[test]
-    fn bitpacked_fast_field_test_with_offset() {
-        //let data = vec![5, 50, 95, 96, 97, 98, 99, 100];
-        let mut data = vec![5, 6, 7, 8, 9, 10, 99, 100];
-        create_and_validate(&data);
-
-        data.reverse();
-        create_and_validate(&data);
-    }
-    #[test]
-    fn bitpacked_fast_field_test_no_structure() {
-        let mut data = vec![5, 50, 3, 13, 1, 1000, 35];
-        create_and_validate(&data);
-
-        data.reverse();
-        create_and_validate(&data);
-    }
     #[test]
     fn bitpacked_fast_field_rand() {
         for _ in 0..500 {
             let mut data = (0..1 + rand::random::<u8>() as usize)
                 .map(|_| rand::random::<i64>() as u64 / 2 as u64)
                 .collect::<Vec<_>>();
-            create_and_validate(&data);
+            create_and_validate(&data, "rand");
 
             data.reverse();
-            create_and_validate(&data);
+            create_and_validate(&data, "rand");
         }
     }
 }
