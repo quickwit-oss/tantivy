@@ -35,7 +35,6 @@ pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::CompositeFastFieldSerializer;
 pub use self::serializer::FastFieldDataAccess;
-pub use self::serializer::FastFieldSerializer;
 pub use self::serializer::FastFieldStats;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::Cardinality;
@@ -217,7 +216,6 @@ mod tests {
     use crate::common::CompositeFile;
     use crate::common::HasLen;
     use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::fastfield::BitpackedFastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
     use crate::schema::Schema;

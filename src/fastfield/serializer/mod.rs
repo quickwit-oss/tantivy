@@ -149,18 +149,6 @@ impl CompositeFastFieldSerializer {
     }
 }
 
-/// The FastFieldSerializer trait is the common interface
-/// implemented by every fastfield serializer variant.
-///
-/// `DynamicFastFieldSerializer` is the enum wrapping all variants.
-/// It is used to create an serializer instance.
-pub trait FastFieldSerializer {
-    /// add value to serializer
-    fn add_val(&mut self, val: u64) -> io::Result<()>;
-    /// finish serializing a field.
-    fn close_field(self) -> io::Result<()>;
-}
-
 pub struct FastBytesFieldSerializer<'a, W: Write> {
     write: &'a mut W,
 }
