@@ -5,7 +5,6 @@ use crate::fastfield::DeleteBitSet;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
 use crate::fastfield::FastFieldReader;
-use crate::fastfield::FastFieldSerializer;
 use crate::fastfield::FastFieldStats;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
@@ -346,32 +345,16 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
         if let Some(doc_id_mapping) = doc_id_mapping {
-            //struct SortedDocidAccessor {};
             #[derive(Clone)]
             struct SortedDocidFieldAccessProvider<'a> {
                 doc_id_mapping: &'a Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
                 fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
             }
             impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
-                //type IteratorType = ;
-                //type IteratorType: std::iter::Map<std::slice::Iter<'a, (u32, SegmentReaderWithOrdinal<'_>)>, _>
-                //type IteratorType =
-                //std::iter::Map<std::slice::Iter<'a, (u32, SegmentReaderWithOrdinal<'a>)>, u64>;
                 fn get(&self, doc: DocId) -> u64 {
                     let (doc_id, reader_with_ordinal) = self.doc_id_mapping[doc as usize];
                     self.fast_field_readers[reader_with_ordinal.ordinal as usize].get(doc_id)
                 }
-
-                //fn iter(&self) -> Self::IteratorType {
-                //self.doc_id_mapping
-                //.iter()
-                //.map(|(doc_id, reader_with_ordinal)| {
-                //let fast_field_reader =
-                //&self.fast_field_readers[reader_with_ordinal.ordinal as usize];
-                //let val = self.field_reader.get(*doc_id);
-                //val
-                //})
-                //}
             }
             let stats = FastFieldStats {
                 min_value,
@@ -395,22 +378,6 @@ impl IndexMerger {
                 iter,
             )?;
 
-            //let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
-            //(
-            //doc_id,
-            //&fast_field_readers[reader_with_ordinal.ordinal as usize],
-            //)
-            //});
-            //// add values in order of the new doc_ids
-
-            //let mut fast_single_field_serializer =
-            //fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
-            //for (doc_id, field_reader) in sorted_doc_ids {
-            //let val = field_reader.get(*doc_id);
-            //fast_single_field_serializer.add_val(val)?;
-            //}
-
-            //fast_single_field_serializer.close_field()?;
             Ok(())
         } else {
             let u64_readers = self.readers.iter()

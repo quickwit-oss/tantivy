@@ -1,4 +1,5 @@
 use crate::CodecId;
+use crate::CodecReader;
 use crate::FastFieldDataAccess;
 use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
@@ -18,9 +19,9 @@ pub struct BitpackedFastFieldReader {
     pub max_value_u64: u64,
 }
 
-impl<'data> BitpackedFastFieldReader {
+impl<'data> CodecReader for BitpackedFastFieldReader {
     /// Opens a fast field given a file.
-    pub fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - 16);
         let min_value = u64::deserialize(&mut footer)?;
         let amplitude = u64::deserialize(&mut footer)?;
@@ -33,8 +34,14 @@ impl<'data> BitpackedFastFieldReader {
             bit_unpacker,
         })
     }
-    pub fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
+    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &data)
+    }
+    fn min_value(&self) -> u64 {
+        self.min_value_u64
+    }
+    fn max_value(&self) -> u64 {
+        self.max_value_u64
     }
 }
 pub struct BitpackedFastFieldSerializer<'a, W: 'a + Write> {
@@ -111,16 +118,12 @@ impl<'a, W: Write> BitpackedFastFieldSerializer<'a, W> {
 }
 
 impl<'a, W: 'a + Write> FastFieldSerializerEstimate for BitpackedFastFieldSerializer<'a, W> {
-    fn estimate(
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> (f32, &'static str) {
+    fn estimate(_fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
         let amplitude = stats.max_value - stats.min_value;
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
         let ratio = num_bits as f32 / num_bits_uncompressed as f32;
-        let name = Self::NAME;
-        (ratio, name)
+        ratio
     }
 }
 impl<'a, W: 'a + Write> CodecId for BitpackedFastFieldSerializer<'_, W> {

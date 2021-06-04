@@ -6,6 +6,7 @@ use crate::schema::Field;
 use fastfield_codecs::CodecId;
 //pub use bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
+use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 pub use fastfield_codecs::FastFieldDataAccess;
 pub use fastfield_codecs::FastFieldSerializerEstimate;
 pub use fastfield_codecs::FastFieldStats;
@@ -54,22 +55,52 @@ impl CompositeFastFieldSerializer {
     ) -> io::Result<()> {
         let field_write = self.composite_write.for_field_with_idx(field, 0);
 
-        let (_ratio, name, id) = (
-            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&fastfield_accessor, stats.clone()),
-            BitpackedFastFieldSerializer::<Vec<u8>>::NAME,
-            BitpackedFastFieldSerializer::<Vec<u8>>::ID,
-        );
+        let mut estimations = vec![];
 
+        {
+            let (ratio, name, id) = (
+                BitpackedFastFieldSerializer::<Vec<u8>>::estimate(
+                    &fastfield_accessor,
+                    stats.clone(),
+                ),
+                BitpackedFastFieldSerializer::<Vec<u8>>::NAME,
+                BitpackedFastFieldSerializer::<Vec<u8>>::ID,
+            );
+            estimations.push((ratio, name, id));
+        }
+        {
+            let (ratio, name, id) = (
+                LinearInterpolFastFieldSerializer::estimate(&fastfield_accessor, stats.clone()),
+                LinearInterpolFastFieldSerializer::NAME,
+                LinearInterpolFastFieldSerializer::ID,
+            );
+            estimations.push((ratio, name, id));
+        }
+        estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let (_ratio, name, id) = estimations[0];
+        //estimations.sort_by_key(|el| el.0);
         id.serialize(field_write)?;
-        if name == BitpackedFastFieldSerializer::<Vec<u8>>::NAME {
-            BitpackedFastFieldSerializer::create(
-                field_write,
-                &fastfield_accessor,
-                stats,
-                data_iter_1,
-            )?;
-        } else {
-            panic!("unknown fastfield serializer {}", name);
+        match name {
+            BitpackedFastFieldSerializer::<Vec<u8>>::NAME => {
+                BitpackedFastFieldSerializer::create(
+                    field_write,
+                    &fastfield_accessor,
+                    stats,
+                    data_iter_1,
+                )?;
+            }
+            LinearInterpolFastFieldSerializer::NAME => {
+                LinearInterpolFastFieldSerializer::create(
+                    field_write,
+                    &fastfield_accessor,
+                    stats,
+                    data_iter_1,
+                    data_iter_2,
+                )?;
+            }
+            _ => {
+                panic!("unknown fastfield serializer {}", name)
+            }
         };
 
         Ok(())

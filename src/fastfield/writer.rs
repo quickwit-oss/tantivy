@@ -1,9 +1,7 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
 use super::FastFieldDataAccess;
-use super::FastFieldReader;
 use crate::common;
-use crate::fastfield::serializer::FastFieldSerializer;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;

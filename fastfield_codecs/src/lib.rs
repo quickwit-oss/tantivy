@@ -5,6 +5,16 @@ extern crate more_asserts;
 pub mod bitpacked;
 pub mod linearinterpol;
 
+pub trait CodecReader: Sized {
+    /// reads the metadata and returns the CodecReader
+    fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self>;
+
+    fn get_u64(&self, doc: u64, data: &[u8]) -> u64;
+
+    fn min_value(&self) -> u64;
+    fn max_value(&self) -> u64;
+}
+
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
 pub trait FastFieldDataAccess: Clone {
     /// Return the value associated to the given document.
@@ -25,10 +35,7 @@ pub trait FastFieldSerializerEstimate {
     ///
     /// It could make sense to also return a value representing
     /// computational complexity.
-    fn estimate(
-        fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> (f32, &'static str);
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
 }
 
 /// `CodecId` is required by each Codec.
@@ -98,11 +105,11 @@ mod tests {
 
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation.0, 0.1);
+        assert_le!(linear_interpol_estimation, 0.1);
 
         let bitpacked_estimation =
             BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation.0, bitpacked_estimation.0);
+        assert_le!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case() {
@@ -110,11 +117,11 @@ mod tests {
 
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation.0, 0.3);
+        assert_le!(linear_interpol_estimation, 0.3);
 
         let bitpacked_estimation =
             BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
-        assert_le!(bitpacked_estimation.0, linear_interpol_estimation.0);
+        assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
     #[test]
     fn estimation_test_bad_interpolation_case_monotonically_increasing() {
@@ -125,11 +132,11 @@ mod tests {
         // but the estimator adds some threshold, which leads to estimated worse behavior
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation.0, 0.35);
+        assert_le!(linear_interpol_estimation, 0.35);
 
         let bitpacked_estimation =
             BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
-        assert_le!(bitpacked_estimation.0, 0.32);
-        assert_le!(bitpacked_estimation.0, linear_interpol_estimation.0);
+        assert_le!(bitpacked_estimation, 0.32);
+        assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
 }

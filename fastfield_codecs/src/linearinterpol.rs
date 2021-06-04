@@ -1,4 +1,5 @@
 use crate::CodecId;
+use crate::CodecReader;
 use crate::FastFieldDataAccess;
 use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
@@ -27,6 +28,8 @@ pub struct LinearInterpolFooter {
     pub first_val: u64,
     pub last_val: u64,
     pub num_vals: u64,
+    pub min_value: u64,
+    pub max_value: u64,
 }
 
 impl BinarySerializable for LinearInterpolFooter {
@@ -36,6 +39,8 @@ impl BinarySerializable for LinearInterpolFooter {
         self.first_val.serialize(write)?;
         self.last_val.serialize(write)?;
         self.num_vals.serialize(write)?;
+        self.min_value.serialize(write)?;
+        self.max_value.serialize(write)?;
         Ok(())
     }
 
@@ -46,17 +51,19 @@ impl BinarySerializable for LinearInterpolFooter {
             first_val: u64::deserialize(reader)?,
             last_val: u64::deserialize(reader)?,
             num_vals: u64::deserialize(reader)?,
+            min_value: u64::deserialize(reader)?,
+            max_value: u64::deserialize(reader)?,
         })
     }
 }
 
 impl FixedSize for LinearInterpolFooter {
-    const SIZE_IN_BYTES: usize = 40;
+    const SIZE_IN_BYTES: usize = 56;
 }
 
-impl LinearinterpolFastFieldReader {
+impl CodecReader for LinearinterpolFastFieldReader {
     /// Opens a fast field given a file.
-    pub fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+    fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES);
         let footer = LinearInterpolFooter::deserialize(&mut footer)?;
         let slope = (footer.last_val as f64 - footer.first_val as f64)
@@ -70,9 +77,16 @@ impl LinearinterpolFastFieldReader {
             slope,
         })
     }
-    pub fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
+    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
         (calculated_value + self.bit_unpacker.get(doc, &data)) - self.footer.offset
+    }
+
+    fn min_value(&self) -> u64 {
+        self.footer.min_value
+    }
+    fn max_value(&self) -> u64 {
+        self.footer.max_value
     }
 }
 
@@ -131,6 +145,8 @@ impl LinearInterpolFastFieldSerializer {
             first_val,
             last_val,
             num_vals: stats.num_vals,
+            min_value: stats.min_value,
+            max_value: stats.max_value,
         };
         footer.serialize(write)?;
         Ok(())
@@ -147,10 +163,7 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(
-        fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-    ) -> (f32, &'static str) {
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
@@ -187,8 +200,7 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
             + LinearInterpolFooter::SIZE_IN_BYTES as u64;
         let num_bits_uncompressed = 64 * stats.num_vals;
         let ratio = num_bits as f32 / num_bits_uncompressed as f32;
-        let name = Self::NAME;
-        (ratio, name)
+        ratio
     }
 }
 
@@ -223,7 +235,6 @@ mod tests {
 
         let reader = LinearinterpolFastFieldReader::open_from_bytes(&out).unwrap();
         for (doc, orig_val) in data.iter().enumerate() {
-            //assert_eq!(reader.get_u64(doc as u64, &out), *val);
             let val = reader.get_u64(doc as u64, &out);
             if val != *orig_val {
                 panic!(

@@ -1,5 +1,4 @@
 use crate::fastfield::serializer::BitpackedFastFieldSerializer;
-use crate::fastfield::serializer::FastFieldSerializer;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
