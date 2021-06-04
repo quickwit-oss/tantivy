@@ -175,8 +175,8 @@ impl BinarySerializable for VInt {
 mod tests {
 
     use super::serialize_vint_u32;
+    use super::BinarySerializable;
     use super::VInt;
-    use crate::common::BinarySerializable;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];

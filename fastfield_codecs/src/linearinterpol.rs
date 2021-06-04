@@ -72,8 +72,8 @@ impl CodecReader for LinearinterpolFastFieldReader {
         let num_bits = compute_num_bits(footer.relative_max_value);
         let bit_unpacker = BitUnpacker::new(num_bits);
         Ok(LinearinterpolFastFieldReader {
-            footer,
             bit_unpacker,
+            footer,
             slope,
         })
     }
@@ -199,8 +199,7 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
         let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
             + LinearInterpolFooter::SIZE_IN_BYTES as u64;
         let num_bits_uncompressed = 64 * stats.num_vals;
-        let ratio = num_bits as f32 / num_bits_uncompressed as f32;
-        ratio
+        num_bits as f32 / num_bits_uncompressed as f32
     }
 }
 

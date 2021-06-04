@@ -122,8 +122,7 @@ impl<'a, W: 'a + Write> FastFieldSerializerEstimate for BitpackedFastFieldSerial
         let amplitude = stats.max_value - stats.min_value;
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;
-        let ratio = num_bits as f32 / num_bits_uncompressed as f32;
-        ratio
+        num_bits as f32 / num_bits_uncompressed as f32
     }
 }
 impl<'a, W: 'a + Write> CodecId for BitpackedFastFieldSerializer<'_, W> {

@@ -180,9 +180,9 @@ impl BinarySerializable for String {
 #[cfg(test)]
 pub mod test {
 
+    use super::VInt;
     use super::*;
-    use crate::common::VInt;
-
+    use crate::serialize::BinarySerializable;
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();
