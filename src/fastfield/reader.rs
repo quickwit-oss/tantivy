@@ -231,8 +231,7 @@ impl<Item: FastValue, C: CodecReader + Clone> FastFieldReader<Item>
     }
 }
 
-pub type BitpackedFastFieldReader<Item: FastValue> =
-    FastFieldReaderCodecWrapper<Item, BitpackedReader>;
+pub(crate) type BitpackedFastFieldReader<Item> = FastFieldReaderCodecWrapper<Item, BitpackedReader>;
 
 impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
     fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {

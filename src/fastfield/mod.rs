@@ -29,7 +29,7 @@ pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::BitpackedFastFieldReader;
+pub(crate) use self::reader::BitpackedFastFieldReader;
 pub use self::reader::DynamicFastFieldReader;
 pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;

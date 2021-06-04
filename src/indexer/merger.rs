@@ -367,8 +367,7 @@ impl IndexMerger {
             };
             let iter = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
                 let fast_field_reader = &fast_field_readers[reader_with_ordinal.ordinal as usize];
-                let val = fast_field_reader.get(*doc_id);
-                val
+                fast_field_reader.get(*doc_id)
             });
             fast_field_serializer.create_auto_detect_u64_fast_field(
                 field,
