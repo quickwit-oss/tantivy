@@ -211,7 +211,7 @@ impl MoreLikeThis {
                             if let Some(tokenizer) = text_options
                                 .get_indexing_options()
                                 .map(|text_indexing_options| {
-                                    text_indexing_options.tokenizer().to_string()
+                                    text_indexing_options.search_tokenizer().to_string()
                                 })
                                 .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
                             {
