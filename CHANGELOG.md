@@ -8,7 +8,7 @@ Tantivy 0.15.0
 - Bugfix consistent tie break handling in facet's topk (@hardikpnsp) #357
 - Date field support for range queries (@rihardsk) #516
 - Added lz4-flex as the default compression scheme in tantivy (@PSeitz) #1009
-- Renamed a lot of symbols to avoid all uppercasing on acronyms, as per new clippy recommendation. For instance, RAMDirectory -> RamDirectory. (@pmasurel)
+- Renamed a lot of symbols to avoid all uppercasing on acronyms, as per new clippy recommendation. For instance, RAMDirectory -> RamDirectory. (@fulmicoton)
 - Simplified positions index format (@fulmicoton) #1022
 - Moved bitpacking to bitpacker subcrate and add BlockedBitpacker, which bitpacks blocks of 128 elements (@PSeitz) #1030
 - Added support for more-like-this query in tantivy (@evanxg852000) #1011
