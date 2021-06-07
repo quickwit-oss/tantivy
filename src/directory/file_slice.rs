@@ -204,10 +204,6 @@ impl FileHandle for FileSlice {
         self.read_bytes_slice(range)
     }
 
-    fn get_physical_address(&self, range: Range<usize>) -> Option<String> {
-        self.get_physical_address(range)
-    }
-
     async fn read_bytes_async(&self, byte_range: Range<usize>) -> AsyncIoResult<OwnedBytes> {
         self.read_bytes_slice_async(byte_range).await
     }
