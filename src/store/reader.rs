@@ -4,12 +4,12 @@ use crate::directory::{FileSlice, OwnedBytes};
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
-use crate::DocId;
 use crate::{
     common::{BinarySerializable, HasLen, VInt},
     error::DataCorruption,
     fastfield::DeleteBitSet,
 };
+use crate::{AsyncIoResult, DocId};
 use lru::LruCache;
 use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -94,6 +94,32 @@ impl StoreReader {
         Ok(block)
     }
 
+    async fn read_block_async(&self, checkpoint: &Checkpoint) -> AsyncIoResult<Block> {
+        if let Some(block) = self.cache.lock().unwrap().get(&checkpoint.byte_range.start) {
+            self.cache_hits.fetch_add(1, Ordering::SeqCst);
+            return Ok(block.clone());
+        }
+
+        self.cache_misses.fetch_add(1, Ordering::SeqCst);
+
+        let compressed_block = self
+            .data
+            .slice(checkpoint.byte_range.clone())
+            .read_bytes_async()
+            .await?;
+        let mut decompressed_block = vec![];
+        self.compressor
+            .decompress(compressed_block.as_slice(), &mut decompressed_block)?;
+
+        let block = OwnedBytes::new(decompressed_block);
+        self.cache
+            .lock()
+            .unwrap()
+            .put(checkpoint.byte_range.start, block.clone());
+
+        Ok(block)
+    }
+
     /// Reads a given document.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
@@ -105,6 +131,11 @@ impl StoreReader {
     /// for instance.
     pub fn get(&self, doc_id: DocId) -> crate::Result<Document> {
         let mut doc_bytes = self.get_document_bytes(doc_id)?;
+        Ok(Document::deserialize(&mut doc_bytes)?)
+    }
+
+    pub async fn get_async(&self, doc_id: DocId) -> crate::Result<Document> {
+        let mut doc_bytes = self.get_document_bytes_async(doc_id).await?;
         Ok(Document::deserialize(&mut doc_bytes)?)
     }
 
@@ -128,6 +159,23 @@ impl StoreReader {
             cursor = &cursor[doc_length..];
         }
 
+        let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+        let start_pos = cursor_len_before - cursor.len();
+        let end_pos = cursor_len_before - cursor.len() + doc_length;
+        Ok(block.slice(start_pos..end_pos))
+    }
+
+    pub async fn get_document_bytes_async(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
+        let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
+        })?;
+        let block = self.read_block_async(&checkpoint).await?;
+        let mut cursor = &block[..];
+        let cursor_len_before = cursor.len();
+        for _ in checkpoint.doc_range.start..doc_id {
+            let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
+            cursor = &cursor[doc_length..];
+        }
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
         let start_pos = cursor_len_before - cursor.len();
         let end_pos = cursor_len_before - cursor.len() + doc_length;

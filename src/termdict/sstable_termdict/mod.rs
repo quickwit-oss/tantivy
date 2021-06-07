@@ -1,13 +1,13 @@
 use std::io;
 
+mod merger;
 mod sstable;
 mod streamer;
 mod termdict;
-mod merger;
 
+pub use self::merger::TermMerger;
 use self::sstable::value::{ValueReader, ValueWriter};
 use self::sstable::{BlockReader, SSTable};
-pub use self::merger::TermMerger;
 use std::iter::ExactSizeIterator;
 
 use crate::common::VInt;

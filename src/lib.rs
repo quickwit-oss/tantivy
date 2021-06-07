@@ -138,7 +138,7 @@ pub type AsyncIoResult<T> = std::result::Result<T, AsyncIoError>;
 /// Tantivy DateTime
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 
-mod common;
+pub mod common;
 mod core;
 mod indexer;
 
