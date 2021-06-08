@@ -1,14 +1,11 @@
 mod bitset;
 mod composite_file;
 mod counting_writer;
-//mod serialize;
-//mod vint;
 
 pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::counting_writer::CountingWriter;
-//pub use self::serialize::{BinarySerializable, DeserializeFrom, FixedSize};
 pub use byteorder::LittleEndian as Endianness;
 pub use common::{
     read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt,
@@ -104,7 +101,6 @@ pub fn u64_to_f64(val: u64) -> f64 {
 #[cfg(test)]
 pub(crate) mod test {
 
-    //pub use super::serialize::test::fixed_size_test;
     use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
     use common::{BinarySerializable, FixedSize};
     use proptest::prelude::*;

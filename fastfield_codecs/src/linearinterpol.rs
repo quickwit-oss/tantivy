@@ -152,7 +152,9 @@ impl LinearInterpolFastFieldSerializer {
     }
 }
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    (last_val as f32 - first_val as f32) / (num_vals as u64 - 1) as f32
+    //  We calculate the slope with f64 high precision and use the result in lower precision f32
+    //  This is done in order to handle estimation for very large values like i64::MAX
+    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
 }
 
 fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
@@ -163,7 +165,7 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        if stats.max_value > i64::MAX as u64 / 2 || stats.num_vals < 3 {
+        if (stats.max_value - stats.min_value) > i64::MAX as u64 / 2 || stats.num_vals < 3 {
             return f32::MAX; //disable compressor for this case
         }
         let first_val = fastfield_accessor.get(0);

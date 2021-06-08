@@ -78,7 +78,6 @@ impl CompositeFastFieldSerializer {
         }
         estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let (_ratio, name, id) = estimations[0];
-        //estimations.sort_by_key(|el| el.0);
         id.serialize(field_write)?;
         match name {
             BitpackedFastFieldSerializer::<Vec<u8>>::NAME => {

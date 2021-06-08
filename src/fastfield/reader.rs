@@ -73,24 +73,21 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
-        let bytes = file.read_bytes()?;
-        let (mut id_bytes, data_bytes) = bytes.split(1);
-        let id = u8::deserialize(&mut id_bytes)?;
+        let mut bytes = file.read_bytes()?;
+        let id = bytes.read_u8();
 
         let reader = match id {
             BitpackedFastFieldSerializer::<Vec<u8>>::ID => {
                 DynamicFastFieldReader::Bitpacked(FastFieldReaderCodecWrapper::<
                     Item,
                     BitpackedReader,
-                >::open_from_bytes(data_bytes)?)
+                >::open_from_bytes(bytes)?)
             }
             LinearInterpolFastFieldSerializer::ID => {
                 DynamicFastFieldReader::LinearInterpol(FastFieldReaderCodecWrapper::<
                     Item,
                     LinearinterpolFastFieldReader,
-                >::open_from_bytes(
-                    data_bytes
-                )?)
+                >::open_from_bytes(bytes)?)
             }
             _ => {
                 panic!(
