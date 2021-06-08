@@ -18,7 +18,7 @@ use tantivy_bitpacker::BitUnpacker;
 pub struct LinearinterpolFastFieldReader {
     bit_unpacker: BitUnpacker,
     pub footer: LinearInterpolFooter,
-    pub slope: f64,
+    pub slope: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -66,8 +66,7 @@ impl CodecReader for LinearinterpolFastFieldReader {
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES);
         let footer = LinearInterpolFooter::deserialize(&mut footer)?;
-        let slope = (footer.last_val as f64 - footer.first_val as f64)
-            / (footer.num_vals as u64 - 1) as f64;
+        let slope = get_slope(footer.first_val, footer.last_val, footer.num_vals);
 
         let num_bits = compute_num_bits(footer.relative_max_value);
         let bit_unpacker = BitUnpacker::new(num_bits);
@@ -77,14 +76,17 @@ impl CodecReader for LinearinterpolFastFieldReader {
             slope,
         })
     }
+    #[inline]
     fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
         let calculated_value = get_calculated_value(self.footer.first_val, doc, self.slope);
         (calculated_value + self.bit_unpacker.get(doc, &data)) - self.footer.offset
     }
 
+    #[inline]
     fn min_value(&self) -> u64 {
         self.footer.min_value
     }
+    #[inline]
     fn max_value(&self) -> u64 {
         self.footer.max_value
     }
@@ -93,8 +95,6 @@ impl CodecReader for LinearinterpolFastFieldReader {
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
 pub struct LinearInterpolFastFieldSerializer {}
-
-// TODO not suitable if max is larger than i64::MAX / 2
 
 impl LinearInterpolFastFieldSerializer {
     /// Creates a new fast field serializer.
@@ -110,8 +110,7 @@ impl LinearInterpolFastFieldSerializer {
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
-        // todo walk over data just once and calulate offset and max on the fly
-        // offset to ensure all values are positive
+        // calculate offset to ensure all values are positive
         let mut offset = 0;
         let mut rel_positive_max = 0;
         for (pos, actual_value) in data_iter1.enumerate() {
@@ -152,18 +151,21 @@ impl LinearInterpolFastFieldSerializer {
         Ok(())
     }
 }
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f64 {
-    (last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64
+fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+    (last_val as f32 - first_val as f32) / (num_vals as u64 - 1) as f32
 }
 
-fn get_calculated_value(first_val: u64, pos: u64, slope: f64) -> u64 {
-    first_val + (pos as f64 * slope) as u64
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    first_val + (pos as f32 * slope) as u64
 }
 impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+        if stats.max_value > i64::MAX as u64 / 2 {
+            return 999.0; // effectively disable compressor for this case
+        }
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
