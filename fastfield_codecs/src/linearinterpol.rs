@@ -163,8 +163,8 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        if stats.max_value > i64::MAX as u64 / 2 {
-            return 999.0; // effectively disable compressor for this case
+        if stats.max_value > i64::MAX as u64 / 2 || stats.num_vals < 3 {
+            return f32::MAX; //disable compressor for this case
         }
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);

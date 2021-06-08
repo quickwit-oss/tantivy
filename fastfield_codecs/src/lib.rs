@@ -30,7 +30,8 @@ pub trait FastFieldDataAccess: Clone {
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldSerializerEstimate {
-    /// returns an estimate of the compression ratio.
+    /// returns an estimate of the compression ratio. if the compressor is unable to handle the
+    /// data it needs to return f32::MAX.
     /// The baseline is uncompressed 64bit data.
     ///
     /// It could make sense to also return a value representing
