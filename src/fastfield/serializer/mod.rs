@@ -44,7 +44,7 @@ impl CompositeFastFieldSerializer {
         Ok(CompositeFastFieldSerializer { composite_write })
     }
 
-    /// Serialize data into a new u64 fast field. The compression will be detected automatically.
+    /// Serialize data into a new u64 fast field. The best compression codec will be chosen automatically.
     pub fn create_auto_detect_u64_fast_field(
         &mut self,
         field: Field,
@@ -76,8 +76,23 @@ impl CompositeFastFieldSerializer {
             );
             estimations.push((ratio, name, id));
         }
+        if let Some(broken_estimation) = estimations
+            .iter()
+            .find(|estimation| estimation.0 == f32::NAN)
+        {
+            warn!(
+                "broken estimation for fast field codec {}",
+                broken_estimation.1
+            );
+        }
+        // removing nan values for codecs with broken calculations, and max values which disables codecs
+        estimations.retain(|estimation| !estimation.0.is_nan() && estimation.0 != f32::MAX);
         estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let (_ratio, name, id) = estimations[0];
+        debug!(
+            "choosing fast field codec {} for field_id {:?}",
+            name, field
+        ); // todo print acutal field name
         id.serialize(field_write)?;
         match name {
             BitpackedFastFieldSerializer::<Vec<u8>>::NAME => {

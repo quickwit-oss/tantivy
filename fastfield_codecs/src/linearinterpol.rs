@@ -151,9 +151,13 @@ impl LinearInterpolFastFieldSerializer {
         Ok(())
     }
 }
+
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+    if num_vals <= 1 {
+        return 0.0;
+    }
     //  We calculate the slope with f64 high precision and use the result in lower precision f32
-    //  This is done in order to handle estimation for very large values like i64::MAX
+    //  This is done in order to handle estimations for very large values like i64::MAX
     ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
 }
 
