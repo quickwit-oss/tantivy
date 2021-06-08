@@ -1,3 +1,7 @@
+Tantivy 0.16.0
+=========================
+- Allow defining a different tokenizer for search than indexing. (@mlvzk) #1074
+
 Tantivy 0.15.0
 =========================
 - API Changes. Using Range instead of (start, end) in the API and internals (`FileSlice`, `OwnedBytes`, `Snippets`, ...)

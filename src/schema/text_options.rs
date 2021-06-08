@@ -55,12 +55,14 @@ impl Default for TextOptions {
 pub struct TextFieldIndexing {
     record: IndexRecordOption,
     tokenizer: Cow<'static, str>,
+    search_tokenizer: Option<Cow<'static, str>>,
 }
 
 impl Default for TextFieldIndexing {
     fn default() -> TextFieldIndexing {
         TextFieldIndexing {
             tokenizer: Cow::Borrowed("default"),
+            search_tokenizer: None,
             record: IndexRecordOption::Basic,
         }
     }
@@ -73,9 +75,20 @@ impl TextFieldIndexing {
         self
     }
 
+    /// Sets the search tokenizer to be used for a given field.
+    pub fn set_search_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
+        self.search_tokenizer = Some(Cow::Owned(tokenizer_name.to_string()));
+        self
+    }
+
     /// Returns the tokenizer that will be used for this field.
     pub fn tokenizer(&self) -> &str {
         &self.tokenizer
+    }
+
+    /// Returns the search tokenizer that will be used for this field.
+    pub fn search_tokenizer(&self) -> &str {
+        self.search_tokenizer.as_ref().unwrap_or(&self.tokenizer)
     }
 
     /// Sets which information should be indexed with the tokens.
@@ -98,6 +111,7 @@ impl TextFieldIndexing {
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("raw"),
+        search_tokenizer: None,
         record: IndexRecordOption::Basic,
     }),
     stored: false,
@@ -107,6 +121,7 @@ pub const STRING: TextOptions = TextOptions {
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("default"),
+        search_tokenizer: None,
         record: IndexRecordOption::WithFreqsAndPositions,
     }),
     stored: false,

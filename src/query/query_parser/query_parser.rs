@@ -324,15 +324,15 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let tokenizer =
-                        self.tokenizer_manager
-                            .get(option.tokenizer())
-                            .ok_or_else(|| {
-                                QueryParserError::UnknownTokenizer(
-                                    field_entry.name().to_string(),
-                                    option.tokenizer().to_string(),
-                                )
-                            })?;
+                    let tokenizer = self
+                        .tokenizer_manager
+                        .get(option.search_tokenizer())
+                        .ok_or_else(|| {
+                            QueryParserError::UnknownTokenizer(
+                                field_entry.name().to_string(),
+                                option.search_tokenizer().to_string(),
+                            )
+                        })?;
                     let mut terms: Vec<(usize, Term)> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {

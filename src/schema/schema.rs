@@ -448,7 +448,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "tokenizer": "default"
+        "tokenizer": "default",
+        "search_tokenizer": null
       },
       "stored": false
     }
@@ -459,7 +460,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
-        "tokenizer": "raw"
+        "tokenizer": "raw",
+        "search_tokenizer": null
       },
       "stored": false
     }
@@ -793,7 +795,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
-        "tokenizer": "raw"
+        "tokenizer": "raw",
+        "search_tokenizer": null
       },
       "stored": true
     }
@@ -813,7 +816,8 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
-        "tokenizer": "default"
+        "tokenizer": "default",
+        "search_tokenizer": null
       },
       "stored": false
     }

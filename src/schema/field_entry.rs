@@ -294,7 +294,8 @@ mod tests {
   "options": {
     "indexing": {
       "record": "position",
-      "tokenizer": "default"
+      "tokenizer": "default",
+      "search_tokenizer": null
     },
     "stored": false
   }
