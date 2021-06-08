@@ -170,16 +170,11 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
 
-        // let's sample at 10%, 20%, 25%, 50%, 75%, 90%
+        // let's sample at 0%, 5%, 10% .. 95%, 100%
         let num_vals = stats.num_vals as f32 / 100.0;
-        let sample_positions = [
-            (num_vals * 10.0) as usize,
-            (num_vals * 20.0) as usize,
-            (num_vals * 25.0) as usize,
-            (num_vals * 50.0) as usize,
-            (num_vals * 75.0) as usize,
-            (num_vals * 90.0) as usize,
-        ];
+        let sample_positions = (0..20)
+            .map(|pos| (num_vals * pos as f32 * 5.0) as usize)
+            .collect::<Vec<_>>();
 
         let max_distance = sample_positions
             .iter()
