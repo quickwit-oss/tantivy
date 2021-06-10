@@ -4,6 +4,7 @@ extern crate more_asserts;
 
 pub mod bitpacked;
 pub mod linearinterpol;
+pub mod multilinearinterpol;
 
 pub trait CodecReader: Sized {
     /// reads the metadata and returns the CodecReader

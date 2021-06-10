@@ -12,6 +12,8 @@ use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
 use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 use fastfield_codecs::linearinterpol::LinearinterpolFastFieldReader;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+use fastfield_codecs::multilinearinterpol::MultiLinearinterpolFastFieldReader;
 use fastfield_codecs::CodecId;
 use fastfield_codecs::CodecReader;
 use std::collections::HashMap;
@@ -68,6 +70,8 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
     /// Linear interpolated values + bitpacked
     LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearinterpolFastFieldReader>),
+    /// Blockwise linear interpolated values + bitpacked
+    MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearinterpolFastFieldReader>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
@@ -89,6 +93,14 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
                     LinearinterpolFastFieldReader,
                 >::open_from_bytes(bytes)?)
             }
+            MultiLinearInterpolFastFieldSerializer::ID => {
+                DynamicFastFieldReader::MultiLinearInterpol(FastFieldReaderCodecWrapper::<
+                    Item,
+                    MultiLinearinterpolFastFieldReader,
+                >::open_from_bytes(
+                    bytes
+                )?)
+            }
             _ => {
                 panic!(
                     "unknown fastfield id {:?}. Data corrupted or using old tantivy version.",
@@ -105,24 +117,28 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
         match self {
             Self::Bitpacked(reader) => reader.get(doc),
             Self::LinearInterpol(reader) => reader.get(doc),
+            Self::MultiLinearInterpol(reader) => reader.get(doc),
         }
     }
     fn get_range(&self, start: DocId, output: &mut [Item]) {
         match self {
             Self::Bitpacked(reader) => reader.get_range(start, output),
             Self::LinearInterpol(reader) => reader.get_range(start, output),
+            Self::MultiLinearInterpol(reader) => reader.get_range(start, output),
         }
     }
     fn min_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.min_value(),
             Self::LinearInterpol(reader) => reader.min_value(),
+            Self::MultiLinearInterpol(reader) => reader.min_value(),
         }
     }
     fn max_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.max_value(),
             Self::LinearInterpol(reader) => reader.max_value(),
+            Self::MultiLinearInterpol(reader) => reader.max_value(),
         }
     }
 }

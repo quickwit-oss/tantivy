@@ -7,12 +7,22 @@ mod tests {
     use fastfield_codecs::{
         bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
         linearinterpol::{LinearInterpolFastFieldSerializer, LinearinterpolFastFieldReader},
+        multilinearinterpol::{
+            MultiLinearInterpolFastFieldSerializer, MultiLinearinterpolFastFieldReader,
+        },
         *,
     };
 
     fn get_data() -> Vec<u64> {
-        let mut data: Vec<_> = (100..25000_u64).collect();
+        let mut data: Vec<_> = (100..55000_u64)
+            .map(|num| num + rand::random::<u8>() as u64)
+            .collect();
         data.push(99_000);
+        data.insert(1000, 2000);
+        data.insert(2000, 100);
+        data.insert(3000, 4100);
+        data.insert(4000, 100);
+        data.insert(5000, 800);
         data
     }
 
@@ -49,6 +59,25 @@ mod tests {
         });
     }
     #[bench]
+    fn bench_fastfield_multilinearinterpol_create(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        b.iter(|| {
+            let mut out = vec![];
+            MultiLinearInterpolFastFieldSerializer::create(
+                &mut out,
+                &data,
+                stats_from_vec(&data),
+                data.iter().cloned(),
+                data.iter().cloned(),
+            )
+            .unwrap();
+            out
+        });
+    }
+    fn value_iter() -> impl Iterator<Item = u64> {
+        0..20_000
+    }
+    #[bench]
     fn bench_fastfield_bitpack_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
         let mut bytes = vec![];
@@ -61,7 +90,7 @@ mod tests {
         .unwrap();
         let reader = BitpackedFastFieldReader::open_from_bytes(&bytes).unwrap();
         b.iter(|| {
-            for pos in 0..20_000 {
+            for pos in value_iter() {
                 reader.get_u64(pos as u64, &bytes);
             }
         });
@@ -80,7 +109,26 @@ mod tests {
         .unwrap();
         let reader = LinearinterpolFastFieldReader::open_from_bytes(&bytes).unwrap();
         b.iter(|| {
-            for pos in 0..20_000 {
+            for pos in value_iter() {
+                reader.get_u64(pos as u64, &bytes);
+            }
+        });
+    }
+    #[bench]
+    fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
+        let data: Vec<_> = get_data();
+        let mut bytes = vec![];
+        MultiLinearInterpolFastFieldSerializer::create(
+            &mut bytes,
+            &data,
+            stats_from_vec(&data),
+            data.iter().cloned(),
+            data.iter().cloned(),
+        )
+        .unwrap();
+        let reader = MultiLinearinterpolFastFieldReader::open_from_bytes(&bytes).unwrap();
+        b.iter(|| {
+            for pos in value_iter() {
                 reader.get_u64(pos as u64, &bytes);
             }
         });

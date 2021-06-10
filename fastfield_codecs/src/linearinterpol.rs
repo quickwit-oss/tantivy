@@ -166,12 +166,25 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 }
 impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima are for the deviation of the calculated value and
-    /// the offset is also unknown.
+    /// where the local maxima for the deviation of the calculated value are and
+    /// the offset to shift all values to >=0 is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        if (stats.max_value - stats.min_value) > i64::MAX as u64 / 2 || stats.num_vals < 3 {
+        if stats.num_vals < 3 {
             return f32::MAX; //disable compressor for this case
         }
+        // On serialisation the offset is added to the actual value.
+        // We need to make sure this won't run into overflow calculation issues.
+        // For this we take the maximum theroretical offset and add this to the max value.
+        // If this doesn't overflow the algortihm should be fine
+        let theorethical_maximum_offset = stats.max_value - stats.min_value;
+        if stats
+            .max_value
+            .checked_add(theorethical_maximum_offset)
+            .is_none()
+        {
+            return f32::MAX;
+        }
+
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
@@ -225,6 +238,11 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (u64, u64) {
+        if LinearInterpolFastFieldSerializer::estimate(&data, crate::tests::stats_from_vec(&data))
+            == f32::MAX
+        {
+            return (0, 0);
+        }
         let mut out = vec![];
         LinearInterpolFastFieldSerializer::create(
             &mut out,
@@ -258,6 +276,16 @@ mod tests {
         }
     }
     #[test]
+    fn linear_interpol_fast_field_test_large_amplitude() {
+        let data = vec![
+            i64::MAX as u64 / 2,
+            i64::MAX as u64 / 3,
+            i64::MAX as u64 / 2,
+        ];
+
+        create_and_validate(&data, "large amplitude");
+    }
+    #[test]
     fn linear_interpol_fast_field_test_simple() {
         let data = (10..=20_u64).collect::<Vec<_>>();
 
@@ -269,9 +297,9 @@ mod tests {
 
     #[test]
     fn linear_interpol_fast_field_rand() {
-        for _ in 0..500 {
-            let mut data = (0..1 + rand::random::<u8>() as usize)
-                .map(|_| rand::random::<i64>() as u64 / 2 as u64)
+        for _ in 0..5000 {
+            let mut data = (0..50 as usize)
+                .map(|_| rand::random::<u64>())
                 .collect::<Vec<_>>();
             create_and_validate(&data, "random");
 

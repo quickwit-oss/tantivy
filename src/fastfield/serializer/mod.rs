@@ -7,6 +7,7 @@ use fastfield_codecs::CodecId;
 //pub use bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 pub use fastfield_codecs::FastFieldDataAccess;
 pub use fastfield_codecs::FastFieldSerializerEstimate;
 pub use fastfield_codecs::FastFieldStats;
@@ -76,6 +77,17 @@ impl CompositeFastFieldSerializer {
             );
             estimations.push((ratio, name, id));
         }
+        {
+            let (ratio, name, id) = (
+                MultiLinearInterpolFastFieldSerializer::estimate(
+                    &fastfield_accessor,
+                    stats.clone(),
+                ),
+                MultiLinearInterpolFastFieldSerializer::NAME,
+                MultiLinearInterpolFastFieldSerializer::ID,
+            );
+            estimations.push((ratio, name, id));
+        }
         if let Some(broken_estimation) = estimations
             .iter()
             .find(|estimation| estimation.0 == f32::NAN)
@@ -92,7 +104,7 @@ impl CompositeFastFieldSerializer {
         debug!(
             "choosing fast field codec {} for field_id {:?}",
             name, field
-        ); // todo print acutal field name
+        ); // todo print actual field name
         id.serialize(field_write)?;
         match name {
             BitpackedFastFieldSerializer::<Vec<u8>>::NAME => {
@@ -105,6 +117,15 @@ impl CompositeFastFieldSerializer {
             }
             LinearInterpolFastFieldSerializer::NAME => {
                 LinearInterpolFastFieldSerializer::create(
+                    field_write,
+                    &fastfield_accessor,
+                    stats,
+                    data_iter_1,
+                    data_iter_2,
+                )?;
+            }
+            MultiLinearInterpolFastFieldSerializer::NAME => {
+                MultiLinearInterpolFastFieldSerializer::create(
                     field_write,
                     &fastfield_accessor,
                     stats,
