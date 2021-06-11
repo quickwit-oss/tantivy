@@ -1,7 +1,7 @@
 use crate::CodecId;
-use crate::CodecReader;
+use crate::FastFieldCodecReader;
+use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
-use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
 use common::BinarySerializable;
 use std::io::{self, Write};
@@ -19,7 +19,7 @@ pub struct BitpackedFastFieldReader {
     pub max_value_u64: u64,
 }
 
-impl<'data> CodecReader for BitpackedFastFieldReader {
+impl<'data> FastFieldCodecReader for BitpackedFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - 16);
@@ -47,7 +47,7 @@ impl<'data> CodecReader for BitpackedFastFieldReader {
         self.max_value_u64
     }
 }
-pub struct BitpackedFastFieldSerializer<'a, W: 'a + Write> {
+pub struct BitpackedFastFieldSerializerLegacy<'a, W: 'a + Write> {
     bit_packer: BitPacker,
     write: &'a mut W,
     min_value: u64,
@@ -55,7 +55,7 @@ pub struct BitpackedFastFieldSerializer<'a, W: 'a + Write> {
     num_bits: u8,
 }
 
-impl<'a, W: Write> BitpackedFastFieldSerializer<'a, W> {
+impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
     /// Creates a new fast field serializer.
     ///
     /// The serializer in fact encode the values by bitpacking
@@ -68,41 +68,18 @@ impl<'a, W: Write> BitpackedFastFieldSerializer<'a, W> {
         write: &'a mut W,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<BitpackedFastFieldSerializer<'a, W>> {
+    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'a, W>> {
         assert!(min_value <= max_value);
         let amplitude = max_value - min_value;
         let num_bits = compute_num_bits(amplitude);
         let bit_packer = BitPacker::new();
-        Ok(BitpackedFastFieldSerializer {
+        Ok(BitpackedFastFieldSerializerLegacy {
             bit_packer,
             write,
             min_value,
             amplitude,
             num_bits,
         })
-    }
-    /// Creates a new fast field serializer.
-    ///
-    /// The serializer in fact encode the values by bitpacking
-    /// `(val - min_value)`.
-    ///
-    /// It requires a `min_value` and a `max_value` to compute
-    /// compute the minimum number of bits required to encode
-    /// values.
-    pub fn create(
-        write: &'a mut W,
-        _fastfield_accessor: &impl FastFieldDataAccess,
-        stats: FastFieldStats,
-        data_iter: impl Iterator<Item = u64>,
-    ) -> io::Result<()> {
-        let mut serializer = Self::open(write, stats.min_value, stats.max_value)?;
-
-        for val in data_iter {
-            serializer.add_val(val)?;
-        }
-        serializer.close_field()?;
-
-        Ok(())
     }
     /// Pushes a new value to the currently open u64 fast field.
     #[inline]
@@ -120,7 +97,34 @@ impl<'a, W: Write> BitpackedFastFieldSerializer<'a, W> {
     }
 }
 
-impl<'a, W: 'a + Write> FastFieldSerializerEstimate for BitpackedFastFieldSerializer<'a, W> {
+pub struct BitpackedFastFieldSerializer {}
+
+impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
+    /// Creates a new fast field serializer.
+    ///
+    /// The serializer in fact encode the values by bitpacking
+    /// `(val - min_value)`.
+    ///
+    /// It requires a `min_value` and a `max_value` to compute
+    /// compute the minimum number of bits required to encode
+    /// values.
+    fn create(
+        write: &mut impl Write,
+        _fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+        data_iter: impl Iterator<Item = u64>,
+        _data_iter1: impl Iterator<Item = u64>,
+    ) -> io::Result<()> {
+        let mut serializer =
+            BitpackedFastFieldSerializerLegacy::open(write, stats.min_value, stats.max_value)?;
+
+        for val in data_iter {
+            serializer.add_val(val)?;
+        }
+        serializer.close_field()?;
+
+        Ok(())
+    }
     fn estimate(_fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
         let amplitude = stats.max_value - stats.min_value;
         let num_bits = compute_num_bits(amplitude);
@@ -128,7 +132,7 @@ impl<'a, W: 'a + Write> FastFieldSerializerEstimate for BitpackedFastFieldSerial
         num_bits as f32 / num_bits_uncompressed as f32
     }
 }
-impl<'a, W: 'a + Write> CodecId for BitpackedFastFieldSerializer<'_, W> {
+impl CodecId for BitpackedFastFieldSerializer {
     const NAME: &'static str = "Bitpacked";
     const ID: u8 = 1;
 }
@@ -137,26 +141,11 @@ impl<'a, W: 'a + Write> CodecId for BitpackedFastFieldSerializer<'_, W> {
 mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;
-    fn create_and_validate(data: &[u64], name: &str) {
-        let mut out = vec![];
-        BitpackedFastFieldSerializer::create(
-            &mut out,
-            &data,
-            crate::tests::stats_from_vec(&data),
-            data.iter().cloned(),
-        )
-        .unwrap();
 
-        let reader = BitpackedFastFieldReader::open_from_bytes(&out).unwrap();
-        for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64, &out);
-            if val != *orig_val {
-                panic!(
-                    "val {:?} does not match orig_val {:?}, in data set {}",
-                    val, orig_val, name
-                );
-            }
-        }
+    fn create_and_validate(data: &[u64], name: &str) {
+        crate::tests::create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(
+            &data, name,
+        );
     }
 
     #[test]

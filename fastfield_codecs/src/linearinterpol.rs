@@ -1,7 +1,7 @@
 use crate::CodecId;
-use crate::CodecReader;
+use crate::FastFieldCodecReader;
+use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
-use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
@@ -15,7 +15,7 @@ use tantivy_bitpacker::BitUnpacker;
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct LinearinterpolFastFieldReader {
+pub struct LinearInterpolFastFieldReader {
     bit_unpacker: BitUnpacker,
     pub footer: LinearInterpolFooter,
     pub slope: f32,
@@ -61,7 +61,7 @@ impl FixedSize for LinearInterpolFooter {
     const SIZE_IN_BYTES: usize = 56;
 }
 
-impl CodecReader for LinearinterpolFastFieldReader {
+impl FastFieldCodecReader for LinearInterpolFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let (_data, mut footer) = bytes.split_at(bytes.len() - LinearInterpolFooter::SIZE_IN_BYTES);
@@ -70,7 +70,7 @@ impl CodecReader for LinearinterpolFastFieldReader {
 
         let num_bits = compute_num_bits(footer.relative_max_value);
         let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(LinearinterpolFastFieldReader {
+        Ok(LinearInterpolFastFieldReader {
             bit_unpacker,
             footer,
             slope,
@@ -96,9 +96,24 @@ impl CodecReader for LinearinterpolFastFieldReader {
 /// and stores the difference bitpacked.
 pub struct LinearInterpolFastFieldSerializer {}
 
-impl LinearInterpolFastFieldSerializer {
+#[inline]
+fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+    if num_vals <= 1 {
+        return 0.0;
+    }
+    //  We calculate the slope with f64 high precision and use the result in lower precision f32
+    //  This is done in order to handle estimations for very large values like i64::MAX
+    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
+}
+
+#[inline]
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    first_val + (pos as f32 * slope) as u64
+}
+
+impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     /// Creates a new fast field serializer.
-    pub fn create(
+    fn create(
         write: &mut impl Write,
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
@@ -150,24 +165,6 @@ impl LinearInterpolFastFieldSerializer {
         footer.serialize(write)?;
         Ok(())
     }
-}
-
-#[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    if num_vals <= 1 {
-        return 0.0;
-    }
-    //  We calculate the slope with f64 high precision and use the result in lower precision f32
-    //  This is done in order to handle estimations for very large values like i64::MAX
-    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
-}
-
-#[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    first_val + (pos as f32 * slope) as u64
-}
-
-impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
@@ -241,33 +238,11 @@ mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;
 
-    fn create_and_validate(data: &[u64], name: &str) -> (u64, u64) {
-        if LinearInterpolFastFieldSerializer::estimate(&data, crate::tests::stats_from_vec(&data))
-            == f32::MAX
-        {
-            return (0, 0);
-        }
-        let mut out = vec![];
-        LinearInterpolFastFieldSerializer::create(
-            &mut out,
-            &data,
-            crate::tests::stats_from_vec(&data),
-            data.iter().cloned(),
-            data.iter().cloned(),
-        )
-        .unwrap();
-
-        let reader = LinearinterpolFastFieldReader::open_from_bytes(&out).unwrap();
-        for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64, &out);
-            if val != *orig_val {
-                panic!(
-                    "val {:?} does not match orig_val {:?}, in data set {}",
-                    val, orig_val, name
-                );
-            }
-        }
-        (reader.footer.relative_max_value, reader.footer.offset)
+    fn create_and_validate(data: &[u64], name: &str) {
+        crate::tests::create_and_validate::<
+            LinearInterpolFastFieldSerializer,
+            LinearInterpolFastFieldReader,
+        >(&data, name);
     }
 
     #[test]
@@ -303,10 +278,7 @@ mod tests {
     fn linear_interpol_fast_field_test_simple() {
         let data = (10..=20_u64).collect::<Vec<_>>();
 
-        let (rel_max_value, offset) = create_and_validate(&data, "simple monotonically");
-
-        assert_eq!(offset, 0);
-        assert_eq!(rel_max_value, 0);
+        create_and_validate(&data, "simple monotonically");
     }
 
     #[test]

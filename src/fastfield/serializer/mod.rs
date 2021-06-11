@@ -6,10 +6,11 @@ use crate::schema::Field;
 use fastfield_codecs::CodecId;
 //pub use bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
+pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+pub use fastfield_codecs::FastFieldCodecSerializer;
 pub use fastfield_codecs::FastFieldDataAccess;
-pub use fastfield_codecs::FastFieldSerializerEstimate;
 pub use fastfield_codecs::FastFieldStats;
 use std::io::{self, Write};
 
@@ -60,12 +61,9 @@ impl CompositeFastFieldSerializer {
 
         {
             let (ratio, name, id) = (
-                BitpackedFastFieldSerializer::<Vec<u8>>::estimate(
-                    &fastfield_accessor,
-                    stats.clone(),
-                ),
-                BitpackedFastFieldSerializer::<Vec<u8>>::NAME,
-                BitpackedFastFieldSerializer::<Vec<u8>>::ID,
+                BitpackedFastFieldSerializer::estimate(&fastfield_accessor, stats.clone()),
+                BitpackedFastFieldSerializer::NAME,
+                BitpackedFastFieldSerializer::ID,
             );
             estimations.push((ratio, name, id));
         }
@@ -107,12 +105,13 @@ impl CompositeFastFieldSerializer {
         ); // todo print actual field name
         id.serialize(field_write)?;
         match name {
-            BitpackedFastFieldSerializer::<Vec<u8>>::NAME => {
+            BitpackedFastFieldSerializer::NAME => {
                 BitpackedFastFieldSerializer::create(
                     field_write,
                     &fastfield_accessor,
                     stats,
                     data_iter_1,
+                    data_iter_2,
                 )?;
             }
             LinearInterpolFastFieldSerializer::NAME => {
@@ -147,7 +146,7 @@ impl CompositeFastFieldSerializer {
         field: Field,
         min_value: u64,
         max_value: u64,
-    ) -> io::Result<BitpackedFastFieldSerializer<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
         self.new_u64_fast_field_with_idx(field, min_value, max_value, 0)
     }
 
@@ -158,12 +157,12 @@ impl CompositeFastFieldSerializer {
         min_value: u64,
         max_value: u64,
         idx: usize,
-    ) -> io::Result<BitpackedFastFieldSerializer<'_, CountingWriter<WritePtr>>> {
+    ) -> io::Result<BitpackedFastFieldSerializerLegacy<'_, CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         // Prepend codec id to field data for compatibility with DynamicFastFieldReader.
-        let id = BitpackedFastFieldSerializer::<Vec<u8>>::ID;
+        let id = BitpackedFastFieldSerializer::ID;
         id.serialize(field_write)?;
-        BitpackedFastFieldSerializer::open(field_write, min_value, max_value)
+        BitpackedFastFieldSerializerLegacy::open(field_write, min_value, max_value)
     }
 
     /// Start serializing a new [u8] fast field

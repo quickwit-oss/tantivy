@@ -10,12 +10,12 @@ use crate::schema::FAST;
 use crate::DocId;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
 use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
+use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
-use fastfield_codecs::linearinterpol::LinearinterpolFastFieldReader;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 use fastfield_codecs::multilinearinterpol::MultiLinearinterpolFastFieldReader;
 use fastfield_codecs::CodecId;
-use fastfield_codecs::CodecReader;
+use fastfield_codecs::FastFieldCodecReader;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -69,7 +69,7 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Bitpacked compressed fastfield data.
     Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
     /// Linear interpolated values + bitpacked
-    LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearinterpolFastFieldReader>),
+    LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearInterpolFastFieldReader>),
     /// Blockwise linear interpolated values + bitpacked
     MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearinterpolFastFieldReader>),
 }
@@ -81,7 +81,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
         let id = bytes.read_u8();
 
         let reader = match id {
-            BitpackedFastFieldSerializer::<Vec<u8>>::ID => {
+            BitpackedFastFieldSerializer::ID => {
                 DynamicFastFieldReader::Bitpacked(FastFieldReaderCodecWrapper::<
                     Item,
                     BitpackedReader,
@@ -90,7 +90,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
             LinearInterpolFastFieldSerializer::ID => {
                 DynamicFastFieldReader::LinearInterpol(FastFieldReaderCodecWrapper::<
                     Item,
-                    LinearinterpolFastFieldReader,
+                    LinearInterpolFastFieldReader,
                 >::open_from_bytes(bytes)?)
             }
             MultiLinearInterpolFastFieldSerializer::ID => {
@@ -154,12 +154,12 @@ pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue, C: CodecReader> FastFieldReaderCodecWrapper<Item, C> {
+impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item, C> {
     /// Opens a fast field given a file.
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
         let id = u8::deserialize(&mut bytes)?;
-        assert_eq!(BitpackedFastFieldSerializer::<Vec<u8>>::ID, id);
+        assert_eq!(BitpackedFastFieldSerializer::ID, id);
         Self::open_from_bytes(bytes)
     }
     /// Opens a fast field given the bytes.
@@ -194,7 +194,7 @@ impl<Item: FastValue, C: CodecReader> FastFieldReaderCodecWrapper<Item, C> {
     }
 }
 
-impl<Item: FastValue, C: CodecReader + Clone> FastFieldReader<Item>
+impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     for FastFieldReaderCodecWrapper<Item, C>
 {
     /// Return the value associated to the given document.

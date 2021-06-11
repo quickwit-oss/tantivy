@@ -2,11 +2,14 @@
 #[macro_use]
 extern crate more_asserts;
 
+use std::io;
+use std::io::Write;
+
 pub mod bitpacked;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 
-pub trait CodecReader: Sized {
+pub trait FastFieldCodecReader: Sized {
     /// reads the metadata and returns the CodecReader
     fn open_from_bytes(bytes: &[u8]) -> std::io::Result<Self>;
 
@@ -14,6 +17,35 @@ pub trait CodecReader: Sized {
 
     fn min_value(&self) -> u64;
     fn max_value(&self) -> u64;
+}
+
+/// The FastFieldSerializerEstimate trait is required on all variants
+/// of fast field compressions, to decide which one to choose.
+pub trait FastFieldCodecSerializer {
+    /// returns an estimate of the compression ratio. if the compressor is unable to handle the
+    /// data it needs to return f32::MAX.
+    /// The baseline is uncompressed 64bit data.
+    ///
+    /// It could make sense to also return a value representing
+    /// computational complexity.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
+
+    fn create(
+        write: &mut impl Write,
+        fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+        data_iter: impl Iterator<Item = u64>,
+        data_iter1: impl Iterator<Item = u64>,
+    ) -> io::Result<()>;
+}
+
+/// `CodecId` is required by each Codec.
+///
+/// It needs to provide a unique name and id, which is
+/// used for debugging and de/serialization.
+pub trait CodecId {
+    const NAME: &'static str;
+    const ID: u8;
 }
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
@@ -26,27 +58,6 @@ pub trait FastFieldDataAccess: Clone {
     ///
     /// May panic if `doc` is greater than the segment
     fn get(&self, doc: u32) -> u64;
-}
-
-/// The FastFieldSerializerEstimate trait is required on all variants
-/// of fast field compressions, to decide which one to choose.
-pub trait FastFieldSerializerEstimate {
-    /// returns an estimate of the compression ratio. if the compressor is unable to handle the
-    /// data it needs to return f32::MAX.
-    /// The baseline is uncompressed 64bit data.
-    ///
-    /// It could make sense to also return a value representing
-    /// computational complexity.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
-}
-
-/// `CodecId` is required by each Codec.
-///
-/// It needs to provide a unique name and id, which is
-/// used for debugging and de/serialization.
-pub trait CodecId {
-    const NAME: &'static str;
-    const ID: u8;
 }
 
 #[derive(Debug, Clone)]
@@ -72,8 +83,37 @@ impl FastFieldDataAccess for Vec<u64> {
 mod tests {
     use crate::{
         bitpacked::BitpackedFastFieldSerializer, linearinterpol::LinearInterpolFastFieldSerializer,
+        multilinearinterpol::MultiLinearInterpolFastFieldSerializer,
     };
 
+    pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
+        data: &[u64],
+        name: &str,
+    ) {
+        if S::estimate(&data, crate::tests::stats_from_vec(&data)) == f32::MAX {
+            return;
+        }
+        let mut out = vec![];
+        S::create(
+            &mut out,
+            &data,
+            crate::tests::stats_from_vec(&data),
+            data.iter().cloned(),
+            data.iter().cloned(),
+        )
+        .unwrap();
+
+        let reader = R::open_from_bytes(&out).unwrap();
+        for (doc, orig_val) in data.iter().enumerate() {
+            let val = reader.get_u64(doc as u64, &out);
+            if val != *orig_val {
+                panic!(
+                    "val {:?} does not match orig_val {:?}, in data set {}, data {:?}",
+                    val, orig_val, name, data
+                );
+            }
+        }
+    }
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
 
@@ -103,14 +143,19 @@ mod tests {
 
     #[test]
     fn estimation_good_interpolation_case() {
-        let data = (10..=200_u64).collect::<Vec<_>>();
+        let data = (10..=20000_u64).collect::<Vec<_>>();
 
         let linear_interpol_estimation =
             LinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
-        assert_le!(linear_interpol_estimation, 0.1);
+        assert_le!(linear_interpol_estimation, 0.01);
+
+        let multi_linear_interpol_estimation =
+            MultiLinearInterpolFastFieldSerializer::estimate(&data, stats_from_vec(&data));
+        assert_le!(multi_linear_interpol_estimation, 0.2);
+        assert_le!(linear_interpol_estimation, multi_linear_interpol_estimation);
 
         let bitpacked_estimation =
-            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
         assert_le!(linear_interpol_estimation, bitpacked_estimation);
     }
     #[test]
@@ -122,7 +167,7 @@ mod tests {
         assert_le!(linear_interpol_estimation, 0.32);
 
         let bitpacked_estimation =
-            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }
     #[test]
@@ -137,7 +182,7 @@ mod tests {
         assert_le!(linear_interpol_estimation, 0.35);
 
         let bitpacked_estimation =
-            BitpackedFastFieldSerializer::<Vec<u8>>::estimate(&data, stats_from_vec(&data));
+            BitpackedFastFieldSerializer::estimate(&data, stats_from_vec(&data));
         assert_le!(bitpacked_estimation, 0.32);
         assert_le!(bitpacked_estimation, linear_interpol_estimation);
     }

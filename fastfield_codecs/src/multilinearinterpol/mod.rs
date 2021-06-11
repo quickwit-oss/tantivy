@@ -1,7 +1,7 @@
 use crate::CodecId;
-use crate::CodecReader;
+use crate::FastFieldCodecReader;
+use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
-use crate::FastFieldSerializerEstimate;
 use crate::FastFieldStats;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
@@ -164,7 +164,7 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl CodecReader for MultiLinearinterpolFastFieldReader {
+impl FastFieldCodecReader for MultiLinearinterpolFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
@@ -197,12 +197,22 @@ impl CodecReader for MultiLinearinterpolFastFieldReader {
     }
 }
 
+#[inline]
+fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
+    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
+}
+
+#[inline]
+fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+    (first_val as i64 + (pos as f32 * slope) as i64) as u64
+}
+
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
 pub struct MultiLinearInterpolFastFieldSerializer {}
 
-impl MultiLinearInterpolFastFieldSerializer {
+impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     /// Creates a new fast field serializer.
-    pub fn create(
+    fn create(
         write: &mut impl Write,
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
@@ -298,17 +308,7 @@ impl MultiLinearInterpolFastFieldSerializer {
         footer.serialize(write)?;
         Ok(())
     }
-}
-#[inline]
-fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
-    ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
-}
 
-#[inline]
-fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
-}
-impl FastFieldSerializerEstimate for MultiLinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
@@ -389,33 +389,10 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) {
-        if MultiLinearInterpolFastFieldSerializer::estimate(
-            &data,
-            crate::tests::stats_from_vec(&data),
-        ) == f32::MAX
-        {
-            return;
-        }
-        let mut out = vec![];
-        MultiLinearInterpolFastFieldSerializer::create(
-            &mut out,
-            &data,
-            crate::tests::stats_from_vec(&data),
-            data.iter().cloned(),
-            data.iter().cloned(),
-        )
-        .unwrap();
-
-        let reader = MultiLinearinterpolFastFieldReader::open_from_bytes(&out).unwrap();
-        for (doc, orig_val) in data.iter().enumerate() {
-            let val = reader.get_u64(doc as u64, &out);
-            if val != *orig_val {
-                panic!(
-                    "val {:?} does not match orig_val {:?}, in data set {}, data {:?}",
-                    val, orig_val, name, data
-                );
-            }
-        }
+        crate::tests::create_and_validate::<
+            MultiLinearInterpolFastFieldSerializer,
+            MultiLinearinterpolFastFieldReader,
+        >(&data, name);
     }
 
     #[test]

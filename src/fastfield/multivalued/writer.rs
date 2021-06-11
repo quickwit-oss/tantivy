@@ -1,4 +1,4 @@
-use crate::fastfield::serializer::BitpackedFastFieldSerializer;
+use crate::fastfield::serializer::BitpackedFastFieldSerializerLegacy;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
@@ -154,7 +154,7 @@ impl MultiValuedFastFieldWriter {
         }
         {
             // writing the values themselves.
-            let mut value_serializer: BitpackedFastFieldSerializer<'_, _>;
+            let mut value_serializer: BitpackedFastFieldSerializerLegacy<'_, _>;
             match mapping_opt {
                 Some(mapping) => {
                     value_serializer = serializer.new_u64_fast_field_with_idx(
