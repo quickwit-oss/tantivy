@@ -160,6 +160,28 @@ impl FixedSize for u8 {
     const SIZE_IN_BYTES: usize = 1;
 }
 
+impl BinarySerializable for bool {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let val = if *self { 1 } else { 0 };
+        writer.write_u8(val)
+    }
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
+        let val = reader.read_u8()?;
+        match val {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid bool value on deserialization, data corrupted",
+            )),
+        }
+    }
+}
+
+impl FixedSize for bool {
+    const SIZE_IN_BYTES: usize = 1;
+}
+
 impl BinarySerializable for String {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
