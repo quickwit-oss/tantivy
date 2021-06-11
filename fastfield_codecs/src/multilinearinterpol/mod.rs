@@ -70,12 +70,7 @@ struct Function {
 impl Function {
     fn calc_slope(&mut self) {
         let num_vals = self.end_pos - self.start_pos;
-        let amplitude = self.value_end_pos as i64 - self.value_start_pos as i64;
-        if num_vals <= 1 {
-            self.slope = amplitude as f32;
-        } else {
-            self.slope = ((amplitude as f64) / (num_vals as u64 - 1) as f64) as f32;
-        }
+        get_slope(self.value_start_pos, self.value_end_pos, num_vals);
     }
     // split the interpolation into two function, change self and return the second split
     fn split(&mut self, split_pos: u64, split_pos_value: u64) -> Function {
@@ -112,14 +107,12 @@ impl BinarySerializable for Function {
         let num_bits = u8::deserialize(reader)?;
         let interpolation = Function {
             data_start_offset,
-            start_pos: 0,
-            end_pos: 0,
-            value_end_pos: 0,
             value_start_pos,
             positive_val_offset: offset,
             num_bits,
             bit_unpacker: BitUnpacker::new(num_bits),
             slope,
+            ..Default::default()
         };
 
         Ok(interpolation)
@@ -160,11 +153,13 @@ impl BinarySerializable for MultiLinearInterpolFooter {
     }
 }
 
+#[inline]
 fn get_interpolation_position(doc: u64) -> usize {
     let index = doc / CHUNK_SIZE;
     index as usize
 }
 
+#[inline]
 fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Function {
     &interpolations[get_interpolation_position(doc)]
 }
@@ -220,13 +215,9 @@ impl MultiLinearInterpolFastFieldSerializer {
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
 
         let mut first_function = Function {
-            data_start_offset: 0,
-            start_pos: 0,
             end_pos: stats.num_vals,
             value_start_pos: first_val,
             value_end_pos: last_val,
-            slope: 0.0,
-            positive_val_offset: 0,
             ..Default::default()
         };
         first_function.calc_slope();
@@ -308,10 +299,12 @@ impl MultiLinearInterpolFastFieldSerializer {
         Ok(())
     }
 }
+#[inline]
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
 }
 
+#[inline]
 fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     (first_val as i64 + (pos as f32 * slope) as i64) as u64
 }

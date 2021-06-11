@@ -152,6 +152,7 @@ impl LinearInterpolFastFieldSerializer {
     }
 }
 
+#[inline]
 fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     if num_vals <= 1 {
         return 0.0;
@@ -161,9 +162,11 @@ fn get_slope(first_val: u64, last_val: u64, num_vals: u64) -> f32 {
     ((last_val as f64 - first_val as f64) / (num_vals as u64 - 1) as f64) as f32
 }
 
+#[inline]
 fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
+
 impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     /// estimation for linear interpolation is hard because, you don't know
     /// where the local maxima for the deviation of the calculated value are and
@@ -219,6 +222,7 @@ impl FastFieldSerializerEstimate for LinearInterpolFastFieldSerializer {
     }
 }
 
+#[inline]
 fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     if x < y {
         y - x
@@ -284,6 +288,16 @@ mod tests {
         ];
 
         create_and_validate(&data, "large amplitude");
+    }
+    #[test]
+    fn linear_interpol_fast_concave_data() {
+        let data = vec![0, 1, 2, 5, 8, 10, 20, 50];
+        create_and_validate(&data, "concave data");
+    }
+    #[test]
+    fn linear_interpol_fast_convex_data() {
+        let data = vec![0, 40, 60, 70, 75, 77];
+        create_and_validate(&data, "convex data");
     }
     #[test]
     fn linear_interpol_fast_field_test_simple() {

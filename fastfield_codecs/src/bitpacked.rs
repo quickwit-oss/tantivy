@@ -34,12 +34,15 @@ impl<'data> CodecReader for BitpackedFastFieldReader {
             bit_unpacker,
         })
     }
+    #[inline]
     fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
         self.min_value_u64 + self.bit_unpacker.get(doc, &data)
     }
+    #[inline]
     fn min_value(&self) -> u64 {
         self.min_value_u64
     }
+    #[inline]
     fn max_value(&self) -> u64 {
         self.max_value_u64
     }
