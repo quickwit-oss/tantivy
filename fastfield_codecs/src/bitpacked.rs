@@ -1,4 +1,3 @@
-use crate::CodecId;
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
@@ -100,6 +99,8 @@ impl<'a, W: Write> BitpackedFastFieldSerializerLegacy<'a, W> {
 pub struct BitpackedFastFieldSerializer {}
 
 impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
+    const NAME: &'static str = "Bitpacked";
+    const ID: u8 = 1;
     /// Creates a new fast field serializer.
     ///
     /// The serializer in fact encode the values by bitpacking
@@ -131,10 +132,6 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
         let num_bits_uncompressed = 64;
         num_bits as f32 / num_bits_uncompressed as f32
     }
-}
-impl CodecId for BitpackedFastFieldSerializer {
-    const NAME: &'static str = "Bitpacked";
-    const ID: u8 = 1;
 }
 
 #[cfg(test)]

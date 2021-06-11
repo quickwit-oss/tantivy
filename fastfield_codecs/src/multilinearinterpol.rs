@@ -1,4 +1,3 @@
-use crate::CodecId;
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
@@ -44,7 +43,7 @@ impl<W: io::Write> io::Write for TrackWriteSize<W> {
 /// Depending on the field type, a different
 /// fast field is required.
 #[derive(Clone)]
-pub struct MultiLinearinterpolFastFieldReader {
+pub struct MultiLinearInterpolFastFieldReader {
     pub footer: MultiLinearInterpolFooter,
 }
 
@@ -164,7 +163,7 @@ fn get_interpolation_function(doc: u64, interpolations: &[Function]) -> &Functio
     &interpolations[get_interpolation_position(doc)]
 }
 
-impl FastFieldCodecReader for MultiLinearinterpolFastFieldReader {
+impl FastFieldCodecReader for MultiLinearInterpolFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
@@ -172,7 +171,7 @@ impl FastFieldCodecReader for MultiLinearinterpolFastFieldReader {
         let (_data, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
         let footer = MultiLinearInterpolFooter::deserialize(&mut footer)?;
 
-        Ok(MultiLinearinterpolFastFieldReader { footer })
+        Ok(MultiLinearInterpolFastFieldReader { footer })
     }
 
     #[inline]
@@ -211,6 +210,8 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 pub struct MultiLinearInterpolFastFieldSerializer {}
 
 impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
+    const NAME: &'static str = "MultiLinearInterpol";
+    const ID: u8 = 3;
     /// Creates a new fast field serializer.
     fn create(
         write: &mut impl Write,
@@ -378,11 +379,6 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     }
 }
 
-impl CodecId for MultiLinearInterpolFastFieldSerializer {
-    const NAME: &'static str = "MultiLinearInterpol";
-    const ID: u8 = 3;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,7 +387,7 @@ mod tests {
     fn create_and_validate(data: &[u64], name: &str) {
         crate::tests::create_and_validate::<
             MultiLinearInterpolFastFieldSerializer,
-            MultiLinearinterpolFastFieldReader,
+            MultiLinearInterpolFastFieldReader,
         >(&data, name);
     }
 

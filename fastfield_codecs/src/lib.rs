@@ -22,6 +22,11 @@ pub trait FastFieldCodecReader: Sized {
 /// The FastFieldSerializerEstimate trait is required on all variants
 /// of fast field compressions, to decide which one to choose.
 pub trait FastFieldCodecSerializer {
+    /// A codex needs to provide a unique name and id, which is
+    /// used for debugging and de/serialization.
+    const NAME: &'static str;
+    const ID: u8;
+
     /// returns an estimate of the compression ratio. if the compressor is unable to handle the
     /// data it needs to return f32::MAX.
     /// The baseline is uncompressed 64bit data.
@@ -37,15 +42,6 @@ pub trait FastFieldCodecSerializer {
         data_iter: impl Iterator<Item = u64>,
         data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()>;
-}
-
-/// `CodecId` is required by each Codec.
-///
-/// It needs to provide a unique name and id, which is
-/// used for debugging and de/serialization.
-pub trait CodecId {
-    const NAME: &'static str;
-    const ID: u8;
 }
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
@@ -82,16 +78,20 @@ impl FastFieldDataAccess for Vec<u64> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        bitpacked::BitpackedFastFieldSerializer, linearinterpol::LinearInterpolFastFieldSerializer,
-        multilinearinterpol::MultiLinearInterpolFastFieldSerializer,
+        bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
+        linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer},
+        multilinearinterpol::{
+            MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+        },
     };
 
     pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
         data: &[u64],
         name: &str,
-    ) {
-        if S::estimate(&data, crate::tests::stats_from_vec(&data)) == f32::MAX {
-            return;
+    ) -> (f32, f32) {
+        let estimation = S::estimate(&data, crate::tests::stats_from_vec(&data));
+        if estimation == f32::MAX {
+            return (estimation, 0.0);
         }
         let mut out = vec![];
         S::create(
@@ -113,6 +113,8 @@ mod tests {
                 );
             }
         }
+        let actual_compression = data.len() as f32 / out.len() as f32;
+        return (estimation, actual_compression);
     }
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];
@@ -128,6 +130,35 @@ mod tests {
         data_and_names.push((vec![10], "single value"));
 
         data_and_names
+    }
+
+    fn test_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader>() {
+        let codec_name = S::NAME;
+        for (data, data_set_name) in get_codec_test_data_sets() {
+            let (estimate, actual) =
+                crate::tests::create_and_validate::<S, R>(&data, data_set_name);
+            let result = if estimate == f32::MAX {
+                "Disabled".to_string()
+            } else {
+                format!("Estimate {:?} Actual {:?} ", estimate, actual)
+            };
+            println!(
+                "Codec {}, DataSet {}, {}",
+                codec_name, data_set_name, result
+            );
+        }
+    }
+    #[test]
+    fn test_codec_bitpacking() {
+        test_codec::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>();
+    }
+    #[test]
+    fn test_codec_interpolation() {
+        test_codec::<LinearInterpolFastFieldSerializer, LinearInterpolFastFieldReader>();
+    }
+    #[test]
+    fn test_codec_multi_interpolation() {
+        test_codec::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>();
     }
 
     use super::*;

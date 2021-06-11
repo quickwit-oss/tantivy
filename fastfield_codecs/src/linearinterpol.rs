@@ -1,4 +1,3 @@
-use crate::CodecId;
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
@@ -112,6 +111,8 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 }
 
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
+    const NAME: &'static str = "LinearInterpol";
+    const ID: u8 = 2;
     /// Creates a new fast field serializer.
     fn create(
         write: &mut impl Write,
@@ -226,11 +227,6 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     } else {
         x - y
     }
-}
-
-impl CodecId for LinearInterpolFastFieldSerializer {
-    const NAME: &'static str = "LinearInterpol";
-    const ID: u8 = 2;
 }
 
 #[cfg(test)]
