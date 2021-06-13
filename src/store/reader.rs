@@ -224,10 +224,6 @@ impl StoreReader {
                         break doc_length;
                     } else {
                         block_start_pos += doc_length;
-                        if block_start_pos > block[0..].len() {
-                            println!("Hmm");
-                        }
-
                         cursor = &block[block_start_pos..];
                     }
                 };
