@@ -12,8 +12,8 @@ use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
 use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-use fastfield_codecs::multilinearinterpol::MultiLinearinterpolFastFieldReader;
 use fastfield_codecs::FastFieldCodecReader;
 use fastfield_codecs::FastFieldCodecSerializer;
 use std::collections::HashMap;
@@ -71,7 +71,7 @@ pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Linear interpolated values + bitpacked
     LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearInterpolFastFieldReader>),
     /// Blockwise linear interpolated values + bitpacked
-    MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearinterpolFastFieldReader>),
+    MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearInterpolFastFieldReader>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
@@ -96,7 +96,7 @@ impl<Item: FastValue> DynamicFastFieldReader<Item> {
             MultiLinearInterpolFastFieldSerializer::ID => {
                 DynamicFastFieldReader::MultiLinearInterpol(FastFieldReaderCodecWrapper::<
                     Item,
-                    MultiLinearinterpolFastFieldReader,
+                    MultiLinearInterpolFastFieldReader,
                 >::open_from_bytes(
                     bytes
                 )?)

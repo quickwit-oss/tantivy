@@ -3,8 +3,6 @@ use crate::common::CompositeWrite;
 use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;
-use fastfield_codecs::CodecId;
-//pub use bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;

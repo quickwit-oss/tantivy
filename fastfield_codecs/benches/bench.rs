@@ -8,7 +8,7 @@ mod tests {
         bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
         linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer},
         multilinearinterpol::{
-            MultiLinearInterpolFastFieldSerializer, MultiLinearinterpolFastFieldReader,
+            MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
         },
         *,
     };
@@ -92,7 +92,7 @@ mod tests {
     #[bench]
     fn bench_fastfield_multilinearinterpol_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<MultiLinearInterpolFastFieldSerializer, MultiLinearinterpolFastFieldReader>(
+        bench_get::<MultiLinearInterpolFastFieldSerializer, MultiLinearInterpolFastFieldReader>(
             b, &data,
         );
     }
