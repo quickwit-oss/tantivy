@@ -310,12 +310,12 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         Ok(())
     }
 
-    /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima are for the deviation of the calculated value and
-    /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn is_applicable(
+        _fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> bool {
         if stats.num_vals < 5_000 {
-            return f32::MAX;
+            return false;
         }
         // On serialization the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
@@ -327,9 +327,14 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
-            return f32::MAX;
+            return false;
         }
-
+        true
+    }
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima are for the deviation of the calculated value and
+    /// the offset is also unknown.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
         let first_val_in_first_block = fastfield_accessor.get(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(stats.num_vals);
         let last_val_in_first_block = fastfield_accessor.get(last_elem_in_first_chunk as u32 - 1);

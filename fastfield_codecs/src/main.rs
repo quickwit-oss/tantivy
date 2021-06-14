@@ -35,8 +35,8 @@ fn main() {
             .unwrap();
 
         table.add_row(Row::new(vec![Cell::new(data_set_name).style_spec("Bbb")]));
-        for (est, comp, name) in results {
-            let (est_cell, ratio_cell) = if est == f32::MAX {
+        for (is_applicable, est, comp, name) in results {
+            let (est_cell, ratio_cell) = if !is_applicable {
                 ("Codec Disabled".to_string(), "".to_string())
             } else {
                 (est.to_string(), comp.to_string())
@@ -93,11 +93,14 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data_and_names
 }
 
-pub fn serialize_with_codec<S: FastFieldCodecSerializer>(data: &[u64]) -> (f32, f32, &'static str) {
-    let estimation = S::estimate(&data, stats_from_vec(&data));
-    if estimation == f32::MAX {
-        return (estimation, 0.0, S::NAME);
+pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
+    data: &[u64],
+) -> (bool, f32, f32, &'static str) {
+    let is_applicable = S::is_applicable(&data, stats_from_vec(&data));
+    if !is_applicable {
+        return (false, 0.0, 0.0, S::NAME);
     }
+    let estimation = S::estimate(&data, stats_from_vec(&data));
     let mut out = vec![];
     S::serialize(
         &mut out,
@@ -109,7 +112,7 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer>(data: &[u64]) -> (f32, 
     .unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-    return (estimation, actual_compression, S::NAME);
+    return (true, estimation, actual_compression, S::NAME);
 }
 
 pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {

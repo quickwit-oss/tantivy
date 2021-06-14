@@ -27,8 +27,10 @@ pub trait FastFieldCodecSerializer {
     const NAME: &'static str;
     const ID: u8;
 
-    /// Returns an estimate of the compression ratio. if the compressor is unable to handle the
-    /// data it needs to return f32::MAX.
+    /// Check if the Codec is able to compress the data
+    fn is_applicable(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> bool;
+
+    /// Returns an estimate of the compression ratio.
     /// The baseline is uncompressed 64bit data.
     ///
     /// It could make sense to also return a value representing
@@ -92,10 +94,10 @@ mod tests {
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
-        let estimation = S::estimate(&data, crate::tests::stats_from_vec(&data));
-        if estimation == f32::MAX {
-            return (estimation, 0.0);
+        if !S::is_applicable(&data, crate::tests::stats_from_vec(&data)) {
+            return (f32::MAX, 0.0);
         }
+        let estimation = S::estimate(&data, crate::tests::stats_from_vec(&data));
         let mut out = vec![];
         S::serialize(
             &mut out,

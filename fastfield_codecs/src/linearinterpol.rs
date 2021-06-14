@@ -166,12 +166,12 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         footer.serialize(write)?;
         Ok(())
     }
-    /// estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima for the deviation of the calculated value are and
-    /// the offset to shift all values to >=0 is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn is_applicable(
+        _fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> bool {
         if stats.num_vals < 3 {
-            return f32::MAX; //disable compressor for this case
+            return false; //disable compressor for this case
         }
         // On serialisation the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
@@ -183,9 +183,14 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
             .checked_add(theorethical_maximum_offset)
             .is_none()
         {
-            return f32::MAX;
+            return false;
         }
-
+        true
+    }
+    /// estimation for linear interpolation is hard because, you don't know
+    /// where the local maxima for the deviation of the calculated value are and
+    /// the offset to shift all values to >=0 is also unknown.
+    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
         let first_val = fastfield_accessor.get(0);
         let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);

@@ -36,6 +36,24 @@ pub struct CompositeFastFieldSerializer {
     composite_write: CompositeWrite<WritePtr>,
 }
 
+// use this, when this is merged and stabilized explicit_generic_args_with_impl_trait
+// https://github.com/rust-lang/rust/pull/86176
+fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
+    stats: FastFieldStats,
+    fastfield_accessor: &A,
+    estimations: &mut Vec<(f32, &str, u8)>,
+) {
+    if !T::is_applicable(fastfield_accessor, stats.clone()) {
+        return;
+    }
+    let (ratio, name, id) = (
+        T::estimate(fastfield_accessor, stats.clone()),
+        T::NAME,
+        T::ID,
+    );
+    estimations.push((ratio, name, id));
+}
+
 impl CompositeFastFieldSerializer {
     /// Constructor
     pub fn from_write(write: WritePtr) -> io::Result<CompositeFastFieldSerializer> {
@@ -57,33 +75,21 @@ impl CompositeFastFieldSerializer {
 
         let mut estimations = vec![];
 
-        {
-            let (ratio, name, id) = (
-                BitpackedFastFieldSerializer::estimate(&fastfield_accessor, stats.clone()),
-                BitpackedFastFieldSerializer::NAME,
-                BitpackedFastFieldSerializer::ID,
-            );
-            estimations.push((ratio, name, id));
-        }
-        {
-            let (ratio, name, id) = (
-                LinearInterpolFastFieldSerializer::estimate(&fastfield_accessor, stats.clone()),
-                LinearInterpolFastFieldSerializer::NAME,
-                LinearInterpolFastFieldSerializer::ID,
-            );
-            estimations.push((ratio, name, id));
-        }
-        {
-            let (ratio, name, id) = (
-                MultiLinearInterpolFastFieldSerializer::estimate(
-                    &fastfield_accessor,
-                    stats.clone(),
-                ),
-                MultiLinearInterpolFastFieldSerializer::NAME,
-                MultiLinearInterpolFastFieldSerializer::ID,
-            );
-            estimations.push((ratio, name, id));
-        }
+        codec_estimation::<BitpackedFastFieldSerializer, _>(
+            stats.clone(),
+            &fastfield_accessor,
+            &mut estimations,
+        );
+        codec_estimation::<LinearInterpolFastFieldSerializer, _>(
+            stats.clone(),
+            &fastfield_accessor,
+            &mut estimations,
+        );
+        codec_estimation::<MultiLinearInterpolFastFieldSerializer, _>(
+            stats.clone(),
+            &fastfield_accessor,
+            &mut estimations,
+        );
         if let Some(broken_estimation) = estimations
             .iter()
             .find(|estimation| estimation.0 == f32::NAN)
