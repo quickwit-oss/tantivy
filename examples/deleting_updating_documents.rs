@@ -90,7 +90,7 @@ fn main() -> tantivy::Result<()> {
 
     let frankenstein_isbn = Term::from_field_text(isbn, "978-9176370711");
 
-    // Oops our frankenstein doc seems mispelled
+    // Oops our frankenstein doc seems misspelled
     let frankenstein_doc_misspelled = extract_doc_given_isbn(&reader, &frankenstein_isbn)?.unwrap();
     assert_eq!(
         schema.to_json(&frankenstein_doc_misspelled),
