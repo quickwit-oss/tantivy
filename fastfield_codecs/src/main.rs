@@ -99,7 +99,7 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer>(data: &[u64]) -> (f32, 
         return (estimation, 0.0, S::NAME);
     }
     let mut out = vec![];
-    S::create(
+    S::serialize(
         &mut out,
         &data,
         stats_from_vec(&data),

@@ -104,7 +104,7 @@ impl CompositeFastFieldSerializer {
         id.serialize(field_write)?;
         match name {
             BitpackedFastFieldSerializer::NAME => {
-                BitpackedFastFieldSerializer::create(
+                BitpackedFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
                     stats,
@@ -113,7 +113,7 @@ impl CompositeFastFieldSerializer {
                 )?;
             }
             LinearInterpolFastFieldSerializer::NAME => {
-                LinearInterpolFastFieldSerializer::create(
+                LinearInterpolFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
                     stats,
@@ -122,7 +122,7 @@ impl CompositeFastFieldSerializer {
                 )?;
             }
             MultiLinearInterpolFastFieldSerializer::NAME => {
-                MultiLinearInterpolFastFieldSerializer::create(
+                MultiLinearInterpolFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
                     stats,

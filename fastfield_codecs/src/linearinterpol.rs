@@ -114,7 +114,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
     const ID: u8 = 2;
     /// Creates a new fast field serializer.
-    fn create(
+    fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,

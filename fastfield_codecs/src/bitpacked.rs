@@ -101,7 +101,7 @@ pub struct BitpackedFastFieldSerializer {}
 impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     const NAME: &'static str = "Bitpacked";
     const ID: u8 = 1;
-    /// Creates a new fast field serializer.
+    /// Serializes data with the BitpackedFastFieldSerializer.
     ///
     /// The serializer in fact encode the values by bitpacking
     /// `(val - min_value)`.
@@ -109,7 +109,7 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     /// It requires a `min_value` and a `max_value` to compute
     /// compute the minimum number of bits required to encode
     /// values.
-    fn create(
+    fn serialize(
         write: &mut impl Write,
         _fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,

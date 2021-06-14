@@ -27,7 +27,7 @@ pub trait FastFieldCodecSerializer {
     const NAME: &'static str;
     const ID: u8;
 
-    /// returns an estimate of the compression ratio. if the compressor is unable to handle the
+    /// Returns an estimate of the compression ratio. if the compressor is unable to handle the
     /// data it needs to return f32::MAX.
     /// The baseline is uncompressed 64bit data.
     ///
@@ -35,7 +35,10 @@ pub trait FastFieldCodecSerializer {
     /// computational complexity.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32;
 
-    fn create(
+    /// Serializes the data using the serializer into write.
+    /// There are multiple iterators, in case the codec needs to read the data multiple times.
+    /// The iterators should be preferred over using fastfield_accessor for performance reasons.
+    fn serialize(
         write: &mut impl Write,
         fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
@@ -94,7 +97,7 @@ mod tests {
             return (estimation, 0.0);
         }
         let mut out = vec![];
-        S::create(
+        S::serialize(
             &mut out,
             &data,
             crate::tests::stats_from_vec(&data),
