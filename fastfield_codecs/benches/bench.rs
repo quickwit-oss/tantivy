@@ -27,7 +27,8 @@ mod tests {
     }
 
     fn value_iter() -> impl Iterator<Item = u64> {
-        0..20_000
+        let data = (0..20_000).collect::<Vec<_>>();
+        data.into_iter()
     }
     fn bench_get<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
         b: &mut Bencher,

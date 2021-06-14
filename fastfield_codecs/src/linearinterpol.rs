@@ -209,7 +209,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
                 distance(calculated_value, actual_value)
             })
             .max()
-            .unwrap();
+            .unwrap_or(0);
 
         // the theory would be that we don't have the actual max_distance, but we are close within 50%
         // threshold.
