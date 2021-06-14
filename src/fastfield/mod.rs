@@ -628,7 +628,7 @@ mod bench {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
@@ -642,7 +642,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(7000u32);
@@ -662,7 +662,7 @@ mod bench {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
@@ -676,7 +676,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(1000u32);
