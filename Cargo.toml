@@ -36,7 +36,7 @@ futures = { version = "0.3.15", features = ["thread-pool"] }
 tantivy-query-grammar = { version="0.15.0", path="./query-grammar" }
 tantivy-bitpacker = { version="0.1", path="./bitpacker" }
 common = { version="0.1", path="./common" }
-fastfield_codecs = { version="0.1", path="./fastfield_codecs" }
+fastfield_codecs = { version="0.1", path="./fastfield_codecs", default-features = false }
 stable_deref_trait = "1.2"
 rust-stemmers = "1.2"
 downcast-rs = "1.2"
