@@ -57,6 +57,7 @@ pub mod tests {
     use futures::executor::block_on;
 
     use super::*;
+    use crate::fastfield::DeleteBitSet;
     use crate::schema::{self, FieldValue, TextFieldIndexing, STORED, TEXT};
     use crate::schema::{Document, TextOptions};
     use crate::{
@@ -107,15 +108,51 @@ pub mod tests {
         schema
     }
 
+    const NUM_DOCS: usize = 1_000;
+    #[test]
+    fn test_doc_store_iter_with_delete_bug_1077() -> crate::Result<()> {
+        // this will cover deletion of the first element in a checkpoint
+        let deleted_docids = (200..300).collect::<Vec<_>>();
+        let delete_bitset = DeleteBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
+
+        let path = Path::new("store");
+        let directory = RamDirectory::create();
+        let store_wrt = directory.open_write(path)?;
+        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, Compressor::Lz4);
+        let field_title = schema.get_field("title").unwrap();
+        let store_file = directory.open_read(path)?;
+        let store = StoreReader::open(store_file)?;
+        for i in 0..NUM_DOCS as u32 {
+            assert_eq!(
+                *store
+                    .get(i)?
+                    .get_first(field_title)
+                    .unwrap()
+                    .text()
+                    .unwrap(),
+                format!("Doc {}", i)
+            );
+        }
+        for (_, doc) in store.iter(Some(&delete_bitset)).enumerate() {
+            let doc = doc?;
+            let title_content = doc.get_first(field_title).unwrap().text().unwrap();
+            if !title_content.starts_with("Doc ") {
+                panic!("unexpected title_content {}", title_content);
+            }
+        }
+
+        Ok(())
+    }
+
     fn test_store(compressor: Compressor) -> crate::Result<()> {
         let path = Path::new("store");
         let directory = RamDirectory::create();
         let store_wrt = directory.open_write(path)?;
-        let schema = write_lorem_ipsum_store(store_wrt, 1_000, compressor);
+        let schema = write_lorem_ipsum_store(store_wrt, NUM_DOCS, compressor);
         let field_title = schema.get_field("title").unwrap();
         let store_file = directory.open_read(path)?;
         let store = StoreReader::open(store_file)?;
-        for i in 0..1_000 {
+        for i in 0..NUM_DOCS as u32 {
             assert_eq!(
                 *store
                     .get(i)?

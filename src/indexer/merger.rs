@@ -1264,54 +1264,6 @@ mod tests {
     }
 
     #[test]
-    fn test_fuzzy_index_merger_with_deletes() -> crate::Result<()> {
-        let mut schema_builder = schema::Schema::builder();
-        let id_field = schema_builder.add_u64_field("id", INDEXED | FAST | STORED);
-        let title_field = schema_builder.add_text_field("title", TEXT | STORED);
-        let schema = schema_builder.build();
-
-        let index = Index::create_in_ram(schema);
-        let index_reader = index.reader().unwrap();
-        let mut index_writer = index.writer(50_000_000).unwrap();
-
-        let create_doc = |id: u64| -> Document {
-            let mut doc = Document::default();
-            doc.add_text(title_field, format!("Hello world {}", id));
-            doc.add_u64(id_field, id);
-            doc
-        };
-
-        let mut created = 0;
-        let mut deleted = 0;
-        let count_docs = || -> usize {
-            let searcher = index_reader.searcher();
-            searcher.search(&AllQuery, &Count).unwrap()
-        };
-
-        for i in 0..50 {
-            let start_id = i * 1000;
-
-            for a in 0..1000 {
-                let doc = create_doc(start_id + a);
-                index_writer.add_document(doc);
-                created += 1;
-            }
-            index_writer.commit().unwrap();
-
-            for a in 10..980 {
-                index_writer.delete_term(Term::from_field_u64(id_field, start_id + a));
-                deleted += 1;
-            }
-            index_writer.commit().unwrap();
-        }
-
-        index_reader.reload().unwrap();
-        assert_eq!(created - deleted, count_docs());
-
-        Ok(())
-    }
-
-    #[test]
     fn test_index_merger_with_deletes() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let text_fieldtype = schema::TextOptions::default()
