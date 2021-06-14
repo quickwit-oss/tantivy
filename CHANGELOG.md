@@ -1,3 +1,7 @@
+Tantivy 0.15.1
+=========================
+- Major bugfix. DocStore panics when first block is deleted. (@appaquet) #1077
+
 Tantivy 0.15.0
 =========================
 - API Changes. Using Range instead of (start, end) in the API and internals (`FileSlice`, `OwnedBytes`, `Snippets`, ...)
