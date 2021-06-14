@@ -1104,7 +1104,7 @@ mod tests {
     use crate::schema::IntOptions;
     use crate::schema::Term;
     use crate::schema::TextFieldIndexing;
-    use crate::schema::{Cardinality, STORED, TEXT};
+    use crate::schema::{Cardinality, TEXT};
     use crate::DocAddress;
     use crate::IndexSettings;
     use crate::IndexSortByField;
