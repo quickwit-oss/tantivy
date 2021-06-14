@@ -166,7 +166,7 @@ pub mod tests {
         for (i, doc) in store.iter(None).enumerate() {
             assert_eq!(
                 *doc?.get_first(field_title).unwrap().text().unwrap(),
-                format!("Doc {}", i)
+                format!("Dooc {}", i)
             );
         }
         Ok(())
