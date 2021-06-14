@@ -166,6 +166,7 @@ impl StoreReader {
             .map(|checkpoint| self.read_block(&checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
         let mut block_start_pos = 0;
         let mut num_skipped = 0;
+        let mut reset_block_pos = false;
         (0..last_docid)
             .filter_map(move |doc_id| {
                 // filter_map is only used to resolve lifetime issues between the two closures on
@@ -175,8 +176,8 @@ impl StoreReader {
                     // we keep the number of skipped documents to move forward in the map block
                     num_skipped += 1;
                 }
+
                 // check move to next checkpoint
-                let mut reset_block_pos = false;
                 if doc_id >= curr_checkpoint.as_ref().unwrap().doc_range.end {
                     curr_checkpoint = checkpoint_block_iter.next();
                     curr_block = curr_checkpoint
@@ -190,6 +191,7 @@ impl StoreReader {
                     let ret = Some((curr_block.clone(), num_skipped, reset_block_pos));
                     // the map block will move over the num_skipped, so we reset to 0
                     num_skipped = 0;
+                    reset_block_pos = false;
                     ret
                 } else {
                     None
