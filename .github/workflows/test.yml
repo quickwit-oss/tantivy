@@ -18,6 +18,12 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build
       run: cargo build --verbose --workspace
+    - name: Install latest nightly to test also against unstable feature flag
+      uses: actions-rs/toolchain@v1
+      with:
+            toolchain: nightly
+            override: true
+            components: rustfmt
     - name: Run tests
       run: cargo test --all-features --verbose --workspace
     - name: Check Formatting
