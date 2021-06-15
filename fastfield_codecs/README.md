@@ -10,8 +10,10 @@ Contributing is pretty straightforward. Since the bitpacking is the simplest com
 
 A codec needs to implement 2 traits:
 
-A reader implementing `FastFieldCodecReader` to read the codec.
-A serializer implementing `FastFieldCodecSerializer` for compression estimation and codec name + id.
+- A reader implementing `FastFieldCodecReader` to read the codec.
+- A serializer implementing `FastFieldCodecSerializer` for compression estimation and codec name + id.
+
+### Tests
 
 Once the traits are implemented test and benchmark integration is pretty easy (see `test_with_codec_data_sets` and `bench.rs`).
 
@@ -20,8 +22,12 @@ Make sure to add the codec to the main.rs, which tests the compression ratio and
 cargo run --features bin
 ```
 
+### TODO
+- Add real world data sets in comparison
+- Add codec to cover sparse data sets
 
-Example Result
+
+### Codec Comparison
 ```
 +----------------------------------+-------------------+------------------------+
 |                                  | Compression Ratio | Compression Estimation |
