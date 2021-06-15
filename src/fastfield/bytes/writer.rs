@@ -1,6 +1,5 @@
 use std::io;
 
-use crate::fastfield::serializer::FastFieldSerializer;
 use crate::schema::{Document, Field, Value};
 use crate::DocId;
 use crate::{

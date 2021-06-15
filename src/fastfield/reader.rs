@@ -8,11 +8,17 @@ use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
+use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
+use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
+use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
+use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+use fastfield_codecs::FastFieldCodecReader;
+use fastfield_codecs::FastFieldCodecSerializer;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitUnpacker;
 
 /// FastFieldReader is the trait to access fast field data.
 pub trait FastFieldReader<Item: FastValue>: Clone {
@@ -61,15 +67,48 @@ pub trait FastFieldReader<Item: FastValue>: Clone {
 ///
 pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Bitpacked compressed fastfield data.
-    Bitpacked(BitpackedFastFieldReader<Item>),
+    Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
+    /// Linear interpolated values + bitpacked
+    LinearInterpol(FastFieldReaderCodecWrapper<Item, LinearInterpolFastFieldReader>),
+    /// Blockwise linear interpolated values + bitpacked
+    MultiLinearInterpol(FastFieldReaderCodecWrapper<Item, MultiLinearInterpolFastFieldReader>),
 }
 
 impl<Item: FastValue> DynamicFastFieldReader<Item> {
     /// Returns correct the reader wrapped in the `DynamicFastFieldReader` enum for the data.
     pub fn open(file: FileSlice) -> crate::Result<DynamicFastFieldReader<Item>> {
-        Ok(DynamicFastFieldReader::Bitpacked(
-            BitpackedFastFieldReader::open(file)?,
-        ))
+        let mut bytes = file.read_bytes()?;
+        let id = bytes.read_u8();
+
+        let reader = match id {
+            BitpackedFastFieldSerializer::ID => {
+                DynamicFastFieldReader::Bitpacked(FastFieldReaderCodecWrapper::<
+                    Item,
+                    BitpackedReader,
+                >::open_from_bytes(bytes)?)
+            }
+            LinearInterpolFastFieldSerializer::ID => {
+                DynamicFastFieldReader::LinearInterpol(FastFieldReaderCodecWrapper::<
+                    Item,
+                    LinearInterpolFastFieldReader,
+                >::open_from_bytes(bytes)?)
+            }
+            MultiLinearInterpolFastFieldSerializer::ID => {
+                DynamicFastFieldReader::MultiLinearInterpol(FastFieldReaderCodecWrapper::<
+                    Item,
+                    MultiLinearInterpolFastFieldReader,
+                >::open_from_bytes(
+                    bytes
+                )?)
+            }
+            _ => {
+                panic!(
+                    "unknown fastfield id {:?}. Data corrupted or using old tantivy version.",
+                    id
+                )
+            }
+        };
+        Ok(reader)
     }
 }
 
@@ -77,57 +116,63 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
     fn get(&self, doc: DocId) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.get(doc),
+            Self::LinearInterpol(reader) => reader.get(doc),
+            Self::MultiLinearInterpol(reader) => reader.get(doc),
         }
     }
     fn get_range(&self, start: DocId, output: &mut [Item]) {
         match self {
             Self::Bitpacked(reader) => reader.get_range(start, output),
+            Self::LinearInterpol(reader) => reader.get_range(start, output),
+            Self::MultiLinearInterpol(reader) => reader.get_range(start, output),
         }
     }
     fn min_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.min_value(),
+            Self::LinearInterpol(reader) => reader.min_value(),
+            Self::MultiLinearInterpol(reader) => reader.min_value(),
         }
     }
     fn max_value(&self) -> Item {
         match self {
             Self::Bitpacked(reader) => reader.max_value(),
+            Self::LinearInterpol(reader) => reader.max_value(),
+            Self::MultiLinearInterpol(reader) => reader.max_value(),
         }
     }
 }
 
-/// Trait for accessing a fastfield.
+/// Wrapper for accessing a fastfield.
 ///
-/// Depending on the field type, a different
-/// fast field is required.
+/// Holds the data and the codec to the read the data.
+///
 #[derive(Clone)]
-pub struct BitpackedFastFieldReader<Item: FastValue> {
+pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
+    reader: CodecReader,
     bytes: OwnedBytes,
-    bit_unpacker: BitUnpacker,
-    min_value_u64: u64,
-    max_value_u64: u64,
     _phantom: PhantomData<Item>,
 }
 
-impl<Item: FastValue> BitpackedFastFieldReader<Item> {
+impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item, C> {
     /// Opens a fast field given a file.
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
-        let min_value = u64::deserialize(&mut bytes)?;
-        let amplitude = u64::deserialize(&mut bytes)?;
-        let max_value = min_value + amplitude;
-        let num_bits = compute_num_bits(amplitude);
-        let bit_unpacker = BitUnpacker::new(num_bits);
-        Ok(BitpackedFastFieldReader {
+        let id = u8::deserialize(&mut bytes)?;
+        assert_eq!(BitpackedFastFieldSerializer::ID, id);
+        Self::open_from_bytes(bytes)
+    }
+    /// Opens a fast field given the bytes.
+    pub fn open_from_bytes(bytes: OwnedBytes) -> crate::Result<Self> {
+        let reader = C::open_from_bytes(bytes.as_slice())?;
+        Ok(FastFieldReaderCodecWrapper {
+            reader,
             bytes,
-            min_value_u64: min_value,
-            max_value_u64: max_value,
-            bit_unpacker,
             _phantom: PhantomData,
         })
     }
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
-        Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc, &self.bytes))
+        Item::from_u64(self.reader.get_u64(doc, self.bytes.as_slice()))
     }
 
     /// Internally `multivalued` also use SingleValue Fast fields.
@@ -149,7 +194,9 @@ impl<Item: FastValue> BitpackedFastFieldReader<Item> {
     }
 }
 
-impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
+impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
+    for FastFieldReaderCodecWrapper<Item, C>
+{
     /// Return the value associated to the given document.
     ///
     /// This accessor should return as fast as possible.
@@ -185,7 +232,7 @@ impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn min_value(&self) -> Item {
-        Item::from_u64(self.min_value_u64)
+        Item::from_u64(self.reader.min_value())
     }
 
     /// Returns the maximum value for this fast field.
@@ -194,12 +241,14 @@ impl<Item: FastValue> FastFieldReader<Item> for BitpackedFastFieldReader<Item> {
     /// deleted document, and should be considered as an upper bound
     /// of the actual maximum value.
     fn max_value(&self) -> Item {
-        Item::from_u64(self.max_value_u64)
+        Item::from_u64(self.reader.max_value())
     }
 }
 
-impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
-    fn from(vals: Vec<Item>) -> BitpackedFastFieldReader<Item> {
+pub(crate) type BitpackedFastFieldReader<Item> = FastFieldReaderCodecWrapper<Item, BitpackedReader>;
+
+impl<Item: FastValue> From<Vec<Item>> for DynamicFastFieldReader<Item> {
+    fn from(vals: Vec<Item>) -> DynamicFastFieldReader<Item> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
@@ -231,6 +280,6 @@ impl<Item: FastValue> From<Vec<Item>> for BitpackedFastFieldReader<Item> {
         let field_file = composite_file
             .open_read(field)
             .expect("File component not found");
-        BitpackedFastFieldReader::open(field_file).unwrap()
+        DynamicFastFieldReader::open(field_file).unwrap()
     }
 }

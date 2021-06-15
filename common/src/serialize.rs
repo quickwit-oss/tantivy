@@ -1,5 +1,5 @@
-use crate::common::Endianness;
-use crate::common::VInt;
+use crate::Endianness;
+use crate::VInt;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::fmt;
 use std::io;
@@ -160,6 +160,28 @@ impl FixedSize for u8 {
     const SIZE_IN_BYTES: usize = 1;
 }
 
+impl BinarySerializable for bool {
+    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        let val = if *self { 1 } else { 0 };
+        writer.write_u8(val)
+    }
+    fn deserialize<R: Read>(reader: &mut R) -> io::Result<bool> {
+        let val = reader.read_u8()?;
+        match val {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid bool value on deserialization, data corrupted",
+            )),
+        }
+    }
+}
+
+impl FixedSize for bool {
+    const SIZE_IN_BYTES: usize = 1;
+}
+
 impl BinarySerializable for String {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         let data: &[u8] = self.as_bytes();
@@ -180,9 +202,9 @@ impl BinarySerializable for String {
 #[cfg(test)]
 pub mod test {
 
+    use super::VInt;
     use super::*;
-    use crate::common::VInt;
-
+    use crate::serialize::BinarySerializable;
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
         O::default().serialize(&mut buffer).unwrap();

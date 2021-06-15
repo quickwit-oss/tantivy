@@ -29,12 +29,13 @@ pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
-pub use self::reader::BitpackedFastFieldReader;
+pub(crate) use self::reader::BitpackedFastFieldReader;
 pub use self::reader::DynamicFastFieldReader;
 pub use self::reader::FastFieldReader;
 pub use self::readers::FastFieldReaders;
 pub use self::serializer::CompositeFastFieldSerializer;
-pub use self::serializer::FastFieldSerializer;
+pub use self::serializer::FastFieldDataAccess;
+pub use self::serializer::FastFieldStats;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
@@ -213,15 +214,14 @@ mod tests {
 
     use super::*;
     use crate::common::CompositeFile;
+    use crate::common::HasLen;
     use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::fastfield::BitpackedFastFieldReader;
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
     use crate::schema::Schema;
     use crate::schema::FAST;
     use crate::schema::{Document, IntOptions};
     use crate::{Index, SegmentId, SegmentReader};
-    use common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     pub fn test_fastfield() {
-        let test_fastfield = BitpackedFastFieldReader::<u64>::from(vec![100, 200, 300]);
+        let test_fastfield = DynamicFastFieldReader::<u64>::from(vec![100, 200, 300]);
         assert_eq!(test_fastfield.get(0), 100);
         assert_eq!(test_fastfield.get(1), 200);
         assert_eq!(test_fastfield.get(2), 300);
@@ -268,10 +268,10 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 36 as usize);
+        assert_eq!(file.len(), 37 as usize);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
-        let fast_field_reader = BitpackedFastFieldReader::<u64>::open(file)?;
+        let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
         assert_eq!(fast_field_reader.get(0), 13u64);
         assert_eq!(fast_field_reader.get(1), 14u64);
         assert_eq!(fast_field_reader.get(2), 2u64);
@@ -299,11 +299,11 @@ mod tests {
             serializer.close()?;
         }
         let file = directory.open_read(&path)?;
-        assert_eq!(file.len(), 61 as usize);
+        assert_eq!(file.len(), 62 as usize);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<u64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
             assert_eq!(fast_field_reader.get(0), 4u64);
             assert_eq!(fast_field_reader.get(1), 14_082_001u64);
             assert_eq!(fast_field_reader.get(2), 3_052u64);
@@ -335,11 +335,11 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 34 as usize);
+        assert_eq!(file.len(), 35 as usize);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<u64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
             for doc in 0..10_000 {
                 assert_eq!(fast_field_reader.get(doc), 100_000u64);
             }
@@ -367,11 +367,11 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 80042 as usize);
+        assert_eq!(file.len(), 80043 as usize);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<u64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
             assert_eq!(fast_field_reader.get(0), 0u64);
             for doc in 1..10_001 {
                 assert_eq!(
@@ -406,11 +406,12 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 17709 as usize);
+        //assert_eq!(file.len(), 17710 as usize); //bitpacked size
+        assert_eq!(file.len(), 10175 as usize); // linear interpol size
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<i64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
 
             assert_eq!(fast_field_reader.min_value(), -100i64);
             assert_eq!(fast_field_reader.max_value(), 9_999i64);
@@ -450,7 +451,7 @@ mod tests {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(i64_field).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<i64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<i64>::open(data)?;
             assert_eq!(fast_field_reader.get(0u32), 0i64);
         }
         Ok(())
@@ -483,7 +484,7 @@ mod tests {
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = BitpackedFastFieldReader::<u64>::open(data)?;
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data)?;
 
             let mut a = 0u64;
             for _ in 0..n {
@@ -627,7 +628,7 @@ mod bench {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
@@ -641,7 +642,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(7000u32);
@@ -661,7 +662,7 @@ mod bench {
         let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test")).unwrap();
-            let mut serializer = FastFieldSerializer::from_write(write).unwrap();
+            let mut serializer = CompositeFastFieldSerializer::from_write(write).unwrap();
             let mut fast_field_writers = FastFieldsWriter::from_schema(&SCHEMA);
             for &x in &permutation {
                 fast_field_writers.add_document(&doc!(*FIELD=>x));
@@ -675,7 +676,7 @@ mod bench {
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
-            let fast_field_reader = FastFieldReader::<u64>::open(data).unwrap();
+            let fast_field_reader = DynamicFastFieldReader::<u64>::open(data).unwrap();
 
             b.iter(|| {
                 let n = test::black_box(1000u32);

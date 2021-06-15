@@ -354,18 +354,18 @@ mod bench {
         });
     }
 
-    #[test]
-    fn test_all_docs_compression_numbits() {
-        for expected_num_bits in 0u8.. {
-            let mut data = [0u32; 128];
-            if expected_num_bits > 0 {
-                data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
-            }
-            let mut encoder = BlockEncoder::new();
-            let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
-            assert_eq!(compressed.len(), compressed_block_size(num_bits));
-        }
-    }
+    //#[test]
+    //fn test_all_docs_compression_numbits() {
+    //for expected_num_bits in 0u8.. {
+    //let mut data = [0u32; 128];
+    //if expected_num_bits > 0 {
+    //data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
+    //}
+    //let mut encoder = BlockEncoder::new();
+    //let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
+    //assert_eq!(compressed.len(), compressed_block_size(num_bits));
+    //}
+    //}
 
     const NUM_INTS_BENCH_VINT: usize = 10;
 

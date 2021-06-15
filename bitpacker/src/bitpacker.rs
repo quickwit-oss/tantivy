@@ -49,6 +49,7 @@ impl BitPacker {
             let bytes = self.mini_buffer.to_le_bytes();
             output.write_all(&bytes[..num_bytes])?;
             self.mini_buffer_written = 0;
+            self.mini_buffer = 0;
         }
         Ok(())
     }
@@ -61,7 +62,7 @@ impl BitPacker {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct BitUnpacker {
     num_bits: u64,
     mask: u64,

@@ -1,0 +1,12 @@
+[package]
+name = "common"
+version = "0.1.0"
+authors = ["Paul Masurel <paul@quickwit.io>", "Pascal Seitz <pascal@quickwit.io>"]
+license = "MIT"
+edition = "2018"
+description = "common traits and utility functions used by multiple tantivy subcrates"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+byteorder = "1.4.3"

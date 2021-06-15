@@ -362,6 +362,7 @@ mod bench_sorted_index_merge {
 
     use crate::core::Index;
     //use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
+    use crate::fastfield::DynamicFastFieldReader;
     use crate::fastfield::FastFieldReader;
     use crate::indexer::merger::IndexMerger;
     use crate::schema::Cardinality;
@@ -422,7 +423,7 @@ mod bench_sorted_index_merge {
         b.iter(|| {
 
             let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
-            let u64_reader: FastFieldReader<u64> = reader.reader
+            let u64_reader: DynamicFastFieldReader<u64> = reader.reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");

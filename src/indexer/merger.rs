@@ -3,8 +3,9 @@ use crate::error::DataCorruption;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DeleteBitSet;
 use crate::fastfield::DynamicFastFieldReader;
+use crate::fastfield::FastFieldDataAccess;
 use crate::fastfield::FastFieldReader;
-use crate::fastfield::FastFieldSerializer;
+use crate::fastfield::FastFieldStats;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
@@ -344,21 +345,38 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
         if let Some(doc_id_mapping) = doc_id_mapping {
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
-                (
-                    doc_id,
-                    &fast_field_readers[reader_with_ordinal.ordinal as usize],
-                )
-            });
-            // add values in order of the new doc_ids
-            let mut fast_single_field_serializer =
-                fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
-            for (doc_id, field_reader) in sorted_doc_ids {
-                let val = field_reader.get(*doc_id);
-                fast_single_field_serializer.add_val(val)?;
+            #[derive(Clone)]
+            struct SortedDocidFieldAccessProvider<'a> {
+                doc_id_mapping: &'a Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+                fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
             }
+            impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
+                fn get(&self, doc: DocId) -> u64 {
+                    let (doc_id, reader_with_ordinal) = self.doc_id_mapping[doc as usize];
+                    self.fast_field_readers[reader_with_ordinal.ordinal as usize].get(doc_id)
+                }
+            }
+            let stats = FastFieldStats {
+                min_value,
+                max_value,
+                num_vals: doc_id_mapping.len() as u64,
+            };
+            let fastfield_accessor = SortedDocidFieldAccessProvider {
+                doc_id_mapping,
+                fast_field_readers: &fast_field_readers,
+            };
+            let iter = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
+                let fast_field_reader = &fast_field_readers[reader_with_ordinal.ordinal as usize];
+                fast_field_reader.get(*doc_id)
+            });
+            fast_field_serializer.create_auto_detect_u64_fast_field(
+                field,
+                stats,
+                fastfield_accessor,
+                iter.clone(),
+                iter,
+            )?;
 
-            fast_single_field_serializer.close_field()?;
             Ok(())
         } else {
             let u64_readers = self.readers.iter()
