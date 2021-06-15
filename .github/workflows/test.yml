@@ -19,6 +19,6 @@ jobs:
     - name: Build
       run: cargo build --verbose --workspace
     - name: Run tests
-      run: cargo test --verbose --workspace
+      run: cargo test --all-features --verbose --workspace
     - name: Check Formatting
       run: cargo fmt --all -- --check
