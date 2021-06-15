@@ -50,7 +50,7 @@ pub trait FastFieldCodecSerializer {
 }
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
-pub trait FastFieldDataAccess: Clone {
+pub trait FastFieldDataAccess {
     /// Return the value associated to the given document.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance reasons.
@@ -69,6 +69,12 @@ pub struct FastFieldStats {
 }
 
 impl<'a> FastFieldDataAccess for &'a [u64] {
+    fn get(&self, doc: u32) -> u64 {
+        self[doc as usize]
+    }
+}
+
+impl<'a> FastFieldDataAccess for &'a Vec<u64> {
     fn get(&self, doc: u32) -> u64 {
         self[doc as usize]
     }

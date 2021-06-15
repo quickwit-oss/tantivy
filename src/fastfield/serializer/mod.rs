@@ -140,6 +140,7 @@ impl CompositeFastFieldSerializer {
                 panic!("unknown fastfield serializer {}", name)
             }
         };
+        field_write.flush()?;
 
         Ok(())
     }
