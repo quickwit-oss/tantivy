@@ -1,7 +1,4 @@
-use crate::directory::AntiCallToken;
-use crate::directory::TerminatingWrite;
-use std::io;
-use std::io::Write;
+use std::io::{self, BufWriter, Write};
 
 pub struct CountingWriter<W> {
     underlying: W,
@@ -16,38 +13,84 @@ impl<W: Write> CountingWriter<W> {
         }
     }
 
+    #[inline]
     pub fn written_bytes(&self) -> u64 {
         self.written_bytes
     }
 
     /// Returns the underlying write object.
     /// Note that this method does not trigger any flushing.
+    #[inline]
     pub fn finish(self) -> W {
         self.underlying
     }
 }
 
 impl<W: Write> Write for CountingWriter<W> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let written_size = self.underlying.write(buf)?;
         self.written_bytes += written_size as u64;
         Ok(written_size)
     }
 
+    #[inline]
     fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
         self.underlying.write_all(buf)?;
         self.written_bytes += buf.len() as u64;
         Ok(())
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         self.underlying.flush()
     }
 }
 
 impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
+    #[inline]
     fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
         self.underlying.terminate_ref(token)
+    }
+}
+
+/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite#method.terminate_ref) directly
+///
+/// The point is that while the type is public, it cannot be built by anyone
+/// outside of this module.
+pub struct AntiCallToken(());
+
+/// Trait used to indicate when no more write need to be done on a writer
+pub trait TerminatingWrite: Write {
+    /// Indicate that the writer will no longer be used. Internally call terminate_ref.
+    fn terminate(mut self) -> io::Result<()>
+    where
+        Self: Sized,
+    {
+        self.terminate_ref(AntiCallToken(()))
+    }
+
+    /// You should implement this function to define custom behavior.
+    /// This function should flush any buffer it may hold.
+    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()>;
+}
+
+impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {
+    fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
+        self.as_mut().terminate_ref(token)
+    }
+}
+
+impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
+    fn terminate_ref(&mut self, a: AntiCallToken) -> io::Result<()> {
+        self.flush()?;
+        self.get_mut().terminate_ref(a)
+    }
+}
+
+impl<'a> TerminatingWrite for &'a mut Vec<u8> {
+    fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
+        self.flush()
     }
 }
 

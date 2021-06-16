@@ -28,7 +28,9 @@ pub use self::file_slice::{FileHandle, FileSlice};
 pub use self::owned_bytes::OwnedBytes;
 pub use self::ram_directory::RamDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
-use std::io::{self, BufWriter, Write};
+pub use common::AntiCallToken;
+pub use common::TerminatingWrite;
+use std::io::BufWriter;
 use std::path::PathBuf;
 
 /// Outcome of the Garbage collection
@@ -49,47 +51,6 @@ pub struct GarbageCollectionResult {
 pub use self::mmap_directory::MmapDirectory;
 
 pub use self::managed_directory::ManagedDirectory;
-
-/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite#method.terminate_ref) directly
-///
-/// The point is that while the type is public, it cannot be built by anyone
-/// outside of this module.
-pub struct AntiCallToken(());
-
-/// Trait used to indicate when no more write need to be done on a writer
-pub trait TerminatingWrite: Write {
-    /// Indicate that the writer will no longer be used. Internally call terminate_ref.
-    fn terminate(mut self) -> io::Result<()>
-    where
-        Self: Sized,
-    {
-        self.terminate_ref(AntiCallToken(()))
-    }
-
-    /// You should implement this function to define custom behavior.
-    /// This function should flush any buffer it may hold.
-    fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()>;
-}
-
-impl<W: TerminatingWrite + ?Sized> TerminatingWrite for Box<W> {
-    fn terminate_ref(&mut self, token: AntiCallToken) -> io::Result<()> {
-        self.as_mut().terminate_ref(token)
-    }
-}
-
-impl<W: TerminatingWrite> TerminatingWrite for BufWriter<W> {
-    fn terminate_ref(&mut self, a: AntiCallToken) -> io::Result<()> {
-        self.flush()?;
-        self.get_mut().terminate_ref(a)
-    }
-}
-
-#[cfg(test)]
-impl<'a> TerminatingWrite for &'a mut Vec<u8> {
-    fn terminate_ref(&mut self, _a: AntiCallToken) -> io::Result<()> {
-        self.flush()
-    }
-}
 
 /// Write object for Directory.
 ///

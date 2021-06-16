@@ -2,6 +2,7 @@ use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
 use crate::FastFieldStats;
+use common::CountingWriter;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
 use tantivy_bitpacker::compute_num_bits;
@@ -12,33 +13,6 @@ use common::DeserializeFrom;
 use tantivy_bitpacker::BitUnpacker;
 
 const CHUNK_SIZE: u64 = 512;
-
-struct TrackWriteSize<W: io::Write> {
-    inner: W,
-    written: u64,
-}
-impl<W: io::Write> TrackWriteSize<W> {
-    fn new(inner: W) -> Self {
-        TrackWriteSize { inner, written: 0 }
-    }
-}
-impl<W: io::Write> io::Write for TrackWriteSize<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let written = self.inner.write(buf)?;
-        self.written += written as u64;
-        Ok(written)
-    }
-
-    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
-        let written = self.inner.write_vectored(bufs)?;
-        self.written += written as u64;
-        Ok(written)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
-}
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -278,9 +252,9 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
         }
         let mut bit_packer = BitPacker::new();
 
-        let write = &mut TrackWriteSize::new(write);
+        let write = &mut CountingWriter::wrap(write);
         for interpolation in &mut interpolations {
-            interpolation.data_start_offset = write.written;
+            interpolation.data_start_offset = write.written_bytes();
             let num_bits = interpolation.num_bits;
             for (pos, actual_value) in data
                 [interpolation.start_pos as usize..interpolation.end_pos as usize]

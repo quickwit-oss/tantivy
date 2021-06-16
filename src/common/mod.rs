@@ -1,12 +1,11 @@
 mod bitset;
 mod composite_file;
-mod counting_writer;
 
 pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
-pub use self::counting_writer::CountingWriter;
 pub use byteorder::LittleEndian as Endianness;
+pub use common::CountingWriter;
 pub use common::{
     read_u32_vint, read_u32_vint_no_advance, serialize_vint_u32, write_u32_vint, VInt,
 };
