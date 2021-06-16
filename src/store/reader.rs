@@ -171,11 +171,6 @@ impl StoreReader {
             .filter_map(move |doc_id| {
                 // filter_map is only used to resolve lifetime issues between the two closures on
                 // the outer variables
-                let alive = delete_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
-                if !alive {
-                    // we keep the number of skipped documents to move forward in the map block
-                    num_skipped += 1;
-                }
 
                 // check move to next checkpoint
                 if doc_id >= curr_checkpoint.as_ref().unwrap().doc_range.end {
@@ -187,6 +182,7 @@ impl StoreReader {
                     num_skipped = 0;
                 }
 
+                let alive = delete_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
                 if alive {
                     let ret = Some((curr_block.clone(), num_skipped, reset_block_pos));
                     // the map block will move over the num_skipped, so we reset to 0
@@ -194,6 +190,8 @@ impl StoreReader {
                     reset_block_pos = false;
                     ret
                 } else {
+                    // we keep the number of skipped documents to move forward in the map block
+                    num_skipped += 1;
                     None
                 }
             })
