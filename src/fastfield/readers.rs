@@ -8,7 +8,6 @@ use crate::space_usage::PerFieldSpaceUsage;
 use crate::TantivyError;
 
 use super::reader::DynamicFastFieldReader;
-use super::FastFieldReader;
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///
@@ -138,7 +137,7 @@ impl FastFieldReaders {
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn i64(&self, field: Field) -> crate::Result<impl FastFieldReader<i64>> {
+    pub fn i64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<i64>> {
         self.check_type(field, FastType::I64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -146,7 +145,7 @@ impl FastFieldReaders {
     /// Returns the `i64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a i64 fast field, this method returns an Error.
-    pub fn date(&self, field: Field) -> crate::Result<impl FastFieldReader<crate::DateTime>> {
+    pub fn date(&self, field: Field) -> crate::Result<DynamicFastFieldReader<crate::DateTime>> {
         self.check_type(field, FastType::Date, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
@@ -154,7 +153,7 @@ impl FastFieldReaders {
     /// Returns the `f64` fast field reader reader associated to `field`.
     ///
     /// If `field` is not a f64 fast field, this method returns an Error.
-    pub fn f64(&self, field: Field) -> crate::Result<impl FastFieldReader<f64>> {
+    pub fn f64(&self, field: Field) -> crate::Result<DynamicFastFieldReader<f64>> {
         self.check_type(field, FastType::F64, Cardinality::SingleValue)?;
         self.typed_fast_field_reader(field)
     }
