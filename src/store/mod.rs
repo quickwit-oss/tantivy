@@ -133,11 +133,21 @@ pub mod tests {
                 format!("Doc {}", i)
             );
         }
+
         for (_, doc) in store.iter(Some(&delete_bitset)).enumerate() {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().text().unwrap();
             if !title_content.starts_with("Doc ") {
                 panic!("unexpected title_content {}", title_content);
+            }
+
+            let id = title_content
+                .strip_prefix("Doc ")
+                .unwrap()
+                .parse::<u32>()
+                .unwrap();
+            if delete_bitset.is_deleted(id) {
+                panic!("unexpected deleted document {}", id);
             }
         }
 
