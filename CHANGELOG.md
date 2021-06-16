@@ -1,3 +1,7 @@
+Tantivy 0.15.2
+========================
+- Major bugfix. DocStore still panics when a deleted doc is at the beginning of a block. (@appaquet) #1088
+
 Tantivy 0.15.1
 =========================
 - Major bugfix. DocStore panics when first block is deleted. (@appaquet) #1077
