@@ -112,9 +112,8 @@ impl FastFieldReaders {
         &self,
         field: Field,
     ) -> crate::Result<MultiValuedFastFieldReader<TFastValue>> {
-        let fast_field_slice_idx = self.fast_field_data(field, 0)?;
+        let idx_reader = self.typed_fast_field_reader(field)?;
         let fast_field_slice_vals = self.fast_field_data(field, 1)?;
-        let idx_reader = BitpackedFastFieldReader::open(fast_field_slice_idx)?;
         let vals_reader: BitpackedFastFieldReader<TFastValue> =
             BitpackedFastFieldReader::open(fast_field_slice_vals)?;
         Ok(MultiValuedFastFieldReader::open(idx_reader, vals_reader))

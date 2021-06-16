@@ -159,7 +159,11 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
     pub fn open(file: FileSlice) -> crate::Result<Self> {
         let mut bytes = file.read_bytes()?;
         let id = u8::deserialize(&mut bytes)?;
-        assert_eq!(BitpackedFastFieldSerializer::ID, id);
+        assert_eq!(
+            BitpackedFastFieldSerializer::ID,
+            id,
+            "Tried to open fast field as bitpacked encoded (id=1), but got serializer with different id"
+        );
         Self::open_from_bytes(bytes)
     }
     /// Opens a fast field given the bytes.

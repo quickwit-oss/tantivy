@@ -514,19 +514,21 @@ impl IndexMerger {
     // Important: reader_and_field_accessor needs
     // to have the same order as self.readers since ReaderWithOrdinal
     // is used to index the reader_and_field_accessors vec.
-    fn write_1_n_fast_field_idx_generic(
+    fn write_1_n_fast_field_idx_generic<T: MultiValueLength>(
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
-        reader_and_field_accessors: &[(&SegmentReader, impl MultiValueLength)],
+        reader_and_field_accessors: &[(&SegmentReader, T)],
     ) -> crate::Result<()> {
         let mut total_num_vals = 0u64;
         // In the first pass, we compute the total number of vals.
         //
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
+        let mut idx_num_vals = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(delete_bitset) = reader.delete_bitset() {
+                idx_num_vals += reader.max_doc() as u64 - delete_bitset.len() as u64;
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
                         let num_vals = u64s_reader.get_len(doc) as u64;
@@ -534,38 +536,60 @@ impl IndexMerger {
                     }
                 }
             } else {
+                idx_num_vals += reader.max_doc() as u64;
                 total_num_vals += u64s_reader.get_total_len();
             }
         }
 
+        let stats = FastFieldStats {
+            max_value: total_num_vals,
+            num_vals: idx_num_vals,
+            min_value: 0,
+        };
         // We can now create our `idx` serializer, and in a second pass,
         // can effectively push the different indexes.
         if let Some(doc_id_mapping) = doc_id_mapping {
-            let mut serialize_idx =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
+            // copying into a temp vec is not ideal, but the fast field codec api requires random
+            // access, which is used in the estimation. It's possible to 1. calculate random
+            // acccess on the fly or 2. change the codec api to make random access optional, but
+            // they both have also major drawbacks.
 
+            let mut offsets = vec![];
             let mut offset = 0;
             for (doc_id, reader) in doc_id_mapping {
                 let reader = &reader_and_field_accessors[reader.ordinal as usize].1;
-                serialize_idx.add_val(offset)?;
+                offsets.push(offset);
                 offset += reader.get_len(*doc_id) as u64;
             }
-            serialize_idx.add_val(offset as u64)?;
+            offsets.push(offset);
 
-            serialize_idx.close_field()?;
+            fast_field_serializer.create_auto_detect_u64_fast_field(
+                field,
+                stats,
+                &offsets,
+                offsets.iter().cloned(),
+                offsets.iter().cloned(),
+            )?;
         } else {
-            let mut serialize_idx =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
-            let mut idx = 0;
+            let mut offsets = vec![];
+            let mut offset = 0;
             for (segment_reader, u64s_reader) in reader_and_field_accessors.iter() {
                 for doc in segment_reader.doc_ids_alive() {
-                    serialize_idx.add_val(idx)?;
-                    idx += u64s_reader.get_len(doc) as u64;
+                    offsets.push(offset);
+                    offset += u64s_reader.get_len(doc) as u64;
                 }
             }
-            serialize_idx.add_val(idx)?;
-            serialize_idx.close_field()?;
+            offsets.push(offset);
+
+            fast_field_serializer.create_auto_detect_u64_fast_field(
+                field,
+                stats,
+                &offsets,
+                offsets.iter().cloned(),
+                offsets.iter().cloned(),
+            )?;
         }
+
         Ok(())
     }
     fn write_multi_value_fast_field_idx(
