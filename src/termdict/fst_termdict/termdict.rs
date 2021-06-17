@@ -119,7 +119,7 @@ impl TermDictionary {
         let footer_size = u64::deserialize(&mut footer_len_bytes)?;
         let (fst_file_slice, values_file_slice) = main_slice.split_from_end(footer_size as usize);
         let fst_index = open_fst_index(fst_file_slice)?;
-        let term_info_store = TermInfoStore::open(values_file_slice)?;
+        let term_info_store = TermInfoStore::open(values_file_slice.read_bytes()?)?;
         Ok(TermDictionary {
             fst_index,
             term_info_store,

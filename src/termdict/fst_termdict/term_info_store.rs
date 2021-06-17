@@ -120,16 +120,14 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
 }
 
 impl TermInfoStore {
-    pub fn open(term_info_store_file: FileSlice) -> crate::Result<TermInfoStore> {
-        let (len_slice, main_slice) = term_info_store_file.split(16);
-        let mut bytes = len_slice.read_bytes()?;
+    pub fn open(term_info_store_bytes: OwnedBytes) -> crate::Result<TermInfoStore> {
+        let (main_slice, mut bytes) = term_info_store_bytes.split_from_end(16);
         let len = u64::deserialize(&mut bytes)? as usize;
         let num_terms = u64::deserialize(&mut bytes)? as usize;
-        let (block_meta_file, term_info_file) = main_slice.split(len);
-        let term_info_bytes = term_info_file.read_bytes()?;
+        let (block_meta_file, term_info_bytes) = main_slice.split(len);
         Ok(TermInfoStore {
             num_terms,
-            block_meta_bytes: block_meta_file.read_bytes()?,
+            block_meta_bytes: block_meta_file,
             term_info_bytes,
         })
     }
@@ -275,11 +273,11 @@ impl TermInfoStoreWriter {
         if !self.term_infos.is_empty() {
             self.flush_block()?;
         }
+        write.write_all(&self.buffer_block_metas)?;
+        write.write_all(&self.buffer_term_infos)?;
         let len = self.buffer_block_metas.len() as u64;
         len.serialize(write)?;
         self.num_terms.serialize(write)?;
-        write.write_all(&self.buffer_block_metas)?;
-        write.write_all(&self.buffer_term_infos)?;
         Ok(())
     }
 }
@@ -293,6 +291,7 @@ mod tests {
     use crate::common;
     use crate::common::BinarySerializable;
     use crate::directory::FileSlice;
+    use crate::directory::OwnedBytes;
     use crate::postings::TermInfo;
     use tantivy_bitpacker::compute_num_bits;
     use tantivy_bitpacker::BitPacker;
@@ -355,7 +354,7 @@ mod tests {
         }
         let mut buffer = Vec::new();
         store_writer.serialize(&mut buffer)?;
-        let term_info_store = TermInfoStore::open(FileSlice::from(buffer))?;
+        let term_info_store = TermInfoStore::open(OwnedBytes::new(buffer))?;
         for i in 0..1000 {
             assert_eq!(
                 term_info_store.get(i as u64),
