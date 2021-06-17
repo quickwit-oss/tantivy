@@ -1,5 +1,4 @@
 use crate::common::{BinarySerializable, FixedSize};
-use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
