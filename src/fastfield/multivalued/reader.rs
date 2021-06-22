@@ -46,6 +46,24 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         self.vals_reader.get_range_u64(range.start, &mut vals[..]);
     }
 
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    pub fn min_value(&self) -> Item {
+        self.vals_reader.max_value()
+    }
+
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    pub fn max_value(&self) -> Item {
+        self.vals_reader.min_value()
+    }
+
     /// Returns the number of values associated with the document `DocId`.
     pub fn num_vals(&self, doc: DocId) -> usize {
         let range = self.range(doc);
