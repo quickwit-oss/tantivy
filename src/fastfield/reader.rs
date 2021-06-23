@@ -44,7 +44,7 @@ pub trait FastFieldReader<Item: FastValue>: Clone {
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    fn get_range(&self, start: DocId, output: &mut [Item]);
+    fn get_range(&self, start: u64, output: &mut [Item]);
 
     /// Returns the minimum value for this fast field.
     ///
@@ -120,7 +120,7 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
             Self::MultiLinearInterpol(reader) => reader.get(doc),
         }
     }
-    fn get_range(&self, start: DocId, output: &mut [Item]) {
+    fn get_range(&self, start: u64, output: &mut [Item]) {
         match self {
             Self::Bitpacked(reader) => reader.get_range(start, output),
             Self::LinearInterpol(reader) => reader.get_range(start, output),
@@ -226,8 +226,8 @@ impl<Item: FastValue, C: FastFieldCodecReader + Clone> FastFieldReader<Item>
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    fn get_range(&self, start: DocId, output: &mut [Item]) {
-        self.get_range_u64(u64::from(start), output);
+    fn get_range(&self, start: u64, output: &mut [Item]) {
+        self.get_range_u64(start, output);
     }
 
     /// Returns the minimum value for this fast field.

@@ -71,7 +71,26 @@ impl CompositeFastFieldSerializer {
         data_iter_1: impl Iterator<Item = u64>,
         data_iter_2: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
-        let field_write = self.composite_write.for_field_with_idx(field, 0);
+        self.create_auto_detect_u64_fast_field_with_idx(
+            field,
+            stats,
+            fastfield_accessor,
+            data_iter_1,
+            data_iter_2,
+            0,
+        )
+    }
+    /// Serialize data into a new u64 fast field. The best compression codec will be chosen automatically.
+    pub fn create_auto_detect_u64_fast_field_with_idx(
+        &mut self,
+        field: Field,
+        stats: FastFieldStats,
+        fastfield_accessor: impl FastFieldDataAccess,
+        data_iter_1: impl Iterator<Item = u64>,
+        data_iter_2: impl Iterator<Item = u64>,
+        idx: usize,
+    ) -> io::Result<()> {
+        let field_write = self.composite_write.for_field_with_idx(field, idx);
 
         let mut estimations = vec![];
 

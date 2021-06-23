@@ -196,8 +196,8 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
-        let first_val = fastfield_accessor.get(0);
-        let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
+        let first_val = fastfield_accessor.get_val(0);
+        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
 
         let mut first_function = Function {
             end_pos: stats.num_vals,
@@ -309,9 +309,10 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        let first_val_in_first_block = fastfield_accessor.get(0);
+        let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = CHUNK_SIZE.min(stats.num_vals);
-        let last_val_in_first_block = fastfield_accessor.get(last_elem_in_first_chunk as u32 - 1);
+        let last_val_in_first_block =
+            fastfield_accessor.get_val(last_elem_in_first_chunk as u64 - 1);
         let slope = get_slope(
             first_val_in_first_block,
             last_val_in_first_block,
@@ -328,7 +329,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
             .map(|pos| {
                 let calculated_value =
                     get_calculated_value(first_val_in_first_block, *pos as u64, slope);
-                let actual_value = fastfield_accessor.get(*pos as u32);
+                let actual_value = fastfield_accessor.get_val(*pos as u64);
                 distance(calculated_value, actual_value)
             })
             .max()

@@ -123,8 +123,8 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     ) -> io::Result<()> {
         assert!(stats.min_value <= stats.max_value);
 
-        let first_val = fastfield_accessor.get(0);
-        let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
+        let first_val = fastfield_accessor.get_val(0);
+        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
         // calculate offset to ensure all values are positive
         let mut offset = 0;
@@ -191,8 +191,8 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     /// where the local maxima for the deviation of the calculated value are and
     /// the offset to shift all values to >=0 is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        let first_val = fastfield_accessor.get(0);
-        let last_val = fastfield_accessor.get(stats.num_vals as u32 - 1);
+        let first_val = fastfield_accessor.get_val(0);
+        let last_val = fastfield_accessor.get_val(stats.num_vals as u64 - 1);
         let slope = get_slope(first_val, last_val, stats.num_vals);
 
         // let's sample at 0%, 5%, 10% .. 95%, 100%
@@ -205,7 +205,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
             .iter()
             .map(|pos| {
                 let calculated_value = get_calculated_value(first_val, *pos as u64, slope);
-                let actual_value = fastfield_accessor.get(*pos as u32);
+                let actual_value = fastfield_accessor.get_val(*pos as u64);
                 distance(calculated_value, actual_value)
             })
             .max()

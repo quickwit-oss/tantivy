@@ -350,7 +350,7 @@ impl IndexMerger {
                 fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
             }
             impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
-                fn get(&self, doc: DocId) -> u64 {
+                fn get_val(&self, doc: u64) -> u64 {
                     let (doc_id, reader_with_ordinal) = self.doc_id_mapping[doc as usize];
                     self.fast_field_readers[reader_with_ordinal.ordinal as usize].get(doc_id)
                 }
@@ -518,7 +518,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
         reader_and_field_accessors: &[(&SegmentReader, T)],
-    ) -> crate::Result<()> {
+    ) -> crate::Result<Vec<u64>> {
         let mut total_num_vals = 0u64;
         // In the first pass, we compute the total number of vals.
         //
@@ -569,6 +569,7 @@ impl IndexMerger {
                 offsets.iter().cloned(),
                 offsets.iter().cloned(),
             )?;
+            Ok(offsets)
         } else {
             let mut offsets = vec![];
             let mut offset = 0;
@@ -587,16 +588,15 @@ impl IndexMerger {
                 offsets.iter().cloned(),
                 offsets.iter().cloned(),
             )?;
+            Ok(offsets)
         }
-
-        Ok(())
     }
     fn write_multi_value_fast_field_idx(
         &self,
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &Option<Vec<(DocId, SegmentReaderWithOrdinal)>>,
-    ) -> crate::Result<()> {
+    ) -> crate::Result<Vec<u64>> {
         let reader_and_field_accessors = self.readers.iter().map(|reader|{
             let u64s_reader: MultiValuedFastFieldReader<u64> = reader.fast_fields()
                 .typed_fast_field_multi_reader(field)
@@ -687,10 +687,12 @@ impl IndexMerger {
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
+        let offsets =
+            self.write_multi_value_fast_field_idx(field, fast_field_serializer, doc_id_mapping)?;
 
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();
+        let mut num_vals = 0;
 
         let mut vals = Vec::with_capacity(100);
 
@@ -716,6 +718,7 @@ impl IndexMerger {
                     min_value = cmp::min(val, min_value);
                     max_value = cmp::max(val, max_value);
                 }
+                num_vals += vals.len();
             }
             ff_readers.push(ff_reader);
             // TODO optimize when no deletes
@@ -726,7 +729,7 @@ impl IndexMerger {
             max_value = 0;
         }
 
-        let fast_field_reader = self
+        let fast_field_readers = self
             .readers
             .iter()
             .map(|reader| {
@@ -738,17 +741,63 @@ impl IndexMerger {
             .collect::<Vec<_>>();
 
         // We can now initialize our serializer, and push it the different values
-        let mut serialize_vals =
-            fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+        let stats = FastFieldStats {
+            max_value,
+            num_vals: num_vals as u64,
+            min_value,
+        };
         if let Some(doc_id_mapping) = doc_id_mapping {
-            for (doc_id, reader_with_ordinal) in doc_id_mapping {
-                let ff_reader = &fast_field_reader[reader_with_ordinal.ordinal as usize];
-                ff_reader.get_vals(*doc_id, &mut vals);
-                for &val in &vals {
-                    serialize_vals.add_val(val)?;
+            struct SortedDocidFieldAccessProvider<'a> {
+                doc_id_mapping: &'a Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+                fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
+                offsets: Vec<u64>,
+            }
+            impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
+                fn get_val(&self, pos: u64) -> u64 {
+                    // use the offsets index to find the doc_id which will contain the position.
+                    // the offsets are stricly increasing so we can do a simple search on it.
+                    let new_docid = self.offsets.iter().position(|&x| x > pos).unwrap() - 1;
+
+                    // now we need to find the position of `pos` in the multivalued bucket
+                    let num_pos_covered_until_now = self.offsets[new_docid];
+                    let pos_in_values = pos - num_pos_covered_until_now;
+
+                    let (old_doc_id, reader_with_ordinal) = self.doc_id_mapping[new_docid as usize];
+                    let num_vals = self.fast_field_readers[reader_with_ordinal.ordinal as usize]
+                        .get_len(old_doc_id);
+                    assert!(num_vals >= pos_in_values);
+                    let mut vals = vec![];
+                    self.fast_field_readers[reader_with_ordinal.ordinal as usize]
+                        .get_vals(old_doc_id, &mut vals);
+
+                    vals[pos_in_values as usize]
                 }
             }
+            let fastfield_accessor = SortedDocidFieldAccessProvider {
+                doc_id_mapping,
+                fast_field_readers: &fast_field_readers,
+                offsets,
+            };
+            let iter = doc_id_mapping
+                .iter()
+                .map(|(doc_id, reader_with_ordinal)| {
+                    let ff_reader = &fast_field_readers[reader_with_ordinal.ordinal as usize];
+                    let mut vals = vec![];
+                    ff_reader.get_vals(*doc_id, &mut vals);
+                    vals.into_iter()
+                })
+                .flatten();
+            fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
+                field,
+                stats,
+                fastfield_accessor,
+                iter.clone(),
+                iter,
+                1,
+            )?;
         } else {
+            let mut serialize_vals = fast_field_serializer
+                .new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
             for (reader, ff_reader) in self.readers.iter().zip(ff_readers) {
                 // TODO optimize if no deletes
                 for doc in reader.doc_ids_alive() {
@@ -758,8 +807,8 @@ impl IndexMerger {
                     }
                 }
             }
+            serialize_vals.close_field()?;
         }
-        serialize_vals.close_field()?;
         Ok(())
     }
 

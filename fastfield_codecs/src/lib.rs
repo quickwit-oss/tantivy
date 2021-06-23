@@ -51,14 +51,14 @@ pub trait FastFieldCodecSerializer {
 
 /// FastFieldDataAccess is the trait to access fast field data during serialization and estimation.
 pub trait FastFieldDataAccess {
-    /// Return the value associated to the given document.
+    /// Return the value associated to the given position.
     ///
     /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance reasons.
     ///
     /// # Panics
     ///
-    /// May panic if `doc` is greater than the segment
-    fn get(&self, doc: u32) -> u64;
+    /// May panic if `position` is greater than the index.
+    fn get_val(&self, position: u64) -> u64;
 }
 
 #[derive(Debug, Clone)]
@@ -69,20 +69,20 @@ pub struct FastFieldStats {
 }
 
 impl<'a> FastFieldDataAccess for &'a [u64] {
-    fn get(&self, doc: u32) -> u64 {
-        self[doc as usize]
+    fn get_val(&self, position: u64) -> u64 {
+        self[position as usize]
     }
 }
 
 impl<'a> FastFieldDataAccess for &'a Vec<u64> {
-    fn get(&self, doc: u32) -> u64 {
-        self[doc as usize]
+    fn get_val(&self, position: u64) -> u64 {
+        self[position as usize]
     }
 }
 
 impl FastFieldDataAccess for Vec<u64> {
-    fn get(&self, doc: u32) -> u64 {
-        self[doc as usize]
+    fn get_val(&self, position: u64) -> u64 {
+        self[position as usize]
     }
 }
 
