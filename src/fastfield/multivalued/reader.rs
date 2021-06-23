@@ -46,6 +46,24 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
         self.vals_reader.get_range_u64(range.start, &mut vals[..]);
     }
 
+    /// Returns the minimum value for this fast field.
+    ///
+    /// The min value does not take in account of possible
+    /// deleted document, and should be considered as a lower bound
+    /// of the actual mimimum value.
+    pub fn min_value(&self) -> Item {
+        self.vals_reader.min_value()
+    }
+
+    /// Returns the maximum value for this fast field.
+    ///
+    /// The max value does not take in account of possible
+    /// deleted document, and should be considered as an upper bound
+    /// of the actual maximum value.
+    pub fn max_value(&self) -> Item {
+        self.vals_reader.max_value()
+    }
+
     /// Returns the number of values associated with the document `DocId`.
     pub fn num_vals(&self, doc: DocId) -> usize {
         let range = self.range(doc);
@@ -71,7 +89,7 @@ impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
 mod tests {
 
     use crate::core::Index;
-    use crate::schema::{Facet, Schema, INDEXED};
+    use crate::schema::{Cardinality, Facet, IntOptions, Schema, INDEXED};
 
     #[test]
     fn test_multifastfield_reader() {
@@ -125,5 +143,33 @@ mod tests {
             facet_reader.facet_ords(2, &mut vals);
             assert_eq!(&vals[..], &[4]);
         }
+    }
+
+    #[test]
+    fn test_multifastfield_reader_min_max() {
+        let mut schema_builder = Schema::builder();
+        let field_options = IntOptions::default()
+            .set_indexed()
+            .set_fast(Cardinality::MultiValues);
+        let item_field = schema_builder.add_i64_field("items", field_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index
+            .writer_for_tests()
+            .expect("Failed to create index writer.");
+        index_writer.add_document(doc!(
+            item_field => 2i64,
+            item_field => 3i64,
+            item_field => -2i64,
+        ));
+        index_writer.add_document(doc!(item_field => 6i64, item_field => 3i64));
+        index_writer.add_document(doc!(item_field => 4i64));
+        index_writer.commit().expect("Commit failed");
+        let searcher = index.reader().unwrap().searcher();
+        let segment_reader = searcher.segment_reader(0);
+        let field_reader = segment_reader.fast_fields().i64s(item_field).unwrap();
+
+        assert_eq!(field_reader.min_value(), -2);
+        assert_eq!(field_reader.max_value(), 6);
     }
 }
