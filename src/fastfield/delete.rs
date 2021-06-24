@@ -91,6 +91,10 @@ impl DeleteBitSet {
         b & (1u8 << shift) != 0
     }
 
+    /// The number of deleted docs
+    pub fn num_deleted(&self) -> usize {
+        self.num_deleted
+    }
     /// Summarize total space usage of this bitset.
     pub fn space_usage(&self) -> ByteCount {
         self.data.len()

@@ -344,6 +344,11 @@ impl IndexMerger {
             })
             .collect::<Vec<_>>();
         if let Some(doc_id_mapping) = doc_id_mapping {
+            let stats = FastFieldStats {
+                min_value,
+                max_value,
+                num_vals: doc_id_mapping.len() as u64,
+            };
             #[derive(Clone)]
             struct SortedDocidFieldAccessProvider<'a> {
                 doc_id_mapping: &'a Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
@@ -355,11 +360,6 @@ impl IndexMerger {
                     self.fast_field_readers[reader_with_ordinal.ordinal as usize].get(doc_id)
                 }
             }
-            let stats = FastFieldStats {
-                min_value,
-                max_value,
-                num_vals: doc_id_mapping.len() as u64,
-            };
             let fastfield_accessor = SortedDocidFieldAccessProvider {
                 doc_id_mapping,
                 fast_field_readers: &fast_field_readers,
@@ -378,31 +378,86 @@ impl IndexMerger {
 
             Ok(())
         } else {
-            let u64_readers = self.readers.iter()
-                .filter(|reader|reader.max_doc() != reader.delete_bitset().map(|bit_set|bit_set.len() as u32).unwrap_or(0))
+            let num_vals = self
+                .readers
+                .iter()
+                .map(|reader| reader.num_docs() as u64)
+                .sum();
+
+            let stats = FastFieldStats {
+                min_value,
+                max_value,
+                num_vals,
+            };
+            #[derive(Clone)]
+            struct DocidFieldAccessProvider<'a> {
+                segment_and_field_readers: Vec<(&'a SegmentReader, DynamicFastFieldReader<u64>)>,
+            }
+            impl<'a> FastFieldDataAccess for DocidFieldAccessProvider<'a> {
+                fn get_val(&self, doc: u64) -> u64 {
+                    // Find the reader which will contain the doc_id.
+                    let mut num_docs_so_far = 0;
+                    let reader_ordinal = self
+                        .segment_and_field_readers
+                        .iter()
+                        .position(|(segment_reader, _)| {
+                            num_docs_so_far += segment_reader.num_docs() as u64;
+
+                            num_docs_so_far > doc
+                        })
+                        .unwrap();
+
+                    let (segment_reader, reader) =
+                        &self.segment_and_field_readers[reader_ordinal as usize];
+                    let pos_in_reader = doc - (num_docs_so_far - segment_reader.num_docs() as u64);
+
+                    let docid = segment_reader
+                        .doc_ids_alive()
+                        .nth(pos_in_reader as usize)
+                        .expect(&format!(
+                            "unexpected error, could not find doc id in alive list docid {}, number of docids in segment {} ",
+                            pos_in_reader,
+                            segment_reader.doc_ids_alive().count()
+                        ));
+                    reader.get(docid)
+                }
+            }
+            let segment_and_field_readers = self.readers.iter()
                 .map(|reader|{
                 let u64_reader: DynamicFastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                (reader.max_doc(), u64_reader, reader.delete_bitset())
+                (reader, u64_reader)
             }).collect::<Vec<_>>();
 
-            let mut fast_single_field_serializer =
-                fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
-            for (max_doc, u64_reader, delete_bitset_opt) in u64_readers {
-                for doc_id in 0u32..max_doc {
-                    let is_deleted = delete_bitset_opt
-                        .map(|delete_bitset| delete_bitset.is_deleted(doc_id))
-                        .unwrap_or(false);
-                    if !is_deleted {
-                        let val = u64_reader.get(doc_id);
-                        fast_single_field_serializer.add_val(val)?;
-                    }
-                }
-            }
+            let iter1 = segment_and_field_readers
+                .iter()
+                .map(|(reader, u64_reader)| {
+                    reader
+                        .doc_ids_alive()
+                        .map(move |doc_id| u64_reader.get(doc_id))
+                })
+                .flatten();
+            let iter2 = segment_and_field_readers
+                .iter()
+                .map(|(reader, u64_reader)| {
+                    reader
+                        .doc_ids_alive()
+                        .map(move |doc_id| u64_reader.get(doc_id))
+                })
+                .flatten();
 
-            fast_single_field_serializer.close_field()?;
+            let fastfield_accessor = DocidFieldAccessProvider {
+                segment_and_field_readers: segment_and_field_readers.clone(),
+            };
+            fast_field_serializer.create_auto_detect_u64_fast_field(
+                field,
+                stats,
+                fastfield_accessor,
+                iter1,
+                iter2,
+            )?;
             Ok(())
         }
     }
@@ -747,16 +802,21 @@ impl IndexMerger {
             min_value,
         };
         if let Some(doc_id_mapping) = doc_id_mapping {
-            struct SortedDocidFieldAccessProvider<'a> {
+            struct SortedDocidMultiValueAccessProvider<'a> {
                 doc_id_mapping: &'a Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
                 fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
                 offsets: Vec<u64>,
             }
-            impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
+            impl<'a> FastFieldDataAccess for SortedDocidMultiValueAccessProvider<'a> {
                 fn get_val(&self, pos: u64) -> u64 {
                     // use the offsets index to find the doc_id which will contain the position.
                     // the offsets are stricly increasing so we can do a simple search on it.
-                    let new_docid = self.offsets.iter().position(|&x| x > pos).unwrap() - 1;
+                    let new_docid = self
+                        .offsets
+                        .iter()
+                        .position(|&offset| offset > pos)
+                        .unwrap()
+                        - 1;
 
                     // now we need to find the position of `pos` in the multivalued bucket
                     let num_pos_covered_until_now = self.offsets[new_docid];
@@ -773,7 +833,7 @@ impl IndexMerger {
                     vals[pos_in_values as usize]
                 }
             }
-            let fastfield_accessor = SortedDocidFieldAccessProvider {
+            let fastfield_accessor = SortedDocidMultiValueAccessProvider {
                 doc_id_mapping,
                 fast_field_readers: &fast_field_readers,
                 offsets,
