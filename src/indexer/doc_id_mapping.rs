@@ -32,6 +32,10 @@ impl<'a> SegmentDocidMapping<'a> {
     pub(crate) fn len(&self) -> usize {
         self.new_doc_id_to_old_and_segment.len()
     }
+    /// This flags means the segments are simply stacked in the order of their ordinal.
+    /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
+    ///
+    /// This allows for some optimization.
     pub(crate) fn is_trivial(&self) -> bool {
         self.is_trivial
     }

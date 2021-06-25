@@ -100,7 +100,8 @@
 
 #[cfg_attr(test, macro_use)]
 extern crate serde_json;
-
+#[macro_use]
+extern crate measure_time;
 #[macro_use]
 extern crate log;
 
