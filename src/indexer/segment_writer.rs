@@ -112,14 +112,15 @@ impl SegmentWriter {
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
+
         write(
+            &self.doc_opstamps,
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
             mapping.as_ref(),
-        )?;
-        Ok(self.doc_opstamps)
+        )
     }
 
     pub fn mem_usage(&self) -> usize {
@@ -317,12 +318,13 @@ impl SegmentWriter {
 
 // This method is used as a trick to workaround the borrow checker
 fn write(
+    doc_opstamps: &Vec<Opstamp>,
     multifield_postings: &MultiFieldPostingsWriter,
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
-) -> crate::Result<()> {
+) -> crate::Result<Vec<Opstamp>> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
@@ -340,8 +342,9 @@ fn write(
         &term_ord_map,
         doc_id_map,
     )?;
+
     // finalize temp docstore and create version, which reflects the doc_id_map
-    if let Some(doc_id_map) = doc_id_map {
+    let doc_opstamps = if let Some(doc_id_map) = doc_id_map {
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
@@ -356,13 +359,22 @@ fn write(
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
         )?;
+
+        let mut remapped_opstamps = Vec::with_capacity(doc_opstamps.len());
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
+            remapped_opstamps.push(doc_opstamps[*old_doc_id as usize]);
             let doc_bytes = store_read.get_document_bytes(*old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }
-    }
+
+        remapped_opstamps
+    } else {
+        doc_opstamps.clone()
+    };
+
     serializer.close()?;
-    Ok(())
+
+    Ok(doc_opstamps)
 }
 
 impl SerializableSegment for SegmentWriter {
@@ -372,7 +384,8 @@ impl SerializableSegment for SegmentWriter {
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<u32> {
         let max_doc = self.max_doc;
-        write(
+        let _ = write(
+            &self.doc_opstamps,
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,

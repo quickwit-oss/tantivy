@@ -795,6 +795,7 @@ mod tests {
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
+    use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
     fn test_operations_group() {
@@ -1280,6 +1281,55 @@ mod tests {
         let commit_again = index_writer.commit();
         assert!(clear_again.is_ok());
         assert!(commit_again.is_ok());
+    }
+
+    #[test]
+    fn test_delete_with_sort_by_field() {
+        let mut schema_builder = schema::Schema::builder();
+        let id_field =
+            schema_builder.add_u64_field("id", schema::INDEXED | schema::STORED | schema::FAST);
+        let schema = schema_builder.build();
+
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "id".to_string(),
+                order: Order::Desc,
+            }),
+            ..Default::default()
+        };
+
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()
+            .unwrap();
+        let index_reader = index.reader().unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 12_000_000).unwrap();
+
+        // create and delete docs in same commit
+        let mut docs = std::collections::HashSet::new();
+        for id in 0..5 {
+            index_writer.add_document(doc!(id_field => id));
+            docs.insert(id);
+        }
+        for id in 2..4 {
+            index_writer.delete_term(Term::from_field_u64(id_field, id));
+            docs.remove(&id);
+        }
+        for id in 5..10 {
+            index_writer.add_document(doc!(id_field => id));
+            docs.insert(id);
+        }
+
+        index_writer.commit().unwrap();
+        index_reader.reload().unwrap();
+
+        // only non-deleted should be returned
+        let searcher = index_reader.searcher();
+        let count = searcher
+            .search(&crate::query::AllQuery, &crate::collector::Count)
+            .unwrap();
+        assert_eq!(count, docs.len());
     }
 
     #[test]
