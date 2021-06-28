@@ -1,3 +1,7 @@
+Tantivy 0.15.2
+=========================
+- Major bugfix. Deleting documents was broken when the index was sorted by a field. (@appaquet, @fulmicoton) #1101
+
 Tantivy 0.15.1
 =========================
 - Major bugfix. DocStore panics when first block is deleted. (@appaquet) #1077

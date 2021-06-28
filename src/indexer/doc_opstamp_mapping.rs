@@ -15,7 +15,7 @@ use crate::Opstamp;
 // indexed by doc id and storing the opstamp of the document.
 //
 // This mapping is NOT necessarily increasing, because
-// we might be sorting documents accoridng to a fast field.
+// we might be sorting documents according to a fast field.
 #[derive(Clone)]
 pub enum DocToOpstampMapping<'a> {
     WithMap(&'a [Opstamp]),
@@ -26,7 +26,7 @@ impl<'a> DocToOpstampMapping<'a> {
     /// Assess whether a document should be considered deleted given that it contains
     /// a deleted term that was deleted at the opstamp: `delete_opstamp`.
     ///
-    /// This function returns true iff the `DocToOstamp` mapping is none or if
+    /// This function returns true if the `DocToOpstamp` mapping is none or if
     /// the `doc_opstamp` is anterior to the delete opstamp.
     pub fn is_deleted(&self, doc_id: DocId, delete_opstamp: Opstamp) -> bool {
         match self {

@@ -781,6 +781,10 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
+    use proptest::prelude::*;
+    use proptest::prop_oneof;
+    use proptest::strategy::Strategy;
+
     use super::super::operation::UserOperation;
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
@@ -1328,6 +1332,85 @@ mod tests {
             .collect();
         assert_eq!(&in_order_alive_ids[..], &[9, 8, 7, 6, 5, 4, 1, 0]);
         Ok(())
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum IndexingOp {
+        AddDoc { id: u64 },
+        DeleteDoc { id: u64 },
+    }
+
+    fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
+        prop_oneof![
+            (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
+            (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
+        ]
+    }
+
+    fn expected_ids(ops: &[IndexingOp]) -> Vec<u64> {
+        let mut ids = Vec::new();
+        for &op in ops {
+            match op {
+                IndexingOp::AddDoc { id } => {
+                    ids.push(id);
+                }
+                IndexingOp::DeleteDoc { id } => {
+                    ids.retain(|&id_val| id_val != id);
+                }
+            }
+        }
+        ids.sort();
+        ids
+    }
+
+    fn test_operation_strategy(ops: &[IndexingOp]) -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let id_field = schema_builder.add_u64_field("id", FAST | INDEXED);
+        let schema = schema_builder.build();
+        let settings = IndexSettings {
+            sort_by_field: Some(IndexSortByField {
+                field: "id".to_string(),
+                order: Order::Asc,
+            }),
+            ..Default::default()
+        };
+        let index = Index::builder()
+            .schema(schema)
+            .settings(settings)
+            .create_in_ram()?;
+        let mut index_writer = index.writer_for_tests()?;
+        for &op in ops {
+            match op {
+                IndexingOp::AddDoc { id } => {
+                    index_writer.add_document(doc!(id_field=>id));
+                }
+                IndexingOp::DeleteDoc { id } => {
+                    index_writer.delete_term(Term::from_field_u64(id_field, id));
+                }
+            }
+        }
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let ids: Vec<u64> = searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+                segment_reader
+                    .doc_ids_alive()
+                    .map(move |doc| ff_reader.get(doc))
+            })
+            .collect();
+
+        assert_eq!(ids, expected_ids(ops));
+        Ok(())
+    }
+
+    proptest! {
+        #[test]
+        fn test_delete_with_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..]).is_ok());
+        }
     }
 
     #[test]

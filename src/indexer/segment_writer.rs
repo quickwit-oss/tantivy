@@ -335,9 +335,6 @@ impl SegmentWriter {
 /// to the `SegmentSerializer`.
 ///
 /// `doc_id_map` is used to map to the new doc_id order.
-///
-/// # Returns
-/// The number of documents in the segment.
 fn remap_and_write(
     multifield_postings: &MultiFieldPostingsWriter,
     fast_field_writers: &FastFieldsWriter,
