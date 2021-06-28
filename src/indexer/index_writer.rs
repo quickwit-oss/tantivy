@@ -106,22 +106,18 @@ fn compute_deleted_bitset(
         }
 
         // A delete operation should only affect
-        // document that were inserted after it.
-        //
-        // Limit doc helps identify the first document
-        // that may be affected by the delete operation.
-        let limit_doc = doc_opstamps.compute_doc_limit(delete_op.opstamp);
+        // document that were inserted before it.
         let inverted_index = segment_reader.inverted_index(delete_op.term.field())?;
         if let Some(mut docset) =
             inverted_index.read_postings(&delete_op.term, IndexRecordOption::Basic)?
         {
-            let mut deleted_doc = docset.doc();
-            while deleted_doc != TERMINATED {
-                if deleted_doc < limit_doc {
-                    delete_bitset.insert(deleted_doc);
+            let mut doc_matching_deleted_term = docset.doc();
+            while doc_matching_deleted_term != TERMINATED {
+                if doc_opstamps.is_deleted(doc_matching_deleted_term, delete_op.opstamp) {
+                    delete_bitset.insert(doc_matching_deleted_term);
                     might_have_changed = true;
                 }
-                deleted_doc = docset.advance();
+                doc_matching_deleted_term = docset.advance();
             }
         }
         delete_cursor.advance();
@@ -230,14 +226,8 @@ fn index_documents(
 
     let segment_with_max_doc = segment.with_max_doc(max_doc);
 
-    let last_docstamp: Opstamp = *(doc_opstamps.last().unwrap());
-
-    let delete_bitset_opt = apply_deletes(
-        &segment_with_max_doc,
-        &mut delete_cursor,
-        &doc_opstamps,
-        last_docstamp,
-    )?;
+    let delete_bitset_opt =
+        apply_deletes(&segment_with_max_doc, &mut delete_cursor, &doc_opstamps)?;
 
     let meta = segment_with_max_doc.meta().clone();
     meta.untrack_temp_docstore();
@@ -251,15 +241,21 @@ fn apply_deletes(
     segment: &Segment,
     mut delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
-    last_docstamp: Opstamp,
 ) -> crate::Result<Option<BitSet>> {
     if delete_cursor.get().is_none() {
         // if there are no delete operation in the queue, no need
         // to even open the segment.
         return Ok(None);
     }
+
+    let max_doc_opstamp: Opstamp = doc_opstamps
+        .iter()
+        .cloned()
+        .max()
+        .expect("doc_opstamps should not be empty! Please report");
+
     let segment_reader = SegmentReader::open(segment)?;
-    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+    let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
     let mut deleted_bitset = BitSet::with_max_value(max_doc);
@@ -268,7 +264,7 @@ fn apply_deletes(
         &segment_reader,
         &mut delete_cursor,
         &doc_to_opstamps,
-        last_docstamp,
+        max_doc_opstamp,
     )?;
     Ok(if may_have_deletes {
         Some(deleted_bitset)
