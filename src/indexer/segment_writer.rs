@@ -36,6 +36,20 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     }
 }
 
+fn remap_doc_opstamps(
+    opstamps: Vec<Opstamp>,
+    doc_id_mapping_opt: Option<&DocIdMapping>,
+) -> Vec<Opstamp> {
+    if let Some(doc_id_mapping_opt) = doc_id_mapping_opt {
+        doc_id_mapping_opt
+            .iter_old_doc_ids()
+            .map(|doc| opstamps[doc as usize])
+            .collect()
+    } else {
+        opstamps
+    }
+}
+
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// set of documents.
 ///
@@ -113,13 +127,14 @@ impl SegmentWriter {
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
         remap_and_write(
-            self.doc_opstamps,
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
             mapping.as_ref(),
-        )
+        )?;
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        Ok(doc_opstamps)
     }
 
     pub fn mem_usage(&self) -> usize {
@@ -324,13 +339,12 @@ impl SegmentWriter {
 /// # Returns
 /// The number of documents in the segment.
 fn remap_and_write(
-    doc_opstamps: Vec<Opstamp>,
     multifield_postings: &MultiFieldPostingsWriter,
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
-) -> crate::Result<Vec<Opstamp>> {
+) -> crate::Result<()> {
     if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
         fieldnorms_writer.serialize(fieldnorms_serializer, doc_id_map)?;
     }
@@ -350,7 +364,7 @@ fn remap_and_write(
     )?;
 
     // finalize temp docstore and create version, which reflects the doc_id_map
-    let doc_opstamps = if let Some(doc_id_map) = doc_id_map {
+    if let Some(doc_id_map) = doc_id_map {
         let store_write = serializer
             .segment_mut()
             .open_write(SegmentComponent::Store)?;
@@ -366,21 +380,15 @@ fn remap_and_write(
                 .open_read(SegmentComponent::TempStore)?,
         )?;
 
-        let mut remapped_opstamps = Vec::with_capacity(doc_opstamps.len());
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
-            remapped_opstamps.push(doc_opstamps[*old_doc_id as usize]);
-            let doc_bytes = store_read.get_document_bytes(*old_doc_id)?;
+            let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }
-
-        remapped_opstamps
-    } else {
-        doc_opstamps.clone()
-    };
+    }
 
     serializer.close()?;
 
-    Ok(doc_opstamps)
+    Ok(())
 }
 
 #[cfg(test)]

@@ -98,7 +98,7 @@ impl FieldNormsWriter {
                 let mut mapped_fieldnorm_values = vec![];
                 mapped_fieldnorm_values.resize(fieldnorm_values.len(), 0u8);
                 for (new_doc_id, old_doc_id) in doc_id_map.iter_old_doc_ids().enumerate() {
-                    mapped_fieldnorm_values[new_doc_id] = fieldnorm_values[*old_doc_id as usize];
+                    mapped_fieldnorm_values[new_doc_id] = fieldnorm_values[old_doc_id as usize];
                 }
                 fieldnorms_serializer.serialize_field(field, &mapped_fieldnorm_values)?;
             } else {
