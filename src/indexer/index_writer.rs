@@ -1324,12 +1324,18 @@ mod tests {
         index_writer.commit().unwrap();
         index_reader.reload().unwrap();
 
-        // only non-deleted should be returned
         let searcher = index_reader.searcher();
-        let count = searcher
-            .search(&crate::query::AllQuery, &crate::collector::Count)
+        let results = searcher
+            .search(&crate::query::AllQuery, &TopDocs::with_limit(15))
             .unwrap();
-        assert_eq!(count, docs.len());
+
+        // only non-deleted should be returned
+        assert_eq!(results.len(), docs.len());
+        for (_, addr) in results {
+            let doc = searcher.doc(addr).unwrap();
+            let id = doc.get_first(id_field).unwrap().u64_value().unwrap();
+            assert!(docs.contains(&id));
+        }
     }
 
     #[test]
