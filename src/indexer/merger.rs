@@ -572,7 +572,7 @@ impl IndexMerger {
     ) -> crate::Result<()> {
         debug_time!("write_hierarchical_facet_field");
 
-        // Multifastfield consists in 2 fastfields.
+        // Multifastfield consists of 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
         // The second contains the actual values.
 
@@ -641,9 +641,6 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocidMapping,
     ) -> crate::Result<()> {
-        //if doc_id_mapping.is_none() {
-        //doc_id_mapping = &Some(self.get_doc_id_from_concatenated_data()?);
-        //}
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
         // The second contains the actual values.
