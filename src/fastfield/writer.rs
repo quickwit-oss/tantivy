@@ -7,7 +7,6 @@ use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
-use crate::DocId;
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
@@ -323,16 +322,17 @@ struct WriterFastFieldAccessProvider<'map, 'bitp> {
     vals: &'bitp BlockedBitpacker,
 }
 impl<'map, 'bitp> FastFieldDataAccess for WriterFastFieldAccessProvider<'map, 'bitp> {
-    /// Return the value associated to the given document.
+    /// Return the value associated to the given doc.
     ///
-    /// This accessor should return as fast as possible.
+    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance reasons.
     ///
     /// # Panics
     ///
-    /// May panic if `doc` is greater than the segment
-    fn get(&self, doc: DocId) -> u64 {
+    /// May panic if `doc` is greater than the index.
+    fn get_val(&self, doc: u64) -> u64 {
         if let Some(doc_id_map) = self.doc_id_map {
-            self.vals.get(doc_id_map.get_old_doc_id(doc) as usize) // consider extra FastFieldReader wrapper for non doc_id_map
+            self.vals
+                .get(doc_id_map.get_old_doc_id(doc as u32) as usize) // consider extra FastFieldReader wrapper for non doc_id_map
         } else {
             self.vals.get(doc as usize)
         }

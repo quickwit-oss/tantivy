@@ -2,13 +2,61 @@
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
 //!
 
-use super::SegmentWriter;
+use super::{merger::SegmentReaderWithOrdinal, SegmentWriter};
 use crate::{
     schema::{Field, Schema},
     DocId, IndexSortByField, Order, TantivyError,
 };
-use std::cmp::Reverse;
-/// Struct to provide mapping from old doc_id to new doc_id and vice versa
+use std::{cmp::Reverse, ops::Index};
+
+/// Struct to provide mapping from new doc_id to old doc_id and segment.
+#[derive(Clone)]
+pub(crate) struct SegmentDocidMapping<'a> {
+    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+    is_trivial: bool,
+}
+
+impl<'a> SegmentDocidMapping<'a> {
+    pub(crate) fn new(
+        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+        is_trivial: bool,
+    ) -> Self {
+        Self {
+            new_doc_id_to_old_and_segment,
+            is_trivial,
+        }
+    }
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentReaderWithOrdinal)> {
+        self.new_doc_id_to_old_and_segment.iter()
+    }
+    pub(crate) fn len(&self) -> usize {
+        self.new_doc_id_to_old_and_segment.len()
+    }
+    /// This flags means the segments are simply stacked in the order of their ordinal.
+    /// e.g. [(0, 1), .. (n, 1), (0, 2)..., (m, 2)]
+    ///
+    /// This allows for some optimization.
+    pub(crate) fn is_trivial(&self) -> bool {
+        self.is_trivial
+    }
+}
+impl<'a> Index<usize> for SegmentDocidMapping<'a> {
+    type Output = (DocId, SegmentReaderWithOrdinal<'a>);
+
+    fn index(&self, idx: usize) -> &Self::Output {
+        &self.new_doc_id_to_old_and_segment[idx]
+    }
+}
+impl<'a> IntoIterator for SegmentDocidMapping<'a> {
+    type Item = (DocId, SegmentReaderWithOrdinal<'a>);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.new_doc_id_to_old_and_segment.into_iter()
+    }
+}
+
+/// Struct to provide mapping from old doc_id to new doc_id and vice versa within a segment.
 pub struct DocIdMapping {
     new_doc_id_to_old: Vec<DocId>,
     old_doc_id_to_new: Vec<DocId>,

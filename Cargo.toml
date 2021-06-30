@@ -53,6 +53,7 @@ rayon = "1.5"
 lru = "0.6.5"
 fastdivide = "0.3"
 itertools = "0.10.0"
+measure_time = "0.7.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"

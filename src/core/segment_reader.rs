@@ -1,4 +1,3 @@
-use crate::common::HasLen;
 use crate::core::InvertedIndexReader;
 use crate::core::Segment;
 use crate::core::SegmentComponent;
@@ -63,11 +62,9 @@ impl SegmentReader {
         self.max_doc
     }
 
-    /// Returns the number of documents.
+    /// Returns the number of alive documents.
     /// Deleted documents are not counted.
     ///
-    /// Today, `tantivy` does not handle deletes so max doc and
-    /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
         self.num_docs
     }
@@ -81,7 +78,7 @@ impl SegmentReader {
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
         self.delete_bitset()
-            .map(|delete_set| delete_set.len() as DocId)
+            .map(|delete_set| delete_set.num_deleted() as DocId)
             .unwrap_or(0u32)
     }
 
@@ -329,6 +326,32 @@ mod test {
     use crate::schema::{Schema, Term, STORED, TEXT};
     use crate::DocId;
 
+    #[test]
+    fn test_num_alive() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_text_field("name", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let name = schema.get_field("name").unwrap();
+
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(name => "tantivy"));
+            index_writer.add_document(doc!(name => "horse"));
+            index_writer.add_document(doc!(name => "jockey"));
+            index_writer.add_document(doc!(name => "cap"));
+            // we should now have one segment with two docs
+            index_writer.delete_term(Term::from_field_text(name, "horse"));
+            index_writer.delete_term(Term::from_field_text(name, "cap"));
+
+            // ok, now we should have a deleted doc
+            index_writer.commit()?;
+        }
+        let searcher = index.reader()?.searcher();
+        assert_eq!(2, searcher.segment_reader(0).num_docs());
+        assert_eq!(4, searcher.segment_reader(0).max_doc());
+        Ok(())
+    }
     #[test]
     fn test_alive_docs_iterator() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();

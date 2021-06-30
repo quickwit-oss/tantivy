@@ -1,8 +1,6 @@
 use std::ops::Range;
 
-use crate::fastfield::{
-    BitpackedFastFieldReader, DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength,
-};
+use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue, MultiValueLength};
 use crate::DocId;
 
 /// Reader for a multivalued `u64` fast field.
@@ -16,13 +14,13 @@ use crate::DocId;
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
     idx_reader: DynamicFastFieldReader<u64>,
-    vals_reader: BitpackedFastFieldReader<Item>,
+    vals_reader: DynamicFastFieldReader<Item>,
 }
 
 impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     pub(crate) fn open(
         idx_reader: DynamicFastFieldReader<u64>,
-        vals_reader: BitpackedFastFieldReader<Item>,
+        vals_reader: DynamicFastFieldReader<Item>,
     ) -> MultiValuedFastFieldReader<Item> {
         MultiValuedFastFieldReader {
             idx_reader,
@@ -32,6 +30,7 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
 
     /// Returns `(start, stop)`, such that the values associated
     /// to the given document are `start..stop`.
+    #[inline]
     fn range(&self, doc: DocId) -> Range<u64> {
         let start = self.idx_reader.get(doc);
         let stop = self.idx_reader.get(doc + 1);
@@ -39,11 +38,12 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     }
 
     /// Returns the array of values associated to the given `doc`.
+    #[inline]
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
         let range = self.range(doc);
         let len = (range.end - range.start) as usize;
         vals.resize(len, Item::make_zero());
-        self.vals_reader.get_range_u64(range.start, &mut vals[..]);
+        self.vals_reader.get_range(range.start, &mut vals[..]);
     }
 
     /// Returns the minimum value for this fast field.
@@ -65,12 +65,14 @@ impl<Item: FastValue> MultiValuedFastFieldReader<Item> {
     }
 
     /// Returns the number of values associated with the document `DocId`.
+    #[inline]
     pub fn num_vals(&self, doc: DocId) -> usize {
         let range = self.range(doc);
         (range.end - range.start) as usize
     }
 
     /// Returns the overall number of values in this field  .
+    #[inline]
     pub fn total_num_vals(&self) -> u64 {
         self.idx_reader.max_value()
     }
