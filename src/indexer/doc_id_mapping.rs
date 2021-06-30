@@ -24,8 +24,8 @@ impl DocIdMapping {
         self.new_doc_id_to_old[doc_id as usize]
     }
     /// iterate over old doc_ids in order of the new doc_ids
-    pub fn iter_old_doc_ids(&self) -> std::slice::Iter<'_, DocId> {
-        self.new_doc_id_to_old.iter()
+    pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
+        self.new_doc_id_to_old.iter().cloned()
     }
 }
 

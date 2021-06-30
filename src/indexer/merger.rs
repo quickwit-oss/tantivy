@@ -1,4 +1,3 @@
-use super::doc_id_mapping::DocIdMapping;
 use crate::error::DataCorruption;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DeleteBitSet;
@@ -18,11 +17,11 @@ use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
+use crate::IndexSortByField;
 use crate::{common::HasLen, fastfield::MultiValueLength};
 use crate::{common::MAX_DOC_LIMIT, IndexSettings};
 use crate::{core::Segment, indexer::doc_id_mapping::expect_field_id_for_sort_field};
 use crate::{core::SegmentReader, Order};
-use crate::{core::SerializableSegment, IndexSortByField};
 use crate::{
     docset::{DocSet, TERMINATED},
     SegmentOrdinal,
@@ -1042,14 +1041,13 @@ impl IndexMerger {
         }
         Ok(())
     }
-}
 
-impl SerializableSegment for IndexMerger {
-    fn write(
-        &self,
-        mut serializer: SegmentSerializer,
-        _: Option<&DocIdMapping>,
-    ) -> crate::Result<u32> {
+    /// Writes the merged segment by pushing information
+    /// to the `SegmentSerializer`.
+    ///
+    /// # Returns
+    /// The number of documents in the resulting segment.
+    pub fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
             // If the documents are already sorted and stackable, we ignore the mapping and execute

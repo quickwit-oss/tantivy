@@ -1,13 +1,12 @@
 use super::SegmentComponent;
+use crate::core::Index;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::directory::error::{OpenReadError, OpenWriteError};
 use crate::directory::Directory;
 use crate::directory::{FileSlice, WritePtr};
-use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::schema::Schema;
 use crate::Opstamp;
-use crate::{core::Index, indexer::doc_id_mapping::DocIdMapping};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -89,21 +88,4 @@ impl Segment {
         let write = self.index.directory_mut().open_write(&path)?;
         Ok(write)
     }
-}
-
-pub trait SerializableSegment {
-    /// Writes a view of a segment by pushing information
-    /// to the `SegmentSerializer`.
-    ///
-    /// # Returns
-    /// The number of documents in the segment.
-    ///
-    /// doc_id_map is used when index is created and sorted, to map to the new doc_id order.
-    /// It is not used by the `IndexMerger`, since the doc_id_mapping on cross-segments works
-    /// differently
-    fn write(
-        &self,
-        serializer: SegmentSerializer,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> crate::Result<u32>;
 }

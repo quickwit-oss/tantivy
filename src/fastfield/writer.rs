@@ -284,7 +284,7 @@ impl IntFastFieldWriter {
         let mut single_field_serializer = serializer.new_u64_fast_field(self.field, min, max)?;
         if let Some(doc_id_map) = doc_id_map {
             for doc_id in doc_id_map.iter_old_doc_ids() {
-                single_field_serializer.add_val(self.vals.get(*doc_id as usize))?;
+                single_field_serializer.add_val(self.vals.get(doc_id as usize))?;
             }
         } else {
             for val in self.vals.iter() {

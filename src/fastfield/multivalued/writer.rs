@@ -103,11 +103,11 @@ impl MultiValuedFastFieldWriter {
         &'a self,
         doc_id_map: Option<&'b DocIdMapping>,
     ) -> impl Iterator<Item = &'b [u64]> {
-        let doc_id_iter = if let Some(doc_id_map) = doc_id_map {
-            Box::new(doc_id_map.iter_old_doc_ids().cloned()) as Box<dyn Iterator<Item = u32>>
+        let doc_id_iter: Box<dyn Iterator<Item = u32>> = if let Some(doc_id_map) = doc_id_map {
+            Box::new(doc_id_map.iter_old_doc_ids())
         } else {
-            Box::new(self.doc_index.iter().enumerate().map(|el| el.0 as u32))
-                as Box<dyn Iterator<Item = u32>>
+            let max_doc = self.doc_index.len() as DocId;
+            Box::new(0..max_doc)
         };
         doc_id_iter.map(move |doc_id| self.get_values_for_doc_id(doc_id))
     }
