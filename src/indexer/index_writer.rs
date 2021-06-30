@@ -1345,7 +1345,7 @@ mod tests {
         prop_oneof![
             (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
-            (0u64..2u64).prop_map(|_| IndexingOp::Commit ),
+            (0u64..2u64).prop_map(|_| IndexingOp::Commit),
         ]
     }
 
@@ -1366,16 +1366,22 @@ mod tests {
         ids
     }
 
-    fn test_operation_strategy(ops: &[IndexingOp]) -> crate::Result<()> {
+    fn test_operation_strategy(ops: &[IndexingOp], sort_index: bool) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED);
         let schema = schema_builder.build();
-        let settings = IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "id".to_string(),
-                order: Order::Asc,
-            }),
-            ..Default::default()
+        let settings = if sort_index {
+            IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "id".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }
+        } else {
+            IndexSettings {
+                ..Default::default()
+            }
         };
         let index = Index::builder()
             .schema(schema)
@@ -1416,7 +1422,11 @@ mod tests {
     proptest! {
         #[test]
         fn test_delete_with_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
-            assert!(test_operation_strategy(&ops[..]).is_ok());
+            assert!(test_operation_strategy(&ops[..], true).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], false).is_ok());
         }
     }
 
