@@ -535,7 +535,7 @@ impl IndexMerger {
         fast_field_serializer.create_auto_detect_u64_fast_field(
             field,
             stats,
-            &offsets,
+            &offsets[..],
             offsets.iter().cloned(),
             offsets.iter().cloned(),
         )?;

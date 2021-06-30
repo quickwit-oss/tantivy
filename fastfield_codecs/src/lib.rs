@@ -74,12 +74,6 @@ impl<'a> FastFieldDataAccess for &'a [u64] {
     }
 }
 
-impl<'a> FastFieldDataAccess for &'a Vec<u64> {
-    fn get_val(&self, position: u64) -> u64 {
-        self[position as usize]
-    }
-}
-
 impl FastFieldDataAccess for Vec<u64> {
     fn get_val(&self, position: u64) -> u64 {
         self[position as usize]
