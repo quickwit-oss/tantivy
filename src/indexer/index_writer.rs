@@ -781,6 +781,7 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -792,6 +793,8 @@ mod tests {
     use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
     use crate::query::TermQuery;
+    use crate::schema::Cardinality;
+    use crate::schema::IntOptions;
     use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
     use crate::Index;
     use crate::ReloadPolicy;
@@ -1366,9 +1369,17 @@ mod tests {
         ids
     }
 
-    fn test_operation_strategy(ops: &[IndexingOp], sort_index: bool) -> crate::Result<()> {
+    fn test_operation_strategy(
+        ops: &[IndexingOp],
+        sort_index: bool,
+        force_merge: bool,
+    ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED);
+        let multi_numbers = schema_builder.add_u64_field(
+            "multi_numbers",
+            IntOptions::default().set_fast(Cardinality::MultiValues),
+        );
         let schema = schema_builder.build();
         let settings = if sort_index {
             IndexSettings {
@@ -1391,7 +1402,8 @@ mod tests {
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
-                    index_writer.add_document(doc!(id_field=>id));
+                    index_writer
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id));
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1403,6 +1415,15 @@ mod tests {
         }
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
+        if force_merge {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            if segment_ids.len() >= 2 {
+                assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+                assert!(index_writer.wait_merging_threads().is_ok());
+            }
+        }
         let mut ids: Vec<u64> = searcher
             .segment_readers()
             .iter()
@@ -1415,18 +1436,39 @@ mod tests {
             .collect();
         ids.sort();
 
-        assert_eq!(ids, expected_ids(ops));
+        let expected_ids = expected_ids(ops);
+        assert_eq!(ids, expected_ids);
+
+        for segment_reader in searcher.segment_readers().iter() {
+            let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
+            for doc in segment_reader.doc_ids_alive() {
+                let mut vals = vec![];
+                ff_reader.get_vals(doc, &mut vals);
+                assert_eq!(vals.len(), 2);
+                assert_eq!(vals[0], vals[1]);
+                assert!(expected_ids.contains(&vals[0]));
+            }
+        }
+
         Ok(())
     }
 
     proptest! {
         #[test]
         fn test_delete_with_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
-            assert!(test_operation_strategy(&ops[..], true).is_ok());
+            assert!(test_operation_strategy(&ops[..], true, false).is_ok());
         }
         #[test]
         fn test_delete_without_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
-            assert!(test_operation_strategy(&ops[..], false).is_ok());
+            assert!(test_operation_strategy(&ops[..], false, false).is_ok());
+        }
+        #[test]
+        fn test_delete_with_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], true, true).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], false, true).is_ok());
         }
     }
 
