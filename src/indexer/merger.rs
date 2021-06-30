@@ -30,6 +30,7 @@ use crate::{
 };
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
 use itertools::Itertools;
+use measure_time::debug_time;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
