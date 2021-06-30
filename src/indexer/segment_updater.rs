@@ -5,7 +5,6 @@ use crate::core::IndexSettings;
 use crate::core::Segment;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
-use crate::core::SerializableSegment;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::indexer::delete_queue::DeleteCursor;
@@ -140,7 +139,7 @@ fn merge(
     // ... we just serialize this index merger in our new segment to merge the segments.
     let segment_serializer = SegmentSerializer::for_segment(merged_segment.clone(), true)?;
 
-    let num_docs = merger.write(segment_serializer, None)?;
+    let num_docs = merger.write(segment_serializer)?;
 
     let merged_segment_id = merged_segment.id();
 
@@ -209,7 +208,7 @@ pub fn merge_segments<Dir: Directory>(
         &segments[..],
     )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
-    let num_docs = merger.write(segment_serializer, None)?;
+    let num_docs = merger.write(segment_serializer)?;
 
     let segment_meta = merged_index.new_segment_meta(merged_segment_id, num_docs);
 

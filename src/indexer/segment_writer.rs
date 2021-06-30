@@ -12,12 +12,12 @@ use crate::schema::Schema;
 use crate::schema::Term;
 use crate::schema::Value;
 use crate::schema::{Field, FieldEntry};
+use crate::store::StoreReader;
 use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
 use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{core::Segment, store::StoreWriter};
-use crate::{core::SerializableSegment, store::StoreReader};
 use crate::{DocId, SegmentComponent};
 
 /// Computes the initial size of the hash table.
@@ -33,6 +33,20 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     } else {
         Err(crate::TantivyError::InvalidArgument(
             format!("per thread memory budget (={}) is too small. Raise the memory budget or lower the number of threads.", per_thread_memory_budget)))
+    }
+}
+
+fn remap_doc_opstamps(
+    opstamps: Vec<Opstamp>,
+    doc_id_mapping_opt: Option<&DocIdMapping>,
+) -> Vec<Opstamp> {
+    if let Some(doc_id_mapping_opt) = doc_id_mapping_opt {
+        doc_id_mapping_opt
+            .iter_old_doc_ids()
+            .map(|doc| opstamps[doc as usize])
+            .collect()
+    } else {
+        opstamps
     }
 }
 
@@ -112,14 +126,15 @@ impl SegmentWriter {
             .clone()
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
-        write(
+        remap_and_write(
             &self.multifield_postings,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
             self.segment_serializer,
             mapping.as_ref(),
         )?;
-        Ok(self.doc_opstamps)
+        let doc_opstamps = remap_doc_opstamps(self.doc_opstamps, mapping.as_ref());
+        Ok(doc_opstamps)
     }
 
     pub fn mem_usage(&self) -> usize {
@@ -315,8 +330,12 @@ impl SegmentWriter {
     }
 }
 
-// This method is used as a trick to workaround the borrow checker
-fn write(
+/// This method is used as a trick to workaround the borrow checker
+/// Writes a view of a segment by pushing information
+/// to the `SegmentSerializer`.
+///
+/// `doc_id_map` is used to map to the new doc_id order.
+fn remap_and_write(
     multifield_postings: &MultiFieldPostingsWriter,
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
@@ -340,6 +359,7 @@ fn write(
         &term_ord_map,
         doc_id_map,
     )?;
+
     // finalize temp docstore and create version, which reflects the doc_id_map
     if let Some(doc_id_map) = doc_id_map {
         let store_write = serializer
@@ -356,31 +376,16 @@ fn write(
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
         )?;
+
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
-            let doc_bytes = store_read.get_document_bytes(*old_doc_id)?;
+            let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
         }
     }
-    serializer.close()?;
-    Ok(())
-}
 
-impl SerializableSegment for SegmentWriter {
-    fn write(
-        &self,
-        serializer: SegmentSerializer,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> crate::Result<u32> {
-        let max_doc = self.max_doc;
-        write(
-            &self.multifield_postings,
-            &self.fast_field_writers,
-            &self.fieldnorms_writer,
-            serializer,
-            doc_id_map,
-        )?;
-        Ok(max_doc)
-    }
+    serializer.close()?;
+
+    Ok(())
 }
 
 #[cfg(test)]

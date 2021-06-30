@@ -296,7 +296,7 @@ impl IntFastFieldWriter {
         if let Some(doc_id_map) = doc_id_map {
             let iter = doc_id_map
                 .iter_old_doc_ids()
-                .map(|doc_id| self.vals.get(*doc_id as usize));
+                .map(|doc_id| self.vals.get(doc_id as usize));
             serializer.create_auto_detect_u64_fast_field(
                 self.field,
                 stats,
