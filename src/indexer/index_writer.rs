@@ -1338,12 +1338,14 @@ mod tests {
     enum IndexingOp {
         AddDoc { id: u64 },
         DeleteDoc { id: u64 },
+        Commit,
     }
 
     fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
         prop_oneof![
             (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            (0u64..2u64).prop_map(|_| IndexingOp::Commit ),
         ]
     }
 
@@ -1357,6 +1359,7 @@ mod tests {
                 IndexingOp::DeleteDoc { id } => {
                     ids.retain(|&id_val| id_val != id);
                 }
+                _ => {}
             }
         }
         ids.sort();
@@ -1387,11 +1390,14 @@ mod tests {
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
                 }
+                IndexingOp::Commit => {
+                    index_writer.commit()?;
+                }
             }
         }
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let ids: Vec<u64> = searcher
+        let mut ids: Vec<u64> = searcher
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
@@ -1401,6 +1407,7 @@ mod tests {
                     .map(move |doc| ff_reader.get(doc))
             })
             .collect();
+        ids.sort();
 
         assert_eq!(ids, expected_ids(ops));
         Ok(())
