@@ -48,8 +48,8 @@ impl PhraseWeight {
     ) -> crate::Result<Option<PhraseScorer<SegmentPostings>>> {
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let fieldnorm_reader = self.fieldnorm_reader(reader)?;
+        let mut term_postings_list = Vec::new();
         if reader.has_deletes() {
-            let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())?
@@ -60,14 +60,7 @@ impl PhraseWeight {
                     return Ok(None);
                 }
             }
-            Ok(Some(PhraseScorer::new(
-                term_postings_list,
-                similarity_weight,
-                fieldnorm_reader,
-                self.scoring_enabled,
-            )))
         } else {
-            let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())?
@@ -78,13 +71,13 @@ impl PhraseWeight {
                     return Ok(None);
                 }
             }
-            Ok(Some(PhraseScorer::new(
-                term_postings_list,
-                similarity_weight,
-                fieldnorm_reader,
-                self.scoring_enabled,
-            )))
         }
+        Ok(Some(PhraseScorer::new(
+            term_postings_list,
+            similarity_weight,
+            fieldnorm_reader,
+            self.scoring_enabled,
+        )))
     }
 }
 

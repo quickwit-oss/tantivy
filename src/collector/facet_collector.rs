@@ -297,10 +297,8 @@ impl Collector for FacetCollector {
                                 if depth == collapse_depth + 1 {
                                     collapsed_id = collapse_facet_ords.len();
                                     collapse_facet_ords.push(facet_streamer.term_ord());
-                                    collapse_mapping.push(collapsed_id);
-                                } else {
-                                    collapse_mapping.push(collapsed_id);
                                 }
+                                collapse_mapping.push(collapsed_id);
                             }
                             break;
                         }

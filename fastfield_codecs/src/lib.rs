@@ -94,15 +94,15 @@ mod tests {
         data: &[u64],
         name: &str,
     ) -> (f32, f32) {
-        if !S::is_applicable(&data, crate::tests::stats_from_vec(&data)) {
+        if !S::is_applicable(&data, crate::tests::stats_from_vec(data)) {
             return (f32::MAX, 0.0);
         }
-        let estimation = S::estimate(&data, crate::tests::stats_from_vec(&data));
+        let estimation = S::estimate(&data, crate::tests::stats_from_vec(data));
         let mut out = vec![];
         S::serialize(
             &mut out,
             &data,
-            crate::tests::stats_from_vec(&data),
+            crate::tests::stats_from_vec(data),
             data.iter().cloned(),
             data.iter().cloned(),
         )
@@ -119,7 +119,7 @@ mod tests {
             }
         }
         let actual_compression = data.len() as f32 / out.len() as f32;
-        return (estimation, actual_compression);
+        (estimation, actual_compression)
     }
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         let mut data_and_names = vec![];

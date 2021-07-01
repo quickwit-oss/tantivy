@@ -194,8 +194,8 @@ mod tests {
                   .collect();
 
          let mut fieldnorms: Vec<u32> = vec![];
-         for i in 0..term_doc_freq {
-             let (tf, num_extra_terms) = term_freqs_fieldnorms[i];
+         for item in term_freqs_fieldnorms.iter().take(term_doc_freq) {
+             let (tf, num_extra_terms) = item;
              fieldnorms.push(tf + num_extra_terms);
          }
          let average_fieldnorm = fieldnorms

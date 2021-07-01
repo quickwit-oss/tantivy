@@ -1,6 +1,13 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(
+        clippy::module_inception,
+        clippy::needless_range_loop,
+        clippy::bool_assert_comparison
+    )
+)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 
