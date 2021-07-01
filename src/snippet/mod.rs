@@ -301,7 +301,6 @@ mod tests {
     use crate::SnippetGenerator;
     use maplit::btreemap;
     use std::collections::BTreeMap;
-    use std::iter::Iterator;
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
@@ -387,7 +386,7 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 1);
         {
-            let first = fragments.iter().nth(0).unwrap();
+            let first = &fragments[0];
             assert_eq!(first.score, 1.0);
             assert_eq!(first.start_offset, 4);
             assert_eq!(first.stop_offset, 7);
@@ -409,7 +408,7 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 2);
         {
-            let first = fragments.iter().nth(0).unwrap();
+            let first = &fragments[0];
             assert_eq!(first.score, 1.0);
             assert_eq!(first.stop_offset, 11);
             assert_eq!(first.start_offset, 8);
@@ -432,7 +431,7 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 2);
         {
-            let first = fragments.iter().nth(0).unwrap();
+            let first = &fragments[0];
             assert_eq!(first.score, 0.9);
             assert_eq!(first.stop_offset, 7);
             assert_eq!(first.start_offset, 0);

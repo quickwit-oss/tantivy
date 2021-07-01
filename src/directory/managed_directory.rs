@@ -402,10 +402,8 @@ mod tests_mmap_specific {
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-            assert!(!managed_directory.exists(test_path1).unwrap());
-        } else {
-            assert!(!managed_directory.exists(test_path1).unwrap());
         }
+        assert!(!managed_directory.exists(test_path1).unwrap());
     }
 
     #[test]

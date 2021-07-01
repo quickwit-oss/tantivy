@@ -317,7 +317,7 @@ mod tests {
         assert_eq!("title", field_value.name);
 
         match field_value.field_type {
-            FieldType::Str(_) => assert!(true),
+            FieldType::Str(_) => {}
             _ => panic!("expected FieldType::Str"),
         }
     }

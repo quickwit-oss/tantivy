@@ -54,7 +54,7 @@ pub mod tests {
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
-    use std::{mem};
+    use std::mem;
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -409,7 +409,7 @@ pub mod tests {
                 .unwrap();
 
             for i in 0..num_docs / 2 - 1 {
-                assert!(segment_postings.seek(i * 2 + 1) > (i * 1) * 2);
+                assert!(segment_postings.seek(i * 2 + 1) > i * 2);
                 assert_eq!(segment_postings.doc(), (i + 1) * 2);
             }
         }
@@ -431,13 +431,10 @@ pub mod tests {
                 .read_postings(&term_2, IndexRecordOption::Basic)?
                 .unwrap();
 
+            assert_eq!(segment_postings.seek(i), i);
+            assert_eq!(segment_postings.doc(), i);
             if i % 2 == 0 {
-                assert_eq!(segment_postings.seek(i), i);
-                assert_eq!(segment_postings.doc(), i);
                 assert!(segment_reader.is_deleted(i));
-            } else {
-                assert_eq!(segment_postings.seek(i), i);
-                assert_eq!(segment_postings.doc(), i);
             }
         }
 

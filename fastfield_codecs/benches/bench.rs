@@ -27,8 +27,7 @@ mod tests {
     }
 
     fn value_iter() -> impl Iterator<Item = u64> {
-        let data = (0..20_000).collect::<Vec<_>>();
-        data.into_iter()
+        0..20_000
     }
     fn bench_get<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(
         b: &mut Bencher,
@@ -38,7 +37,7 @@ mod tests {
         S::serialize(
             &mut bytes,
             &data,
-            stats_from_vec(&data),
+            stats_from_vec(data),
             data.iter().cloned(),
             data.iter().cloned(),
         )
@@ -56,7 +55,7 @@ mod tests {
             S::serialize(
                 &mut bytes,
                 &data,
-                stats_from_vec(&data),
+                stats_from_vec(data),
                 data.iter().cloned(),
                 data.iter().cloned(),
             )

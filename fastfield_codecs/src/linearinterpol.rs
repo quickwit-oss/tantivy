@@ -243,7 +243,7 @@ mod tests {
         crate::tests::create_and_validate::<
             LinearInterpolFastFieldSerializer,
             LinearInterpolFastFieldReader,
-        >(&data, name);
+        >(data, name);
     }
 
     #[test]
@@ -285,9 +285,7 @@ mod tests {
     #[test]
     fn linear_interpol_fast_field_rand() {
         for _ in 0..5000 {
-            let mut data = (0..50 as usize)
-                .map(|_| rand::random::<u64>())
-                .collect::<Vec<_>>();
+            let mut data = (0..50).map(|_| rand::random::<u64>()).collect::<Vec<_>>();
             create_and_validate(&data, "random");
 
             data.reverse();
