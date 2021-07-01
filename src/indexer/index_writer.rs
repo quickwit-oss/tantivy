@@ -781,6 +781,8 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use futures::executor::block_on;
     use proptest::prelude::*;
     use proptest::prop_oneof;
@@ -1352,20 +1354,19 @@ mod tests {
         ]
     }
 
-    fn expected_ids(ops: &[IndexingOp]) -> Vec<u64> {
-        let mut ids = Vec::new();
+    fn expected_ids(ops: &[IndexingOp]) -> HashSet<u64> {
+        let mut ids = HashSet::new();
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
-                    ids.push(id);
+                    ids.insert(id);
                 }
                 IndexingOp::DeleteDoc { id } => {
-                    ids.retain(|&id_val| id_val != id);
+                    ids.remove(&id);
                 }
                 _ => {}
             }
         }
-        ids.sort();
         ids
     }
 
@@ -1424,7 +1425,7 @@ mod tests {
                 assert!(index_writer.wait_merging_threads().is_ok());
             }
         }
-        let mut ids: Vec<u64> = searcher
+        let ids: HashSet<u64> = searcher
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
@@ -1434,7 +1435,6 @@ mod tests {
                     .map(move |doc| ff_reader.get(doc))
             })
             .collect();
-        ids.sort();
 
         let expected_ids = expected_ids(ops);
         assert_eq!(ids, expected_ids);
