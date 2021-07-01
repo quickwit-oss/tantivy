@@ -1,4 +1,3 @@
-
 use tantivy::schema::*;
 
 // # Document from json

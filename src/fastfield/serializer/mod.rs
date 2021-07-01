@@ -46,11 +46,7 @@ fn codec_estimation<T: FastFieldCodecSerializer, A: FastFieldDataAccess>(
     if !T::is_applicable(fastfield_accessor, stats.clone()) {
         return;
     }
-    let (ratio, name, id) = (
-        T::estimate(fastfield_accessor, stats),
-        T::NAME,
-        T::ID,
-    );
+    let (ratio, name, id) = (T::estimate(fastfield_accessor, stats), T::NAME, T::ID);
     estimations.push((ratio, name, id));
 }
 

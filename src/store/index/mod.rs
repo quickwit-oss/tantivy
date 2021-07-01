@@ -40,7 +40,7 @@ impl fmt::Debug for Checkpoint {
 #[cfg(test)]
 mod tests {
 
-    use std::{io};
+    use std::io;
 
     use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
@@ -216,7 +216,8 @@ mod tests {
         target: DocId,
     ) -> Option<Checkpoint> {
         checkpoints
-            .into_iter().find(|checkpoint| checkpoint.doc_range.end > target)
+            .into_iter()
+            .find(|checkpoint| checkpoint.doc_range.end > target)
     }
 
     fn test_skip_index_aux(skip_index: SkipIndex, checkpoints: &[Checkpoint]) {

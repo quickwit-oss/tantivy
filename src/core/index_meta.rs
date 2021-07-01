@@ -369,7 +369,6 @@ mod tests {
         schema::{Schema, TEXT},
         IndexSettings, IndexSortByField, Order,
     };
-    
 
     #[test]
     fn test_serialize_metas() {
