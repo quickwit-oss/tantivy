@@ -781,6 +781,10 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::collections::HashSet;
+
+    use futures::executor::block_on;
     use proptest::prelude::*;
     use proptest::prop_oneof;
     use proptest::strategy::Strategy;
@@ -791,8 +795,16 @@ mod tests {
     use crate::error::*;
     use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
+    use crate::query::QueryParser;
     use crate::query::TermQuery;
+    use crate::schema::Cardinality;
+    use crate::schema::Facet;
+    use crate::schema::IntOptions;
+    use crate::schema::TextFieldIndexing;
+    use crate::schema::TextOptions;
+    use crate::schema::STORED;
     use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
+    use crate::DocAddress;
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
@@ -1338,41 +1350,72 @@ mod tests {
     enum IndexingOp {
         AddDoc { id: u64 },
         DeleteDoc { id: u64 },
+        Commit,
     }
 
     fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
         prop_oneof![
             (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            (0u64..2u64).prop_map(|_| IndexingOp::Commit),
         ]
     }
 
-    fn expected_ids(ops: &[IndexingOp]) -> Vec<u64> {
-        let mut ids = Vec::new();
+    fn expected_ids(ops: &[IndexingOp]) -> (HashMap<u64, u64>, HashSet<u64>) {
+        let mut existing_ids = HashMap::new();
+        let mut deleted_ids = HashSet::new();
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
-                    ids.push(id);
+                    *existing_ids.entry(id).or_insert(0) += 1;
+                    deleted_ids.remove(&id);
                 }
                 IndexingOp::DeleteDoc { id } => {
-                    ids.retain(|&id_val| id_val != id);
+                    existing_ids.remove(&id);
+                    deleted_ids.insert(id);
                 }
+                _ => {}
             }
         }
-        ids.sort();
-        ids
+        (existing_ids, deleted_ids)
     }
 
-    fn test_operation_strategy(ops: &[IndexingOp]) -> crate::Result<()> {
+    fn test_operation_strategy(
+        ops: &[IndexingOp],
+        sort_index: bool,
+        force_merge: bool,
+    ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
-        let id_field = schema_builder.add_u64_field("id", FAST | INDEXED);
+        let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
+        let text_field = schema_builder.add_text_field(
+            "text_field",
+            TextOptions::default()
+                .set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+                )
+                .set_stored(),
+        );
+        let multi_numbers = schema_builder.add_u64_field(
+            "multi_numbers",
+            IntOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_stored(),
+        );
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
-        let settings = IndexSettings {
-            sort_by_field: Some(IndexSortByField {
-                field: "id".to_string(),
-                order: Order::Asc,
-            }),
-            ..Default::default()
+        let settings = if sort_index {
+            IndexSettings {
+                sort_by_field: Some(IndexSortByField {
+                    field: "id".to_string(),
+                    order: Order::Asc,
+                }),
+                ..Default::default()
+            }
+        } else {
+            IndexSettings {
+                ..Default::default()
+            }
         };
         let index = Index::builder()
             .schema(schema)
@@ -1382,16 +1425,30 @@ mod tests {
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
-                    index_writer.add_document(doc!(id_field=>id));
+                    let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
+                    index_writer
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet));
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
+                }
+                IndexingOp::Commit => {
+                    index_writer.commit()?;
                 }
             }
         }
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
-        let ids: Vec<u64> = searcher
+        if force_merge {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            if segment_ids.len() >= 2 {
+                assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+                assert!(index_writer.wait_merging_threads().is_ok());
+            }
+        }
+        let ids: HashSet<u64> = searcher
             .segment_readers()
             .iter()
             .flat_map(|segment_reader| {
@@ -1402,14 +1459,116 @@ mod tests {
             })
             .collect();
 
-        assert_eq!(ids, expected_ids(ops));
+        let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
+        assert_eq!(
+            ids,
+            expected_ids_and_num_occurences
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>()
+        );
+
+        // multivalue fast field tests
+        for segment_reader in searcher.segment_readers().iter() {
+            let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
+            for doc in segment_reader.doc_ids_alive() {
+                let mut vals = vec![];
+                ff_reader.get_vals(doc, &mut vals);
+                assert_eq!(vals.len(), 2);
+                assert_eq!(vals[0], vals[1]);
+                assert!(expected_ids_and_num_occurences.contains_key(&vals[0]));
+            }
+        }
+
+        // doc store tests
+        for segment_reader in searcher.segment_readers().iter() {
+            let store_reader = segment_reader.get_store_reader().unwrap();
+            // test store iterator
+            for doc in store_reader.iter(segment_reader.delete_bitset()) {
+                let id = doc
+                    .unwrap()
+                    .get_first(id_field)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
+                assert!(expected_ids_and_num_occurences.contains_key(&id));
+            }
+            // test store random access
+            for doc_id in segment_reader.doc_ids_alive() {
+                let id = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(id_field)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
+                assert!(expected_ids_and_num_occurences.contains_key(&id));
+                let id2 = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(multi_numbers)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
+                assert_eq!(id, id2);
+            }
+        }
+        // test search
+        let my_text_field = index.schema().get_field("text_field").unwrap();
+
+        let do_search = |term: &str| {
+            let query = QueryParser::for_index(&index, vec![my_text_field])
+                .parse_query(term)
+                .unwrap();
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+
+            top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
+        };
+
+        for (existing_id, count) in expected_ids_and_num_occurences {
+            assert_eq!(do_search(&existing_id.to_string()).len() as u64, count);
+        }
+        for existing_id in deleted_ids {
+            assert_eq!(do_search(&existing_id.to_string()).len(), 0);
+        }
+        // test facets
+        for segment_reader in searcher.segment_readers().iter() {
+            let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
+            let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+            for doc_id in segment_reader.doc_ids_alive() {
+                let mut facet_ords = Vec::new();
+                facet_reader.facet_ords(doc_id, &mut facet_ords);
+                assert_eq!(facet_ords.len(), 1);
+                let mut facet = Facet::default();
+                facet_reader
+                    .facet_from_ord(facet_ords[0], &mut facet)
+                    .unwrap();
+                let id = ff_reader.get(doc_id);
+                let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
+
+                assert_eq!(facet, facet);
+            }
+        }
         Ok(())
     }
 
     proptest! {
         #[test]
         fn test_delete_with_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
-            assert!(test_operation_strategy(&ops[..]).is_ok());
+            assert!(test_operation_strategy(&ops[..], true, false).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], false, false).is_ok());
+        }
+        #[test]
+        fn test_delete_with_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], true, true).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], false, true).is_ok());
         }
     }
 
