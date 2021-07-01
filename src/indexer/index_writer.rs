@@ -798,6 +798,7 @@ mod tests {
     use crate::query::QueryParser;
     use crate::query::TermQuery;
     use crate::schema::Cardinality;
+    use crate::schema::Facet;
     use crate::schema::IntOptions;
     use crate::schema::TextFieldIndexing;
     use crate::schema::TextOptions;
@@ -1401,6 +1402,7 @@ mod tests {
                 .set_fast(Cardinality::MultiValues)
                 .set_stored(),
         );
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let settings = if sort_index {
             IndexSettings {
@@ -1423,8 +1425,9 @@ mod tests {
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
+                    let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     index_writer
-                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string()));
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet));
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1528,6 +1531,24 @@ mod tests {
         }
         for existing_id in deleted_ids {
             assert_eq!(do_search(&existing_id.to_string()).len(), 0);
+        }
+        // test facets
+        for segment_reader in searcher.segment_readers().iter() {
+            let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
+            let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+            for doc_id in segment_reader.doc_ids_alive() {
+                let mut facet_ords = Vec::new();
+                facet_reader.facet_ords(doc_id, &mut facet_ords);
+                assert_eq!(facet_ords.len(), 1);
+                let mut facet = Facet::default();
+                facet_reader
+                    .facet_from_ord(facet_ords[0], &mut facet)
+                    .unwrap();
+                let id = ff_reader.get(doc_id);
+                let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
+
+                assert_eq!(facet, facet);
+            }
         }
         Ok(())
     }
