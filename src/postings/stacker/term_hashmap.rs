@@ -261,7 +261,7 @@ mod tests {
         }
 
         let mut vanilla_hash_map = HashMap::new();
-        let mut iter_values = hash_map.iter();
+        let iter_values = hash_map.iter();
         for (key, addr, _) in iter_values {
             let val: u32 = hash_map.heap.read(addr);
             vanilla_hash_map.insert(key.to_owned(), val);

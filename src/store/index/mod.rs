@@ -40,7 +40,7 @@ impl fmt::Debug for Checkpoint {
 #[cfg(test)]
 mod tests {
 
-    use std::{io, iter};
+    use std::{io};
 
     use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};

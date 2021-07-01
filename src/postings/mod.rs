@@ -54,7 +54,7 @@ pub mod tests {
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
-    use std::{iter, mem};
+    use std::{mem};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
