@@ -790,7 +790,6 @@ mod tests {
     use proptest::strategy::Strategy;
 
     use super::super::operation::UserOperation;
-    use crate::DocAddress;
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
@@ -800,10 +799,11 @@ mod tests {
     use crate::query::TermQuery;
     use crate::schema::Cardinality;
     use crate::schema::IntOptions;
-    use crate::schema::STORED;
     use crate::schema::TextFieldIndexing;
     use crate::schema::TextOptions;
+    use crate::schema::STORED;
     use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
+    use crate::DocAddress;
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
@@ -1360,7 +1360,7 @@ mod tests {
         ]
     }
 
-    fn expected_ids(ops: &[IndexingOp]) -> (HashMap<u64, u64>,HashSet<u64> ) {
+    fn expected_ids(ops: &[IndexingOp]) -> (HashMap<u64, u64>, HashSet<u64>) {
         let mut existing_ids = HashMap::new();
         let mut deleted_ids = HashSet::new();
         for &op in ops {
@@ -1386,12 +1386,15 @@ mod tests {
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
-        let text_field = schema_builder.add_text_field("text_field",  TextOptions::default()
-            .set_indexing_options(
-                TextFieldIndexing::default()
-                    .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
-            )
-            .set_stored());
+        let text_field = schema_builder.add_text_field(
+            "text_field",
+            TextOptions::default()
+                .set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+                )
+                .set_stored(),
+        );
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
             IntOptions::default()
@@ -1454,7 +1457,13 @@ mod tests {
             .collect();
 
         let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
-        assert_eq!(ids, expected_ids_and_num_occurences.keys().cloned().collect::<HashSet<_>>());
+        assert_eq!(
+            ids,
+            expected_ids_and_num_occurences
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>()
+        );
 
         // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
@@ -1502,23 +1511,23 @@ mod tests {
             }
         }
         // test search
-                    let my_text_field = index.schema().get_field("text_field").unwrap();
+        let my_text_field = index.schema().get_field("text_field").unwrap();
 
-            let do_search = |term: &str| {
-                let query = QueryParser::for_index(&index, vec![my_text_field])
-                    .parse_query(term)
-                    .unwrap();
-                let top_docs: Vec<(f32, DocAddress)> =
-                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+        let do_search = |term: &str| {
+            let query = QueryParser::for_index(&index, vec![my_text_field])
+                .parse_query(term)
+                .unwrap();
+            let top_docs: Vec<(f32, DocAddress)> =
+                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
 
-                top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
-            };
+            top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
+        };
 
         for (existing_id, count) in expected_ids_and_num_occurences {
-            assert_eq!(do_search(&existing_id.to_string()).len() as u64, count); 
+            assert_eq!(do_search(&existing_id.to_string()).len() as u64, count);
         }
         for existing_id in deleted_ids {
-            assert_eq!(do_search(&existing_id.to_string()).len(), 0); 
+            assert_eq!(do_search(&existing_id.to_string()).len(), 0);
         }
         Ok(())
     }
