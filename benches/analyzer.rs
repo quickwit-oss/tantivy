@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use tantivy::tokenizer::TokenizerManager;
 
-const ALICE_TXT: &'static str = include_str!("alice.txt");
+const ALICE_TXT: &str = include_str!("alice.txt");
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let tokenizer_manager = TokenizerManager::default();

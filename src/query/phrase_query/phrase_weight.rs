@@ -53,7 +53,7 @@ impl PhraseWeight {
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())?
-                    .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)?
+                    .read_postings(term, IndexRecordOption::WithFreqsAndPositions)?
                 {
                     term_postings_list.push((offset, postings));
                 } else {
@@ -71,7 +71,7 @@ impl PhraseWeight {
             for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())?
-                    .read_postings_no_deletes(&term, IndexRecordOption::WithFreqsAndPositions)?
+                    .read_postings_no_deletes(term, IndexRecordOption::WithFreqsAndPositions)?
                 {
                     term_postings_list.push((offset, postings));
                 } else {

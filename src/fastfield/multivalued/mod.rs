@@ -90,7 +90,7 @@ mod tests {
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
             let query = parser
-                .parse_query(&format!("\"{}\"", first_time_stamp.to_rfc3339()).to_string())
+                .parse_query(&format!("\"{}\"", first_time_stamp.to_rfc3339()))
                 .expect("could not parse query");
             let results = searcher
                 .search(&query, &TopDocs::with_limit(5))
@@ -121,7 +121,7 @@ mod tests {
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
             let query = parser
-                .parse_query(&format!("\"{}\"", two_secs_ahead.to_rfc3339()).to_string())
+                .parse_query(&format!("\"{}\"", two_secs_ahead.to_rfc3339()))
                 .expect("could not parse query");
             let results = searcher
                 .search(&query, &TopDocs::with_limit(5))

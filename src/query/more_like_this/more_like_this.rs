@@ -329,7 +329,7 @@ impl MoreLikeThis {
                 continue;
             }
 
-            let doc_freq = searcher.doc_freq(&term)?;
+            let doc_freq = searcher.doc_freq(term)?;
 
             // ignore terms with less than min_doc_frequency
             if self

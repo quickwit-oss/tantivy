@@ -430,7 +430,7 @@ mod tests_mmap_specific {
         assert_eq!(read_file.as_slice(), &[3u8, 4u8, 5u8]);
         assert!(managed_directory.list_damaged().unwrap().is_empty());
 
-        let mut corrupted_path = tempdir_path.clone();
+        let mut corrupted_path = tempdir_path;
         corrupted_path.push(test_path2);
         let mut file = OpenOptions::new().write(true).open(&corrupted_path)?;
         file.write_all(&[255u8])?;

@@ -356,7 +356,7 @@ impl<W: Write> PostingsSerializer<W> {
             // encode the doc ids
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
-                .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
+                .compress_block_sorted(self.block.doc_ids(), self.last_doc_id_encoded);
             self.last_doc_id_encoded = self.block.last_doc();
             self.skip_write
                 .write_doc(self.last_doc_id_encoded, num_bits);
@@ -366,7 +366,7 @@ impl<W: Write> PostingsSerializer<W> {
         if self.mode.has_freq() {
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
-                .compress_block_unsorted(&self.block.term_freqs());
+                .compress_block_unsorted(self.block.term_freqs());
             self.postings_write.extend(block_encoded);
             self.skip_write.write_term_freq(num_bits);
             if self.mode.has_positions() {
@@ -426,7 +426,7 @@ impl<W: Write> PostingsSerializer<W> {
             {
                 let block_encoded = self
                     .block_encoder
-                    .compress_vint_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
+                    .compress_vint_sorted(self.block.doc_ids(), self.last_doc_id_encoded);
                 self.postings_write.write_all(block_encoded)?;
             }
             // ... Idem for term frequencies

@@ -107,7 +107,7 @@ impl SegmentPostings {
         let fieldnorm_reader = fieldnorms.map(FieldNormReader::for_test);
         let average_field_norm = fieldnorms
             .map(|fieldnorms| {
-                if fieldnorms.len() == 0 {
+                if fieldnorms.is_empty() {
                     return 0.0;
                 }
                 let total_num_tokens: u64 = fieldnorms
@@ -184,7 +184,7 @@ impl DocSet for SegmentPostings {
 
         // At this point we are on the block, that might contain our document.
         let output = self.block_cursor.docs_aligned();
-        self.cur = self.block_searcher.search_in_block(&output, target);
+        self.cur = self.block_searcher.search_in_block(output, target);
 
         // The last block is not full and padded with the value TERMINATED,
         // so that we are guaranteed to have at least doc in the block (a real one or the padding)

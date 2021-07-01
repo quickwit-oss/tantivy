@@ -216,7 +216,7 @@ impl IndexMerger {
         let mut readers_with_min_sort_values = readers
             .into_iter()
             .map(|reader| {
-                let accessor = Self::get_sort_field_accessor(&reader, &sort_by_field)?;
+                let accessor = Self::get_sort_field_accessor(&reader, sort_by_field)?;
                 Ok((reader, accessor.min_value()))
             })
             .collect::<crate::Result<Vec<_>>>()?;
@@ -322,7 +322,7 @@ impl IndexMerger {
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
                 compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
             })
-            .filter_map(|x| x)
+            .flatten()
             .reduce(|a, b| {
                 (a.0.min(b.0), a.1.max(b.1))
             }).expect("Unexpected error, empty readers in IndexMerger");
@@ -404,7 +404,7 @@ impl IndexMerger {
         reader: &SegmentReader,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<impl FastFieldReader<u64>> {
-        let field_id = expect_field_id_for_sort_field(&reader.schema(), &sort_by_field)?; // for now expect fastfield, but not strictly required
+        let field_id = expect_field_id_for_sort_field(reader.schema(), sort_by_field)?; // for now expect fastfield, but not strictly required
         let value_accessor = reader.fast_fields().u64_lenient(field_id)?;
         Ok(value_accessor)
     }

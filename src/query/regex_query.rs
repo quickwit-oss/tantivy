@@ -170,8 +170,8 @@ mod test {
         verify_regex_query(matching_one, matching_zero, reader.clone());
 
         let matching_one = RegexQuery::from_regex(r1, field);
-        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
+        let matching_zero = RegexQuery::from_regex(r2, field);
 
-        verify_regex_query(matching_one, matching_zero, reader.clone());
+        verify_regex_query(matching_one, matching_zero, reader);
     }
 }

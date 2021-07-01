@@ -22,7 +22,7 @@ fn main() -> tantivy::Result<()> {
     let title = schema_builder.add_text_field("title", TEXT | STORED);
     let schema = schema_builder.build();
 
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::create_in_ram(schema);
 
     let mut index_writer = index.writer_with_num_threads(1, 50_000_000)?;
     index_writer.add_document(doc!(title => "The Old Man and the Sea"));

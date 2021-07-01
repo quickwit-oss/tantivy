@@ -405,9 +405,9 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         //assert_eq!(file.len(), 17710 as usize); //bitpacked size
-        assert_eq!(file.len(), 10175 as usize); // linear interpol size
+        assert_eq!(file.len(), 10175_usize); // linear interpol size
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(i64_field).unwrap();
@@ -447,7 +447,7 @@ mod tests {
             serializer.close().unwrap();
         }
 
-        let file = directory.open_read(&path).unwrap();
+        let file = directory.open_read(path).unwrap();
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(i64_field).unwrap();
@@ -480,7 +480,7 @@ mod tests {
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
-        let file = directory.open_read(&path)?;
+        let file = directory.open_read(path)?;
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();

@@ -91,8 +91,8 @@ impl RangeQuery {
         RangeQuery {
             field,
             value_type,
-            left_bound: map_bound(&left_bound, &verify_and_unwrap_term),
-            right_bound: map_bound(&right_bound, &verify_and_unwrap_term),
+            left_bound: map_bound(left_bound, &verify_and_unwrap_term),
+            right_bound: map_bound(right_bound, &verify_and_unwrap_term),
         }
     }
 
@@ -493,7 +493,7 @@ mod tests {
         let year = schema.get_field("year").unwrap();
         index_writer.add_document(doc!(
           title => "hemoglobin blood",
-          year => 1990 as i64
+          year => 1990_i64
         ));
         index_writer.commit()?;
         let reader = index.reader()?;

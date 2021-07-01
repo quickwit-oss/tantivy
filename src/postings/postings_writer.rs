@@ -235,7 +235,7 @@ pub trait PostingsWriter {
                     term_index,
                     doc_id,
                     token.position as u32,
-                    &term_buffer,
+                    term_buffer,
                     heap,
                 );
             } else {

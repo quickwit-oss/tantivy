@@ -1080,7 +1080,7 @@ mod tests {
         query: &str,
         query_field: Field,
         schema: Schema,
-        mut doc_adder: impl FnMut(&mut IndexWriter) -> (),
+        mut doc_adder: impl FnMut(&mut IndexWriter),
     ) -> (Index, Box<dyn Query>) {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();

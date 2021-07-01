@@ -137,7 +137,7 @@ fn search_fragments<'a>(
             };
             fragment = FragmentCandidate::new(next.offset_from);
         }
-        fragment.try_add_token(next, &terms);
+        fragment.try_add_token(next, terms);
     }
     if fragment.score > 0.0 {
         fragments.push(fragment)
@@ -286,8 +286,8 @@ impl SnippetGenerator {
     /// Generates a snippet for the given text.
     pub fn snippet(&self, text: &str) -> Snippet {
         let fragment_candidates =
-            search_fragments(&self.tokenizer, &text, &self.terms_text, self.max_num_chars);
-        select_best_fragment_combination(&fragment_candidates[..], &text)
+            search_fragments(&self.tokenizer, text, &self.terms_text, self.max_num_chars);
+        select_best_fragment_combination(&fragment_candidates[..], text)
     }
 }
 

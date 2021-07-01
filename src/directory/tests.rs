@@ -166,26 +166,26 @@ fn test_write_create_the_file(directory: &dyn Directory) {
 fn test_directory_delete(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     assert!(directory.open_read(test_path).is_err());
-    let mut write_file = directory.open_write(&test_path)?;
+    let mut write_file = directory.open_write(test_path)?;
     write_file.write_all(&[1, 2, 3, 4])?;
     write_file.flush()?;
     {
-        let read_handle = directory.open_read(&test_path)?.read_bytes()?;
+        let read_handle = directory.open_read(test_path)?.read_bytes()?;
         assert_eq!(read_handle.as_slice(), &[1u8, 2u8, 3u8, 4u8]);
         // Mapped files can't be deleted on Windows
         if !cfg!(windows) {
-            assert!(directory.delete(&test_path).is_ok());
+            assert!(directory.delete(test_path).is_ok());
             assert_eq!(read_handle.as_slice(), &[1u8, 2u8, 3u8, 4u8]);
         }
         assert!(directory.delete(Path::new("SomeOtherPath")).is_err());
     }
 
     if cfg!(windows) {
-        assert!(directory.delete(&test_path).is_ok());
+        assert!(directory.delete(test_path).is_ok());
     }
 
-    assert!(directory.open_read(&test_path).is_err());
-    assert!(directory.delete(&test_path).is_err());
+    assert!(directory.open_read(test_path).is_err());
+    assert!(directory.delete(test_path).is_err());
     Ok(())
 }
 

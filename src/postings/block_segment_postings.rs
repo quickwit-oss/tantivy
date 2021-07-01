@@ -13,11 +13,7 @@ use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
-    if let Some(first) = it.next() {
-        Some(it.fold(first, Score::max))
-    } else {
-        None
-    }
+    it.next().map(|first| it.fold(first, Score::max))
 }
 
 /// `BlockSegmentPostings` is a cursor iterating over blocks

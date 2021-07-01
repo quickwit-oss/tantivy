@@ -722,7 +722,7 @@ mod test {
         let is_not_indexed_err = |query: &str| {
             let result: Result<Box<dyn Query>, QueryParserError> = query_parser.parse_query(query);
             if let Err(QueryParserError::FieldNotIndexed(field_name)) = result {
-                Some(field_name.clone())
+                Some(field_name)
             } else {
                 None
             }

@@ -191,7 +191,7 @@ impl SegmentWriter {
                             .process(&mut |token| {
                                 term_buffer.set_text(&token.text);
                                 let unordered_term_id =
-                                    multifield_postings.subscribe(doc_id, &term_buffer);
+                                    multifield_postings.subscribe(doc_id, term_buffer);
                                 unordered_term_id_opt = Some(unordered_term_id);
                             });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
@@ -252,7 +252,7 @@ impl SegmentWriter {
                             .u64_value()
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(u64_val);
-                        multifield_postings.subscribe(doc_id, &term_buffer);
+                        multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::Date(_) => {
@@ -263,7 +263,7 @@ impl SegmentWriter {
                             .date_value()
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(date_val.timestamp());
-                        multifield_postings.subscribe(doc_id, &term_buffer);
+                        multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::I64(_) => {
@@ -274,7 +274,7 @@ impl SegmentWriter {
                             .i64_value()
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(i64_val);
-                        multifield_postings.subscribe(doc_id, &term_buffer);
+                        multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::F64(_) => {
@@ -285,7 +285,7 @@ impl SegmentWriter {
                             .f64_value()
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
-                        multifield_postings.subscribe(doc_id, &term_buffer);
+                        multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::Bytes(_) => {
@@ -296,7 +296,7 @@ impl SegmentWriter {
                             .bytes_value()
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
-                        self.multifield_postings.subscribe(doc_id, &term_buffer);
+                        self.multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
             }

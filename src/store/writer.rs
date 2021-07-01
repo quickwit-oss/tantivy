@@ -64,7 +64,7 @@ impl StoreWriter {
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
         let doc_num_bytes = serialized_document.len();
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
-        self.current_block.write_all(&serialized_document)?;
+        self.current_block.write_all(serialized_document)?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
             self.write_and_compress_block()?;
