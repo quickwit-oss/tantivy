@@ -1380,7 +1380,9 @@ mod tests {
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
-            IntOptions::default().set_fast(Cardinality::MultiValues).set_stored(),
+            IntOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_stored(),
         );
         let schema = schema_builder.build();
         let settings = if sort_index {
@@ -1454,13 +1456,30 @@ mod tests {
         for segment_reader in searcher.segment_readers().iter() {
             let store_reader = segment_reader.get_store_reader().unwrap();
             for doc in store_reader.iter(segment_reader.delete_bitset()) {
-                let id = doc.unwrap().get_first(id_field).unwrap().u64_value().unwrap();
+                let id = doc
+                    .unwrap()
+                    .get_first(id_field)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
                 assert!(expected_ids.contains(&id));
             }
             for doc_id in segment_reader.doc_ids_alive() {
-                let id = store_reader.get(doc_id).unwrap().get_first(id_field).unwrap().u64_value().unwrap();
+                let id = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(id_field)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
                 assert!(expected_ids.contains(&id));
-                let id2 = store_reader.get(doc_id).unwrap().get_first(multi_numbers).unwrap().u64_value().unwrap();
+                let id2 = store_reader
+                    .get(doc_id)
+                    .unwrap()
+                    .get_first(multi_numbers)
+                    .unwrap()
+                    .u64_value()
+                    .unwrap();
                 assert_eq!(id, id2);
             }
         }
