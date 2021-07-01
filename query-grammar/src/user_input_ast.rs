@@ -79,7 +79,7 @@ impl UserInputBound {
         match *self {
             UserInputBound::Inclusive(ref contents) => contents,
             UserInputBound::Exclusive(ref contents) => contents,
-            UserInputBound::Unbounded => &"*",
+            UserInputBound::Unbounded => "*",
         }
     }
 }

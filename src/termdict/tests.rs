@@ -25,7 +25,7 @@ fn test_empty_term_dictionary() {
 
 #[test]
 fn test_term_ordinals() -> crate::Result<()> {
-    const COUNTRIES: [&'static str; 7] = [
+    const COUNTRIES: [&str; 7] = [
         "San Marino",
         "Serbia",
         "Slovakia",

@@ -42,7 +42,7 @@ fn load_metas(
             "Meta file does not contain valid utf8 file.".to_string(),
         )
     })?;
-    IndexMeta::deserialize(&meta_string, &inventory)
+    IndexMeta::deserialize(&meta_string, inventory)
         .map_err(|e| {
             DataCorruption::new(
                 META_FILEPATH.to_path_buf(),
@@ -604,7 +604,7 @@ mod tests {
         .is_ok());
         assert!(Index::exists(&directory).unwrap());
         assert!(Index::create(
-            directory.clone(),
+            directory,
             Schema::builder().build(),
             IndexSettings::default()
         )

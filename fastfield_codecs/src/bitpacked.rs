@@ -35,7 +35,7 @@ impl<'data> FastFieldCodecReader for BitpackedFastFieldReader {
     }
     #[inline]
     fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        self.min_value_u64 + self.bit_unpacker.get(doc, &data)
+        self.min_value_u64 + self.bit_unpacker.get(doc, data)
     }
     #[inline]
     fn min_value(&self) -> u64 {
@@ -147,7 +147,7 @@ mod tests {
 
     fn create_and_validate(data: &[u64], name: &str) {
         crate::tests::create_and_validate::<BitpackedFastFieldSerializer, BitpackedFastFieldReader>(
-            &data, name,
+            data, name,
         );
     }
 
@@ -165,7 +165,7 @@ mod tests {
     fn bitpacked_fast_field_rand() {
         for _ in 0..500 {
             let mut data = (0..1 + rand::random::<u8>() as usize)
-                .map(|_| rand::random::<i64>() as u64 / 2 as u64)
+                .map(|_| rand::random::<i64>() as u64 / 2)
                 .collect::<Vec<_>>();
             create_and_validate(&data, "rand");
 

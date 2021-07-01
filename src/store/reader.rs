@@ -163,7 +163,7 @@ impl StoreReader {
         let mut curr_checkpoint = checkpoint_block_iter.next();
         let mut curr_block = curr_checkpoint
             .as_ref()
-            .map(|checkpoint| self.read_block(&checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
+            .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind())); // map error in order to enable cloning
         let mut block_start_pos = 0;
         let mut num_skipped = 0;
         let mut reset_block_pos = false;
@@ -177,7 +177,7 @@ impl StoreReader {
                     curr_checkpoint = checkpoint_block_iter.next();
                     curr_block = curr_checkpoint
                         .as_ref()
-                        .map(|checkpoint| self.read_block(&checkpoint).map_err(|e| e.kind()));
+                        .map(|checkpoint| self.read_block(checkpoint).map_err(|e| e.kind()));
                     reset_block_pos = true;
                     num_skipped = 0;
                 }
