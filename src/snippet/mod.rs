@@ -303,7 +303,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::iter::Iterator;
 
-    const TEST_TEXT: &'static str = r#"Rust is a systems programming language sponsored by
+    const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
 imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?],
 but its designers intend it to provide better memory safety while still maintaining
@@ -330,7 +330,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
+        let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
             snippet.fragments,
             "Rust is a systems programming language sponsored by\n\
@@ -356,7 +356,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
         {
@@ -371,7 +371,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
     }
@@ -383,7 +383,7 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("c"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
 
         assert_eq!(fragments.len(), 1);
         {
@@ -393,7 +393,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 7);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], &text);
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragments, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
@@ -405,7 +405,7 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("f"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -415,7 +415,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 8);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], &text);
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragments, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
@@ -428,7 +428,7 @@ Survey in 2016, 2017, and 2018."#;
         terms.insert(String::from("f"), 1.0);
         terms.insert(String::from("a"), 0.9);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), &text, &terms, 7);
+        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 7);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -438,7 +438,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 0);
         }
 
-        let snippet = select_best_fragment_combination(&fragments[..], &text);
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragments, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
@@ -450,11 +450,11 @@ Survey in 2016, 2017, and 2018."#;
         let mut terms = BTreeMap::new();
         terms.insert(String::from("z"), 1.0);
 
-        let fragments = search_fragments(&From::from(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
 
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(&fragments[..], &text);
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
     }
@@ -464,10 +464,10 @@ Survey in 2016, 2017, and 2018."#;
         let text = "a b c d";
 
         let terms = BTreeMap::new();
-        let fragments = search_fragments(&From::from(SimpleTokenizer), &text, &terms, 3);
+        let fragments = search_fragments(&From::from(SimpleTokenizer), text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(&fragments[..], &text);
+        let snippet = select_best_fragment_combination(&fragments[..], text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
     }

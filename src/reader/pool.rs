@@ -253,7 +253,7 @@ mod tests {
 
         threads.push(thread::spawn(move || {
             assert_eq!(start_1_recv.recv(), Ok("start"));
-            let _leased_searcher = &pool1.acquire();
+            let _leased_searcher = pool1.acquire();
             assert!(event_send1.send("1 acquired").is_ok());
             assert_eq!(start_1_recv.recv(), Ok("stop"));
             assert!(event_send1.send("1 stopped").is_ok());
@@ -262,7 +262,7 @@ mod tests {
 
         threads.push(thread::spawn(move || {
             assert_eq!(start_2_recv.recv(), Ok("start"));
-            let _leased_searcher = &pool2.acquire();
+            let _leased_searcher = pool2.acquire();
             assert!(event_send2.send("2 acquired").is_ok());
             assert_eq!(start_2_recv.recv(), Ok("stop"));
             mem::drop(_leased_searcher);
@@ -271,7 +271,7 @@ mod tests {
 
         threads.push(thread::spawn(move || {
             assert_eq!(start_3_recv.recv(), Ok("start"));
-            let _leased_searcher = &pool3.acquire();
+            let _leased_searcher = pool3.acquire();
             assert!(event_send3.send("3 acquired").is_ok());
             assert_eq!(start_3_recv.recv(), Ok("stop"));
             mem::drop(_leased_searcher);

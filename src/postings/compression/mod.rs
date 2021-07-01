@@ -85,13 +85,13 @@ impl BlockDecoder {
     ) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress_sorted(offset, &compressed_data, &mut self.output.0, num_bits)
+            .decompress_sorted(offset, compressed_data, &mut self.output.0, num_bits)
     }
 
     pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress(&compressed_data, &mut self.output.0, num_bits)
+            .decompress(compressed_data, &mut self.output.0, num_bits)
     }
 
     #[inline]

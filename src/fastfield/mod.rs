@@ -267,8 +267,8 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 37 as usize);
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 37);
         let composite_file = CompositeFile::open(&file)?;
         let file = composite_file.open_read(*FIELD).unwrap();
         let fast_field_reader = DynamicFastFieldReader::<u64>::open(file)?;
@@ -298,8 +298,8 @@ mod tests {
             fast_field_writers.serialize(&mut serializer, &HashMap::new(), None)?;
             serializer.close()?;
         }
-        let file = directory.open_read(&path)?;
-        assert_eq!(file.len(), 62 as usize);
+        let file = directory.open_read(path)?;
+        assert_eq!(file.len(), 62);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -334,8 +334,8 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 35 as usize);
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 35);
         {
             let fast_fields_composite = CompositeFile::open(&file).unwrap();
             let data = fast_fields_composite.open_read(*FIELD).unwrap();
@@ -366,8 +366,8 @@ mod tests {
                 .unwrap();
             serializer.close().unwrap();
         }
-        let file = directory.open_read(&path).unwrap();
-        assert_eq!(file.len(), 80043 as usize);
+        let file = directory.open_read(path).unwrap();
+        assert_eq!(file.len(), 80043);
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
             let data = fast_fields_composite.open_read(*FIELD).unwrap();

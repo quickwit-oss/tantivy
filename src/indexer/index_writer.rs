@@ -1545,9 +1545,9 @@ mod tests {
                     .facet_from_ord(facet_ords[0], &mut facet)
                     .unwrap();
                 let id = ff_reader.get(doc_id);
-                let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
+                let facet_expected = Facet::from(&("/cola/".to_string() + &id.to_string()));
 
-                assert_eq!(facet, facet);
+                assert_eq!(facet, facet_expected);
             }
         }
         Ok(())
