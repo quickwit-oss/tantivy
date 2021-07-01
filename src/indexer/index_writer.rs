@@ -781,6 +781,7 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::collections::HashSet;
 
     use futures::executor::block_on;
@@ -789,15 +790,19 @@ mod tests {
     use proptest::strategy::Strategy;
 
     use super::super::operation::UserOperation;
+    use crate::DocAddress;
     use crate::collector::TopDocs;
     use crate::directory::error::LockError;
     use crate::error::*;
     use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
+    use crate::query::QueryParser;
     use crate::query::TermQuery;
     use crate::schema::Cardinality;
     use crate::schema::IntOptions;
     use crate::schema::STORED;
+    use crate::schema::TextFieldIndexing;
+    use crate::schema::TextOptions;
     use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
     use crate::Index;
     use crate::ReloadPolicy;
@@ -1355,20 +1360,23 @@ mod tests {
         ]
     }
 
-    fn expected_ids(ops: &[IndexingOp]) -> HashSet<u64> {
-        let mut ids = HashSet::new();
+    fn expected_ids(ops: &[IndexingOp]) -> (HashMap<u64, u64>,HashSet<u64> ) {
+        let mut existing_ids = HashMap::new();
+        let mut deleted_ids = HashSet::new();
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
-                    ids.insert(id);
+                    *existing_ids.entry(id).or_insert(0) += 1;
+                    deleted_ids.remove(&id);
                 }
                 IndexingOp::DeleteDoc { id } => {
-                    ids.remove(&id);
+                    existing_ids.remove(&id);
+                    deleted_ids.insert(id);
                 }
                 _ => {}
             }
         }
-        ids
+        (existing_ids, deleted_ids)
     }
 
     fn test_operation_strategy(
@@ -1378,6 +1386,12 @@ mod tests {
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
+        let text_field = schema_builder.add_text_field("text_field",  TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+            )
+            .set_stored());
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
             IntOptions::default()
@@ -1407,7 +1421,7 @@ mod tests {
             match op {
                 IndexingOp::AddDoc { id } => {
                     index_writer
-                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id));
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string()));
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1439,9 +1453,10 @@ mod tests {
             })
             .collect();
 
-        let expected_ids = expected_ids(ops);
-        assert_eq!(ids, expected_ids);
+        let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
+        assert_eq!(ids, expected_ids_and_num_occurences.keys().cloned().collect::<HashSet<_>>());
 
+        // multivalue fast field tests
         for segment_reader in searcher.segment_readers().iter() {
             let ff_reader = segment_reader.fast_fields().u64s(multi_numbers).unwrap();
             for doc in segment_reader.doc_ids_alive() {
@@ -1449,12 +1464,14 @@ mod tests {
                 ff_reader.get_vals(doc, &mut vals);
                 assert_eq!(vals.len(), 2);
                 assert_eq!(vals[0], vals[1]);
-                assert!(expected_ids.contains(&vals[0]));
+                assert!(expected_ids_and_num_occurences.contains_key(&vals[0]));
             }
         }
 
+        // doc store tests
         for segment_reader in searcher.segment_readers().iter() {
             let store_reader = segment_reader.get_store_reader().unwrap();
+            // test store iterator
             for doc in store_reader.iter(segment_reader.delete_bitset()) {
                 let id = doc
                     .unwrap()
@@ -1462,8 +1479,9 @@ mod tests {
                     .unwrap()
                     .u64_value()
                     .unwrap();
-                assert!(expected_ids.contains(&id));
+                assert!(expected_ids_and_num_occurences.contains_key(&id));
             }
+            // test store random access
             for doc_id in segment_reader.doc_ids_alive() {
                 let id = store_reader
                     .get(doc_id)
@@ -1472,7 +1490,7 @@ mod tests {
                     .unwrap()
                     .u64_value()
                     .unwrap();
-                assert!(expected_ids.contains(&id));
+                assert!(expected_ids_and_num_occurences.contains_key(&id));
                 let id2 = store_reader
                     .get(doc_id)
                     .unwrap()
@@ -1482,6 +1500,25 @@ mod tests {
                     .unwrap();
                 assert_eq!(id, id2);
             }
+        }
+        // test search
+                    let my_text_field = index.schema().get_field("text_field").unwrap();
+
+            let do_search = |term: &str| {
+                let query = QueryParser::for_index(&index, vec![my_text_field])
+                    .parse_query(term)
+                    .unwrap();
+                let top_docs: Vec<(f32, DocAddress)> =
+                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+
+                top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
+            };
+
+        for (existing_id, count) in expected_ids_and_num_occurences {
+            assert_eq!(do_search(&existing_id.to_string()).len() as u64, count); 
+        }
+        for existing_id in deleted_ids {
+            assert_eq!(do_search(&existing_id.to_string()).len(), 0); 
         }
         Ok(())
     }
