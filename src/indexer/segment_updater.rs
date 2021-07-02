@@ -529,7 +529,8 @@ impl SegmentUpdater {
 
     pub(crate) fn get_mergeable_segments(&self) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
         let merge_segment_ids: HashSet<SegmentId> = self.merge_operations.segment_in_merge();
-            self.segment_manager.get_mergeable_segments(&merge_segment_ids)
+        self.segment_manager
+            .get_mergeable_segments(&merge_segment_ids)
     }
 
     async fn consider_merge_options(&self) {
