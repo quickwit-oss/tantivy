@@ -103,16 +103,14 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
     }
     let estimation = S::estimate(&data, stats_from_vec(data));
     let mut out = vec![];
-    match S::serialize(
+    S::serialize(
         &mut out,
         &data,
         stats_from_vec(data),
         data.iter().cloned(),
         data.iter().cloned(),
-    ) {
-        Ok(it) => it,
-        _ => unreachable!(),
-    };
+    )
+    .unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
     (true, estimation, actual_compression, S::NAME)
