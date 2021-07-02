@@ -32,6 +32,12 @@ impl SegmentRegisters {
         } else if self.committed.contains_all(segment_ids) {
             Some(SegmentsStatus::Committed)
         } else {
+            warn!(
+                "segment_ids: {:?}, committed_ids: {:?}, uncommitted_ids {:?}",
+                segment_ids,
+                self.committed.segment_ids(),
+                self.uncommitted.segment_ids()
+            );
             None
         }
     }
@@ -58,21 +64,6 @@ impl Debug for SegmentManager {
     }
 }
 
-pub fn get_mergeable_segments(
-    in_merge_segment_ids: &HashSet<SegmentId>,
-    segment_manager: &SegmentManager,
-) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
-    let registers_lock = segment_manager.read();
-    (
-        registers_lock
-            .committed
-            .get_mergeable_segments(in_merge_segment_ids),
-        registers_lock
-            .uncommitted
-            .get_mergeable_segments(in_merge_segment_ids),
-    )
-}
-
 impl SegmentManager {
     pub fn from_segments(
         segment_metas: Vec<SegmentMeta>,
@@ -86,6 +77,20 @@ impl SegmentManager {
         }
     }
 
+    pub fn get_mergeable_segments(
+        &self,
+        in_merge_segment_ids: &HashSet<SegmentId>,
+    ) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
+        let registers_lock = self.read();
+        (
+            registers_lock
+                .committed
+                .get_mergeable_segments(in_merge_segment_ids),
+            registers_lock
+                .uncommitted
+                .get_mergeable_segments(in_merge_segment_ids),
+        )
+    }
     /// Returns all of the segment entries (committed or uncommitted)
     pub fn segment_entries(&self) -> Vec<SegmentEntry> {
         let registers_lock = self.read();

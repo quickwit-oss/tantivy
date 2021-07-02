@@ -803,12 +803,22 @@ mod tests {
     use crate::schema::TextFieldIndexing;
     use crate::schema::TextOptions;
     use crate::schema::STORED;
+    use crate::schema::TEXT;
     use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
     use crate::DocAddress;
     use crate::Index;
     use crate::ReloadPolicy;
     use crate::Term;
     use crate::{IndexSettings, IndexSortByField, Order};
+
+    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
+             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
+             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
+             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
+             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
+             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
+             proident, sunt in culpa qui officia deserunt mollit anim id est \
+             laborum.";
 
     #[test]
     fn test_operations_group() {
@@ -1396,6 +1406,9 @@ mod tests {
                 )
                 .set_stored(),
         );
+
+        let large_text_field = schema_builder.add_text_field("large_text_field", TEXT | STORED);
+
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",
             IntOptions::default()
@@ -1427,7 +1440,7 @@ mod tests {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     index_writer
-                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet));
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet, large_text_field=> LOREM));
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1438,13 +1451,16 @@ mod tests {
             }
         }
         index_writer.commit()?;
+
         let searcher = index.reader()?.searcher();
         if force_merge {
+            index_writer.wait_merging_threads()?;
+            let mut index_writer = index.writer_for_tests()?;
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             if segment_ids.len() >= 2 {
-                assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+                block_on(index_writer.merge(&segment_ids)).unwrap();
                 assert!(index_writer.wait_merging_threads().is_ok());
             }
         }
@@ -1521,7 +1537,7 @@ mod tests {
                 .parse_query(term)
                 .unwrap();
             let top_docs: Vec<(f32, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+                searcher.search(&query, &TopDocs::with_limit(1000)).unwrap();
 
             top_docs.iter().map(|el| el.1).collect::<Vec<_>>()
         };

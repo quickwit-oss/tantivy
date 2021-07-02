@@ -108,6 +108,12 @@ impl fmt::Debug for SegmentId {
     }
 }
 
+impl fmt::Display for SegmentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Seg({:?})", self.short_uuid_string())
+    }
+}
+
 impl PartialOrd for SegmentId {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
