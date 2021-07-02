@@ -211,7 +211,7 @@ mod tests {
             assert_eq!(right.read_bytes()?.as_slice(), b"");
         }
         {
-            let (left, right) = file_slice.clone().split_from_end(2);
+            let (left, right) = file_slice.split_from_end(2);
             assert_eq!(left.read_bytes()?.as_slice(), b"abcd");
             assert_eq!(right.read_bytes()?.as_slice(), b"ef");
         }

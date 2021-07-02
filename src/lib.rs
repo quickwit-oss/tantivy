@@ -1,6 +1,13 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(
+        clippy::module_inception,
+        clippy::needless_range_loop,
+        clippy::bool_assert_comparison
+    )
+)]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 
@@ -933,7 +940,7 @@ mod tests {
         let id = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
 
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let index_reader = index.reader()?;
 
         let mut index_writer = index.writer_for_tests()?;
@@ -972,7 +979,7 @@ mod tests {
         let searcher = index_reader.searcher();
         let segment_ids: Vec<SegmentId> = searcher
             .segment_readers()
-            .into_iter()
+            .iter()
             .map(|reader| reader.segment_id())
             .collect();
         block_on(index_writer.merge(&segment_ids)).unwrap();

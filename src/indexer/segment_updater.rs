@@ -716,7 +716,7 @@ mod tests {
 
         let seg_ids = index.searchable_segment_ids()?;
         // docs exist, should have at least 1 segment
-        assert!(seg_ids.len() > 0);
+        assert!(!seg_ids.is_empty());
 
         let term_vals = vec!["a", "b", "c", "d", "e", "f"];
         for term_val in term_vals {

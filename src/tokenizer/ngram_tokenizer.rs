@@ -437,8 +437,7 @@ mod tests {
 
     #[test]
     fn test_stutterring_iterator() {
-        let rg: Vec<usize> = (0..10).collect();
-        let mut it = StutteringIterator::new(rg.into_iter(), 1, 2);
+        let mut it = StutteringIterator::new(0..10, 1, 2);
         assert_eq!(it.next(), Some((0, 1)));
         assert_eq!(it.next(), Some((0, 2)));
         assert_eq!(it.next(), Some((1, 2)));

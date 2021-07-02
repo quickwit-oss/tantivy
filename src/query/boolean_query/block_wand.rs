@@ -251,7 +251,7 @@ mod tests {
 
     impl PartialEq for Float {
         fn eq(&self, other: &Self) -> bool {
-            self.cmp(&other) == Ordering::Equal
+            self.cmp(other) == Ordering::Equal
         }
     }
 
@@ -289,7 +289,7 @@ mod tests {
             if !nearly_equals(score, limit) {
                 checkpoints.push((doc, score));
             }
-            return limit;
+            limit
         });
         checkpoints
     }
@@ -368,10 +368,10 @@ mod tests {
             .iter()
             .map(|posting_list| {
                 posting_list
-                    .into_iter()
+                    .iter()
                     .cloned()
                     .flat_map(|(doc, term_freq)| {
-                        (0 as u32..REPEAT as u32).map(move |offset| {
+                        (0_u32..REPEAT as u32).map(move |offset| {
                             (
                                 doc * (REPEAT as u32) + offset,
                                 if offset == 0 { term_freq } else { 1 },

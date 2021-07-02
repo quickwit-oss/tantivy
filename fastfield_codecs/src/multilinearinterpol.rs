@@ -368,7 +368,7 @@ mod tests {
         crate::tests::create_and_validate::<
             MultiLinearInterpolFastFieldSerializer,
             MultiLinearInterpolFastFieldReader,
-        >(&data, name);
+        >(data, name);
     }
 
     #[test]

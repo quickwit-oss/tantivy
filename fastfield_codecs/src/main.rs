@@ -30,7 +30,7 @@ fn main() {
         //.unwrap();
         let best_compression_ratio_codec = results
             .iter()
-            .min_by(|res1, res2| res1.partial_cmp(&res2).unwrap())
+            .min_by(|res1, res2| res1.partial_cmp(res2).unwrap())
             .cloned()
             .unwrap();
 
@@ -41,6 +41,7 @@ fn main() {
             } else {
                 (est.to_string(), comp.to_string())
             };
+            #[allow(clippy::all)]
             let style = if comp == best_compression_ratio_codec.1 {
                 "Fb"
             } else {
@@ -96,23 +97,23 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
 pub fn serialize_with_codec<S: FastFieldCodecSerializer>(
     data: &[u64],
 ) -> (bool, f32, f32, &'static str) {
-    let is_applicable = S::is_applicable(&data, stats_from_vec(&data));
+    let is_applicable = S::is_applicable(&data, stats_from_vec(data));
     if !is_applicable {
         return (false, 0.0, 0.0, S::NAME);
     }
-    let estimation = S::estimate(&data, stats_from_vec(&data));
+    let estimation = S::estimate(&data, stats_from_vec(data));
     let mut out = vec![];
     S::serialize(
         &mut out,
         &data,
-        stats_from_vec(&data),
+        stats_from_vec(data),
         data.iter().cloned(),
         data.iter().cloned(),
     )
     .unwrap();
 
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-    return (true, estimation, actual_compression, S::NAME);
+    (true, estimation, actual_compression, S::NAME)
 }
 
 pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {

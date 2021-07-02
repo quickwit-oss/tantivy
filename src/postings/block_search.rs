@@ -57,7 +57,7 @@ mod sse2 {
         fn test_linear_search_sse2_128_u32() {
             let mut block = [0u32; COMPRESSION_BLOCK_SIZE];
             for el in 0u32..128u32 {
-                block[el as usize] = el * 2 + 1 << 18;
+                block[el as usize] = (el * 2 + 1) << 18;
             }
             let target = block[64] + 1;
             assert_eq!(linear_search_sse2_128(&AlignedBuffer(block), target), 65);
@@ -91,7 +91,7 @@ fn exponential_search(arr: &[u32], target: u32) -> Range<usize> {
 
 #[inline(never)]
 fn galloping(block_docs: &[u32], target: u32) -> usize {
-    let range = exponential_search(&block_docs, target);
+    let range = exponential_search(block_docs, target);
     range.start + linear_search(&block_docs[range], target)
 }
 

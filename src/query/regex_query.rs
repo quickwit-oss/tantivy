@@ -58,7 +58,7 @@ pub struct RegexQuery {
 impl RegexQuery {
     /// Creates a new RegexQuery from a given pattern
     pub fn from_pattern(regex_pattern: &str, field: Field) -> crate::Result<Self> {
-        let regex = Regex::new(&regex_pattern)
+        let regex = Regex::new(regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(regex_pattern.to_string()))?;
         Ok(RegexQuery::from_regex(regex, field))
     }
@@ -169,9 +169,9 @@ mod test {
 
         verify_regex_query(matching_one, matching_zero, reader.clone());
 
-        let matching_one = RegexQuery::from_regex(r1.clone(), field);
-        let matching_zero = RegexQuery::from_regex(r2.clone(), field);
+        let matching_one = RegexQuery::from_regex(r1, field);
+        let matching_zero = RegexQuery::from_regex(r2, field);
 
-        verify_regex_query(matching_one, matching_zero, reader.clone());
+        verify_regex_query(matching_one, matching_zero, reader);
     }
 }

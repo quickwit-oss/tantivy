@@ -260,7 +260,7 @@ mod tests {
             .with_document(DocAddress::new(0, 0));
         let top_docs = searcher.search(&query, &TopDocs::with_limit(5)).unwrap();
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
-        doc_ids.sort();
+        doc_ids.sort_unstable();
 
         assert_eq!(doc_ids.len(), 3);
         assert_eq!(doc_ids, vec![0, 1, 3]);
@@ -276,7 +276,7 @@ mod tests {
             .with_document(DocAddress::new(0, 4));
         let top_docs = searcher.search(&query, &TopDocs::with_limit(5)).unwrap();
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
-        doc_ids.sort();
+        doc_ids.sort_unstable();
 
         assert_eq!(doc_ids.len(), 2);
         assert_eq!(doc_ids, vec![3, 4]);

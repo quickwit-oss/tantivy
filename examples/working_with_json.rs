@@ -1,4 +1,3 @@
-use tantivy;
 use tantivy::schema::*;
 
 // # Document from json
@@ -22,7 +21,7 @@ fn main() -> tantivy::Result<()> {
     }"#;
 
     // We can parse our document
-    let _mice_and_men_doc = schema.parse_document(&mice_and_men_doc_json)?;
+    let _mice_and_men_doc = schema.parse_document(mice_and_men_doc_json)?;
 
     // Multi-valued field are allowed, they are
     // expressed in JSON by an array.
@@ -31,7 +30,7 @@ fn main() -> tantivy::Result<()> {
        "title": ["Frankenstein", "The Modern Prometheus"],
        "year": 1818
     }"#;
-    let _frankenstein_doc = schema.parse_document(&frankenstein_json)?;
+    let _frankenstein_doc = schema.parse_document(frankenstein_json)?;
 
     // Note that the schema is saved in your index directory.
     //

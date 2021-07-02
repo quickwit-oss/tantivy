@@ -319,7 +319,7 @@ mod tests {
             let res: Box<dyn DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
                 docs_list
                     .iter()
-                    .map(|docs| docs.clone())
+                    .cloned()
                     .map(VecDocSet::from)
                     .map(|docset| ConstScorer::new(docset, 1.0))
                     .collect::<Vec<_>>(),

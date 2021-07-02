@@ -194,8 +194,8 @@ mod tests {
                   .collect();
 
          let mut fieldnorms: Vec<u32> = vec![];
-         for i in 0..term_doc_freq {
-             let (tf, num_extra_terms) = term_freqs_fieldnorms[i];
+         for item in term_freqs_fieldnorms.iter().take(term_doc_freq) {
+             let (tf, num_extra_terms) = item;
              fieldnorms.push(tf + num_extra_terms);
          }
          let average_fieldnorm = fieldnorms
@@ -253,7 +253,7 @@ mod tests {
     }
 
     fn test_block_wand_aux(term_query: &TermQuery, searcher: &Searcher) -> crate::Result<()> {
-        let term_weight = term_query.specialized_weight(&searcher, true)?;
+        let term_weight = term_query.specialized_weight(searcher, true)?;
         for reader in searcher.segment_readers() {
             let mut block_max_scores = vec![];
             let mut block_max_scores_b = vec![];
@@ -309,7 +309,7 @@ mod tests {
         }
         writer.commit()?;
         let term_query = TermQuery::new(
-            Term::from_field_text(text_field, &"bbbb"),
+            Term::from_field_text(text_field, "bbbb"),
             IndexRecordOption::WithFreqs,
         );
         let segment_ids: Vec<SegmentId>;

@@ -106,7 +106,7 @@ pub fn read_u32_vint_no_advance(data: &[u8]) -> (u32, usize) {
 pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
     let mut buf = [0u8; 8];
     let data = serialize_vint_u32(val, &mut buf);
-    writer.write_all(&data)
+    writer.write_all(data)
 }
 
 impl VInt {
@@ -181,8 +181,8 @@ mod tests {
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
         let num_bytes = VInt(val).serialize_into(&mut v);
-        for i in num_bytes..10 {
-            assert_eq!(v[i], 14u8);
+        for el in &v[num_bytes..10] {
+            assert_eq!(el, &14u8);
         }
         assert!(num_bytes > 0);
         if num_bytes < 10 {

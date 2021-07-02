@@ -13,11 +13,7 @@ use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
-    if let Some(first) = it.next() {
-        Some(it.fold(first, Score::max))
-    } else {
-        None
-    }
+    it.next().map(|first| it.fold(first, Score::max))
 }
 
 /// `BlockSegmentPostings` is a cursor iterating over blocks
@@ -482,11 +478,11 @@ mod tests {
             docs.push((i * i / 100) + i);
         }
         let mut block_postings = build_block_postings(&docs[..]);
-        for i in vec![0, 424, 10000] {
-            block_postings.seek(i);
+        for i in &[0, 424, 10000] {
+            block_postings.seek(*i);
             let docs = block_postings.docs();
-            assert!(docs[0] <= i);
-            assert!(docs.last().cloned().unwrap_or(0u32) >= i);
+            assert!(docs[0] <= *i);
+            assert!(docs.last().cloned().unwrap_or(0u32) >= *i);
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);

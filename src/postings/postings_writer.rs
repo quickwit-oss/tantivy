@@ -231,13 +231,7 @@ pub trait PostingsWriter {
             // We skip all tokens with a len greater than u16.
             if token.text.len() <= MAX_TOKEN_LEN {
                 term_buffer.set_text(token.text.as_str());
-                self.subscribe(
-                    term_index,
-                    doc_id,
-                    token.position as u32,
-                    &term_buffer,
-                    heap,
-                );
+                self.subscribe(term_index, doc_id, token.position as u32, term_buffer, heap);
             } else {
                 warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \

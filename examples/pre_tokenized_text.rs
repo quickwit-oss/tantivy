@@ -82,7 +82,7 @@ fn main() -> tantivy::Result<()> {
         }]
     }"#;
 
-    let short_man_doc = schema.parse_document(&short_man_json)?;
+    let short_man_doc = schema.parse_document(short_man_json)?;
 
     index_writer.add_document(short_man_doc);
 

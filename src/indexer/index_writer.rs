@@ -355,7 +355,7 @@ impl IndexWriter {
         // dropping the last reference to the segment_updater.
         self.drop_sender();
 
-        let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
+        let former_workers_handles = std::mem::take(&mut self.workers_join_handle);
         for join_handle in former_workers_handles {
             join_handle
                 .join()
@@ -625,7 +625,7 @@ impl IndexWriter {
         // and recreate a new one.
         self.recreate_document_channel();
 
-        let former_workers_join_handle = mem::replace(&mut self.workers_join_handle, Vec::new());
+        let former_workers_join_handle = std::mem::take(&mut self.workers_join_handle);
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
@@ -1545,9 +1545,9 @@ mod tests {
                     .facet_from_ord(facet_ords[0], &mut facet)
                     .unwrap();
                 let id = ff_reader.get(doc_id);
-                let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
+                let facet_expected = Facet::from(&("/cola/".to_string() + &id.to_string()));
 
-                assert_eq!(facet, facet);
+                assert_eq!(facet, facet_expected);
             }
         }
         Ok(())

@@ -1,6 +1,6 @@
 use super::operation::DeleteOperation;
 use crate::Opstamp;
-use std::mem;
+
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock, Weak};
 
@@ -105,7 +105,7 @@ impl DeleteQueue {
             return None;
         }
 
-        let delete_operations = mem::replace(&mut self_wlock.writer, vec![]);
+        let delete_operations = std::mem::take(&mut self_wlock.writer);
 
         let new_block = Arc::new(Block {
             operations: Arc::from(delete_operations.into_boxed_slice()),
@@ -286,7 +286,7 @@ mod tests {
             operations_it.advance();
         }
         {
-            let mut operations_it = snapshot.clone();
+            let mut operations_it = snapshot;
             assert_eq!(operations_it.get().unwrap().opstamp, 1);
             operations_it.advance();
             assert_eq!(operations_it.get().unwrap().opstamp, 2);

@@ -54,7 +54,7 @@ pub mod tests {
     use crate::DocId;
     use crate::HasLen;
     use crate::Score;
-    use std::{iter, mem};
+    use std::mem;
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -153,8 +153,8 @@ pub mod tests {
 
     #[test]
     pub fn test_drop_token_that_are_too_long() -> crate::Result<()> {
-        let ok_token_text: String = iter::repeat('A').take(MAX_TOKEN_LEN).collect();
-        let mut exceeding_token_text: String = iter::repeat('A').take(MAX_TOKEN_LEN + 1).collect();
+        let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
+        let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
         exceeding_token_text.push_str(" hello");
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
@@ -164,7 +164,7 @@ pub mod tests {
         );
         let text_field = schema_builder.add_text_field("text", text_options);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         index
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
@@ -229,7 +229,7 @@ pub mod tests {
                 segment_writer.add_document(op, &schema).unwrap();
             }
             for i in 2..1000 {
-                let mut text: String = iter::repeat("e ").take(i).collect();
+                let mut text: String = "e ".repeat(i);
                 text.push_str(" a");
                 let op = AddOperation {
                     opstamp: 2u64,
@@ -409,7 +409,7 @@ pub mod tests {
                 .unwrap();
 
             for i in 0..num_docs / 2 - 1 {
-                assert!(segment_postings.seek(i * 2 + 1) > (i * 1) * 2);
+                assert!(segment_postings.seek(i * 2 + 1) > i * 2);
                 assert_eq!(segment_postings.doc(), (i + 1) * 2);
             }
         }
@@ -431,13 +431,10 @@ pub mod tests {
                 .read_postings(&term_2, IndexRecordOption::Basic)?
                 .unwrap();
 
+            assert_eq!(segment_postings.seek(i), i);
+            assert_eq!(segment_postings.doc(), i);
             if i % 2 == 0 {
-                assert_eq!(segment_postings.seek(i), i);
-                assert_eq!(segment_postings.doc(), i);
                 assert!(segment_reader.is_deleted(i));
-            } else {
-                assert_eq!(segment_postings.seek(i), i);
-                assert_eq!(segment_postings.doc(), i);
             }
         }
 

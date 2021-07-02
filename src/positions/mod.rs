@@ -46,7 +46,7 @@ pub mod tests {
     fn create_positions_data(vals: &[u32]) -> crate::Result<OwnedBytes> {
         let mut positions_buffer = vec![];
         let mut serializer = PositionSerializer::new(&mut positions_buffer);
-        serializer.write_positions_delta(&vals);
+        serializer.write_positions_delta(vals);
         serializer.close_term()?;
         serializer.close()?;
         Ok(OwnedBytes::new(positions_buffer))
@@ -169,7 +169,7 @@ pub mod tests {
         let positions_delta: Vec<u32> = (0..2_000_000).collect();
         let positions_data = create_positions_data(&positions_delta[..])?;
         assert_eq!(positions_data.len(), 5003499);
-        let mut position_reader = PositionReader::open(positions_data.clone())?;
+        let mut position_reader = PositionReader::open(positions_data)?;
         let mut buf = [0u32; 256];
         position_reader.read(128, &mut buf);
         for i in 0..256 {

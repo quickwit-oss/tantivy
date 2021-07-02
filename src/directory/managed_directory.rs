@@ -402,10 +402,8 @@ mod tests_mmap_specific {
             // The file should still be in the list of managed file and
             // eventually be deleted once mmap is released.
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
-            assert!(!managed_directory.exists(test_path1).unwrap());
-        } else {
-            assert!(!managed_directory.exists(test_path1).unwrap());
         }
+        assert!(!managed_directory.exists(test_path1).unwrap());
     }
 
     #[test]
@@ -430,7 +428,7 @@ mod tests_mmap_specific {
         assert_eq!(read_file.as_slice(), &[3u8, 4u8, 5u8]);
         assert!(managed_directory.list_damaged().unwrap().is_empty());
 
-        let mut corrupted_path = tempdir_path.clone();
+        let mut corrupted_path = tempdir_path;
         corrupted_path.push(test_path2);
         let mut file = OpenOptions::new().write(true).open(&corrupted_path)?;
         file.write_all(&[255u8])?;

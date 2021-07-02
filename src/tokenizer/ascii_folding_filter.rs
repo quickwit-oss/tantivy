@@ -4036,7 +4036,7 @@ mod tests {
         for (characters, folded) in foldings {
             for &c in characters {
                 assert_eq!(
-                    folding_using_raw_tokenizer_helper(&c),
+                    folding_using_raw_tokenizer_helper(c),
                     folded,
                     "testing that character \"{}\" becomes \"{}\"",
                     c,

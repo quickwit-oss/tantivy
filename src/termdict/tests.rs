@@ -25,7 +25,7 @@ fn test_empty_term_dictionary() {
 
 #[test]
 fn test_term_ordinals() -> crate::Result<()> {
-    const COUNTRIES: [&'static str; 7] = [
+    const COUNTRIES: [&str; 7] = [
         "San Marino",
         "Serbia",
         "Slovakia",
@@ -74,7 +74,7 @@ fn test_term_dictionary_simple() -> crate::Result<()> {
     {
         {
             let (k, v) = stream.next().unwrap();
-            assert_eq!(k.as_ref(), "abc".as_bytes());
+            assert_eq!(k, "abc".as_bytes());
             assert_eq!(v.doc_freq, 34u32);
         }
         assert_eq!(stream.key(), "abc".as_bytes());
@@ -114,7 +114,7 @@ fn test_term_dictionary_stream() -> crate::Result<()> {
         let mut i = 0;
         while let Some((streamer_k, streamer_v)) = streamer.next() {
             let &(ref key, ref v) = &ids[i];
-            assert_eq!(streamer_k.as_ref(), key.as_bytes());
+            assert_eq!(streamer_k, key.as_bytes());
             assert_eq!(streamer_v, &make_term_info(*v as u64));
             i += 1;
         }
@@ -182,7 +182,7 @@ fn test_stream_range() -> crate::Result<()> {
             for j in 0..3 {
                 let (streamer_k, streamer_v) = streamer.next().unwrap();
                 let &(ref key, ref v) = &ids[i + j];
-                assert_eq!(str::from_utf8(streamer_k.as_ref()).unwrap(), key);
+                assert_eq!(str::from_utf8(streamer_k).unwrap(), key);
                 assert_eq!(streamer_v.doc_freq, *v);
                 assert_eq!(streamer_v, &make_term_info(*v as u64));
             }
@@ -199,7 +199,7 @@ fn test_stream_range() -> crate::Result<()> {
             for j in 0..3 {
                 let (streamer_k, streamer_v) = streamer.next().unwrap();
                 let &(ref key, ref v) = &ids[i + j + 1];
-                assert_eq!(streamer_k.as_ref(), key.as_bytes());
+                assert_eq!(streamer_k, key.as_bytes());
                 assert_eq!(streamer_v.doc_freq, *v);
             }
         }
@@ -230,10 +230,10 @@ fn test_empty_string() -> crate::Result<()> {
     let buffer: Vec<u8> = {
         let mut term_dictionary_builder = TermDictionaryBuilder::create(vec![]).unwrap();
         term_dictionary_builder
-            .insert(&[], &make_term_info(1 as u64))
+            .insert(&[], &make_term_info(1_u64))
             .unwrap();
         term_dictionary_builder
-            .insert(&[1u8], &make_term_info(2 as u64))
+            .insert(&[1u8], &make_term_info(2_u64))
             .unwrap();
         term_dictionary_builder.finish()?
     };
@@ -266,7 +266,7 @@ fn test_stream_range_boundaries_forward() -> crate::Result<()> {
     let term_dictionary = stream_range_test_dict()?;
     let value_list = |mut streamer: TermStreamer<'_>| {
         let mut res: Vec<u32> = vec![];
-        while let Some((_, ref v)) = streamer.next() {
+        while let Some((_, v)) = streamer.next() {
             res.push(v.doc_freq);
         }
         res
@@ -308,7 +308,7 @@ fn test_stream_range_boundaries_backward() -> crate::Result<()> {
     let term_dictionary = stream_range_test_dict()?;
     let value_list_backward = |mut streamer: TermStreamer<'_>| {
         let mut res: Vec<u32> = vec![];
-        while let Some((_, ref v)) = streamer.next() {
+        while let Some((_, v)) = streamer.next() {
             res.push(v.doc_freq);
         }
         res.reverse();
@@ -393,7 +393,7 @@ fn test_automaton_search() -> crate::Result<()> {
     use crate::query::DfaWrapper;
     use levenshtein_automata::LevenshteinAutomatonBuilder;
 
-    const COUNTRIES: [&'static str; 7] = [
+    const COUNTRIES: [&str; 7] = [
         "San Marino",
         "Serbia",
         "Slovakia",

@@ -296,7 +296,7 @@ mod test {
     #[test]
     fn test_empty() {
         let schema = Schema::builder().build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage().unwrap();
@@ -325,7 +325,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", FAST | INDEXED);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
@@ -362,7 +362,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
@@ -401,7 +401,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", STORED);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
@@ -439,7 +439,7 @@ mod test {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", INDEXED);
         let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema.clone());
+        let index = Index::create_in_ram(schema);
 
         {
             let mut index_writer = index.writer_for_tests()?;

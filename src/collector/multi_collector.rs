@@ -276,7 +276,7 @@ mod tests {
         let mut collectors = MultiCollector::new();
         let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2));
         let count_handler = collectors.add_collector(Count);
-        let mut multifruits = searcher.search(&query, &mut collectors).unwrap();
+        let mut multifruits = searcher.search(&query, &collectors).unwrap();
 
         assert_eq!(count_handler.extract(&mut multifruits), 5);
         assert_eq!(topdocs_handler.extract(&mut multifruits).len(), 2);

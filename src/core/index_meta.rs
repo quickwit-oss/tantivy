@@ -369,7 +369,6 @@ mod tests {
         schema::{Schema, TEXT},
         IndexSettings, IndexSortByField, Order,
     };
-    use serde_json;
 
     #[test]
     fn test_serialize_metas() {

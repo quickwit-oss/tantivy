@@ -40,7 +40,7 @@ impl fmt::Debug for Checkpoint {
 #[cfg(test)]
 mod tests {
 
-    use std::{io, iter};
+    use std::io;
 
     use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
@@ -134,9 +134,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        let long_text: String = iter::repeat("abcdefghijklmnopqrstuvwxyz")
-            .take(1_000)
-            .collect();
+        let long_text: String = "abcdefghijklmnopqrstuvwxyz".repeat(1_000);
         for _ in 0..20 {
             index_writer.add_document(doc!(body=>long_text.clone()));
         }
@@ -219,8 +217,7 @@ mod tests {
     ) -> Option<Checkpoint> {
         checkpoints
             .into_iter()
-            .filter(|checkpoint| checkpoint.doc_range.end > target)
-            .next()
+            .find(|checkpoint| checkpoint.doc_range.end > target)
     }
 
     fn test_skip_index_aux(skip_index: SkipIndex, checkpoints: &[Checkpoint]) {

@@ -25,7 +25,7 @@ fn main() -> tantivy::Result<()> {
     let schema = schema_builder.build();
 
     // # Indexing documents
-    let index = Index::create_in_dir(&index_path, schema.clone())?;
+    let index = Index::create_in_dir(&index_path, schema)?;
 
     let mut index_writer = index.writer(50_000_000)?;
 

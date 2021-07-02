@@ -38,7 +38,7 @@ fn test_functional_store() -> crate::Result<()> {
     for iteration in 0..500 {
         dbg!(iteration);
         let num_docs: usize = rng.gen_range(0..4);
-        if doc_set.len() >= 1 {
+        if !doc_set.is_empty() {
             let doc_to_remove_id = rng.gen_range(0..doc_set.len());
             let removed_doc_id = doc_set.swap_remove(doc_to_remove_id);
             index_writer.delete_term(Term::from_field_u64(id_field, removed_doc_id));
@@ -88,19 +88,17 @@ fn test_functional_indexing() -> crate::Result<()> {
                 &searcher,
                 &committed_docs.iter().cloned().collect::<Vec<u64>>(),
             )?;
+        } else if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
+            let doc_id_term = Term::from_field_u64(id_field, random_val);
+            index_writer.delete_term(doc_id_term);
         } else {
-            if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
-                let doc_id_term = Term::from_field_u64(id_field, random_val);
-                index_writer.delete_term(doc_id_term);
-            } else {
-                uncommitted_docs.insert(random_val);
-                let mut doc = Document::new();
-                doc.add_u64(id_field, random_val);
-                for i in 1u64..10u64 {
-                    doc.add_u64(multiples_field, random_val * i);
-                }
-                index_writer.add_document(doc);
+            uncommitted_docs.insert(random_val);
+            let mut doc = Document::new();
+            doc.add_u64(id_field, random_val);
+            for i in 1u64..10u64 {
+                doc.add_u64(multiples_field, random_val * i);
             }
+            index_writer.add_document(doc);
         }
     }
     Ok(())

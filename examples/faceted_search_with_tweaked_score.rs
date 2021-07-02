@@ -12,7 +12,7 @@ fn main() -> tantivy::Result<()> {
     let ingredient = schema_builder.add_facet_field("ingredient", INDEXED);
 
     let schema = schema_builder.build();
-    let index = Index::create_in_ram(schema.clone());
+    let index = Index::create_in_ram(schema);
 
     let mut index_writer = index.writer(30_000_000)?;
 
@@ -51,7 +51,7 @@ fn main() -> tantivy::Result<()> {
         let query = BooleanQuery::new_multiterms_query(
             facets
                 .iter()
-                .map(|key| Term::from_facet(ingredient, &key))
+                .map(|key| Term::from_facet(ingredient, key))
                 .collect(),
         );
         let top_docs_by_custom_score =

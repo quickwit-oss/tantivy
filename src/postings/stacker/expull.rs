@@ -280,11 +280,8 @@ mod tests {
             if v.len() >= 10 {
                 break;
             }
-            match len_to_capacity(i) {
-                CapacityResult::NeedAlloc(cap) => {
-                    v.push((i, cap));
-                }
-                _ => {}
+            if let CapacityResult::NeedAlloc(cap) = len_to_capacity(i) {
+                v.push((i, cap));
             }
         }
         assert_eq!(

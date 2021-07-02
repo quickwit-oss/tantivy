@@ -779,7 +779,7 @@ mod tests {
   }
 ]"#;
         let tmp_schema: Schema =
-            serde_json::from_str(&schema_content).expect("error while reading json");
+            serde_json::from_str(schema_content).expect("error while reading json");
         for (_field, field_entry) in tmp_schema.fields() {
             schema_builder.add_field(field_entry.clone());
         }
