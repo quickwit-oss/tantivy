@@ -19,27 +19,22 @@ const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|
 
 /// Parses a field_name
 /// A field name must have at least one character and be followed by a colon.
-/// All characters are allowed except special characters `SPECIAL_CHARS`
-/// which must be escaped with escape character `\`.
+/// All characters are allowed including special characters `SPECIAL_CHARS`, but these
+/// need to be escaped with a backslack character '\'.
 fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
     static ESCAPED_SPECIAL_CHARS_RE: Lazy<Regex> =
         Lazy::new(|| Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap());
 
-    recognize::<String, _, _>(
-        recognize::<String, _, _>(escaped(
-            (
-                take_while1(|c| !SPECIAL_CHARS.contains(&c) && c != '-'),
-                take_while(|c| !SPECIAL_CHARS.contains(&c)),
-            ),
-            '\\',
-            satisfy(|c| SPECIAL_CHARS.contains(&c)),
-        ))
-        .and(char(':')),
-    )
-    .map(|mut s| {
-        s.pop();
-        ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string()
-    })
+    recognize::<String, _, _>(escaped(
+        (
+            take_while1(|c| !SPECIAL_CHARS.contains(&c) && c != '-'),
+            take_while(|c| !SPECIAL_CHARS.contains(&c)),
+        ),
+        '\\',
+        satisfy(|c| SPECIAL_CHARS.contains(&c)),
+    ))
+    .skip(char(':'))
+    .map(|s| ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string())
     .and_then(|s: String| match s.is_empty() {
         true => Err(StringStreamError::UnexpectedParse),
         _ => Ok(s),
