@@ -24,7 +24,7 @@ impl Debug for UserInputLeaf {
                 ref upper,
             } => {
                 if let Some(ref field) = field {
-                    write!(formatter, "{}:", field)?;
+                    write!(formatter, "\"{}\":", field)?;
                 }
                 lower.display_lower(formatter)?;
                 write!(formatter, " TO ")?;
@@ -45,7 +45,7 @@ pub struct UserInputLiteral {
 impl fmt::Debug for UserInputLiteral {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self.field_name {
-            Some(ref field_name) => write!(formatter, "{}:\"{}\"", field_name, self.phrase),
+            Some(ref field_name) => write!(formatter, "\"{}\":\"{}\"", field_name, self.phrase),
             None => write!(formatter, "\"{}\"", self.phrase),
         }
     }
