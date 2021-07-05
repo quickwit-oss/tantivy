@@ -4,6 +4,7 @@ use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::segment_entry::SegmentEntry;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::fmt::{self, Debug, Formatter};
 
 /// The segment register keeps track
@@ -29,6 +30,16 @@ impl Debug for SegmentRegister {
         Ok(())
     }
 }
+impl Display for SegmentRegister {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "SegmentRegister(")?;
+        for k in self.segment_states.keys() {
+            write!(f, "{}, ", k.short_uuid_string())?;
+        }
+        write!(f, ")")?;
+        Ok(())
+    }
+}
 
 impl SegmentRegister {
     pub fn clear(&mut self) {
@@ -44,6 +55,10 @@ impl SegmentRegister {
             .filter(|segment_entry| !in_merge_segment_ids.contains(&segment_entry.segment_id()))
             .map(|segment_entry| segment_entry.meta().clone())
             .collect()
+    }
+
+    pub fn segment_ids(&self) -> Vec<SegmentId> {
+        self.segment_states.keys().cloned().collect()
     }
 
     pub fn segment_entries(&self) -> Vec<SegmentEntry> {
