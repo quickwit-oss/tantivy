@@ -91,6 +91,7 @@ impl OwnedBytes {
     }
 
     /// Reads an `u8` from the `OwnedBytes` and advance by one byte.
+    #[inline]
     pub fn read_u8(&mut self) -> u8 {
         assert!(!self.is_empty());
 
@@ -100,6 +101,7 @@ impl OwnedBytes {
     }
 
     /// Reads an `u64` encoded as little-endian from the `OwnedBytes` and advance by 8 bytes.
+    #[inline]
     pub fn read_u64(&mut self) -> u64 {
         assert!(self.len() > 7);
 
@@ -125,12 +127,14 @@ impl fmt::Debug for OwnedBytes {
 impl Deref for OwnedBytes {
     type Target = [u8];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.as_slice()
     }
 }
 
 impl io::Read for OwnedBytes {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let read_len = {
             let data = self.as_slice();
@@ -147,6 +151,7 @@ impl io::Read for OwnedBytes {
         self.advance(read_len);
         Ok(read_len)
     }
+    #[inline]
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
         let read_len = {
             let data = self.as_slice();
@@ -156,6 +161,7 @@ impl io::Read for OwnedBytes {
         self.advance(read_len);
         Ok(read_len)
     }
+    #[inline]
     fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         let read_len = self.read(buf)?;
         if read_len != buf.len() {
@@ -169,6 +175,7 @@ impl io::Read for OwnedBytes {
 }
 
 impl AsRef<[u8]> for OwnedBytes {
+    #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_slice()
     }
