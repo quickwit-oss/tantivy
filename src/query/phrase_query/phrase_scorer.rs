@@ -109,6 +109,7 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
+    // TODO: Modify this logic to add fuzziness to the logic.
     while left_i < left_len && right_i < right_len {
         let left_val = left[left_i];
         let right_val = right[right_i];
@@ -170,7 +171,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
-        // Need to add support for slop in phrase_count and phrase_exists
+        // Need to add support for slop in phrase_count and phrase_exists.
         if self.scoring_enabled {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
