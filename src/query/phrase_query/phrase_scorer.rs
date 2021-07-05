@@ -170,6 +170,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
     }
 
     fn phrase_match(&mut self) -> bool {
+        // Need to add support for slop in phrase_count and phrase_exists
         if self.scoring_enabled {
             let count = self.compute_phrase_count();
             self.phrase_count = count;
