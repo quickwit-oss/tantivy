@@ -1,21 +1,44 @@
 use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
 use crate::Occur;
-use combine::parser::char::{char, digit, letter, space, spaces, string};
+use combine::parser::char::{char, digit, space, spaces, string};
+use combine::parser::range::{take_while, take_while1};
+use combine::parser::repeat::escaped;
 use combine::parser::Parser;
 use combine::{
     attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
 use combine::{error::StringStreamError, parser::combinator::recognize};
+use once_cell::sync::Lazy;
+use regex::Regex;
 
-fn field<'a>() -> impl Parser<&'a str, Output = String> {
-    (
-        (letter().or(char('_'))),
-        many(satisfy(|c: char| {
-            c.is_alphanumeric() || c == '_' || c == '-'
-        })),
-    )
-        .skip(char(':'))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+// Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to special characters.
+const SPECIAL_CHARS: &[char] = &[
+    '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
+];
+const ESCAPED_SPECIAL_CHARS_PATTERN: &str = r#"\\(\+|\^|`|:|\{|\}|"|\[|\]|\(|\)|\~|!|\\|\*| )"#;
+
+/// Parses a field_name
+/// A field name must have at least one character and be followed by a colon.
+/// All characters are allowed including special characters `SPECIAL_CHARS`, but these
+/// need to be escaped with a backslack character '\'.
+fn field_name<'a>() -> impl Parser<&'a str, Output = String> {
+    static ESCAPED_SPECIAL_CHARS_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap());
+
+    recognize::<String, _, _>(escaped(
+        (
+            take_while1(|c| !SPECIAL_CHARS.contains(&c) && c != '-'),
+            take_while(|c| !SPECIAL_CHARS.contains(&c)),
+        ),
+        '\\',
+        satisfy(|c| SPECIAL_CHARS.contains(&c)),
+    ))
+    .skip(char(':'))
+    .map(|s| ESCAPED_SPECIAL_CHARS_RE.replace_all(&s, "$1").to_string())
+    .and_then(|s: String| match s.is_empty() {
+        true => Err(StringStreamError::UnexpectedParse),
+        _ => Ok(s),
+    })
 }
 
 fn word<'a>() -> impl Parser<&'a str, Output = String> {
@@ -98,7 +121,7 @@ fn term_val<'a>() -> impl Parser<&'a str, Output = String> {
 
 fn term_query<'a>() -> impl Parser<&'a str, Output = UserInputLiteral> {
     let term_val_with_field = negative_number().or(term_val());
-    (field(), term_val_with_field).map(|(field_name, phrase)| UserInputLiteral {
+    (field_name(), term_val_with_field).map(|(field_name, phrase)| UserInputLiteral {
         field_name: Some(field_name),
         phrase,
     })
@@ -195,7 +218,7 @@ fn range<'a>() -> impl Parser<&'a str, Output = UserInputLeaf> {
     );
 
     (
-        optional(field()).skip(spaces()),
+        optional(field_name()).skip(spaces()),
         // try elastic first, if it matches, the range is unbounded
         attempt(elastic_unbounded_range).or(lower_to_upper),
     )
@@ -464,21 +487,21 @@ mod test {
 
     #[test]
     fn test_parse_elastic_query_ranges() {
-        test_parse_query_to_ast_helper("title: >a", "title:{\"a\" TO \"*\"}");
-        test_parse_query_to_ast_helper("title:>=a", "title:[\"a\" TO \"*\"}");
-        test_parse_query_to_ast_helper("title: <a", "title:{\"*\" TO \"a\"}");
-        test_parse_query_to_ast_helper("title:<=a", "title:{\"*\" TO \"a\"]");
-        test_parse_query_to_ast_helper("title:<=bsd", "title:{\"*\" TO \"bsd\"]");
+        test_parse_query_to_ast_helper("title: >a", "\"title\":{\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper("title:>=a", "\"title\":[\"a\" TO \"*\"}");
+        test_parse_query_to_ast_helper("title: <a", "\"title\":{\"*\" TO \"a\"}");
+        test_parse_query_to_ast_helper("title:<=a", "\"title\":{\"*\" TO \"a\"]");
+        test_parse_query_to_ast_helper("title:<=bsd", "\"title\":{\"*\" TO \"bsd\"]");
 
-        test_parse_query_to_ast_helper("weight: >70", "weight:{\"70\" TO \"*\"}");
-        test_parse_query_to_ast_helper("weight:>=70", "weight:[\"70\" TO \"*\"}");
-        test_parse_query_to_ast_helper("weight: <70", "weight:{\"*\" TO \"70\"}");
-        test_parse_query_to_ast_helper("weight:<=70", "weight:{\"*\" TO \"70\"]");
-        test_parse_query_to_ast_helper("weight: >60.7", "weight:{\"60.7\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight: >70", "\"weight\":{\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight:>=70", "\"weight\":[\"70\" TO \"*\"}");
+        test_parse_query_to_ast_helper("weight: <70", "\"weight\":{\"*\" TO \"70\"}");
+        test_parse_query_to_ast_helper("weight:<=70", "\"weight\":{\"*\" TO \"70\"]");
+        test_parse_query_to_ast_helper("weight: >60.7", "\"weight\":{\"60.7\" TO \"*\"}");
 
-        test_parse_query_to_ast_helper("weight: <= 70", "weight:{\"*\" TO \"70\"]");
+        test_parse_query_to_ast_helper("weight: <= 70", "\"weight\":{\"*\" TO \"70\"]");
 
-        test_parse_query_to_ast_helper("weight: <= 70.5", "weight:{\"*\" TO \"70.5\"]");
+        test_parse_query_to_ast_helper("weight: <= 70.5", "\"weight\":{\"*\" TO \"70.5\"]");
     }
 
     #[test]
@@ -491,20 +514,41 @@ mod test {
     #[test]
     fn test_field_name() -> TestParseResult {
         assert_eq!(
-            super::field().parse("my-field-name:a")?,
-            ("my-field-name".to_string(), "a")
+            super::field_name().parse(".my.field.name:a"),
+            Ok((".my.field.name".to_string(), "a"))
         );
         assert_eq!(
-            super::field().parse("my_field_name:a")?,
-            ("my_field_name".to_string(), "a")
+            super::field_name().parse("my\\ field\\ name:a"),
+            Ok(("my field name".to_string(), "a"))
         );
-        assert!(super::field().parse(":a").is_err());
-        assert!(super::field().parse("-my_field:a").is_err());
+        assert!(super::field_name().parse("my field:a").is_err());
         assert_eq!(
-            super::field().parse("_my_field:a")?,
+            super::field_name().parse("\\(1\\+1\\):2"),
+            Ok(("(1+1)".to_string(), "2"))
+        );
+        assert_eq!(
+            super::field_name().parse("my_field_name:a"),
+            Ok(("my_field_name".to_string(), "a"))
+        );
+        assert!(super::field_name().parse("my_field_name").is_err());
+        assert!(super::field_name().parse(":a").is_err());
+        assert!(super::field_name().parse("-my_field:a").is_err());
+        assert_eq!(
+            super::field_name().parse("_my_field:a")?,
             ("_my_field".to_string(), "a")
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_field_name_re() {
+        let escaped_special_chars_re = Regex::new(ESCAPED_SPECIAL_CHARS_PATTERN).unwrap();
+        for special_char in SPECIAL_CHARS.iter() {
+            assert_eq!(
+                escaped_special_chars_re.replace_all(&format!("\\{}", special_char), "$1"),
+                special_char.to_string()
+            );
+        }
     }
 
     #[test]
@@ -600,12 +644,14 @@ mod test {
 
     #[test]
     fn test_single_term_with_field() {
-        test_parse_query_to_ast_helper("abc:toto", "abc:\"toto\"");
+        test_parse_query_to_ast_helper("abc:toto", "\"abc\":\"toto\"");
     }
 
     #[test]
     fn test_single_term_with_float() {
-        test_parse_query_to_ast_helper("abc:1.1", "abc:\"1.1\"");
+        test_parse_query_to_ast_helper("abc:1.1", "\"abc\":\"1.1\"");
+        test_parse_query_to_ast_helper("a.b.c:1.1", "\"a.b.c\":\"1.1\"");
+        test_parse_query_to_ast_helper("a\\ b\\ c:1.1", "\"a b c\":\"1.1\"");
     }
 
     #[test]
@@ -621,22 +667,27 @@ mod test {
     #[test]
     fn test_parse_test_query_other() {
         test_parse_query_to_ast_helper("(+a +b) d", "(*(+\"a\" +\"b\") *\"d\")");
-        test_parse_query_to_ast_helper("+abc:toto", "abc:\"toto\"");
-        test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+abc:\"toto\" -\"titi\")");
-        test_parse_query_to_ast_helper("-abc:toto", "(-abc:\"toto\")");
-        test_parse_query_to_ast_helper("abc:a b", "(*abc:\"a\" *\"b\")");
-        test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
-        test_parse_query_to_ast_helper("foo:[1 TO 5]", "foo:[\"1\" TO \"5\"]");
+        test_parse_query_to_ast_helper("+abc:toto", "\"abc\":\"toto\"");
+        test_parse_query_to_ast_helper("+a\\+b\\+c:toto", "\"a+b+c\":\"toto\"");
+        test_parse_query_to_ast_helper("(+abc:toto -titi)", "(+\"abc\":\"toto\" -\"titi\")");
+        test_parse_query_to_ast_helper("-abc:toto", "(-\"abc\":\"toto\")");
+        test_is_parse_err("--abc:toto");
+        test_parse_query_to_ast_helper("abc:a b", "(*\"abc\":\"a\" *\"b\")");
+        test_parse_query_to_ast_helper("abc:\"a b\"", "\"abc\":\"a b\"");
+        test_parse_query_to_ast_helper("foo:[1 TO 5]", "\"foo\":[\"1\" TO \"5\"]");
     }
 
     #[test]
     fn test_parse_query_with_range() {
         test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
-        test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
-        test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
-        test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:{\"*\" TO \"toto\"}");
-        test_parse_query_to_ast_helper("foo:[1 TO *}", "foo:[\"1\" TO \"*\"}");
-        test_parse_query_to_ast_helper("foo:[1.1 TO *}", "foo:[\"1.1\" TO \"*\"}");
+        test_parse_query_to_ast_helper("foo:{a TO z}", "\"foo\":{\"a\" TO \"z\"}");
+        test_parse_query_to_ast_helper("foo:[1 TO toto}", "\"foo\":[\"1\" TO \"toto\"}");
+        test_parse_query_to_ast_helper("foo:[* TO toto}", "\"foo\":{\"*\" TO \"toto\"}");
+        test_parse_query_to_ast_helper("foo:[1 TO *}", "\"foo\":[\"1\" TO \"*\"}");
+        test_parse_query_to_ast_helper(
+            "1.2.foo.bar:[1.1 TO *}",
+            "\"1.2.foo.bar\":[\"1.1\" TO \"*\"}",
+        );
         test_is_parse_err("abc +    ");
     }
 }
