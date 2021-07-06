@@ -51,10 +51,11 @@ pub struct PhraseScorer<TPostings: Postings> {
     fieldnorm_reader: FieldNormReader,
     similarity_weight: Bm25Weight,
     scoring_enabled: bool,
+    slop: u32,
 }
 
 /// Returns true iff the two sorted array contain a common element
-fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
+fn intersection_exists(left: &[u32], right: &[u32], slop: u32) -> bool {
     let mut left_i = 0;
     let mut right_i = 0;
     while left_i < left.len() && right_i < right.len() {
@@ -62,7 +63,11 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
         let right_val = right[right_i];
         match left_val.cmp(&right_val) {
             Ordering::Less => {
-                left_i += 1;
+                if right_val - left_val <= slop {
+                    return true;
+                } else {
+                    left_i += 1;
+                }
             }
             Ordering::Equal => {
                 return true;
@@ -75,7 +80,7 @@ fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
     false
 }
 
-fn intersection_count(left: &[u32], right: &[u32]) -> usize {
+fn intersection_count(left: &[u32], right: &[u32], slop: u32) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
@@ -84,7 +89,12 @@ fn intersection_count(left: &[u32], right: &[u32]) -> usize {
         let right_val = right[right_i];
         match left_val.cmp(&right_val) {
             Ordering::Less => {
-                left_i += 1;
+                if right_val - left_val <= slop {
+                    count += 1;
+                    left_i += 1;
+                } else {
+                    left_i += 1;
+                }
             }
             Ordering::Equal => {
                 count += 1;
@@ -103,19 +113,24 @@ fn intersection_count(left: &[u32], right: &[u32]) -> usize {
 /// resulting array in left.
 ///
 /// Returns the length of the intersection
-fn intersection(left: &mut [u32], right: &[u32]) -> usize {
+fn intersection(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
-    // TODO: Modify this logic to add fuzziness to the logic.
     while left_i < left_len && right_i < right_len {
         let left_val = left[left_i];
         let right_val = right[right_i];
         match left_val.cmp(&right_val) {
             Ordering::Less => {
-                left_i += 1;
+                if right_val - left_val <= slop {
+                    left[count] = left_val;
+                    count += 1;
+                    left_i += 1;
+                } else {
+                    left_i += 1;
+                }
             }
             Ordering::Equal => {
                 left[count] = left_val;
@@ -137,6 +152,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         similarity_weight: Bm25Weight,
         fieldnorm_reader: FieldNormReader,
         scoring_enabled: bool,
+        slop: u32,
     ) -> PhraseScorer<TPostings> {
         let max_offset = term_postings
             .iter()
@@ -159,6 +175,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             similarity_weight,
             fieldnorm_reader,
             scoring_enabled,
+            slop,
         };
         if scorer.doc() != TERMINATED && !scorer.phrase_match() {
             scorer.advance();
@@ -192,7 +209,11 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                     .docset_mut_specialized(i)
                     .positions(&mut self.right);
             }
-            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
+            intersection_len = intersection(
+                &mut self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            );
             if intersection_len == 0 {
                 return false;
             }
@@ -201,7 +222,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         self.intersection_docset
             .docset_mut_specialized(self.num_terms - 1)
             .positions(&mut self.right);
-        intersection_exists(&self.left[..intersection_len], &self.right[..])
+        intersection_exists(&self.left[..intersection_len], &self.right[..], self.slop)
     }
 
     fn compute_phrase_count(&mut self) -> u32 {
@@ -217,7 +238,11 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                     .docset_mut_specialized(i)
                     .positions(&mut self.right);
             }
-            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
+            intersection_len = intersection(
+                &mut self.left[..intersection_len],
+                &self.right[..],
+                self.slop,
+            );
             if intersection_len == 0 {
                 return 0u32;
             }
@@ -226,7 +251,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         self.intersection_docset
             .docset_mut_specialized(self.num_terms - 1)
             .positions(&mut self.right);
-        intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
+        intersection_count(&self.left[..intersection_len], &self.right[..], self.slop) as u32
     }
 }
 
@@ -272,15 +297,15 @@ mod tests {
     use super::{intersection, intersection_count};
 
     fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
-        test_intersection_aux(left, right, expected);
-        test_intersection_aux(right, left, expected);
+        test_intersection_aux(left, right, expected, 0);
+        test_intersection_aux(right, left, expected, 0);
     }
 
-    fn test_intersection_aux(left: &[u32], right: &[u32], expected: &[u32]) {
+    fn test_intersection_aux(left: &[u32], right: &[u32], expected: &[u32], slop: u32) {
         let mut left_vec = Vec::from(left);
         let left_mut = &mut left_vec[..];
-        assert_eq!(intersection_count(left_mut, right), expected.len());
-        let count = intersection(left_mut, right);
+        assert_eq!(intersection_count(left_mut, right, slop), expected.len());
+        let count = intersection(left_mut, right, slop);
         assert_eq!(&left_mut[..count], expected);
     }
 
@@ -291,6 +316,16 @@ mod tests {
         test_intersection_sym(&[], &[2], &[]);
         test_intersection_sym(&[5, 7], &[1, 5, 10, 12], &[5]);
         test_intersection_sym(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12]);
+    }
+    #[test]
+    fn test_slop() {
+        // The slop is not symetric. It does not allow for the phrase to be out of order.
+        test_intersection_aux(&[1], &[2], &[1], 1);
+        test_intersection_aux(&[1], &[3], &[], 1);
+        test_intersection_aux(&[1], &[3], &[1], 2);
+        test_intersection_aux(&[], &[2], &[], 100000);
+        test_intersection_aux(&[5, 7, 11], &[1, 5, 10, 12], &[5, 11], 1);
+        test_intersection_aux(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[5, 6, 9, 12], 1);
     }
 }
 
@@ -305,7 +340,7 @@ mod bench {
         b.iter(|| {
             let mut left = [1, 5, 10, 12];
             let right = [5, 7];
-            intersection(&mut left, &right);
+            intersection(&mut left, &right, 0);
         });
     }
 
@@ -314,7 +349,7 @@ mod bench {
         b.iter(|| {
             let left = [1, 5, 10, 12];
             let right = [5, 7];
-            intersection_count(&left, &right);
+            intersection_count(&left, &right, 0);
         });
     }
 }
