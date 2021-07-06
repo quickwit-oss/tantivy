@@ -465,7 +465,7 @@ mod bench {
         b.iter(|| {
             let mut left = [1, 5, 10, 12];
             let right = [5, 7];
-            intersection(&mut left, &right, 0);
+            intersection(&mut left, &right);
         });
     }
 
@@ -474,7 +474,7 @@ mod bench {
         b.iter(|| {
             let left = [1, 5, 10, 12];
             let right = [5, 7];
-            intersection_count(&left, &right, 0);
+            intersection_count(&left, &right);
         });
     }
 }
