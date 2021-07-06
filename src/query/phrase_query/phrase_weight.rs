@@ -75,14 +75,13 @@ impl PhraseWeight {
                 }
             }
         }
-        let mut scorer = PhraseScorer::new(
+        Ok(Some(PhraseScorer::new(
             term_postings_list,
             similarity_weight,
             fieldnorm_reader,
             self.scoring_enabled,
             self.slop,
-        );
-        Ok(Some(scorer))
+        )))
     }
 
     pub fn slop(&mut self, slop: u32) {
