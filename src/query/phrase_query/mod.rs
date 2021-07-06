@@ -204,7 +204,6 @@ pub mod tests {
         assert_nearly_equals!(scores[1], 0.46844664);
     }
 
-    #[ignore]
     #[test]
     pub fn test_phrase_score_with_slop_size() {
         let index = create_index(&["a b e c", "a e e e c", "a e e e e c"]);
@@ -229,10 +228,16 @@ pub mod tests {
         assert_nearly_equals!(scores[1], 0.26706287);
     }
 
-    #[ignore]
     #[test]
     pub fn test_phrase_score_with_slop_ordering() {
-        let index = create_index(&["a e b e c", "a e e e e e b e e e e c", "a c b", "a e b c"]);
+        let index = create_index(&[
+            "a e b e c",
+            "a e e e e e b e e e e c",
+            "a c b",
+            "a c e b e",
+            "a e c b",
+            "a e b c",
+        ]);
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
         let searcher = index.reader().unwrap().searcher();
@@ -250,8 +255,9 @@ pub mod tests {
                 .to_vec()
         };
         let scores = test_query(vec!["a", "b", "c"]);
-        assert_nearly_equals!(scores[0], 0.33920956);
-        assert_nearly_equals!(scores[1], 0.36598927);
+        // The first and last matches.
+        assert_nearly_equals!(scores[0], 0.23091172);
+        assert_nearly_equals!(scores[1], 0.25024384);
     }
 
     #[test] // motivated by #234
