@@ -16,7 +16,7 @@ use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
 use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
-/// The `FilterCollector` collector filters docs using a u64 fast field value and a predicate.
+/// The `FilterCollector` collector filters docs using a fast field value and a predicate.
 /// Only the documents for which the predicate returned "true" will be passed on to the next collector.
 ///
 /// ```rust
