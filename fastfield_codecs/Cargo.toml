@@ -12,8 +12,6 @@ description = "Fast field codecs used by tantivy"
 common = { path = "../common/" }
 tantivy-bitpacker = { path = "../bitpacker/" }
 prettytable-rs = {version="0.8.0", optional= true}
-#prettytable-rs = {version="0.8.0" }
-rand = "0.8.3"
 
 [dev-dependencies]
 more-asserts = "0.2.1"
