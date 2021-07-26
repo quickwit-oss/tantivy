@@ -1,3 +1,17 @@
+/*!
+
+MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the offset, but in blocks of 512.
+
+With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 / 512 = 0,45 bits per element.
+The additional space required per element in a block is the the maximum deviation of the linear interpolation estimation function.
+
+E.g. if the maximum deviation of an element is 12, all elements cost 4bits.
+
+Size per block:
+Num Elements * Maximum Deviation from Interpolation + 29 Byte Metadata
+
+*/
+
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
