@@ -11,7 +11,7 @@ use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
 use crate::directory::{ArcBytes, WeakArcBytes};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
-use memmap::Mmap;
+use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use stable_deref_trait::StableDeref;
 use std::convert::From;
@@ -53,7 +53,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
         return Ok(None);
     }
     unsafe {
-        memmap::Mmap::map(&file)
+        memmap2::Mmap::map(&file)
             .map(Some)
             .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_path_buf()))
     }
