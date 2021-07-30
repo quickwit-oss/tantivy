@@ -3,6 +3,9 @@ Postings module (also called inverted index)
 */
 
 mod block_search;
+
+pub(crate) use self::block_search::branchless_binary_search;
+
 mod block_segment_postings;
 pub(crate) mod compression;
 mod postings;
@@ -14,7 +17,6 @@ mod skip;
 mod stacker;
 mod term_info;
 
-pub(crate) use self::block_search::BlockSearcher;
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub use self::postings::Postings;
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;

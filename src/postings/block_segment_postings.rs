@@ -4,9 +4,7 @@ use crate::common::{BinarySerializable, VInt};
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::compression::{
-    AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
-};
+use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
@@ -209,9 +207,9 @@ impl BlockSegmentPostings {
     ///
     /// This method is useful to run SSE2 linear search.
     #[inline]
-    pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
+    pub(crate) fn full_block(&self) -> &[DocId; COMPRESSION_BLOCK_SIZE] {
         debug_assert!(self.block_is_loaded());
-        self.doc_decoder.output_aligned()
+        &self.doc_decoder.full_output()
     }
 
     /// Return the document at index `idx` of the block.

@@ -2,8 +2,8 @@ use crate::common::HasLen;
 use crate::docset::DocSet;
 use crate::fastfield::DeleteBitSet;
 use crate::positions::PositionReader;
+use crate::postings::branchless_binary_search;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::BlockSearcher;
 use crate::postings::BlockSegmentPostings;
 use crate::postings::Postings;
 use crate::{DocId, TERMINATED};
@@ -18,7 +18,6 @@ pub struct SegmentPostings {
     pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_reader: Option<PositionReader>,
-    block_searcher: BlockSearcher,
 }
 
 impl SegmentPostings {
@@ -28,7 +27,6 @@ impl SegmentPostings {
             block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
             position_reader: None,
-            block_searcher: BlockSearcher::default(),
         }
     }
 
@@ -154,7 +152,6 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: 0, // cursor within the block
             position_reader,
-            block_searcher: BlockSearcher::default(),
         }
     }
 }
@@ -183,8 +180,8 @@ impl DocSet for SegmentPostings {
         self.block_cursor.seek(target);
 
         // At this point we are on the block, that might contain our document.
-        let output = self.block_cursor.docs_aligned();
-        self.cur = self.block_searcher.search_in_block(output, target);
+        let output = self.block_cursor.full_block();
+        self.cur = branchless_binary_search(output, target);
 
         // The last block is not full and padded with the value TERMINATED,
         // so that we are guaranteed to have at least doc in the block (a real one or the padding)
@@ -197,7 +194,7 @@ impl DocSet for SegmentPostings {
         // with the value `TERMINATED`.
         //
         // After the search, the cursor should point to the first value of TERMINATED.
-        let doc = output.0[self.cur];
+        let doc = output[self.cur];
         debug_assert!(doc >= target);
         debug_assert_eq!(doc, self.doc());
         doc
