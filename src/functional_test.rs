@@ -1,4 +1,7 @@
 use crate::Index;
+use crate::IndexSettings;
+use crate::IndexSortByField;
+use crate::Order;
 use crate::Searcher;
 use crate::{doc, schema::*};
 use rand::thread_rng;
@@ -35,7 +38,7 @@ fn test_functional_store() -> crate::Result<()> {
     let mut doc_set: Vec<u64> = Vec::new();
 
     let mut doc_id = 0u64;
-    for iteration in 0..500 {
+    for iteration in 0..get_num_iterations() {
         dbg!(iteration);
         let num_docs: usize = rng.gen_range(0..4);
         if !doc_set.is_empty() {
@@ -52,6 +55,68 @@ fn test_functional_store() -> crate::Result<()> {
         reader.reload()?;
         let searcher = reader.searcher();
         check_index_content(&searcher, &doc_set)?;
+    }
+    Ok(())
+}
+
+fn get_num_iterations() -> usize {
+    std::env::var("NUM_FUNCTIONAL_TEST_ITERATIONS")
+        .map(|str| str.parse().unwrap())
+        .unwrap_or(2000)
+}
+#[test]
+#[ignore]
+fn test_functional_indexing_sorted() -> crate::Result<()> {
+    let mut schema_builder = Schema::builder();
+
+    let id_field = schema_builder.add_u64_field("id", INDEXED | FAST);
+    let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
+    let schema = schema_builder.build();
+
+    let mut index_builder = Index::builder().schema(schema);
+    index_builder = index_builder.settings(IndexSettings {
+        sort_by_field: Some(IndexSortByField {
+            field: "id".to_string(),
+            order: Order::Desc,
+        }),
+        ..Default::default()
+    });
+    let index = index_builder.create_from_tempdir().unwrap();
+
+    let reader = index.reader()?;
+
+    let mut rng = thread_rng();
+
+    let mut index_writer = index.writer_with_num_threads(3, 120_000_000)?;
+
+    let mut committed_docs: HashSet<u64> = HashSet::new();
+    let mut uncommitted_docs: HashSet<u64> = HashSet::new();
+
+    for _ in 0..get_num_iterations() {
+        let random_val = rng.gen_range(0..20);
+        if random_val == 0 {
+            index_writer.commit()?;
+            committed_docs.extend(&uncommitted_docs);
+            uncommitted_docs.clear();
+            reader.reload()?;
+            let searcher = reader.searcher();
+            // check that everything is correct.
+            check_index_content(
+                &searcher,
+                &committed_docs.iter().cloned().collect::<Vec<u64>>(),
+            )?;
+        } else if committed_docs.remove(&random_val) || uncommitted_docs.remove(&random_val) {
+            let doc_id_term = Term::from_field_u64(id_field, random_val);
+            index_writer.delete_term(doc_id_term);
+        } else {
+            uncommitted_docs.insert(random_val);
+            let mut doc = Document::new();
+            doc.add_u64(id_field, random_val);
+            for i in 1u64..10u64 {
+                doc.add_u64(multiples_field, random_val * i);
+            }
+            index_writer.add_document(doc);
+        }
     }
     Ok(())
 }
@@ -75,7 +140,7 @@ fn test_functional_indexing() -> crate::Result<()> {
     let mut committed_docs: HashSet<u64> = HashSet::new();
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
 
-    for _ in 0..200 {
+    for _ in 0..get_num_iterations() {
         let random_val = rng.gen_range(0..20);
         if random_val == 0 {
             index_writer.commit()?;
