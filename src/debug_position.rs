@@ -1,10 +1,14 @@
 use std::panic;
 
+use futures::executor::block_on;
 use tantivy;
 use tantivy::DocSet;
 use tantivy::Postings;
 use tantivy::Searcher;
 use tantivy::TERMINATED;
+use tantivy::merge_policy;
+use tantivy::merge_policy::DefaultMergePolicy;
+use tantivy::merge_policy::MergePolicy;
 use tantivy::schema::Field;
 use tantivy::schema::IndexRecordOption;
 
@@ -49,5 +53,25 @@ fn main() -> tantivy::Result<()> {
         test_field(&*searcher, field)?;
     }
 
+
+    println!("GC");
+    let mut index_writer = index.writer_with_num_threads(1, 100_000_000)?;
+    block_on(index_writer.garbage_collect_files())?;
+
+    print!("----- validdating checksum");
+    index.validate_checksum()?;
+
+    print!("----- success");
+
+    let default_merge_policy = DefaultMergePolicy::default();
+    let segment_metas = index.searchable_segment_metas()?;
+    let merge_candidates = default_merge_policy.compute_merge_candidates(&segment_metas);
+    println!("{:?}", merge_candidates);
+    for merge_candidate in merge_candidates {
+        println!("merge_candidate {:?}", merge_candidate);
+        let future = index_writer.merge(&merge_candidate.0[..]);
+        let seg = block_on(future)?;
+        println!("seg {:?} ", seg);
+    }
     Ok(())
 }
