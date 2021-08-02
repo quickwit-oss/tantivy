@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  NUM_FUNCTIONAL_TEST_ITERATIONS: 2000000
+  NUM_FUNCTIONAL_TEST_ITERATIONS: 200000
 
 jobs:
   functional_test_unsorted:

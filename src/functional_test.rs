@@ -1,3 +1,4 @@
+use crate::schema;
 use crate::Index;
 use crate::IndexSettings;
 use crate::IndexSortByField;
@@ -71,6 +72,13 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
     let id_field = schema_builder.add_u64_field("id", INDEXED | FAST);
     let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
+    let text_field_options = TextOptions::default()
+        .set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+        )
+        .set_stored();
+    let text_field = schema_builder.add_text_field("text_field", text_field_options);
     let schema = schema_builder.build();
 
     let mut index_builder = Index::builder().schema(schema);
@@ -115,10 +123,32 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);
             }
+            doc.add_text(text_field, get_text());
             index_writer.add_document(doc);
         }
     }
     Ok(())
+}
+
+const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
+             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
+             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
+             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
+             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
+             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
+             proident, sunt in culpa qui officia deserunt mollit anim id est \
+             laborum.";
+fn get_text() -> String {
+    use rand::seq::SliceRandom;
+    let mut rng = thread_rng();
+    let tokens: Vec<_> = LOREM.split(" ").collect();
+    let random_val = rng.gen_range(0..20);
+
+    (0..random_val)
+        .map(|_| tokens.choose(&mut rng).unwrap())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[test]
@@ -128,6 +158,13 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
 
     let id_field = schema_builder.add_u64_field("id", INDEXED);
     let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
+    let text_field_options = TextOptions::default()
+        .set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(schema::IndexRecordOption::WithFreqsAndPositions),
+        )
+        .set_stored();
+    let text_field = schema_builder.add_text_field("text_field", text_field_options);
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema)?;
@@ -163,6 +200,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
             for i in 1u64..10u64 {
                 doc.add_u64(multiples_field, random_val * i);
             }
+            doc.add_text(text_field, get_text());
             index_writer.add_document(doc);
         }
     }
