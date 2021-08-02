@@ -123,7 +123,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
 
 #[test]
 #[ignore]
-fn test_functional_indexing() -> crate::Result<()> {
+fn test_functional_indexing_unsorted() -> crate::Result<()> {
     let mut schema_builder = Schema::builder();
 
     let id_field = schema_builder.add_u64_field("id", INDEXED);
