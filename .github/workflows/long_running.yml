@@ -3,12 +3,10 @@ name: Rust
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
-  NUM_FUNCTIONAL_TEST_ITERATIONS: 200000
+  NUM_FUNCTIONAL_TEST_ITERATIONS: 20000
 
 jobs:
   functional_test_unsorted:
