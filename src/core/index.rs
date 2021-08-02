@@ -229,7 +229,8 @@ impl Index {
     /// Creates a new index using the `RamDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
-    /// This should only be used for unit tests.
+    /// This is useful for indexing small set of documents
+    /// for instances like unit test or temporary in memory index.
     pub fn create_in_ram(schema: Schema) -> Index {
         IndexBuilder::new().schema(schema).create_in_ram().unwrap()
     }
@@ -523,7 +524,19 @@ impl Index {
 
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
-        self.directory.list_damaged().map_err(Into::into)
+        let active_files: HashSet<PathBuf> = self
+            .searchable_segment_metas()?
+            .iter()
+            .flat_map(|segment_meta| segment_meta.list_files())
+            .collect();
+
+        let mut damaged_files = HashSet::new();
+        for path in active_files {
+            if !self.directory.validate_checksum(&path)? {
+                damaged_files.insert(path);
+            }
+        }
+        Ok(damaged_files)
     }
 }
 
