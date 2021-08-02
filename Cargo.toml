@@ -12,6 +12,11 @@ readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 edition = "2018"
 
+
+[[bin]]
+name = "debug_position"
+path = "src/debug_position.rs"
+
 [dependencies]
 base64 = "0.13"
 byteorder = "1.4.3"

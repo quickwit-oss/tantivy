@@ -20,6 +20,7 @@ use std::fs::OpenOptions;
 use std::fs::{self, File};
 use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
@@ -314,7 +315,7 @@ impl TerminatingWrite for SafeFileWriter {
 }
 
 #[derive(Clone)]
-struct MmapArc(Arc<dyn Deref<Target = [u8]> + Send + Sync>);
+struct MmapArc(Arc<dyn Deref<Target = [u8]> + Send + Sync + RefUnwindSafe + UnwindSafe>);
 
 impl Deref for MmapArc {
     type Target = [u8];

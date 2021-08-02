@@ -4,11 +4,12 @@ use crate::common::HasLen;
 use crate::directory::OwnedBytes;
 use std::fmt;
 use std::ops::Range;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::{Arc, Weak};
 use std::{io, ops::Deref};
 
-pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
-pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
+pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + UnwindSafe + RefUnwindSafe + 'static>;
+pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + UnwindSafe + RefUnwindSafe + 'static>;
 
 /// Objects that represents files sections in tantivy.
 ///
@@ -40,7 +41,7 @@ impl<T: Deref<Target = [u8]>> HasLen for T {
 
 impl<B> From<B> for FileSlice
 where
-    B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync,
+    B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync + UnwindSafe + RefUnwindSafe,
 {
     fn from(bytes: B) -> FileSlice {
         FileSlice::new(Box::new(OwnedBytes::new(bytes)))
