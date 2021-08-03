@@ -927,14 +927,14 @@ impl IndexMerger {
                         // I think this is not strictly necessary, it would be possible to
                         // avoid the loading into a vec via some form of kmerge, but then the merge
                         // logic would deviate much more from the stacking case (unsorted index)
+                        let delta_positions = delta_computer.compute_delta(&positions_buffer);
                         if doc_id_mapping.is_some() {
                             doc_id_and_positions.push((
                                 remapped_doc_id,
                                 term_freq,
-                                positions_buffer.to_vec(),
+                                delta_positions.to_vec(),
                             ));
                         } else {
-                            let delta_positions = delta_computer.compute_delta(&positions_buffer);
                             field_serializer.write_doc(remapped_doc_id, term_freq, delta_positions);
                         }
                     }
