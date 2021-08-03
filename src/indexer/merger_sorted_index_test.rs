@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::fastfield::FastFieldReader;
+    use crate::fastfield::{DeleteBitSet, FastFieldReader};
     use crate::schema::IndexRecordOption;
     use crate::{
         collector::TopDocs,
@@ -105,7 +105,9 @@ mod tests {
             index_writer.add_document(
                 doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text", facet_field=> Facet::from("/book/crime")),
             );
-            index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
+            index_writer.add_document(
+                doc!(int_field=>1_u64, text_field=> "deleteme",  text_field => "ok text more text"),
+            );
             index_writer.add_document(
                 doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64, text_field => "ok text more text"),
             );
@@ -119,7 +121,7 @@ mod tests {
             } else {
                 1
             };
-            index_writer.add_document(doc!(int_field=>in_val, text_field=> "deleteme", facet_field=> Facet::from("/book/crime")));
+            index_writer.add_document(doc!(int_field=>in_val, text_field=> "deleteme" , text_field => "ok text more text", facet_field=> Facet::from("/book/crime")));
             assert!(index_writer.commit().is_ok());
             // segment 3 - range 5-1000, with force_disjunct_segment_sort_values 50-1000
             let int_vals = if force_disjunct_segment_sort_values {
@@ -253,11 +255,25 @@ mod tests {
                 .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap()
                 .unwrap();
+
+            assert_eq!(postings.doc_freq(), 2);
+            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            assert_eq!(
+                postings.doc_freq_given_deletes(
+                    segment_reader
+                        .delete_bitset()
+                        .unwrap_or_else(|| &&fallback_bitset)
+                ),
+                2
+            );
+
+            assert_eq!(postings.term_freq(), 1);
             let mut output = vec![];
             postings.positions(&mut output);
             assert_eq!(output, vec![1]);
             postings.advance();
 
+            assert_eq!(postings.term_freq(), 2);
             postings.positions(&mut output);
             assert_eq!(output, vec![1, 3]);
         }
@@ -321,11 +337,24 @@ mod tests {
                 .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap()
                 .unwrap();
+            assert_eq!(postings.doc_freq(), 2);
+            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            assert_eq!(
+                postings.doc_freq_given_deletes(
+                    segment_reader
+                        .delete_bitset()
+                        .unwrap_or_else(|| &&fallback_bitset)
+                ),
+                2
+            );
+
+            assert_eq!(postings.term_freq(), 1);
             let mut output = vec![];
             postings.positions(&mut output);
             assert_eq!(output, vec![1]);
             postings.advance();
 
+            assert_eq!(postings.term_freq(), 2);
             postings.positions(&mut output);
             assert_eq!(output, vec![1, 3]);
         }
@@ -419,6 +448,18 @@ mod tests {
                 .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap()
                 .unwrap();
+
+            assert_eq!(postings.doc_freq(), 2);
+            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            assert_eq!(
+                postings.doc_freq_given_deletes(
+                    segment_reader
+                        .delete_bitset()
+                        .unwrap_or_else(|| &&fallback_bitset)
+                ),
+                2
+            );
+
             let mut output = vec![];
             postings.positions(&mut output);
             assert_eq!(output, vec![1, 3]);
