@@ -958,12 +958,13 @@ impl IndexMerger {
             }
             if !doc_id_mapping.is_trivial() {
                 doc_id_and_positions.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
+
                 for (doc_id, term_freq, positions) in &doc_id_and_positions {
-                    field_serializer.write_doc(*doc_id, *term_freq, positions);
+                    let delta_positions = delta_computer.compute_delta(&positions);
+                    field_serializer.write_doc(*doc_id, *term_freq, delta_positions);
                 }
                 doc_id_and_positions.clear();
             }
-
             // closing the term.
             field_serializer.close_term()?;
         }

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::fastfield::FastFieldReader;
+    use crate::schema::IndexRecordOption;
     use crate::{
         collector::TopDocs,
         schema::{Cardinality, TextFieldIndexing},
@@ -16,7 +17,7 @@ mod tests {
         schema::{self, BytesOptions},
         DocAddress,
     };
-    use crate::{IndexSettings, Term};
+    use crate::{DocSet, IndexSettings, Postings, Term};
     use futures::executor::block_on;
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
@@ -106,7 +107,7 @@ mod tests {
             );
             index_writer.add_document(doc!(int_field=>1_u64, text_field=> "deleteme"));
             index_writer.add_document(
-                doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64),
+                doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64, text_field => "ok text more text"),
             );
 
             assert!(index_writer.commit().is_ok());
@@ -243,6 +244,24 @@ mod tests {
             assert_eq!(do_search("biggest"), vec![0]);
         }
 
+        // postings file
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let term_a = Term::from_field_text(my_text_field, "text");
+            let inverted_index = segment_reader.inverted_index(my_text_field).unwrap();
+            let mut postings = inverted_index
+                .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+                .unwrap()
+                .unwrap();
+            let mut output = vec![];
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1]);
+            postings.advance();
+
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1, 3]);
+        }
+
         // access doc store
         {
             let blubber_pos = if force_disjunct_segment_sort_values {
@@ -257,6 +276,58 @@ mod tests {
             );
             let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
             assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1000));
+        }
+    }
+
+    #[test]
+    fn test_merge_unsorted_index() {
+        let index = create_test_index(
+            Some(IndexSettings {
+                ..Default::default()
+            }),
+            false,
+        );
+
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        let segment_reader = searcher.segment_readers().last().unwrap();
+
+        let searcher = index.reader().unwrap().searcher();
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+
+            let do_search = |term: &str| {
+                let query = QueryParser::for_index(&index, vec![my_text_field])
+                    .parse_query(term)
+                    .unwrap();
+                let top_docs: Vec<(f32, DocAddress)> =
+                    searcher.search(&query, &TopDocs::with_limit(3)).unwrap();
+
+                top_docs.iter().map(|el| el.1.doc_id).collect::<Vec<_>>()
+            };
+
+            assert_eq!(do_search("some"), vec![1]);
+            assert_eq!(do_search("blubber"), vec![3]);
+            assert_eq!(do_search("biggest"), vec![4]);
+        }
+
+        // postings file
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let term_a = Term::from_field_text(my_text_field, "text");
+            let inverted_index = segment_reader.inverted_index(my_text_field).unwrap();
+            let mut postings = inverted_index
+                .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+                .unwrap()
+                .unwrap();
+            let mut output = vec![];
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1]);
+            postings.advance();
+
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1, 3]);
         }
     }
 
@@ -314,7 +385,7 @@ mod tests {
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let fieldnorm_reader = segment_reader.get_fieldnorms_reader(my_text_field).unwrap();
             assert_eq!(fieldnorm_reader.fieldnorm(0), 0);
-            assert_eq!(fieldnorm_reader.fieldnorm(1), 0);
+            assert_eq!(fieldnorm_reader.fieldnorm(1), 4);
             assert_eq!(fieldnorm_reader.fieldnorm(2), 2); // some text
             assert_eq!(fieldnorm_reader.fieldnorm(3), 1);
             assert_eq!(fieldnorm_reader.fieldnorm(5), 3); // the biggest num
@@ -337,6 +408,24 @@ mod tests {
             assert_eq!(do_search("some"), vec![2]);
             assert_eq!(do_search("blubber"), vec![3]);
             assert_eq!(do_search("biggest"), vec![5]);
+        }
+
+        // postings file
+        {
+            let my_text_field = index.schema().get_field("text_field").unwrap();
+            let term_a = Term::from_field_text(my_text_field, "text");
+            let inverted_index = segment_reader.inverted_index(my_text_field).unwrap();
+            let mut postings = inverted_index
+                .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+                .unwrap()
+                .unwrap();
+            let mut output = vec![];
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1, 3]);
+            postings.advance();
+
+            postings.positions(&mut output);
+            assert_eq!(output, vec![1]);
         }
 
         // access doc store
