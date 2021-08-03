@@ -524,7 +524,7 @@ impl Index {
 
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
-        let managed_files = self.directory.list_files();
+        let managed_files = self.directory.list_managed_files();
         let active_segments_files: HashSet<PathBuf> = self
             .searchable_segment_metas()?
             .iter()

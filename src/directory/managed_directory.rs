@@ -249,8 +249,8 @@ impl ManagedDirectory {
     }
 
     /// List managed files for which checksum does not match content
-    pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
-        let mut managed_paths = self.list_files();
+    pub fn list_damaged_files(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
+        let mut managed_paths = self.list_managed_files();
         managed_paths.remove(*META_FILEPATH);
 
         let mut damaged_files = HashSet::new();
@@ -263,7 +263,7 @@ impl ManagedDirectory {
     }
 
     /// List all managed files
-    pub fn list_files(&self) -> HashSet<PathBuf> {
+    pub fn list_managed_files(&self) -> HashSet<PathBuf> {
         let managed_paths = self
             .meta_informations
             .read()
@@ -431,7 +431,7 @@ mod tests_mmap_specific {
 
         let read_file = managed_directory.open_read(test_path2)?.read_bytes()?;
         assert_eq!(read_file.as_slice(), &[3u8, 4u8, 5u8]);
-        assert!(managed_directory.list_damaged().unwrap().is_empty());
+        assert!(managed_directory.list_damaged_files().unwrap().is_empty());
 
         let mut corrupted_path = tempdir_path;
         corrupted_path.push(test_path2);
@@ -440,7 +440,7 @@ mod tests_mmap_specific {
         file.flush()?;
         drop(file);
 
-        let damaged = managed_directory.list_damaged()?;
+        let damaged = managed_directory.list_damaged_files()?;
         assert_eq!(damaged.len(), 1);
         assert!(damaged.contains(test_path2));
         Ok(())
