@@ -248,15 +248,9 @@ impl ManagedDirectory {
         Ok(footer.crc() == crc)
     }
 
-    /// List files for which checksum does not match content
+    /// List managed files for which checksum does not match content
     pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
-        let mut managed_paths = self
-            .meta_informations
-            .read()
-            .expect("Managed directory rlock poisoned in list damaged.")
-            .managed_paths
-            .clone();
-
+        let mut managed_paths = self.list_files();
         managed_paths.remove(*META_FILEPATH);
 
         let mut damaged_files = HashSet::new();
@@ -266,6 +260,17 @@ impl ManagedDirectory {
             }
         }
         Ok(damaged_files)
+    }
+
+    /// List all managed files
+    pub fn list_files(&self) -> HashSet<PathBuf> {
+        let managed_paths = self
+            .meta_informations
+            .read()
+            .expect("Managed directory rlock poisoned in list damaged.")
+            .managed_paths
+            .clone();
+        managed_paths
     }
 }
 

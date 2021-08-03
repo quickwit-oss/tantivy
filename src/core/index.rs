@@ -524,16 +524,19 @@ impl Index {
 
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
-        let active_files: HashSet<PathBuf> = self
+        let managed_files = self.directory.list_files();
+        let active_segments_files: HashSet<PathBuf> = self
             .searchable_segment_metas()?
             .iter()
             .flat_map(|segment_meta| segment_meta.list_files())
             .collect();
+        let active_existing_files: HashSet<&PathBuf> =
+            active_segments_files.intersection(&managed_files).collect();
 
         let mut damaged_files = HashSet::new();
-        for path in active_files {
+        for path in active_existing_files {
             if !self.directory.validate_checksum(&path)? {
-                damaged_files.insert(path);
+                damaged_files.insert((*path).clone());
             }
         }
         Ok(damaged_files)

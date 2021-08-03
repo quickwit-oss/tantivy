@@ -101,6 +101,7 @@ impl SegmentMeta {
 
     /// Returns the list of files that
     /// are required for the segment meta.
+    /// Note: Some of the returned files may not exist depending on the state of the segment.
     ///
     /// This is useful as the way tantivy removes files
     /// is by removing all files that have been created by tantivy
@@ -112,16 +113,10 @@ impl SegmentMeta {
             .load(std::sync::atomic::Ordering::Relaxed)
         {
             SegmentComponent::iterator()
-                .filter(|comp| {
-                    !(*comp == &SegmentComponent::Delete && self.delete_opstamp().is_none())
-                })
                 .map(|component| self.relative_path(*component))
                 .collect::<HashSet<PathBuf>>()
         } else {
             SegmentComponent::iterator()
-                .filter(|comp| {
-                    !(*comp == &SegmentComponent::Delete && self.delete_opstamp().is_none())
-                })
                 .filter(|comp| *comp != &SegmentComponent::TempStore)
                 .map(|component| self.relative_path(*component))
                 .collect::<HashSet<PathBuf>>()
