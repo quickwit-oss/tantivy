@@ -11,7 +11,7 @@ use crate::docset::DocSet;
 /// but other implementations mocking `SegmentPostings` exist,
 /// for merging segments or for testing.
 pub trait Postings: DocSet + 'static {
-    /// Returns the term frequency
+    /// The number of times the term appears in the document.
     fn term_freq(&self) -> u32;
 
     /// Returns the positions offseted with a given value.
