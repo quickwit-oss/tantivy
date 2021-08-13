@@ -20,7 +20,7 @@ pub const STORED: SchemaFlagList<StoredFlag, ()> = SchemaFlagList {
 
 #[derive(Clone)]
 pub struct IndexedFlag;
-/// Flag to mark the field as indexed.
+/// Flag to mark the field as indexed. An indexed field is searchable.
 ///
 /// The `INDEXED` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
 /// Of course, text fields can also be indexed... But this is expressed by using either the
