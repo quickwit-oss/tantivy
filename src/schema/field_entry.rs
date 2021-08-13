@@ -109,17 +109,11 @@ impl FieldEntry {
         &self.field_type
     }
 
-    /// Returns true iff the field is indexed
+    /// Returns true iff the field is indexed.
+    ///
+    /// An indexed field is searchable.
     pub fn is_indexed(&self) -> bool {
-        match self.field_type {
-            FieldType::Str(ref options) => options.get_indexing_options().is_some(),
-            FieldType::U64(ref options)
-            | FieldType::I64(ref options)
-            | FieldType::F64(ref options)
-            | FieldType::Date(ref options) => options.is_indexed(),
-            FieldType::HierarchicalFacet(ref options) => options.is_indexed(),
-            FieldType::Bytes(ref options) => options.is_indexed(),
-        }
+        self.field_type.is_indexed()
     }
 
     /// Returns true iff the field is a int (signed or unsigned) fast field

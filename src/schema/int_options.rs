@@ -29,7 +29,7 @@ impl IntOptions {
         self.stored
     }
 
-    /// Returns true iff the value is indexed.
+    /// Returns true iff the value is indexed and therefore searchable.
     pub fn is_indexed(&self) -> bool {
         self.indexed
     }
@@ -52,6 +52,8 @@ impl IntOptions {
     ///
     /// Setting an integer as indexed will generate
     /// a posting list for each value taken by the integer.
+    ///
+    /// This is required for the field to be searchable.
     pub fn set_indexed(mut self) -> IntOptions {
         self.indexed = true;
         self

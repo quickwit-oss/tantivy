@@ -94,7 +94,7 @@ impl TextFieldIndexing {
     }
 }
 
-/// The field will be untokenized and indexed
+/// The field will be untokenized and indexed.
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("raw"),
@@ -103,7 +103,7 @@ pub const STRING: TextOptions = TextOptions {
     stored: false,
 };
 
-/// The field will be tokenized and indexed
+/// The field will be tokenized and indexed.
 pub const TEXT: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("default"),
