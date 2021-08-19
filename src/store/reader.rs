@@ -5,11 +5,8 @@ use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use crate::{
-    common::{BinarySerializable, HasLen, VInt},
-    error::DataCorruption,
-    fastfield::DeleteBitSet,
-};
+use crate::{error::DataCorruption, fastfield::DeleteBitSet};
+use common::{BinarySerializable, HasLen, VInt};
 use lru::LruCache;
 use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};

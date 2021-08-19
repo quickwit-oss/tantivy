@@ -135,7 +135,6 @@ pub type Result<T> = std::result::Result<T, TantivyError>;
 /// Tantivy DateTime
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 
-mod common;
 mod core;
 mod indexer;
 
@@ -163,8 +162,6 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
 pub use self::docset::{DocSet, TERMINATED};
-pub use crate::common::HasLen;
-pub use crate::common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{
     Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher, Segment,
@@ -178,6 +175,8 @@ pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
+pub use common::HasLen;
+pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 use std::fmt;
 
 use once_cell::sync::Lazy;
@@ -293,7 +292,7 @@ pub struct DocAddress {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
@@ -304,10 +303,17 @@ mod tests {
     use crate::Index;
     use crate::Postings;
     use crate::ReloadPolicy;
+    use common::{BinarySerializable, FixedSize};
     use rand::distributions::Bernoulli;
     use rand::distributions::Uniform;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
+
+    pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
+        let mut buffer = Vec::new();
+        O::default().serialize(&mut buffer).unwrap();
+        assert_eq!(buffer.len(), O::SIZE_IN_BYTES);
+    }
 
     /// Checks if left and right are close one to each other.
     /// Panics if the two values are more than 0.5% apart.
@@ -346,10 +352,6 @@ mod tests {
             .enumerate()
             .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
             .collect()
-    }
-
-    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
-        sample_with_seed(n, ratio, 4)
     }
 
     #[test]

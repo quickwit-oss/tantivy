@@ -40,11 +40,11 @@ pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
 use crate::schema::Value;
+use crate::DocId;
 use crate::{
     chrono::{NaiveDateTime, Utc},
     schema::Type,
 };
-use crate::{common, DocId};
 
 mod bytes;
 mod delete;
@@ -214,7 +214,6 @@ mod tests {
 
     use super::*;
     use crate::directory::CompositeFile;
-    use crate::common::HasLen;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
@@ -222,6 +221,7 @@ mod tests {
     use crate::schema::FAST;
     use crate::schema::{Document, IntOptions};
     use crate::{Index, SegmentId, SegmentReader};
+    use common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;

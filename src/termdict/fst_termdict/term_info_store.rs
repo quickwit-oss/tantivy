@@ -1,8 +1,8 @@
-use crate::common::{BinarySerializable, FixedSize};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
 use byteorder::{ByteOrder, LittleEndian};
+use common::{BinarySerializable, FixedSize};
 use std::cmp;
 use std::io::{self, Read, Write};
 use tantivy_bitpacker::compute_num_bits;
@@ -290,16 +290,16 @@ mod tests {
     use super::extract_bits;
     use super::TermInfoBlockMeta;
     use super::{TermInfoStore, TermInfoStoreWriter};
-    use crate::common;
-    use crate::common::BinarySerializable;
     use crate::directory::FileSlice;
     use crate::postings::TermInfo;
+    use common;
+    use common::BinarySerializable;
     use tantivy_bitpacker::compute_num_bits;
     use tantivy_bitpacker::BitPacker;
 
     #[test]
     fn test_term_info_block() {
-        common::test::fixed_size_test::<TermInfoBlockMeta>();
+        crate::tests::fixed_size_test::<TermInfoBlockMeta>();
     }
 
     #[test]

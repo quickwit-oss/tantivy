@@ -5,6 +5,7 @@ use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
 use crate::fastfield::FastFieldReader;
 use crate::fastfield::FastFieldStats;
+use crate::fastfield::MultiValueLength;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
@@ -19,9 +20,8 @@ use crate::schema::{Field, Schema};
 use crate::store::StoreWriter;
 use crate::termdict::TermMerger;
 use crate::termdict::TermOrdinal;
+use crate::IndexSettings;
 use crate::IndexSortByField;
-use crate::{common::HasLen, fastfield::MultiValueLength};
-use crate::{common::MAX_DOC_LIMIT, IndexSettings};
 use crate::{core::Segment, indexer::doc_id_mapping::expect_field_id_for_sort_field};
 use crate::{core::SegmentReader, Order};
 use crate::{
@@ -29,12 +29,18 @@ use crate::{
     SegmentOrdinal,
 };
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
+use common::HasLen;
 use itertools::Itertools;
 use measure_time::debug_time;
 use std::cmp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tantivy_bitpacker::minmax;
+
+/// Segment's max doc must be `< MAX_DOC_LIMIT`.
+///
+/// We do not allow segments with more than
+pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
@@ -2074,5 +2080,12 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_max_doc() {
+        // this is the first time I write a unit test for a constant.
+        assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
+        assert!((super::MAX_DOC_LIMIT as i32) < 0);
     }
 }

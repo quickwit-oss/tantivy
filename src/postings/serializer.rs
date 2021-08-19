@@ -1,6 +1,4 @@
 use super::TermInfo;
-use crate::common::CountingWriter;
-use crate::common::{BinarySerializable, VInt};
 use crate::core::Segment;
 use crate::directory::CompositeWrite;
 use crate::directory::WritePtr;
@@ -13,6 +11,8 @@ use crate::schema::{Field, FieldEntry, FieldType};
 use crate::schema::{IndexRecordOption, Schema};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::{DocId, Score};
+use common::CountingWriter;
+use common::{BinarySerializable, VInt};
 use std::cmp::Ordering;
 use std::io::{self, Write};
 

@@ -276,10 +276,10 @@ impl From<PreTokenizedString> for Value {
 
 mod binary_serialize {
     use super::Value;
-    use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use crate::schema::Facet;
     use crate::tokenizer::PreTokenizedString;
     use chrono::{TimeZone, Utc};
+    use common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use std::io::{self, Read, Write};
 
     const TEXT_CODE: u8 = 0;
