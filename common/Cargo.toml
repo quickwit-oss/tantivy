@@ -1,5 +1,5 @@
 [package]
-name = "common"
+name = "tantivy-common"
 version = "0.1.0"
 authors = ["Paul Masurel <paul@quickwit.io>", "Pascal Seitz <pascal@quickwit.io>"]
 license = "MIT"
