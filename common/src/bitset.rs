@@ -2,7 +2,7 @@ use std::fmt;
 use std::u64;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) struct TinySet(u64);
+pub struct TinySet(u64);
 
 impl fmt::Debug for TinySet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -178,7 +178,7 @@ impl BitSet {
     ///
     /// Reminder: the tiny set with the bucket `bucket`, represents the
     /// elements from `bucket * 64` to `(bucket+1) * 64`.
-    pub(crate) fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
+    pub fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
         self.tinysets[bucket as usize..]
             .iter()
             .cloned()
@@ -193,7 +193,7 @@ impl BitSet {
     /// Returns the tiny bitset representing the
     /// the set restricted to the number range from
     /// `bucket * 64` to `(bucket + 1) * 64`.
-    pub(crate) fn tinyset(&self, bucket: u32) -> TinySet {
+    pub fn tinyset(&self, bucket: u32) -> TinySet {
         self.tinysets[bucket as usize]
     }
 }
@@ -203,11 +203,9 @@ mod tests {
 
     use super::BitSet;
     use super::TinySet;
-    use crate::docset::{DocSet, TERMINATED};
-    use crate::query::BitSetDocSet;
-    use crate::tests;
-    use crate::tests::generate_nonunique_unsorted;
-    use std::collections::BTreeSet;
+    use rand::distributions::Bernoulli;
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
 
     #[test]
@@ -264,29 +262,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bitset_large() {
-        let arr = generate_nonunique_unsorted(100_000, 5_000);
-        let mut btreeset: BTreeSet<u32> = BTreeSet::new();
-        let mut bitset = BitSet::with_max_value(100_000);
-        for el in arr {
-            btreeset.insert(el);
-            bitset.insert(el);
-        }
-        for i in 0..100_000 {
-            assert_eq!(btreeset.contains(&i), bitset.contains(i));
-        }
-        assert_eq!(btreeset.len(), bitset.len());
-        let mut bitset_docset = BitSetDocSet::from(bitset);
-        let mut remaining = true;
-        for el in btreeset.into_iter() {
-            assert!(remaining);
-            assert_eq!(bitset_docset.doc(), el);
-            remaining = bitset_docset.advance() != TERMINATED;
-        }
-        assert!(!remaining);
-    }
-
-    #[test]
     fn test_bitset_num_buckets() {
         use super::num_buckets;
         assert_eq!(num_buckets(0u32), 0);
@@ -340,10 +315,23 @@ mod tests {
         assert_eq!(bitset.len(), 3);
     }
 
+    pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {
+        StdRng::from_seed([seed_val; 32])
+            .sample_iter(&Bernoulli::new(ratio).unwrap())
+            .take(n as usize)
+            .enumerate()
+            .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
+            .collect()
+    }
+
+    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
+        sample_with_seed(n, ratio, 4)
+    }
+
     #[test]
     fn test_bitset_clear() {
         let mut bitset = BitSet::with_max_value(1_000);
-        let els = tests::sample(1_000, 0.01f64);
+        let els = sample(1_000, 0.01f64);
         for &el in &els {
             bitset.insert(el);
         }

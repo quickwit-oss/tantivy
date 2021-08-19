@@ -1,9 +1,3 @@
-mod bitset;
-mod composite_file;
-
-pub use self::bitset::BitSet;
-pub(crate) use self::bitset::TinySet;
-pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use byteorder::LittleEndian as Endianness;
 pub use common::CountingWriter;
 pub use common::{

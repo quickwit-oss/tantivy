@@ -1,5 +1,5 @@
 use crate::common::BinarySerializable;
-use crate::common::CompositeWrite;
+use crate::directory::CompositeWrite;
 use crate::common::CountingWriter;
 use crate::directory::WritePtr;
 use crate::schema::Field;

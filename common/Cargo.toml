@@ -10,3 +10,6 @@ description = "common traits and utility functions used by multiple tantivy subc
 
 [dependencies]
 byteorder = "1.4.3"
+
+[dev-dependencies]
+rand = "0.8.4"

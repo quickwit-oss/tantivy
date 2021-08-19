@@ -1,6 +1,6 @@
 use super::FastValue;
 use crate::common::BinarySerializable;
-use crate::common::CompositeFile;
+use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::directory::{Directory, RamDirectory, WritePtr};

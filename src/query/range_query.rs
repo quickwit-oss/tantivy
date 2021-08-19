@@ -1,4 +1,3 @@
-use crate::common::BitSet;
 use crate::core::Searcher;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
@@ -10,6 +9,7 @@ use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
+use common::BitSet;
 use std::io;
 use std::ops::{Bound, Range};
 

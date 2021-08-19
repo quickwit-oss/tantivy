@@ -213,7 +213,7 @@ fn value_to_u64(value: &Value) -> u64 {
 mod tests {
 
     use super::*;
-    use crate::common::CompositeFile;
+    use crate::directory::CompositeFile;
     use crate::common::HasLen;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
@@ -588,7 +588,7 @@ mod bench {
     use super::tests::FIELD;
     use super::tests::{generate_permutation, SCHEMA};
     use super::*;
-    use crate::common::CompositeFile;
+    use crate::directory::CompositeFile;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use std::collections::HashMap;

@@ -1,7 +1,8 @@
 use super::TermInfo;
+use crate::common::CountingWriter;
 use crate::common::{BinarySerializable, VInt};
-use crate::common::{CompositeWrite, CountingWriter};
 use crate::core::Segment;
+use crate::directory::CompositeWrite;
 use crate::directory::WritePtr;
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionSerializer;

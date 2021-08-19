@@ -1,4 +1,4 @@
-use crate::common::BitSet;
+use common::BitSet;
 use crate::core::SegmentReader;
 use crate::query::ConstScorer;
 use crate::query::{BitSetDocSet, Explanation};

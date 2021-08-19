@@ -1,5 +1,6 @@
 use crate::common::BinarySerializable;
 use crate::common::CountingWriter;
+use crate::common::HasLen;
 use crate::common::VInt;
 use crate::directory::FileSlice;
 use crate::directory::{TerminatingWrite, WritePtr};
@@ -10,8 +11,6 @@ use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::iter::ExactSizeIterator;
 use std::ops::Range;
-
-use super::HasLen;
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {

@@ -1,7 +1,7 @@
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
-use crate::common::BitSet;
+use common::BitSet;
 use crate::core::Index;
 use crate::core::Segment;
 use crate::core::SegmentComponent;

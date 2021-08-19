@@ -1,4 +1,4 @@
-use crate::common::CompositeFile;
+use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fastfield::{BitpackedFastFieldReader, FastFieldNotAvailableError};

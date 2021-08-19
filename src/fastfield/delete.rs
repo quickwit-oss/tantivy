@@ -1,4 +1,5 @@
-use crate::common::{BitSet, HasLen};
+use crate::common::HasLen;
+use common::BitSet;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::directory::WritePtr;
