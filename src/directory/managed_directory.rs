@@ -1,4 +1,4 @@
-use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
+use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::GarbageCollectionResult;
@@ -246,20 +246,6 @@ impl ManagedDirectory {
         hasher.update(bytes.as_slice());
         let crc = hasher.finalize();
         Ok(footer.crc() == crc)
-    }
-
-    /// List managed files for which checksum does not match content
-    pub fn list_damaged_files(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
-        let mut managed_paths = self.list_managed_files();
-        managed_paths.remove(*META_FILEPATH);
-
-        let mut damaged_files = HashSet::new();
-        for path in managed_paths {
-            if !self.validate_checksum(&path)? {
-                damaged_files.insert(path);
-            }
-        }
-        Ok(damaged_files)
     }
 
     /// List all managed files
