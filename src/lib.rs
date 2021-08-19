@@ -993,8 +993,24 @@ mod tests {
     #[test]
     fn test_validate_checksum() -> crate::Result<()> {
         let index_path = tempfile::tempdir().expect("dir");
-        let schema = Schema::builder().build();
+        let mut builder = Schema::builder();
+        let body = builder.add_text_field("body", TEXT | STORED);
+        let schema = builder.build();
         let index = Index::create_in_dir(&index_path, schema)?;
+        let mut writer = index.writer(50_000_000)?;
+        for _ in 0..5000 {
+            writer.add_document(doc!(body => "foo"));
+            writer.add_document(doc!(body => "boo"));
+        }
+        writer.commit()?;
+        assert!(index.validate_checksum()?.is_empty());
+
+        // delete few docs
+        writer.delete_term(Term::from_field_text(body, "foo"));
+        writer.commit()?;
+        let segment_ids = index.searchable_segment_ids()?;
+        let _ = futures::executor::block_on(writer.merge(&segment_ids));
+
         assert!(index.validate_checksum()?.is_empty());
         Ok(())
     }
