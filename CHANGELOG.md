@@ -1,3 +1,8 @@
+Tantivy 0.16
+=========================
+- Bugfix in the filesum check. (@evanxg852000) #1127
+- Bugfix in positions when the index is sorted by a field. (@appaquet) #1125
+
 Tantivy 0.15.3
 =========================
 - Major bugfix. Deleting documents was broken when the index was sorted by a field. (@appaquet, @fulmicoton) #1101
