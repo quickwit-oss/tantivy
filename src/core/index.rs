@@ -535,7 +535,7 @@ impl Index {
 
         let mut damaged_files = HashSet::new();
         for path in active_existing_files {
-            if !self.directory.validate_checksum(&path)? {
+            if !self.directory.validate_checksum(path)? {
                 damaged_files.insert((*path).clone());
             }
         }
