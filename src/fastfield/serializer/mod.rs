@@ -105,9 +105,7 @@ impl CompositeFastFieldSerializer {
             &fastfield_accessor,
             &mut estimations,
         );
-        if let Some(broken_estimation) = estimations
-            .iter()
-            .find(|estimation| estimation.0.is_nan())
+        if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {
             warn!(
                 "broken estimation for fast field codec {}",
