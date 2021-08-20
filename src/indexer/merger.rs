@@ -149,7 +149,8 @@ impl TermOrdinalMapping {
         self.per_segment_new_term_ordinals
             .iter()
             .flat_map(|term_ordinals| term_ordinals.iter().cloned().max())
-            .max().unwrap_or_default()
+            .max()
+            .unwrap_or_default()
     }
 }
 

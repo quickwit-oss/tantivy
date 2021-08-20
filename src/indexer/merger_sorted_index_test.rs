@@ -260,8 +260,7 @@ mod tests {
             let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader
-                        .delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
@@ -340,8 +339,7 @@ mod tests {
             let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader
-                        .delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
@@ -451,8 +449,7 @@ mod tests {
             let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader
-                        .delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
