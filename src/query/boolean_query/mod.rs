@@ -310,7 +310,7 @@ mod tests {
         ));
         let query = BooleanQuery::from(vec![(Occur::Should, term_a), (Occur::Should, term_b)]);
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32))?;
-        assert_nearly_equals!(explanation.value(), 0.6931472);
+        assert_nearly_equals!(explanation.value(), std::f32::consts::LN_2);
         Ok(())
     }
 }
