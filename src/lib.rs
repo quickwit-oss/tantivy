@@ -354,6 +354,10 @@ pub mod tests {
             .collect()
     }
 
+    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
+        sample_with_seed(n, ratio, 4)
+    }
+
     #[test]
     #[cfg(not(feature = "lz4"))]
     fn test_version_string() {
