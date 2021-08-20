@@ -1,9 +1,9 @@
 use std::io;
 
-use crate::common::{BinarySerializable, VInt};
 use crate::directory::OwnedBytes;
 use crate::positions::COMPRESSION_BLOCK_SIZE;
 use crate::postings::compression::{BlockDecoder, VIntDecoder};
+use common::{BinarySerializable, VInt};
 
 /// When accessing the position of a term, we get a positions_idx from the `Terminfo`.
 /// This means we need to skip to the `nth` positions efficiently.

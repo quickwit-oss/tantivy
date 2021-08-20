@@ -1,10 +1,10 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
-use crate::common::{BinarySerializable, CountingWriter};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::error::DataCorruption;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
+use common::{BinarySerializable, CountingWriter};
 use once_cell::sync::Lazy;
 use std::io::{self, Write};
 use tantivy_fst::raw::Fst;

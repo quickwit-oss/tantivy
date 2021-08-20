@@ -1,6 +1,6 @@
-use crate::common::VInt;
 use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
 use crate::DocId;
+use common::VInt;
 use std::io;
 use std::ops::Range;
 

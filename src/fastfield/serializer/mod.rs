@@ -1,8 +1,8 @@
-use crate::common::BinarySerializable;
-use crate::common::CompositeWrite;
-use crate::common::CountingWriter;
+use crate::directory::CompositeWrite;
 use crate::directory::WritePtr;
 use crate::schema::Field;
+use common::BinarySerializable;
+use common::CountingWriter;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;

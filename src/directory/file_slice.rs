@@ -1,7 +1,7 @@
 use stable_deref_trait::StableDeref;
 
-use crate::common::HasLen;
 use crate::directory::OwnedBytes;
+use common::HasLen;
 use std::fmt;
 use std::ops::Range;
 use std::sync::{Arc, Weak};
@@ -29,12 +29,6 @@ impl FileHandle for &'static [u8] {
     fn read_bytes(&self, range: Range<usize>) -> io::Result<OwnedBytes> {
         let bytes = &self[range];
         Ok(OwnedBytes::new(bytes))
-    }
-}
-
-impl<T: Deref<Target = [u8]>> HasLen for T {
-    fn len(&self) -> usize {
-        self.deref().len()
     }
 }
 
@@ -178,7 +172,7 @@ impl HasLen for FileSlice {
 #[cfg(test)]
 mod tests {
     use super::{FileHandle, FileSlice};
-    use crate::common::HasLen;
+    use common::HasLen;
     use std::io;
 
     #[test]

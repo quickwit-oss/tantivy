@@ -1,9 +1,10 @@
+use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
 use crate::directory::{Directory, FileSlice, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
-use crate::{common::HasLen, core::META_FILEPATH};
+use common::HasLen;
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;

@@ -1,6 +1,6 @@
-use crate::common::{BitSet, TinySet};
 use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
+use common::{BitSet, TinySet};
 
 /// A `BitSetDocSet` makes it possible to iterate through a bitset as if it was a `DocSet`.
 ///
@@ -96,10 +96,13 @@ impl DocSet for BitSetDocSet {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::BitSetDocSet;
-    use crate::common::BitSet;
     use crate::docset::{DocSet, TERMINATED};
+    use crate::tests::generate_nonunique_unsorted;
     use crate::DocId;
+    use common::BitSet;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
@@ -107,6 +110,29 @@ mod tests {
             docset.insert(doc);
         }
         BitSetDocSet::from(docset)
+    }
+
+    #[test]
+    fn test_bitset_large() {
+        let arr = generate_nonunique_unsorted(100_000, 5_000);
+        let mut btreeset: BTreeSet<u32> = BTreeSet::new();
+        let mut bitset = BitSet::with_max_value(100_000);
+        for el in arr {
+            btreeset.insert(el);
+            bitset.insert(el);
+        }
+        for i in 0..100_000 {
+            assert_eq!(btreeset.contains(&i), bitset.contains(i));
+        }
+        assert_eq!(btreeset.len(), bitset.len());
+        let mut bitset_docset = BitSetDocSet::from(bitset);
+        let mut remaining = true;
+        for el in btreeset.into_iter() {
+            assert!(remaining);
+            assert_eq!(bitset_docset.doc(), el);
+            remaining = bitset_docset.advance() != TERMINATED;
+        }
+        assert!(!remaining);
     }
 
     #[test]

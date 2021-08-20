@@ -1,4 +1,4 @@
-use crate::common::BinarySerializable;
+use common::BinarySerializable;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

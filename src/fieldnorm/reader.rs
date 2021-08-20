@@ -1,5 +1,5 @@
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use crate::common::CompositeFile;
+use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::schema::Field;

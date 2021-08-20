@@ -1,4 +1,3 @@
-use crate::common::HasLen;
 use crate::docset::DocSet;
 use crate::fastfield::DeleteBitSet;
 use crate::positions::PositionReader;
@@ -7,6 +6,7 @@ use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 use crate::postings::BlockSegmentPostings;
 use crate::postings::Postings;
 use crate::{DocId, TERMINATED};
+use common::HasLen;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
@@ -265,7 +265,7 @@ impl Postings for SegmentPostings {
 mod tests {
 
     use super::SegmentPostings;
-    use crate::common::HasLen;
+    use common::HasLen;
 
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::DeleteBitSet;

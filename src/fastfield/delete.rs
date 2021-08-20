@@ -1,9 +1,10 @@
-use crate::common::{BitSet, HasLen};
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::directory::WritePtr;
 use crate::space_usage::ByteCount;
 use crate::DocId;
+use common::BitSet;
+use common::HasLen;
 use std::io;
 use std::io::Write;
 
@@ -110,7 +111,7 @@ impl HasLen for DeleteBitSet {
 #[cfg(test)]
 mod tests {
     use super::DeleteBitSet;
-    use crate::common::HasLen;
+    use common::HasLen;
 
     #[test]
     fn test_delete_bitset_empty() {

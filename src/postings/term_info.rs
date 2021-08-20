@@ -1,4 +1,4 @@
-use crate::common::{BinarySerializable, FixedSize};
+use common::{BinarySerializable, FixedSize};
 use std::io;
 use std::iter::ExactSizeIterator;
 use std::ops::Range;
@@ -67,7 +67,7 @@ impl BinarySerializable for TermInfo {
 mod tests {
 
     use super::TermInfo;
-    use crate::common::test::fixed_size_test;
+    use crate::tests::fixed_size_test;
 
     // TODO add serialize/deserialize test for terminfo
 

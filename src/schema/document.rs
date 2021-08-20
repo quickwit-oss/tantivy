@@ -1,8 +1,8 @@
 use super::*;
-use crate::common::BinarySerializable;
-use crate::common::VInt;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
+use common::BinarySerializable;
+use common::VInt;
 use std::io::{self, Read, Write};
 use std::mem;
 

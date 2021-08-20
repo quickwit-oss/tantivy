@@ -1,10 +1,10 @@
 use crate::directory::error::Incompatibility;
 use crate::directory::FileSlice;
 use crate::{
-    common::{BinarySerializable, CountingWriter, DeserializeFrom, FixedSize, HasLen},
     directory::{AntiCallToken, TerminatingWrite},
     Version, INDEX_FORMAT_VERSION,
 };
+use common::{BinarySerializable, CountingWriter, DeserializeFrom, FixedSize, HasLen};
 use crc32fast::Hasher;
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -156,10 +156,8 @@ mod tests {
 
     use crate::directory::footer::Footer;
     use crate::directory::OwnedBytes;
-    use crate::{
-        common::BinarySerializable,
-        directory::{footer::FOOTER_MAGIC_NUMBER, FileSlice},
-    };
+    use crate::directory::{footer::FOOTER_MAGIC_NUMBER, FileSlice};
+    use common::BinarySerializable;
     use std::io;
 
     #[test]

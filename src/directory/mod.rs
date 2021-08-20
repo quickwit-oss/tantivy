@@ -20,6 +20,9 @@ mod watch_event_router;
 /// Errors specific to the directory module.
 pub mod error;
 
+mod composite_file;
+
+pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};

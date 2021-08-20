@@ -485,13 +485,14 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+    use crate::indexer::LogMergePolicy;
     use crate::Index;
     use crate::ReloadPolicy;
-    use crate::{common::HasLen, indexer::LogMergePolicy};
     use crate::{
         schema::{Schema, SchemaBuilder, TEXT},
         IndexSettings,
     };
+    use common::HasLen;
 
     #[test]
     fn test_open_non_existent_path() {

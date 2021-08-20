@@ -1,7 +1,7 @@
-use crate::common::BitSet;
 use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::indexer::delete_queue::DeleteCursor;
+use common::BitSet;
 use std::fmt;
 
 /// A segment entry describes the state of
