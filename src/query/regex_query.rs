@@ -8,7 +8,7 @@ use tantivy_fst::Regex;
 
 /// A Regex Query matches all of the documents
 /// containing a specific term that matches
-/// a regex pattern. 
+/// a regex pattern.
 ///
 /// Wildcard queries (e.g. ho*se) can be achieved
 /// by converting them to their regex counterparts.
