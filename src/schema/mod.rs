@@ -157,7 +157,7 @@ pub use self::int_options::IntOptions;
 /// A field name can be any character, must have at least one character
 /// and must not start with a `-`.
 pub fn is_valid_field_name(field_name: &str) -> bool {
-    field_name.len() > 0 && !field_name.starts_with('-')
+    !field_name.is_empty() && !field_name.starts_with('-')
 }
 
 #[cfg(test)]

@@ -150,7 +150,7 @@ impl TermOrdinalMapping {
             .iter()
             .flat_map(|term_ordinals| term_ordinals.iter().cloned().max())
             .max()
-            .unwrap_or_else(TermOrdinal::default)
+            .unwrap_or_default()
     }
 }
 
@@ -966,7 +966,7 @@ impl IndexMerger {
                 doc_id_and_positions.sort_unstable_by_key(|&(doc_id, _, _)| doc_id);
 
                 for (doc_id, term_freq, positions) in &doc_id_and_positions {
-                    let delta_positions = delta_computer.compute_delta(&positions);
+                    let delta_positions = delta_computer.compute_delta(positions);
                     field_serializer.write_doc(*doc_id, *term_freq, delta_positions);
                 }
                 doc_id_and_positions.clear();

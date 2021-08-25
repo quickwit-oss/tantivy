@@ -121,10 +121,7 @@ mod tests {
         }
 
         fn is_match(&self, state: &Self::State) -> bool {
-            match *state {
-                State::AfterA => true,
-                _ => false,
-            }
+            matches!(*state, State::AfterA)
         }
 
         fn accept(&self, state: &Self::State, byte: u8) -> Self::State {

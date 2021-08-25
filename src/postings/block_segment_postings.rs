@@ -209,7 +209,7 @@ impl BlockSegmentPostings {
     #[inline]
     pub(crate) fn full_block(&self) -> &[DocId; COMPRESSION_BLOCK_SIZE] {
         debug_assert!(self.block_is_loaded());
-        &self.doc_decoder.full_output()
+        self.doc_decoder.full_output()
     }
 
     /// Return the document at index `idx` of the block.

@@ -86,12 +86,10 @@ impl Collector for StatsCollector {
 
     fn merge_fruits(&self, segment_stats: Vec<Option<Stats>>) -> tantivy::Result<Option<Stats>> {
         let mut stats = Stats::default();
-        for segment_stats_opt in segment_stats {
-            if let Some(segment_stats) = segment_stats_opt {
-                stats.count += segment_stats.count;
-                stats.sum += segment_stats.sum;
-                stats.squared_sum += segment_stats.squared_sum;
-            }
+        for segment_stats in segment_stats.into_iter().flatten() {
+            stats.count += segment_stats.count;
+            stats.sum += segment_stats.sum;
+            stats.squared_sum += segment_stats.squared_sum;
         }
         Ok(stats.non_zero_count())
     }

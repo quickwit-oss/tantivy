@@ -141,7 +141,7 @@ const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit
 fn get_text() -> String {
     use rand::seq::SliceRandom;
     let mut rng = thread_rng();
-    let tokens: Vec<_> = LOREM.split(" ").collect();
+    let tokens: Vec<_> = LOREM.split(' ').collect();
     let random_val = rng.gen_range(0..20);
 
     (0..random_val)
