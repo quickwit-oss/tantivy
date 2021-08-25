@@ -31,7 +31,7 @@ num_cpus = "1.13"
 fs2={ version = "0.4.3", optional = true }
 levenshtein_automata = "0.2"
 uuid = { version = "0.8.2", features = ["v4", "serde"] }
-crossbeam = "0.8"
+crossbeam = "0.8.1"
 futures = { version = "0.3.15", features = ["thread-pool"] }
 tantivy-query-grammar = { version="0.15.0", path="./query-grammar" }
 tantivy-bitpacker = { version="0.1", path="./bitpacker" }
@@ -64,7 +64,7 @@ rand = "0.8.3"
 maplit = "1.0.2"
 matches = "0.1.8"
 proptest = "1.0"
-criterion = "0.3.4"
+criterion = "0.3.5"
 
 [dev-dependencies.fail]
 version = "0.4"

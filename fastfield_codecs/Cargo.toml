@@ -10,7 +10,7 @@ description = "Fast field codecs used by tantivy"
 
 [dependencies]
 common = { version = "0.1", path = "../common/", package = "tantivy-common" }
-tantivy-bitpacker = { path = "../bitpacker/" }
+tantivy-bitpacker = { version="0.1.1", path = "../bitpacker/" }
 prettytable-rs = {version="0.8.0", optional= true}
 rand = {version="0.8.3", optional= true}
 
