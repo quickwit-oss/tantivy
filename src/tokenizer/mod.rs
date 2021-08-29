@@ -283,13 +283,13 @@ pub mod tests {
     #[test]
     fn test_whitespace_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
-        let en_tokenizer = tokenizer_manager.get("whitespace").unwrap();
+        let ws_tokenizer = tokenizer_manager.get("whitespace").unwrap();
         let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
                 tokens.push(token.clone());
             };
-            en_tokenizer
+            ws_tokenizer
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
         }
