@@ -26,6 +26,7 @@ Read access performance is comparable to that of an array lookup.
 pub use self::alive_bitset::write_alive_bitset;
 pub use self::alive_bitset::AliveBitSet;
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
+pub use self::delete::merge_delete_bitset;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};

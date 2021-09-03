@@ -248,6 +248,7 @@ impl BitSet {
     }
 
     /// Returns the number of elements in the `BitSet`.
+    #[inline]
     pub fn len(&self) -> usize {
         self.len as usize
     }
@@ -297,6 +298,7 @@ impl BitSet {
             .map(|delta_bucket| bucket + delta_bucket as u32)
     }
 
+    #[inline]
     pub fn max_value(&self) -> u32 {
         self.max_value
     }

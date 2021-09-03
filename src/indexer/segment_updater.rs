@@ -7,6 +7,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
+use crate::fastfield::DeleteBitSet;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
@@ -161,6 +162,26 @@ fn merge(
 #[doc(hidden)]
 pub fn merge_segments<Dir: Directory>(
     indices: &[Index],
+    output_directory: Dir,
+) -> crate::Result<Index> {
+    merge_filtered_segments(indices, vec![], output_directory)
+}
+
+/// Advanced: Merges a list of segments from different indices in a new index.
+///
+/// Returns `TantivyError` if the the indices list is empty or their
+/// schemas don't match.
+///
+/// `output_directory`: is assumed to be empty.
+///
+/// # Warning
+/// This function does NOT check or take the `IndexWriter` is running. It is not
+/// meant to work if you have an IndexWriter running for the origin indices, or
+/// the destination Index.
+#[doc(hidden)]
+pub fn merge_filtered_segments<Dir: Directory>(
+    indices: &[Index],
+    _filter_docids: Vec<DeleteBitSet>,
     output_directory: Dir,
 ) -> crate::Result<Index> {
     if indices.is_empty() {

@@ -1,4 +1,5 @@
 use crate::error::DataCorruption;
+use crate::fastfield::merge_delete_bitset;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
@@ -157,6 +158,24 @@ impl IndexMerger {
         index_settings: IndexSettings,
         segments: &[Segment],
     ) -> crate::Result<IndexMerger> {
+        let delete_bitsets = segments.iter().map(|_| None).collect_vec();
+        Self::open_with_custom_delete_set(schema, index_settings, segments, delete_bitsets)
+    }
+
+    // Create merge with a custom delete set.
+    // For every Segment, a delete bitset can be provided, which
+    // will be merged with the existing bit set. Make sure the index
+    // corresponds to the segment index.
+    //
+    // This can be used to merge but also apply an additional filter.
+    // One use case is demux, which is basically taking a list of
+    // segments and partitions them e.g. by a value in a field.
+    pub fn open_with_custom_delete_set(
+        schema: Schema,
+        index_settings: IndexSettings,
+        segments: &[Segment],
+        delete_bitset_opt: Vec<Option<DeleteBitSet>>,
+    ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         let mut max_doc: u32 = 0u32;
         for segment in segments {
@@ -164,6 +183,17 @@ impl IndexMerger {
                 let reader = SegmentReader::open(segment)?;
                 max_doc += reader.num_docs();
                 readers.push(reader);
+            }
+        }
+        for (reader, new_delete_bitset_opt) in readers.iter_mut().zip(delete_bitset_opt.into_iter())
+        {
+            if let Some(new_delete_bitset) = new_delete_bitset_opt {
+                if let Some(existing_bitset) = reader.delete_bitset_opt.as_mut() {
+                    let merged_bitset = merge_delete_bitset(&new_delete_bitset, existing_bitset);
+                    reader.delete_bitset_opt = Some(merged_bitset);
+                } else {
+                    reader.delete_bitset_opt = Some(new_delete_bitset);
+                }
             }
         }
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
