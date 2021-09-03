@@ -120,7 +120,7 @@ impl IndexBuilder {
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
     ///
-    /// If a previous index was in this directory, it returns error.
+    /// If a previous index was in this directory, it returns an `IndexAlreadyExists` error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
@@ -238,7 +238,7 @@ impl Index {
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
     ///
-    /// If a previous index was in this directory, then it returns error.
+    /// If a previous index was in this directory, then it returns  an `IndexAlreadyExists` error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(
         directory_path: P,
