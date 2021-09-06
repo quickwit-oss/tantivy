@@ -1,5 +1,4 @@
 use crate::error::DataCorruption;
-use crate::fastfield::merge_delete_bitset;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
@@ -181,20 +180,15 @@ impl IndexMerger {
         for segment in segments {
             if segment.meta().num_docs() > 0 {
                 let reader = SegmentReader::open(segment)?;
-                max_doc += reader.num_docs();
                 readers.push(reader);
             }
         }
         for (reader, new_delete_bitset_opt) in readers.iter_mut().zip(delete_bitset_opt.into_iter())
         {
             if let Some(new_delete_bitset) = new_delete_bitset_opt {
-                if let Some(existing_bitset) = reader.delete_bitset_opt.as_mut() {
-                    let merged_bitset = merge_delete_bitset(&new_delete_bitset, existing_bitset);
-                    reader.delete_bitset_opt = Some(merged_bitset);
-                } else {
-                    reader.delete_bitset_opt = Some(new_delete_bitset);
-                }
+                reader.apply_delete_bitset(new_delete_bitset);
             }
+            max_doc += reader.num_docs();
         }
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
             readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;

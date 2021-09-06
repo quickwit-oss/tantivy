@@ -5,6 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
+use crate::fastfield::merge_delete_bitset;
 use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
@@ -67,6 +68,17 @@ impl SegmentReader {
     /// Returns the schema of the index this segment belongs to.
     pub fn schema(&self) -> &Schema {
         &self.schema
+    }
+
+    /// Merges the passed bitset with the existing one.
+    pub fn apply_delete_bitset(&mut self, delete_bitset: DeleteBitSet) {
+        if let Some(existing_bitset) = self.delete_bitset_opt.as_mut() {
+            let merged_bitset = merge_delete_bitset(&delete_bitset, existing_bitset);
+            self.delete_bitset_opt = Some(merged_bitset);
+        } else {
+            self.delete_bitset_opt = Some(delete_bitset);
+        }
+        self.num_docs = self.max_doc - self.num_deleted_docs();
     }
 
     /// Return the number of documents that have been
