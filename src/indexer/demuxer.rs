@@ -2,7 +2,9 @@ use common::BitSet;
 use itertools::Itertools;
 
 use crate::fastfield::DeleteBitSet;
-use crate::{merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal};
+use crate::{
+    merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal, TantivyError,
+};
 
 /// DemuxMapping can be used to reorganize data from multiple segments.
 /// e.g. if you have two tenant ids TENANT_A and TENANT_B and two segments with
@@ -137,9 +139,9 @@ pub fn demux<Dir: Directory>(
             segments,
             target_settings.clone(),
             delete_bitsets,
-            output_directories
-                .pop()
-                .expect("no enough output_directories provided"),
+            output_directories.pop().ok_or_else(|| {
+                TantivyError::InvalidArgument("not enough output_directories provided".to_string())
+            })?,
         )?;
         indices.push(index);
     }
