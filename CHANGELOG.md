@@ -1,4 +1,8 @@
-Tantivy 0.16
+Tantivy 0.16.1
+========================
+- Major Bugfix on multivalued fastfield.  #1151
+
+Tantivy 0.16.0
 =========================
 - Bugfix in the filesum check. (@evanxg852000) #1127
 - Bugfix in positions when the index is sorted by a field. (@appaquet) #1125
