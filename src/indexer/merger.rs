@@ -501,10 +501,10 @@ impl IndexMerger {
         //
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
-        let mut idx_num_vals = 0;
+        let mut num_docs = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(delete_bitset) = reader.delete_bitset() {
-                idx_num_vals += reader.max_doc() as u64 - delete_bitset.len() as u64;
+                num_docs += reader.max_doc() as u64 - delete_bitset.len() as u64;
                 for doc in 0u32..reader.max_doc() {
                     if delete_bitset.is_alive(doc) {
                         let num_vals = u64s_reader.get_len(doc) as u64;
@@ -512,16 +512,17 @@ impl IndexMerger {
                     }
                 }
             } else {
-                idx_num_vals += reader.max_doc() as u64;
+                num_docs += reader.max_doc() as u64;
                 total_num_vals += u64s_reader.get_total_len();
             }
         }
         // analogous to offset.push below, for the `[last_docid .. last docid + 1)` range
-        idx_num_vals += 1;
+        num_docs += 1;
 
         let stats = FastFieldStats {
             max_value: total_num_vals,
-            num_vals: idx_num_vals,
+            // The fastfield offset index contains (num_docs + 1) values.
+            num_vals: num_docs,
             min_value: 0,
         };
         // We can now create our `idx` serializer, and in a second pass,
