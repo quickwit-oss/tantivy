@@ -8,14 +8,22 @@ pub use self::writer::MultiValuedFastFieldWriter;
 mod tests {
 
     use crate::collector::TopDocs;
+    use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
     use crate::schema::Cardinality;
     use crate::schema::Facet;
     use crate::schema::IntOptions;
     use crate::schema::Schema;
     use crate::schema::INDEXED;
+    use crate::Document;
     use crate::Index;
+    use crate::Term;
     use chrono::Duration;
+    use futures::executor::block_on;
+    use proptest::prop_oneof;
+    use proptest::proptest;
+    use proptest::strategy::Strategy;
+    use test_env_log::test;
 
     #[test]
     fn test_multivalued_u64() {
@@ -225,6 +233,111 @@ mod tests {
         multi_value_reader.get_vals(3, &mut vals);
         assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
     }
+
+    fn test_multivalued_no_panic(ops: &[IndexingOp]) {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_u64_field(
+            "multifield",
+            IntOptions::default()
+                .set_fast(Cardinality::MultiValues)
+                .set_indexed(),
+        );
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests().unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
+        for &op in ops {
+            match op {
+                IndexingOp::AddDoc { id } => {
+                    match id % 3 {
+                        0 => {
+                            index_writer.add_document(doc!());
+                        }
+                        1 => {
+                            let mut doc = Document::new();
+                            for _ in 0..5001 {
+                                doc.add_u64(field, id as u64);
+                            }
+                            index_writer.add_document(doc);
+                        }
+                        _ => {
+                            let mut doc = Document::new();
+                            doc.add_u64(field, id as u64);
+                            index_writer.add_document(doc);
+                        }
+                    };
+                }
+                IndexingOp::DeleteDoc { id } => {
+                    index_writer.delete_term(Term::from_field_u64(field, id as u64));
+                }
+                IndexingOp::Commit => {
+                    index_writer.commit().unwrap();
+                }
+                IndexingOp::Merge => {
+                    let segment_ids = index
+                        .searchable_segment_ids()
+                        .expect("Searchable segments failed.");
+                    if segment_ids.len() >= 2 {
+                        block_on(index_writer.merge(&segment_ids)).unwrap();
+                        assert!(index_writer.segment_updater().wait_merging_thread().is_ok());
+                    }
+                }
+            }
+        }
+
+        assert!(index_writer.commit().is_ok());
+
+        // Merging the segments
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            if !segment_ids.is_empty() {
+                block_on(index_writer.merge(&segment_ids)).unwrap();
+                assert!(index_writer.wait_merging_threads().is_ok());
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    enum IndexingOp {
+        AddDoc { id: u32 },
+        DeleteDoc { id: u32 },
+        Commit,
+        Merge,
+    }
+
+    fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
+        prop_oneof![
+            (0u32..10u32).prop_map(|id| IndexingOp::DeleteDoc { id }),
+            (0u32..10u32).prop_map(|id| IndexingOp::AddDoc { id }),
+            (0u32..2u32).prop_map(|_| IndexingOp::Commit),
+            (0u32..1u32).prop_map(|_| IndexingOp::Merge),
+        ]
+    }
+
+    proptest! {
+        #[test]
+        fn test_multivalued_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+            test_multivalued_no_panic(&ops[..]);
+        }
+    }
+
+    #[test]
+    fn test_multivalued_proptest_off_by_one_bug_1151() {
+        use IndexingOp::*;
+        let ops = [
+            AddDoc { id: 3 },
+            AddDoc { id: 1 },
+            AddDoc { id: 3 },
+            Commit,
+            Merge,
+        ];
+
+        test_multivalued_no_panic(&ops[..]);
+    }
+
     #[test]
     #[ignore]
     fn test_many_facets() {

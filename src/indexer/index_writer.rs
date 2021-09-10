@@ -1361,6 +1361,7 @@ mod tests {
         AddDoc { id: u64 },
         DeleteDoc { id: u64 },
         Commit,
+        Merge,
     }
 
     fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
@@ -1368,6 +1369,7 @@ mod tests {
             (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
             (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
             (0u64..2u64).prop_map(|_| IndexingOp::Commit),
+            (0u64..1u64).prop_map(|_| IndexingOp::Merge),
         ]
     }
 
@@ -1393,7 +1395,7 @@ mod tests {
     fn test_operation_strategy(
         ops: &[IndexingOp],
         sort_index: bool,
-        force_merge: bool,
+        force_end_merge: bool,
     ) -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let id_field = schema_builder.add_u64_field("id", FAST | INDEXED | STORED);
@@ -1435,6 +1437,8 @@ mod tests {
             .settings(settings)
             .create_in_ram()?;
         let mut index_writer = index.writer_for_tests()?;
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
@@ -1448,12 +1452,21 @@ mod tests {
                 IndexingOp::Commit => {
                     index_writer.commit()?;
                 }
+                IndexingOp::Merge => {
+                    let segment_ids = index
+                        .searchable_segment_ids()
+                        .expect("Searchable segments failed.");
+                    if segment_ids.len() >= 2 {
+                        block_on(index_writer.merge(&segment_ids)).unwrap();
+                        assert!(index_writer.segment_updater().wait_merging_thread().is_ok());
+                    }
+                }
             }
         }
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
-        if force_merge {
+        if force_end_merge {
             index_writer.wait_merging_threads()?;
             let mut index_writer = index.writer_for_tests()?;
             let segment_ids = index
