@@ -516,7 +516,7 @@ impl IndexMerger {
                 total_num_vals += u64s_reader.get_total_len();
             }
         }
-        // analougus to offset.push below, for the (last docid .. last docid + 1) range
+        // analogous to offset.push below, for the `[last_docid .. last docid + 1)` range
         idx_num_vals += 1;
 
         let stats = FastFieldStats {
