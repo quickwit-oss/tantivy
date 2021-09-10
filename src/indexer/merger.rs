@@ -516,13 +516,11 @@ impl IndexMerger {
                 total_num_vals += u64s_reader.get_total_len();
             }
         }
-        // analogous to offset.push below, for the `[last_docid .. last docid + 1)` range
-        num_docs += 1;
 
         let stats = FastFieldStats {
             max_value: total_num_vals,
             // The fastfield offset index contains (num_docs + 1) values.
-            num_vals: num_docs,
+            num_vals: num_docs + 1,
             min_value: 0,
         };
         // We can now create our `idx` serializer, and in a second pass,
