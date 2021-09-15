@@ -98,27 +98,25 @@ pub struct IndexMerger {
 
 fn compute_min_max_val(
     u64_reader: &impl FastFieldReader<u64>,
+    segment_reader: &SegmentReader,
     max_doc: DocId,
     delete_bitset_opt: Option<&DeleteBitSet>,
 ) -> Option<(u64, u64)> {
     if max_doc == 0 {
         None
     } else {
-        match delete_bitset_opt {
-            Some(delete_bitset) => {
-                // some deleted documents,
-                // we need to recompute the max / min
-                minmax(
-                    (0..max_doc)
-                        .filter(|doc_id| delete_bitset.is_alive(*doc_id))
-                        .map(|doc_id| u64_reader.get(doc_id)),
-                )
-            }
-            None => {
-                // no deleted documents,
-                // we can use the previous min_val, max_val.
-                Some((u64_reader.min_value(), u64_reader.max_value()))
-            }
+        if delete_bitset_opt.is_some() {
+            // some deleted documents,
+            // we need to recompute the max / min
+            minmax(
+                segment_reader
+                    .doc_ids_alive()
+                    .map(|doc_id| u64_reader.get(doc_id)),
+            )
+        } else {
+            // no deleted documents,
+            // we can use the previous min_val, max_val.
+            Some((u64_reader.min_value(), u64_reader.max_value()))
         }
     }
 }
@@ -326,7 +324,7 @@ impl IndexMerger {
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
+                compute_min_max_val(&u64_reader, reader, reader.max_doc(), reader.delete_bitset())
             })
             .flatten()
             .reduce(|a, b| {
@@ -505,11 +503,9 @@ impl IndexMerger {
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(delete_bitset) = reader.delete_bitset() {
                 num_docs += reader.max_doc() as u64 - delete_bitset.len() as u64;
-                for doc in 0u32..reader.max_doc() {
-                    if delete_bitset.is_alive(doc) {
-                        let num_vals = u64s_reader.get_len(doc) as u64;
-                        total_num_vals += num_vals;
-                    }
+                for doc in reader.doc_ids_alive() {
+                    let num_vals = u64s_reader.get_len(doc) as u64;
+                    total_num_vals += num_vals;
                 }
             } else {
                 num_docs += reader.max_doc() as u64;

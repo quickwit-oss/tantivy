@@ -9,8 +9,6 @@ use std::fmt;
 ///
 /// In addition to segment `meta`,
 /// it contains a few transient states
-/// - `state` expresses whether the segment is already in the
-/// middle of a merge
 /// - `delete_bitset` is a bitset describing
 /// documents that were deleted during the commit
 /// itself.

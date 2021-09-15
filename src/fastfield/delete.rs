@@ -1,6 +1,5 @@
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
-use crate::directory::WritePtr;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 use common::BitSet;
@@ -16,7 +15,7 @@ use std::io::Write;
 pub fn write_delete_bitset(
     delete_bitset: &BitSet,
     max_doc: u32,
-    writer: &mut WritePtr,
+    writer: &mut dyn Write,
 ) -> io::Result<()> {
     let mut byte = 0u8;
     let mut shift = 0u8;
@@ -79,6 +78,7 @@ impl DeleteBitSet {
     }
 
     /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
+    #[inline]
     pub fn is_alive(&self, doc: DocId) -> bool {
         !self.is_deleted(doc)
     }
@@ -90,6 +90,22 @@ impl DeleteBitSet {
         let b: u8 = self.data.as_slice()[byte_offset as usize];
         let shift = (doc & 7u32) as u8;
         b & (1u8 << shift) != 0
+    }
+
+    /// Returns true iff the document has been marked as deleted.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = bool> + '_ {
+        let data = self.data.as_slice();
+        data.iter().flat_map(|el| {
+            (0..8).map(move |pos| {
+                let val = el >> pos;
+                if (val & 1) == 1 {
+                    true
+                } else {
+                    false
+                }
+            })
+        })
     }
 
     /// The number of deleted docs
@@ -110,6 +126,7 @@ impl HasLen for DeleteBitSet {
 
 #[cfg(test)]
 mod tests {
+
     use super::DeleteBitSet;
     use common::HasLen;
 
@@ -140,5 +157,37 @@ mod tests {
             assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
         assert_eq!(delete_bitset.len(), 2);
+    }
+
+    #[test]
+    fn test_delete_bitset_iter_small() {
+        let delete_bitset = DeleteBitSet::for_test(&[0, 2, 3, 6], 7);
+
+        let data: Vec<_> = delete_bitset.iter().collect();
+        assert!(data[0]);
+        assert!(!data[1]);
+        assert!(data[2]);
+        assert!(data[3]);
+        assert!(!data[4]);
+        assert!(!data[5]);
+        assert!(data[6]);
+    }
+    #[test]
+    fn test_delete_bitset_iter() {
+        let delete_bitset = DeleteBitSet::for_test(&[1, 2, 3, 5, 10], 11);
+
+        let data: Vec<_> = delete_bitset.iter().collect();
+        assert!(!data[0]);
+        assert!(data[1]);
+        assert!(data[2]);
+        assert!(data[3]);
+        assert!(!data[4]);
+        assert!(data[5]);
+        assert!(!data[6]);
+        assert!(!data[7]);
+        assert!(!data[8]);
+        assert!(!data[9]);
+        assert!(data[10]);
+        assert!(!data[11]);
     }
 }
