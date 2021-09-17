@@ -289,14 +289,7 @@ impl SegmentReader {
     /// Returns an iterator that will iterate over the alive document ids
     pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
         if let Some(delete_bitset) = &self.delete_bitset_opt {
-            Box::new(
-                delete_bitset
-                    .iter()
-                    .take(self.max_doc() as usize)
-                    .enumerate()
-                    .filter(|(_docid, is_deleted)| !is_deleted)
-                    .map(|(docid, _is_deleted)| docid as DocId),
-            )
+            Box::new(delete_bitset.iter_positions())
         } else {
             Box::new(0u32..self.max_doc)
         }

@@ -34,8 +34,8 @@ impl TinySet {
         writer.write_all(self.0.to_le_bytes().as_ref())
     }
 
-    pub fn deserialize(data: &[u8]) -> io::Result<Self> {
-        let val: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
+    pub fn deserialize(data: [u8; 8]) -> io::Result<Self> {
+        let val: u64 = u64::from_le_bytes(data);
         Ok(TinySet(val))
     }
 
@@ -145,9 +145,9 @@ fn num_buckets(max_val: u32) -> u32 {
 impl BitSet {
     /// Write a `BitSet`
     ///
-    pub fn serialize(&mut self, writer: &mut dyn Write) -> io::Result<()> {
-        writer.write_all(self.len.to_le_bytes().as_ref())?;
-        writer.write_all(self.max_value.to_le_bytes().as_ref())?;
+    pub fn serialize(&self, writer: &mut dyn Write) -> io::Result<()> {
+        //writer.write_all(self.len.to_le_bytes().as_ref())?;
+        //writer.write_all(self.max_value.to_le_bytes().as_ref())?;
 
         for tinyset in self.tinysets.iter() {
             tinyset.serialize(writer)?;
@@ -156,26 +156,39 @@ impl BitSet {
         Ok(())
     }
 
-    /// UnWrite a `BitSet`
+    /// Deserialize a `BitSet`. BitSet is considered immutable after deserialization.
     ///
-    pub fn deserialize(&mut self, mut data: &[u8]) -> io::Result<Self> {
-        let len: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
-        data = &data[8..];
+    pub fn deserialize(data: &[u8]) -> io::Result<Self> {
+        //let len: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
+        //data = &data[8..];
 
-        let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
-        data = &data[4..];
+        //let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
+        //data = &data[4..];
 
         let mut tinysets = vec![];
-        while !data.is_empty() {
-            let tinyset = TinySet::deserialize(data)?;
+        for chunk in data.chunks_exact(8) {
+            let tinyset = TinySet::deserialize(chunk.try_into().unwrap())?;
             tinysets.push(tinyset);
-            data = &data[8..];
         }
         Ok(BitSet {
             tinysets: tinysets.into_boxed_slice(),
-            len,
-            max_value,
+            len: 0,
+            max_value: 0,
         })
+    }
+
+    /// Iterate over the positions of the set elements
+    #[inline]
+    pub fn iter_positions_from_bytes<'a>(data: &'a [u8]) -> impl Iterator<Item = u32> + 'a {
+        data.chunks_exact(8)
+            .enumerate()
+            .filter(|(_, tinyset)| !tinyset.is_empty())
+            .flat_map(|(chunk_num, chunk)| {
+                let tinyset = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+                tinyset
+                    .into_iter()
+                    .map(move |val| val + chunk_num as u32 * 64)
+            })
     }
 
     /// Create a new `BitSet` that may contain elements
@@ -253,6 +266,7 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
+    use std::convert::TryInto;
 
     #[test]
     fn test_tiny_set() {
@@ -279,6 +293,21 @@ mod tests {
             assert_eq!(u.pop_lowest(), Some(63u32));
             assert!(u.pop_lowest().is_none());
         }
+        {
+            let mut u = TinySet::empty().insert(63u32).insert(5);
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert_eq!(u.pop_lowest(), Some(63u32));
+            assert!(u.pop_lowest().is_none());
+        }
+        {
+            let u = TinySet::empty().insert(63u32).insert(5);
+            let mut data = vec![];
+            u.serialize(&mut data).unwrap();
+            let mut u = TinySet::deserialize(data[..8].try_into().unwrap()).unwrap();
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert_eq!(u.pop_lowest(), Some(63u32));
+            assert!(u.pop_lowest().is_none());
+        }
     }
 
     #[test]
@@ -299,11 +328,10 @@ mod tests {
             // test deser
             let mut data = vec![];
             bitset.serialize(&mut data).unwrap();
-            let bitset = bitset.deserialize(&data).unwrap();
+            let bitset = BitSet::deserialize(&data).unwrap();
             for el in 0..max_value {
                 assert_eq!(hashset.contains(&el), bitset.contains(el));
             }
-            assert_eq!(bitset.max_value(), max_value);
         };
 
         test_against_hashset(&[], 0);

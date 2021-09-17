@@ -3,6 +3,8 @@ use crate::directory::OwnedBytes;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 use common::BitSet;
+use common::TinySet;
+use std::convert::TryInto;
 use std::io;
 use std::io::Write;
 
@@ -16,23 +18,24 @@ pub fn write_delete_bitset(
     max_doc: u32,
     writer: &mut dyn Write,
 ) -> io::Result<()> {
-    let mut byte = 0u8;
-    let mut shift = 0u8;
-    for doc in 0..max_doc {
-        if delete_bitset.contains(doc) {
-            byte |= 1 << shift;
-        }
-        if shift == 7 {
-            writer.write_all(&[byte])?;
-            shift = 0;
-            byte = 0;
-        } else {
-            shift += 1;
-        }
-    }
-    if max_doc % 8 > 0 {
-        writer.write_all(&[byte])?;
-    }
+    delete_bitset.serialize(writer)?;
+    //let mut byte = 0u8;
+    //let mut shift = 0u8;
+    //for doc in 0..max_doc {
+    //if delete_bitset.contains(doc) {
+    //byte |= 1 << shift;
+    //}
+    //if shift == 7 {
+    //writer.write_all(&[byte])?;
+    //shift = 0;
+    //byte = 0;
+    //} else {
+    //shift += 1;
+    //}
+    //}
+    //if max_doc % 8 > 0 {
+    //writer.write_all(&[byte])?;
+    //}
     Ok(())
 }
 
@@ -65,11 +68,14 @@ impl DeleteBitSet {
     /// Opens a delete bitset given its file.
     pub fn open(file: FileSlice) -> crate::Result<DeleteBitSet> {
         let bytes = file.read_bytes()?;
-        let num_deleted: usize = bytes
-            .as_slice()
-            .iter()
-            .map(|b| b.count_ones() as usize)
+        let num_deleted = bytes
+            .chunks_exact(8)
+            .map(|chunk| {
+                let tinyset = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+                tinyset.len() as usize
+            })
             .sum();
+
         Ok(DeleteBitSet {
             data: bytes,
             num_deleted,
@@ -91,20 +97,11 @@ impl DeleteBitSet {
         b & (1u8 << shift) != 0
     }
 
-    /// Returns true iff the document has been marked as deleted.
+    /// Iterate over the positions of the set elements
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = bool> + '_ {
+    pub fn iter_positions(&self) -> impl Iterator<Item = u32> + '_ {
         let data = self.data.as_slice();
-        data.iter().flat_map(|el| {
-            (0..8).map(move |pos| {
-                let val = el >> pos;
-                if (val & 1) == 1 {
-                    true
-                } else {
-                    false
-                }
-            })
-        })
+        BitSet::iter_positions_from_bytes(data)
     }
 
     /// The number of deleted docs
@@ -152,34 +149,32 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_bitset_iter_minimal() {
+        let delete_bitset = DeleteBitSet::for_test(&[7], 8);
+
+        let data: Vec<_> = delete_bitset.iter_positions().collect();
+        assert_eq!(data, vec![7]);
+    }
+
+    #[test]
     fn test_delete_bitset_iter_small() {
         let delete_bitset = DeleteBitSet::for_test(&[0, 2, 3, 6], 7);
 
-        let data: Vec<_> = delete_bitset.iter().collect();
-        assert!(data[0]);
-        assert!(!data[1]);
-        assert!(data[2]);
-        assert!(data[3]);
-        assert!(!data[4]);
-        assert!(!data[5]);
-        assert!(data[6]);
+        let data: Vec<_> = delete_bitset.iter_positions().collect();
+        assert_eq!(data, vec![0, 2, 3, 6]);
     }
     #[test]
     fn test_delete_bitset_iter() {
-        let delete_bitset = DeleteBitSet::for_test(&[1, 2, 3, 5, 10], 11);
+        let delete_bitset = DeleteBitSet::for_test(&[1, 2, 3, 5, 10, 64, 65, 66, 100], 110);
 
-        let data: Vec<_> = delete_bitset.iter().collect();
-        assert!(!data[0]);
-        assert!(data[1]);
-        assert!(data[2]);
-        assert!(data[3]);
-        assert!(!data[4]);
-        assert!(data[5]);
-        assert!(!data[6]);
-        assert!(!data[7]);
-        assert!(!data[8]);
-        assert!(!data[9]);
-        assert!(data[10]);
-        assert!(!data[11]);
+        let data: Vec<_> = delete_bitset.iter_positions().collect();
+        assert_eq!(data, vec![1, 2, 3, 5, 10, 64, 65, 66, 100]);
+    }
+    #[test]
+    fn test_delete_bitset_iter_empty_blocks() {
+        let delete_bitset = DeleteBitSet::for_test(&[1, 2, 3, 5, 10, 64, 65, 66, 100, 1000], 1010);
+
+        let data: Vec<_> = delete_bitset.iter_positions().collect();
+        assert_eq!(data, vec![1, 2, 3, 5, 10, 64, 65, 66, 100, 1000]);
     }
 }
