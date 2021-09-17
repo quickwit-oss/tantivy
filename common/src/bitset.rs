@@ -1,5 +1,7 @@
-use std::fmt;
+use std::convert::TryInto;
+use std::io::Write;
 use std::u64;
+use std::{fmt, io};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct TinySet(u64);
@@ -28,6 +30,15 @@ impl IntoIterator for TinySet {
 }
 
 impl TinySet {
+    pub fn serialize(&self, writer: &mut dyn Write) -> io::Result<()> {
+        writer.write_all(self.0.to_le_bytes().as_ref())
+    }
+
+    pub fn deserialize(data: &[u8]) -> io::Result<Self> {
+        let val: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
+        Ok(TinySet(val))
+    }
+
     /// Returns an empty `TinySet`.
     pub fn empty() -> TinySet {
         TinySet(0u64)
@@ -123,7 +134,7 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: usize,
+    len: u64,
     max_value: u32,
 }
 
@@ -132,6 +143,41 @@ fn num_buckets(max_val: u32) -> u32 {
 }
 
 impl BitSet {
+    /// Write a `BitSet`
+    ///
+    pub fn serialize(&mut self, writer: &mut dyn Write) -> io::Result<()> {
+        writer.write_all(self.len.to_le_bytes().as_ref())?;
+        writer.write_all(self.max_value.to_le_bytes().as_ref())?;
+
+        for tinyset in self.tinysets.iter() {
+            tinyset.serialize(writer)?;
+        }
+        writer.flush()?;
+        Ok(())
+    }
+
+    /// UnWrite a `BitSet`
+    ///
+    pub fn deserialize(&mut self, mut data: &[u8]) -> io::Result<Self> {
+        let len: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
+        data = &data[8..];
+
+        let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
+        data = &data[4..];
+
+        let mut tinysets = vec![];
+        while !data.is_empty() {
+            let tinyset = TinySet::deserialize(data)?;
+            tinysets.push(tinyset);
+            data = &data[8..];
+        }
+        Ok(BitSet {
+            tinysets: tinysets.into_boxed_slice(),
+            len,
+            max_value,
+        })
+    }
+
     /// Create a new `BitSet` that may contain elements
     /// within `[0, max_val[`.
     pub fn with_max_value(max_value: u32) -> BitSet {
@@ -153,7 +199,7 @@ impl BitSet {
 
     /// Returns the number of elements in the `BitSet`.
     pub fn len(&self) -> usize {
-        self.len
+        self.len as usize
     }
 
     /// Inserts an element in the `BitSet`
@@ -245,6 +291,15 @@ mod tests {
                 hashset.insert(el);
                 bitset.insert(el);
             }
+            for el in 0..max_value {
+                assert_eq!(hashset.contains(&el), bitset.contains(el));
+            }
+            assert_eq!(bitset.max_value(), max_value);
+
+            // test deser
+            let mut data = vec![];
+            bitset.serialize(&mut data).unwrap();
+            let bitset = bitset.deserialize(&data).unwrap();
             for el in 0..max_value {
                 assert_eq!(hashset.contains(&el), bitset.contains(el));
             }

@@ -3,7 +3,6 @@ use crate::directory::OwnedBytes;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 use common::BitSet;
-use common::HasLen;
 use std::io;
 use std::io::Write;
 
@@ -118,17 +117,10 @@ impl DeleteBitSet {
     }
 }
 
-impl HasLen for DeleteBitSet {
-    fn len(&self) -> usize {
-        self.num_deleted
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::DeleteBitSet;
-    use common::HasLen;
 
     #[test]
     fn test_delete_bitset_empty() {
@@ -136,7 +128,7 @@ mod tests {
         for doc in 0..10 {
             assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
-        assert_eq!(delete_bitset.len(), 0);
+        assert_eq!(delete_bitset.num_deleted(), 0);
     }
 
     #[test]
@@ -156,7 +148,7 @@ mod tests {
         for doc in 0..10 {
             assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
-        assert_eq!(delete_bitset.len(), 2);
+        assert_eq!(delete_bitset.num_deleted(), 2);
     }
 
     #[test]

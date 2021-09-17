@@ -29,7 +29,6 @@ use crate::{
     SegmentOrdinal,
 };
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
-use common::HasLen;
 use itertools::Itertools;
 use measure_time::debug_time;
 use std::cmp;
@@ -502,7 +501,7 @@ impl IndexMerger {
         let mut num_docs = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(delete_bitset) = reader.delete_bitset() {
-                num_docs += reader.max_doc() as u64 - delete_bitset.len() as u64;
+                num_docs += reader.max_doc() as u64 - delete_bitset.num_deleted() as u64;
                 for doc in reader.doc_ids_alive() {
                     let num_vals = u64s_reader.get_len(doc) as u64;
                     total_num_vals += num_vals;
