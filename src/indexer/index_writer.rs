@@ -180,7 +180,7 @@ pub(crate) fn advance_deletes(
         // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
         let mut delete_file = segment.open_write(SegmentComponent::Delete)?;
-        write_delete_bitset(&delete_bitset, max_doc, &mut delete_file)?;
+        write_delete_bitset(&delete_bitset, &mut delete_file)?;
         delete_file.terminate()?;
     }
 

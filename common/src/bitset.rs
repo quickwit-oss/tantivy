@@ -16,6 +16,7 @@ pub struct TinySetIterator(TinySet);
 impl Iterator for TinySetIterator {
     type Item = u32;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.pop_lowest()
     }
@@ -34,6 +35,7 @@ impl TinySet {
         writer.write_all(self.0.to_le_bytes().as_ref())
     }
 
+    #[inline]
     pub fn deserialize(data: [u8; 8]) -> io::Result<Self> {
         let val: u64 = u64::from_le_bytes(data);
         Ok(TinySet(val))
@@ -48,21 +50,25 @@ impl TinySet {
         self.0 = 0u64;
     }
 
+    #[inline]
     /// Returns the complement of the set in `[0, 64[`.
     fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
+    #[inline]
     /// Returns true iff the `TinySet` contains the element `el`.
     pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
+    #[inline]
     /// Returns the number of elements in the TinySet.
     pub fn len(self) -> u32 {
         self.0.count_ones()
     }
 
+    #[inline]
     /// Returns the intersection of `self` and `other`
     pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)
@@ -146,8 +152,7 @@ impl BitSet {
     /// Write a `BitSet`
     ///
     pub fn serialize(&self, writer: &mut dyn Write) -> io::Result<()> {
-        //writer.write_all(self.len.to_le_bytes().as_ref())?;
-        //writer.write_all(self.max_value.to_le_bytes().as_ref())?;
+        writer.write_all(self.max_value.to_le_bytes().as_ref())?;
 
         for tinyset in self.tinysets.iter() {
             tinyset.serialize(writer)?;
@@ -158,12 +163,9 @@ impl BitSet {
 
     /// Deserialize a `BitSet`. BitSet is considered immutable after deserialization.
     ///
-    pub fn deserialize(data: &[u8]) -> io::Result<Self> {
-        //let len: u64 = u64::from_le_bytes(data[..8].try_into().unwrap());
-        //data = &data[8..];
-
-        //let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
-        //data = &data[4..];
+    pub fn deserialize(mut data: &[u8]) -> io::Result<Self> {
+        let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
+        data = &data[4..];
 
         let mut tinysets = vec![];
         for chunk in data.chunks_exact(8) {
@@ -173,21 +175,35 @@ impl BitSet {
         Ok(BitSet {
             tinysets: tinysets.into_boxed_slice(),
             len: 0,
-            max_value: 0,
+            max_value,
         })
     }
 
-    /// Iterate over the positions of the set elements
+    /// Iterate the tinyset on the fly from serialized data.
+    ///
     #[inline]
-    pub fn iter_positions_from_bytes<'a>(data: &'a [u8]) -> impl Iterator<Item = u32> + 'a {
-        data.chunks_exact(8)
+    pub fn iter_from_bytes<'a>(data: &'a [u8]) -> impl Iterator<Item = TinySet> + 'a {
+        data[4..].chunks_exact(8).map(move |chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+            tinyset
+        })
+    }
+
+    /// Iterate over the positions of the unset elements.
+    ///
+    /// max_val needs to be provided, since the last 64 bits may
+    #[inline]
+    pub fn iter_unset_from_bytes<'a>(data: &'a [u8]) -> impl Iterator<Item = u32> + 'a {
+        let max_val: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
+        Self::iter_from_bytes(data)
+            .map(|tinyset| tinyset.complement())
             .enumerate()
-            .filter(|(_, tinyset)| !tinyset.is_empty())
-            .flat_map(|(chunk_num, chunk)| {
-                let tinyset = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+            .flat_map(move |(chunk_num, tinyset)| {
+                let chunk_base_val = chunk_num as u32 * 64;
                 tinyset
                     .into_iter()
-                    .map(move |val| val + chunk_num as u32 * 64)
+                    .map(move |val| val + chunk_base_val)
+                    .take_while(move |doc| *doc < max_val)
             })
     }
 
@@ -225,6 +241,15 @@ impl BitSet {
         } else {
             0
         };
+    }
+
+    /// Returns true iff the elements is in the `BitSet`.
+    #[inline]
+    pub fn contains_from_bytes(el: u32, data: &[u8]) -> bool {
+        let byte_offset = 4 + el / 8u32;
+        let b: u8 = data[byte_offset as usize];
+        let shift = (el & 7u32) as u8;
+        b & (1u8 << shift) != 0
     }
 
     /// Returns true iff the elements is in the `BitSet`.
