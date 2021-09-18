@@ -149,7 +149,7 @@ fn num_buckets(max_val: u32) -> u32 {
 }
 
 impl BitSet {
-    /// Write a `BitSet`
+    /// serialize a `BitSet`.
     ///
     pub fn serialize(&self, writer: &mut dyn Write) -> io::Result<()> {
         writer.write_all(self.max_value.to_le_bytes().as_ref())?;
@@ -161,20 +161,22 @@ impl BitSet {
         Ok(())
     }
 
-    /// Deserialize a `BitSet`. BitSet is considered immutable after deserialization.
+    /// Deserialize a `BitSet`.
     ///
     pub fn deserialize(mut data: &[u8]) -> io::Result<Self> {
         let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
         data = &data[4..];
 
+        let mut len: u64 = 0;
         let mut tinysets = vec![];
         for chunk in data.chunks_exact(8) {
             let tinyset = TinySet::deserialize(chunk.try_into().unwrap())?;
+            len += tinyset.len() as u64;
             tinysets.push(tinyset);
         }
         Ok(BitSet {
             tinysets: tinysets.into_boxed_slice(),
-            len: 0,
+            len,
             max_value,
         })
     }
@@ -357,6 +359,8 @@ mod tests {
             for el in 0..max_value {
                 assert_eq!(hashset.contains(&el), bitset.contains(el));
             }
+            assert_eq!(bitset.max_value(), max_value);
+            assert_eq!(bitset.len(), els.len());
         };
 
         test_against_hashset(&[], 0);
