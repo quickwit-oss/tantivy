@@ -57,3 +57,30 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
         &mut self.token
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::{SimpleTokenizer, TextAnalyzer, Token};
+
+    #[test]
+    fn test_simple_tokenizer() {
+        let tokens = token_stream_helper("Hello, happy tax payer!");
+        assert_eq!(tokens.len(), 4);
+        assert_token(&tokens[0], 0, "Hello", 0, 5);
+        assert_token(&tokens[1], 1, "happy", 7, 12);
+        assert_token(&tokens[2], 2, "tax", 13, 16);
+        assert_token(&tokens[3], 3, "payer", 17, 22);
+    }
+
+    fn token_stream_helper(text: &str) -> Vec<Token> {
+        let a = TextAnalyzer::from(SimpleTokenizer);
+        let mut token_stream = a.token_stream(text);
+        let mut tokens: Vec<Token> = vec![];
+        let mut add_token = |token: &Token| {
+            tokens.push(token.clone());
+        };
+        token_stream.process(&mut add_token);
+        tokens
+    }
+}
