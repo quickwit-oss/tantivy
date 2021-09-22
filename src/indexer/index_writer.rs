@@ -348,6 +348,13 @@ impl IndexWriter {
         self.operation_sender = sender;
     }
 
+    /// Accessor to the index
+    ///
+    /// The index is actually cloned.
+    pub fn index(&self) -> Index {
+        self.index.clone()
+    }
+
     /// If there are some merging threads, blocks until they all finish their work and
     /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> crate::Result<()> {
