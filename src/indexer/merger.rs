@@ -101,7 +101,7 @@ fn compute_min_max_val(
     if segment_reader.max_doc() == 0 {
         None
     } else {
-        if segment_reader.delete_bitset().is_some() {
+        if segment_reader.alive_bitset().is_some() {
             // some deleted documents,
             // we need to recompute the max / min
             minmax(
@@ -497,8 +497,8 @@ impl IndexMerger {
         // what should be the bit length use for bitpacking.
         let mut num_docs = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
-            if let Some(delete_bitset) = reader.delete_bitset() {
-                num_docs += reader.max_doc() as u64 - delete_bitset.num_deleted() as u64;
+            if let Some(alive_bitset) = reader.alive_bitset() {
+                num_docs += reader.max_doc() as u64 - alive_bitset.num_deleted() as u64;
                 for doc in reader.doc_ids_alive() {
                     let num_vals = u64s_reader.get_len(doc) as u64;
                     total_num_vals += num_vals;
@@ -888,9 +888,9 @@ impl IndexMerger {
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
                     .read_postings_from_terminfo(&term_info, segment_postings_option)?;
-                let delete_bitset_opt = segment_reader.delete_bitset();
-                let doc_freq = if let Some(delete_bitset) = delete_bitset_opt {
-                    segment_postings.doc_freq_given_deletes(delete_bitset)
+                let alive_bitset_opt = segment_reader.alive_bitset();
+                let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
+                    segment_postings.doc_freq_given_deletes(alive_bitset)
                 } else {
                     segment_postings.doc_freq()
                 };
@@ -1010,7 +1010,7 @@ impl IndexMerger {
         let mut document_iterators: Vec<_> = store_readers
             .iter()
             .enumerate()
-            .map(|(i, store)| store.iter_raw(self.readers[i].delete_bitset()))
+            .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
             .collect();
         if !doc_id_mapping.is_trivial() {
             for (old_doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
@@ -1046,7 +1046,7 @@ impl IndexMerger {
                     || store_reader.block_checkpoints().take(7).count() < 6
                     || store_reader.compressor() != store_writer.compressor()
                 {
-                    for doc_bytes_res in store_reader.iter_raw(reader.delete_bitset()) {
+                    for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
                         let doc_bytes = doc_bytes_res?;
                         store_writer.store_bytes(&doc_bytes)?;
                     }

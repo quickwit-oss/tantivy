@@ -629,10 +629,10 @@ impl Collector for TopDocs {
         let heap_len = self.0.limit + self.0.offset;
         let mut heap: BinaryHeap<ComparableDoc<Score, DocId>> = BinaryHeap::with_capacity(heap_len);
 
-        if let Some(delete_bitset) = reader.delete_bitset() {
+        if let Some(alive_bitset) = reader.alive_bitset() {
             let mut threshold = Score::MIN;
             weight.for_each_pruning(threshold, reader, &mut |doc, score| {
-                if delete_bitset.is_deleted(doc) {
+                if alive_bitset.is_deleted(doc) {
                     return threshold;
                 }
                 let heap_item = ComparableDoc {

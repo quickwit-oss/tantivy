@@ -118,8 +118,8 @@ impl<S: Scorer> DocSet for BoostScorer<S> {
         self.underlying.size_hint()
     }
 
-    fn count(&mut self, delete_bitset: &AliveBitSet) -> u32 {
-        self.underlying.count(delete_bitset)
+    fn count(&mut self, alive_bitset: &AliveBitSet) -> u32 {
+        self.underlying.count(alive_bitset)
     }
 
     fn count_including_deleted(&mut self) -> u32 {

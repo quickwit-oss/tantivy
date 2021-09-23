@@ -11,7 +11,7 @@ use crate::directory::TerminatingWrite;
 use crate::directory::{DirectoryLock, GarbageCollectionResult};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::TantivyError;
-use crate::fastfield::write_delete_bitset;
+use crate::fastfield::write_alive_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::operation::DeleteOperation;
@@ -93,7 +93,7 @@ pub struct IndexWriter {
 }
 
 fn compute_deleted_bitset(
-    delete_bitset: &mut BitSet,
+    alive_bitset: &mut BitSet,
     segment_reader: &SegmentReader,
     delete_cursor: &mut DeleteCursor,
     doc_opstamps: &DocToOpstampMapping,
@@ -114,7 +114,7 @@ fn compute_deleted_bitset(
             let mut doc_matching_deleted_term = docset.doc();
             while doc_matching_deleted_term != TERMINATED {
                 if doc_opstamps.is_deleted(doc_matching_deleted_term, delete_op.opstamp) {
-                    delete_bitset.remove(doc_matching_deleted_term);
+                    alive_bitset.remove(doc_matching_deleted_term);
                     might_have_changed = true;
                 }
                 doc_matching_deleted_term = docset.advance();
@@ -141,7 +141,7 @@ pub(crate) fn advance_deletes(
         return Ok(());
     }
 
-    if segment_entry.delete_bitset().is_none() && segment_entry.delete_cursor().get().is_none() {
+    if segment_entry.alive_bitset().is_none() && segment_entry.delete_cursor().get().is_none() {
         // There has been no `DeleteOperation` between the segment status and `target_opstamp`.
         return Ok(());
     }
@@ -149,15 +149,15 @@ pub(crate) fn advance_deletes(
     let segment_reader = SegmentReader::open(&segment)?;
 
     let max_doc = segment_reader.max_doc();
-    let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
-        Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
+    let mut alive_bitset: BitSet = match segment_entry.alive_bitset() {
+        Some(previous_alive_bitset) => (*previous_alive_bitset).clone(),
         None => BitSet::with_max_value_and_filled(max_doc),
     };
 
     let num_deleted_docs_before = segment.meta().num_deleted_docs();
 
     compute_deleted_bitset(
-        &mut delete_bitset,
+        &mut alive_bitset,
         &segment_reader,
         segment_entry.delete_cursor(),
         &DocToOpstampMapping::None,
@@ -167,21 +167,21 @@ pub(crate) fn advance_deletes(
     // TODO optimize
     // It should be possible to do something smarter by manipulation bitsets directly
     // to compute this union.
-    if let Some(seg_delete_bitset) = segment_reader.delete_bitset() {
+    if let Some(seg_alive_bitset) = segment_reader.alive_bitset() {
         for doc in 0u32..max_doc {
-            if seg_delete_bitset.is_deleted(doc) {
-                delete_bitset.remove(doc);
+            if seg_alive_bitset.is_deleted(doc) {
+                alive_bitset.remove(doc);
             }
         }
     }
 
-    let num_alive_docs: u32 = delete_bitset.num_set_bits() as u32;
+    let num_alive_docs: u32 = alive_bitset.num_set_bits() as u32;
     let num_deleted_docs = max_doc - num_alive_docs;
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
         let mut delete_file = segment.open_write(SegmentComponent::Delete)?;
-        write_delete_bitset(&delete_bitset, &mut delete_file)?;
+        write_alive_bitset(&alive_bitset, &mut delete_file)?;
         delete_file.terminate()?;
     }
 
@@ -227,13 +227,13 @@ fn index_documents(
 
     let segment_with_max_doc = segment.with_max_doc(max_doc);
 
-    let delete_bitset_opt =
+    let alive_bitset_opt =
         apply_deletes(&segment_with_max_doc, &mut delete_cursor, &doc_opstamps)?;
 
     let meta = segment_with_max_doc.meta().clone();
     meta.untrack_temp_docstore();
     // update segment_updater inventory to remove tempstore
-    let segment_entry = SegmentEntry::new(meta, delete_cursor, delete_bitset_opt);
+    let segment_entry = SegmentEntry::new(meta, delete_cursor, alive_bitset_opt);
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
     Ok(true)
 }
@@ -1514,7 +1514,7 @@ mod tests {
         for segment_reader in searcher.segment_readers().iter() {
             let store_reader = segment_reader.get_store_reader().unwrap();
             // test store iterator
-            for doc in store_reader.iter(segment_reader.delete_bitset()) {
+            for doc in store_reader.iter(segment_reader.alive_bitset()) {
                 let id = doc
                     .unwrap()
                     .get_first(id_field)

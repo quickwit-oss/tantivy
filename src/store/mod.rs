@@ -113,7 +113,7 @@ pub mod tests {
     fn test_doc_store_iter_with_delete_bug_1077() -> crate::Result<()> {
         // this will cover deletion of the first element in a checkpoint
         let deleted_docids = (200..300).collect::<Vec<_>>();
-        let delete_bitset = AliveBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
+        let alive_bitset = AliveBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
 
         let path = Path::new("store");
         let directory = RamDirectory::create();
@@ -134,7 +134,7 @@ pub mod tests {
             );
         }
 
-        for (_, doc) in store.iter(Some(&delete_bitset)).enumerate() {
+        for (_, doc) in store.iter(Some(&alive_bitset)).enumerate() {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().text().unwrap();
             if !title_content.starts_with("Doc ") {
@@ -146,7 +146,7 @@ pub mod tests {
                 .unwrap()
                 .parse::<u32>()
                 .unwrap();
-            if delete_bitset.is_deleted(id) {
+            if alive_bitset.is_deleted(id) {
                 panic!("unexpected deleted document {}", id);
             }
         }
@@ -230,7 +230,7 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         let reader = searcher.segment_reader(0);
         let store = reader.get_store_reader().unwrap();
-        for doc in store.iter(reader.delete_bitset()) {
+        for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().text().unwrap(),
                 "deletemenot".to_string()
@@ -288,7 +288,7 @@ pub mod tests {
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader().unwrap();
 
-        for doc in store.iter(reader.delete_bitset()).take(50) {
+        for doc in store.iter(reader.alive_bitset()).take(50) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().text().unwrap(),
                 LOREM.to_string()

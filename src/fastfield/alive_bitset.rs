@@ -6,17 +6,17 @@ use common::BitSet;
 use std::io;
 use std::io::Write;
 
-/// Write a delete `BitSet`
+/// Write a alive `BitSet`
 ///
-/// where `delete_bitset` is the set of deleted `DocId`.
+/// where `alive_bitset` is the set of alive `DocId`.
 /// Warning: this function does not call terminate. The caller is in charge of
 /// closing the writer properly.
-pub fn write_delete_bitset<T: Write>(delete_bitset: &BitSet, writer: &mut T) -> io::Result<()> {
-    delete_bitset.serialize(writer)?;
+pub fn write_alive_bitset<T: Write>(alive_bitset: &BitSet, writer: &mut T) -> io::Result<()> {
+    alive_bitset.serialize(writer)?;
     Ok(())
 }
 
-/// Set of deleted `DocId`s.
+/// Set of alive `DocId`s.
 #[derive(Clone)]
 pub struct AliveBitSet {
     data: OwnedBytes,
@@ -36,7 +36,7 @@ impl AliveBitSet {
         let directory = RamDirectory::create();
         let path = Path::new("dummydeletebitset");
         let mut wrt = directory.open_write(path).unwrap();
-        write_delete_bitset(&bitset, &mut wrt).unwrap();
+        write_alive_bitset(&bitset, &mut wrt).unwrap();
         wrt.terminate().unwrap();
         let file = directory.open_read(path).unwrap();
         Self::open(file).unwrap()
@@ -89,54 +89,54 @@ mod tests {
     use super::AliveBitSet;
 
     #[test]
-    fn test_delete_bitset_empty() {
-        let delete_bitset = AliveBitSet::for_test(&[], 10);
+    fn test_alive_bitset_empty() {
+        let alive_bitset = AliveBitSet::for_test(&[], 10);
         for doc in 0..10 {
-            assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
+            assert_eq!(alive_bitset.is_deleted(doc), !alive_bitset.is_alive(doc));
         }
-        assert_eq!(delete_bitset.num_deleted(), 0);
+        assert_eq!(alive_bitset.num_deleted(), 0);
     }
 
     #[test]
-    fn test_delete_bitset() {
-        let delete_bitset = AliveBitSet::for_test(&[1, 9], 10);
-        assert!(delete_bitset.is_alive(0));
-        assert!(delete_bitset.is_deleted(1));
-        assert!(delete_bitset.is_alive(2));
-        assert!(delete_bitset.is_alive(3));
-        assert!(delete_bitset.is_alive(4));
-        assert!(delete_bitset.is_alive(5));
-        assert!(delete_bitset.is_alive(6));
-        assert!(delete_bitset.is_alive(6));
-        assert!(delete_bitset.is_alive(7));
-        assert!(delete_bitset.is_alive(8));
-        assert!(delete_bitset.is_deleted(9));
+    fn test_alive_bitset() {
+        let alive_bitset = AliveBitSet::for_test(&[1, 9], 10);
+        assert!(alive_bitset.is_alive(0));
+        assert!(alive_bitset.is_deleted(1));
+        assert!(alive_bitset.is_alive(2));
+        assert!(alive_bitset.is_alive(3));
+        assert!(alive_bitset.is_alive(4));
+        assert!(alive_bitset.is_alive(5));
+        assert!(alive_bitset.is_alive(6));
+        assert!(alive_bitset.is_alive(6));
+        assert!(alive_bitset.is_alive(7));
+        assert!(alive_bitset.is_alive(8));
+        assert!(alive_bitset.is_deleted(9));
         for doc in 0..10 {
-            assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
+            assert_eq!(alive_bitset.is_deleted(doc), !alive_bitset.is_alive(doc));
         }
-        assert_eq!(delete_bitset.num_deleted(), 2);
+        assert_eq!(alive_bitset.num_deleted(), 2);
     }
 
     #[test]
-    fn test_delete_bitset_iter_minimal() {
-        let delete_bitset = AliveBitSet::for_test(&[7], 8);
+    fn test_alive_bitset_iter_minimal() {
+        let alive_bitset = AliveBitSet::for_test(&[7], 8);
 
-        let data: Vec<_> = delete_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_unset().collect();
         assert_eq!(data, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
-    fn test_delete_bitset_iter_small() {
-        let delete_bitset = AliveBitSet::for_test(&[0, 2, 3, 6], 7);
+    fn test_alive_bitset_iter_small() {
+        let alive_bitset = AliveBitSet::for_test(&[0, 2, 3, 6], 7);
 
-        let data: Vec<_> = delete_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_unset().collect();
         assert_eq!(data, vec![1, 4, 5]);
     }
     #[test]
-    fn test_delete_bitset_iter() {
-        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000], 1001);
+    fn test_alive_bitset_iter() {
+        let alive_bitset = AliveBitSet::for_test(&[0, 1, 1000], 1001);
 
-        let data: Vec<_> = delete_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_unset().collect();
         assert_eq!(data, (2..=999).collect::<Vec<_>>());
     }
 }
@@ -164,36 +164,36 @@ mod bench {
 
     #[bench]
     fn bench_deletebitset_iter_deser_on_fly(bench: &mut Bencher) {
-        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
+        let alive_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
 
-        bench.iter(|| delete_bitset.iter_unset().collect::<Vec<_>>());
+        bench.iter(|| alive_bitset.iter_unset().collect::<Vec<_>>());
     }
 
     #[bench]
     fn bench_deletebitset_access(bench: &mut Bencher) {
-        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
+        let alive_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| {
             (0..1_000_000_u32)
-                .filter(|doc| delete_bitset.is_alive(*doc))
+                .filter(|doc| alive_bitset.is_alive(*doc))
                 .collect::<Vec<_>>()
         });
     }
 
     #[bench]
     fn bench_deletebitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
-        let delete_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
+        let alive_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
 
-        bench.iter(|| delete_bitset.iter_unset().collect::<Vec<_>>());
+        bench.iter(|| alive_bitset.iter_unset().collect::<Vec<_>>());
     }
 
     #[bench]
     fn bench_deletebitset_access_1_8_alive(bench: &mut Bencher) {
-        let delete_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
+        let alive_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
 
         bench.iter(|| {
             (0..1_000_000_u32)
-                .filter(|doc| delete_bitset.is_alive(*doc))
+                .filter(|doc| alive_bitset.is_alive(*doc))
                 .collect::<Vec<_>>()
         });
     }

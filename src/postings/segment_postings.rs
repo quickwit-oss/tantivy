@@ -34,7 +34,7 @@ impl SegmentPostings {
     ///
     /// This method will clone and scan through the posting lists.
     /// (this is a rather expensive operation).
-    pub fn doc_freq_given_deletes(&self, delete_bitset: &AliveBitSet) -> u32 {
+    pub fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
         let mut docset = self.clone();
         let mut doc_freq = 0;
         loop {
@@ -42,7 +42,7 @@ impl SegmentPostings {
             if doc == TERMINATED {
                 return doc_freq;
             }
-            if delete_bitset.is_alive(doc) {
+            if alive_bitset.is_alive(doc) {
                 doc_freq += 1u32;
             }
             docset.advance();
@@ -296,8 +296,8 @@ mod tests {
     fn test_doc_freq() {
         let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), 3);
-        let delete_bitset = AliveBitSet::for_test(&[2], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&delete_bitset), 2);
+        let alive_bitset = AliveBitSet::for_test(&[2], 12);
+        assert_eq!(docs.doc_freq_given_deletes(&alive_bitset), 2);
         let all_deleted = AliveBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
