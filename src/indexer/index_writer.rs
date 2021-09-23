@@ -348,9 +348,7 @@ impl IndexWriter {
         self.operation_sender = sender;
     }
 
-    /// Accessor to the index
-    ///
-    /// The index is actually cloned.
+    /// Accessor to the index.
     pub fn index(&self) -> &Index {
         &self.index
     }
