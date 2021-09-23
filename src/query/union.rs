@@ -219,14 +219,18 @@ where
         }
         let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
             .iter()
-            .map(|bitset| bitset.len())
+            .map(|bitset| bitset.num_set())
             .sum::<u32>()
             + 1;
         for bitset in self.bitsets.iter_mut() {
             bitset.clear();
         }
         while self.refill() {
-            count += self.bitsets.iter().map(|bitset| bitset.len()).sum::<u32>();
+            count += self
+                .bitsets
+                .iter()
+                .map(|bitset| bitset.num_set())
+                .sum::<u32>();
             for bitset in self.bitsets.iter_mut() {
                 bitset.clear();
             }

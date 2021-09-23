@@ -64,19 +64,19 @@ impl TinySet {
     }
 
     #[inline]
-    /// Returns true iff the `TinySet` contains the element `el`.
-    pub fn contains(self, el: u32) -> bool {
-        !self.intersect(TinySet::singleton(el)).is_empty()
+    /// Returns true iff the `TinySet` bit is set at position `pos`.
+    pub fn contains(self, pos: u32) -> bool {
+        !self.intersect(TinySet::singleton(pos)).is_empty()
     }
 
     #[inline]
-    /// Returns the number of elements in the TinySet.
-    pub fn len(self) -> u32 {
+    /// Returns the number of set bits in the TinySet.
+    pub fn num_set(self) -> u32 {
         self.0.count_ones()
     }
 
     #[inline]
-    /// Returns the number of elements in the TinySet.
+    /// Returns the number of unset bits in the TinySet.
     pub fn num_unset(self) -> u32 {
         self.0.count_zeros()
     }
@@ -87,11 +87,11 @@ impl TinySet {
         TinySet(self.0 & other.0)
     }
 
-    /// Creates a new `TinySet` containing only one element
+    /// Creates a new `TinySet` with only one bit set at `pos`.
     /// within `[0; 64[`
     #[inline]
-    pub fn singleton(el: u32) -> TinySet {
-        TinySet(1u64 << u64::from(el))
+    pub fn singleton(pos: u32) -> TinySet {
+        TinySet(1u64 << u64::from(pos))
     }
 
     /// Insert a new element within [0..64)
@@ -203,7 +203,7 @@ impl BitSet {
         let mut tinysets = vec![];
         for chunk in data.chunks_exact(8) {
             let tinyset = TinySet::deserialize(chunk.try_into().unwrap())?;
-            len += tinyset.len() as u64;
+            len += tinyset.num_set() as u64;
             tinysets.push(tinyset);
         }
         Ok(BitSet {
