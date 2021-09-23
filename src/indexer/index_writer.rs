@@ -351,8 +351,8 @@ impl IndexWriter {
     /// Accessor to the index
     ///
     /// The index is actually cloned.
-    pub fn index(&self) -> Index {
-        self.index.clone()
+    pub fn index(&self) -> &Index {
+        &self.index
     }
 
     /// If there are some merging threads, blocks until they all finish their work and
