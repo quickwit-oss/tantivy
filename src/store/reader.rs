@@ -5,7 +5,7 @@ use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use crate::{error::DataCorruption, fastfield::DeleteBitSet};
+use crate::{error::DataCorruption, fastfield::AliveBitSet};
 use common::{BinarySerializable, HasLen, VInt};
 use lru::LruCache;
 use std::io;
@@ -136,7 +136,7 @@ impl StoreReader {
     /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
     pub fn iter<'a: 'b, 'b>(
         &'b self,
-        delete_bitset: Option<&'a DeleteBitSet>,
+        delete_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<Document>> + 'b {
         self.iter_raw(delete_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
@@ -149,7 +149,7 @@ impl StoreReader {
     /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
     pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
-        delete_bitset: Option<&'a DeleteBitSet>,
+        delete_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<OwnedBytes>> + 'b {
         let last_docid = self
             .block_checkpoints()

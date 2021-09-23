@@ -1,6 +1,5 @@
 use crate::error::DataCorruption;
 use crate::fastfield::CompositeFastFieldSerializer;
-use crate::fastfield::DeleteBitSet;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
 use crate::fastfield::FastFieldReader;

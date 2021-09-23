@@ -57,7 +57,7 @@ pub mod tests {
     use futures::executor::block_on;
 
     use super::*;
-    use crate::fastfield::DeleteBitSet;
+    use crate::fastfield::AliveBitSet;
     use crate::schema::{self, FieldValue, TextFieldIndexing, STORED, TEXT};
     use crate::schema::{Document, TextOptions};
     use crate::{
@@ -113,7 +113,7 @@ pub mod tests {
     fn test_doc_store_iter_with_delete_bug_1077() -> crate::Result<()> {
         // this will cover deletion of the first element in a checkpoint
         let deleted_docids = (200..300).collect::<Vec<_>>();
-        let delete_bitset = DeleteBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
+        let delete_bitset = AliveBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
 
         let path = Path::new("store");
         let directory = RamDirectory::create();

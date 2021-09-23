@@ -11,27 +11,27 @@ use std::io::Write;
 /// where `delete_bitset` is the set of deleted `DocId`.
 /// Warning: this function does not call terminate. The caller is in charge of
 /// closing the writer properly.
-pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut dyn Write) -> io::Result<()> {
+pub fn write_delete_bitset<T: Write>(delete_bitset: &BitSet, writer: &mut T) -> io::Result<()> {
     delete_bitset.serialize(writer)?;
     Ok(())
 }
 
 /// Set of deleted `DocId`s.
 #[derive(Clone)]
-pub struct DeleteBitSet {
+pub struct AliveBitSet {
     data: OwnedBytes,
     num_deleted: usize,
 }
 
-impl DeleteBitSet {
+impl AliveBitSet {
     #[cfg(test)]
-    pub(crate) fn for_test(docs: &[DocId], max_doc: u32) -> DeleteBitSet {
+    pub(crate) fn for_test(not_alive_docs: &[DocId], max_doc: u32) -> AliveBitSet {
         use crate::directory::{Directory, RamDirectory, TerminatingWrite};
         use std::path::Path;
-        assert!(docs.iter().all(|&doc| doc < max_doc));
-        let mut bitset = BitSet::with_max_value(max_doc);
-        for &doc in docs {
-            bitset.insert(doc);
+        assert!(not_alive_docs.iter().all(|&doc| doc < max_doc));
+        let mut bitset = BitSet::with_max_value_and_filled(max_doc);
+        for &doc in not_alive_docs {
+            bitset.remove(doc);
         }
         let directory = RamDirectory::create();
         let path = Path::new("dummydeletebitset");
@@ -43,13 +43,11 @@ impl DeleteBitSet {
     }
 
     /// Opens a delete bitset given its file.
-    pub fn open(file: FileSlice) -> crate::Result<DeleteBitSet> {
+    pub fn open(file: FileSlice) -> crate::Result<AliveBitSet> {
         let bytes = file.read_bytes()?;
-        let num_deleted = BitSet::iter_from_bytes(bytes.as_slice())
-            .map(|tinyset| tinyset.len() as usize)
-            .sum();
+        let num_deleted = BitSet::count_unset_from_bytes(bytes.as_slice());
 
-        Ok(DeleteBitSet {
+        Ok(AliveBitSet {
             data: bytes,
             num_deleted,
         })
@@ -65,7 +63,7 @@ impl DeleteBitSet {
     #[inline]
     pub fn is_deleted(&self, doc: DocId) -> bool {
         let data = self.data.as_slice();
-        BitSet::contains_from_bytes(doc, data)
+        !BitSet::contains_from_bytes(doc, data)
     }
 
     /// Iterate over the positions of the set elements
@@ -88,11 +86,11 @@ impl DeleteBitSet {
 #[cfg(test)]
 mod tests {
 
-    use super::DeleteBitSet;
+    use super::AliveBitSet;
 
     #[test]
     fn test_delete_bitset_empty() {
-        let delete_bitset = DeleteBitSet::for_test(&[], 10);
+        let delete_bitset = AliveBitSet::for_test(&[], 10);
         for doc in 0..10 {
             assert_eq!(delete_bitset.is_deleted(doc), !delete_bitset.is_alive(doc));
         }
@@ -101,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_delete_bitset() {
-        let delete_bitset = DeleteBitSet::for_test(&[1, 9], 10);
+        let delete_bitset = AliveBitSet::for_test(&[1, 9], 10);
         assert!(delete_bitset.is_alive(0));
         assert!(delete_bitset.is_deleted(1));
         assert!(delete_bitset.is_alive(2));
@@ -121,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_delete_bitset_iter_minimal() {
-        let delete_bitset = DeleteBitSet::for_test(&[7], 8);
+        let delete_bitset = AliveBitSet::for_test(&[7], 8);
 
         let data: Vec<_> = delete_bitset.iter_unset().collect();
         assert_eq!(data, vec![0, 1, 2, 3, 4, 5, 6]);
@@ -129,14 +127,14 @@ mod tests {
 
     #[test]
     fn test_delete_bitset_iter_small() {
-        let delete_bitset = DeleteBitSet::for_test(&[0, 2, 3, 6], 7);
+        let delete_bitset = AliveBitSet::for_test(&[0, 2, 3, 6], 7);
 
         let data: Vec<_> = delete_bitset.iter_unset().collect();
         assert_eq!(data, vec![1, 4, 5]);
     }
     #[test]
     fn test_delete_bitset_iter() {
-        let delete_bitset = DeleteBitSet::for_test(&[0, 1, 1000], 1001);
+        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000], 1001);
 
         let data: Vec<_> = delete_bitset.iter_unset().collect();
         assert_eq!(data, (2..=999).collect::<Vec<_>>());
@@ -146,16 +144,14 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::DeleteBitSet;
-    use common::BitSet;
+    use super::AliveBitSet;
     use rand::prelude::IteratorRandom;
-    use rand::prelude::SliceRandom;
     use rand::thread_rng;
     use test::Bencher;
 
-    fn get_many_deleted() -> Vec<u32> {
+    fn get_alive() -> Vec<u32> {
         let mut data = (0..1_000_000_u32).collect::<Vec<u32>>();
-        for _ in 0..(1_000_000) * 7 / 8 {
+        for _ in 0..(1_000_000) * 1 / 8 {
             remove_rand(&mut data);
         }
         data
@@ -168,14 +164,14 @@ mod bench {
 
     #[bench]
     fn bench_deletebitset_iter_deser_on_fly(bench: &mut Bencher) {
-        let delete_bitset = DeleteBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
+        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| delete_bitset.iter_unset().collect::<Vec<_>>());
     }
 
     #[bench]
     fn bench_deletebitset_access(bench: &mut Bencher) {
-        let delete_bitset = DeleteBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
+        let delete_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
 
         bench.iter(|| {
             (0..1_000_000_u32)
@@ -186,14 +182,14 @@ mod bench {
 
     #[bench]
     fn bench_deletebitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
-        let delete_bitset = DeleteBitSet::for_test(&get_many_deleted(), 1_000_000);
+        let delete_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
 
         bench.iter(|| delete_bitset.iter_unset().collect::<Vec<_>>());
     }
 
     #[bench]
     fn bench_deletebitset_access_1_8_alive(bench: &mut Bencher) {
-        let delete_bitset = DeleteBitSet::for_test(&get_many_deleted(), 1_000_000);
+        let delete_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
 
         bench.iter(|| {
             (0..1_000_000_u32)

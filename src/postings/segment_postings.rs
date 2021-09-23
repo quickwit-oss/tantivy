@@ -1,5 +1,5 @@
 use crate::docset::DocSet;
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
 use crate::postings::branchless_binary_search;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -34,7 +34,7 @@ impl SegmentPostings {
     ///
     /// This method will clone and scan through the posting lists.
     /// (this is a rather expensive operation).
-    pub fn doc_freq_given_deletes(&self, delete_bitset: &DeleteBitSet) -> u32 {
+    pub fn doc_freq_given_deletes(&self, delete_bitset: &AliveBitSet) -> u32 {
         let mut docset = self.clone();
         let mut doc_freq = 0;
         loop {
@@ -268,7 +268,7 @@ mod tests {
     use common::HasLen;
 
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::DeleteBitSet;
+    use crate::fastfield::AliveBitSet;
     use crate::postings::postings::Postings;
 
     #[test]
@@ -296,9 +296,9 @@ mod tests {
     fn test_doc_freq() {
         let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), 3);
-        let delete_bitset = DeleteBitSet::for_test(&[2], 12);
+        let delete_bitset = AliveBitSet::for_test(&[2], 12);
         assert_eq!(docs.doc_freq_given_deletes(&delete_bitset), 2);
-        let all_deleted = DeleteBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
+        let all_deleted = AliveBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

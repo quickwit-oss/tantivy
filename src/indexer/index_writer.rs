@@ -114,7 +114,7 @@ fn compute_deleted_bitset(
             let mut doc_matching_deleted_term = docset.doc();
             while doc_matching_deleted_term != TERMINATED {
                 if doc_opstamps.is_deleted(doc_matching_deleted_term, delete_op.opstamp) {
-                    delete_bitset.insert(doc_matching_deleted_term);
+                    delete_bitset.remove(doc_matching_deleted_term);
                     might_have_changed = true;
                 }
                 doc_matching_deleted_term = docset.advance();
@@ -151,7 +151,7 @@ pub(crate) fn advance_deletes(
     let max_doc = segment_reader.max_doc();
     let mut delete_bitset: BitSet = match segment_entry.delete_bitset() {
         Some(previous_delete_bitset) => (*previous_delete_bitset).clone(),
-        None => BitSet::with_max_value(max_doc),
+        None => BitSet::with_max_value_and_filled(max_doc),
     };
 
     let num_deleted_docs_before = segment.meta().num_deleted_docs();
@@ -170,12 +170,13 @@ pub(crate) fn advance_deletes(
     if let Some(seg_delete_bitset) = segment_reader.delete_bitset() {
         for doc in 0u32..max_doc {
             if seg_delete_bitset.is_deleted(doc) {
-                delete_bitset.insert(doc);
+                delete_bitset.remove(doc);
             }
         }
     }
 
-    let num_deleted_docs: u32 = delete_bitset.len() as u32;
+    let num_alive_docs: u32 = delete_bitset.num_set_bits() as u32;
+    let num_deleted_docs = max_doc - num_alive_docs;
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
         segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
@@ -259,7 +260,7 @@ fn apply_deletes(
     let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
-    let mut deleted_bitset = BitSet::with_max_value(max_doc);
+    let mut deleted_bitset = BitSet::with_max_value_and_filled(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,

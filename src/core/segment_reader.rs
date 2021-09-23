@@ -5,7 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -47,7 +47,7 @@ pub struct SegmentReader {
     fieldnorm_readers: FieldNormReaders,
 
     store_file: FileSlice,
-    delete_bitset_opt: Option<DeleteBitSet>,
+    delete_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
 }
 
@@ -172,7 +172,7 @@ impl SegmentReader {
 
         let delete_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::Delete)?;
-            let delete_bitset = DeleteBitSet::open(delete_data)?;
+            let delete_bitset = AliveBitSet::open(delete_data)?;
             Some(delete_bitset)
         } else {
             None
@@ -274,7 +274,7 @@ impl SegmentReader {
 
     /// Returns the bitset representing
     /// the documents that have been deleted.
-    pub fn delete_bitset(&self) -> Option<&DeleteBitSet> {
+    pub fn delete_bitset(&self) -> Option<&AliveBitSet> {
         self.delete_bitset_opt.as_ref()
     }
 
@@ -307,7 +307,7 @@ impl SegmentReader {
             self.get_store_reader()?.space_usage(),
             self.delete_bitset_opt
                 .as_ref()
-                .map(DeleteBitSet::space_usage)
+                .map(AliveBitSet::space_usage)
                 .unwrap_or(0),
         ))
     }
