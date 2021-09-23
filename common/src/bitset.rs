@@ -185,6 +185,7 @@ impl BitSet {
     ///
     #[inline]
     pub fn iter_from_bytes<'a>(data: &'a [u8]) -> impl Iterator<Item = TinySet> + 'a {
+        assert!((data.len() - 4) % 8 == 0);
         data[4..].chunks_exact(8).map(move |chunk| {
             let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
             tinyset
@@ -250,7 +251,7 @@ impl BitSet {
     pub fn contains_from_bytes(el: u32, data: &[u8]) -> bool {
         let byte_offset = 4 + el / 8u32;
         let b: u8 = data[byte_offset as usize];
-        let shift = (el & 7u32) as u8;
+        let shift = (el % 8) as u8;
         b & (1u8 << shift) != 0
     }
 

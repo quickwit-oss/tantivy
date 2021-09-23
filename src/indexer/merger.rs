@@ -98,13 +98,11 @@ pub struct IndexMerger {
 fn compute_min_max_val(
     u64_reader: &impl FastFieldReader<u64>,
     segment_reader: &SegmentReader,
-    max_doc: DocId,
-    delete_bitset_opt: Option<&DeleteBitSet>,
 ) -> Option<(u64, u64)> {
-    if max_doc == 0 {
+    if segment_reader.max_doc() == 0 {
         None
     } else {
-        if delete_bitset_opt.is_some() {
+        if segment_reader.delete_bitset().is_some() {
             // some deleted documents,
             // we need to recompute the max / min
             minmax(
@@ -323,7 +321,7 @@ impl IndexMerger {
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                compute_min_max_val(&u64_reader, reader, reader.max_doc(), reader.delete_bitset())
+                compute_min_max_val(&u64_reader, reader)
             })
             .flatten()
             .reduce(|a, b| {
