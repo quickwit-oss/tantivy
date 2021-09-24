@@ -25,6 +25,8 @@ pub struct DemuxMapping {
 }
 
 /// DocidToSegmentOrdinal maps from docid within a segment to the new segment ordinal for demuxing.
+///
+/// For every source segment there is a `DocidToSegmentOrdinal` to distribute its docids.
 #[derive(Debug, Default)]
 pub struct DocidToSegmentOrdinal {
     docid_index_to_segment_ordinal: Vec<SegmentOrdinal>,
@@ -111,7 +113,7 @@ fn get_delete_bitsets(
 /// Demux the segments according to `demux_mapping`. See `DemuxMapping`.
 /// The number of output_directories need to match max new segment ordinal from `demux_mapping`.
 ///
-/// The ordinal of `segments` need to match the ordinals in `demux_mapping`.
+/// The ordinal of `segments` need to match the ordinals provided in `demux_mapping`.
 pub fn demux<Dir: Directory>(
     segments: &[Segment],
     demux_mapping: &DemuxMapping,
