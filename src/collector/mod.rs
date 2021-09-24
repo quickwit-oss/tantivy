@@ -178,9 +178,9 @@ pub trait Collector: Sync + Send {
     ) -> crate::Result<<Self::Child as SegmentCollector>::Fruit> {
         let mut segment_collector = self.for_segment(segment_ord as u32, reader)?;
 
-        if let Some(delete_bitset) = reader.delete_bitset() {
+        if let Some(alive_bitset) = reader.alive_bitset() {
             weight.for_each(reader, &mut |doc, score| {
-                if delete_bitset.is_alive(doc) {
+                if alive_bitset.is_alive(doc) {
                     segment_collector.collect(doc, score);
                 }
             })?;

@@ -23,9 +23,9 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
+pub use self::alive_bitset::write_alive_bitset;
+pub use self::alive_bitset::AliveBitSet;
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
-pub use self::delete::write_delete_bitset;
-pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
@@ -46,8 +46,8 @@ use crate::{
     schema::Type,
 };
 
+mod alive_bitset;
 mod bytes;
-mod delete;
 mod error;
 mod facet_reader;
 mod multivalued;

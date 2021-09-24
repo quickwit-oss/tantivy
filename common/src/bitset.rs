@@ -1,5 +1,8 @@
-use std::fmt;
+use ownedbytes::OwnedBytes;
+use std::convert::TryInto;
+use std::io::Write;
 use std::u64;
+use std::{fmt, io};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct TinySet(u64);
@@ -14,6 +17,7 @@ pub struct TinySetIterator(TinySet);
 impl Iterator for TinySetIterator {
     type Item = u32;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.pop_lowest()
     }
@@ -28,30 +32,54 @@ impl IntoIterator for TinySet {
 }
 
 impl TinySet {
+    pub fn serialize<T: Write>(&self, writer: &mut T) -> io::Result<()> {
+        writer.write_all(self.0.to_le_bytes().as_ref())
+    }
+
+    #[inline]
+    pub fn deserialize(data: [u8; 8]) -> io::Result<Self> {
+        let val: u64 = u64::from_le_bytes(data);
+        Ok(TinySet(val))
+    }
+
     /// Returns an empty `TinySet`.
+    #[inline]
     pub fn empty() -> TinySet {
         TinySet(0u64)
+    }
+
+    /// Returns a full `TinySet`.
+    #[inline]
+    pub fn full() -> TinySet {
+        TinySet::empty().complement()
     }
 
     pub fn clear(&mut self) {
         self.0 = 0u64;
     }
 
+    #[inline]
     /// Returns the complement of the set in `[0, 64[`.
+    ///
+    /// Careful on making this function public, as it will break the padding handling in the last
+    /// bucket.
     fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
+    #[inline]
     /// Returns true iff the `TinySet` contains the element `el`.
     pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
+    #[inline]
     /// Returns the number of elements in the TinySet.
     pub fn len(self) -> u32 {
         self.0.count_ones()
     }
 
+    #[inline]
     /// Returns the intersection of `self` and `other`
     pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)
@@ -64,17 +92,35 @@ impl TinySet {
         TinySet(1u64 << u64::from(el))
     }
 
-    /// Insert a new element within [0..64[
+    /// Insert a new element within [0..64)
     #[inline]
     pub fn insert(self, el: u32) -> TinySet {
         self.union(TinySet::singleton(el))
     }
 
-    /// Insert a new element within [0..64[
+    /// Removes an element within [0..64)
+    #[inline]
+    pub fn remove(self, el: u32) -> TinySet {
+        self.intersect(TinySet::singleton(el).complement())
+    }
+
+    /// Insert a new element within [0..64)
+    ///
+    /// returns true if the set changed
     #[inline]
     pub fn insert_mut(&mut self, el: u32) -> bool {
         let old = *self;
         *self = old.insert(el);
+        old != *self
+    }
+
+    /// Remove a element within [0..64)
+    ///
+    /// returns true if the set changed
+    #[inline]
+    pub fn remove_mut(&mut self, el: u32) -> bool {
+        let old = *self;
+        *self = old.remove(el);
         old != *self
     }
 
@@ -123,7 +169,7 @@ impl TinySet {
 #[derive(Clone)]
 pub struct BitSet {
     tinysets: Box<[TinySet]>,
-    len: usize,
+    len: u64,
     max_value: u32,
 }
 
@@ -132,14 +178,64 @@ fn num_buckets(max_val: u32) -> u32 {
 }
 
 impl BitSet {
+    /// serialize a `BitSet`.
+    ///
+    pub fn serialize<T: Write>(&self, writer: &mut T) -> io::Result<()> {
+        writer.write_all(self.max_value.to_le_bytes().as_ref())?;
+
+        for tinyset in self.tinysets.iter() {
+            tinyset.serialize(writer)?;
+        }
+        writer.flush()?;
+        Ok(())
+    }
+
+    /// Deserialize a `BitSet`.
+    ///
+    #[cfg(test)]
+    pub fn deserialize(mut data: &[u8]) -> io::Result<Self> {
+        let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
+        data = &data[4..];
+
+        let mut len: u64 = 0;
+        let mut tinysets = vec![];
+        for chunk in data.chunks_exact(8) {
+            let tinyset = TinySet::deserialize(chunk.try_into().unwrap())?;
+            len += tinyset.len() as u64;
+            tinysets.push(tinyset);
+        }
+        Ok(BitSet {
+            tinysets: tinysets.into_boxed_slice(),
+            len,
+            max_value,
+        })
+    }
+
     /// Create a new `BitSet` that may contain elements
-    /// within `[0, max_val[`.
+    /// within `[0, max_val)`.
     pub fn with_max_value(max_value: u32) -> BitSet {
         let num_buckets = num_buckets(max_value);
         let tinybisets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
         BitSet {
             tinysets: tinybisets,
             len: 0,
+            max_value,
+        }
+    }
+
+    /// Create a new `BitSet` that may contain elements. Initially all values will be set.
+    /// within `[0, max_val)`.
+    pub fn with_max_value_and_full(max_value: u32) -> BitSet {
+        let num_buckets = num_buckets(max_value);
+        let mut tinybisets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
+
+        // Fix padding
+        let lower = max_value % 64u32;
+        tinybisets[tinybisets.len() - 1] = TinySet::range_lower(lower);
+
+        BitSet {
+            tinysets: tinybisets,
+            len: max_value as u64,
             max_value,
         }
     }
@@ -153,10 +249,11 @@ impl BitSet {
 
     /// Returns the number of elements in the `BitSet`.
     pub fn len(&self) -> usize {
-        self.len
+        self.len as usize
     }
 
     /// Inserts an element in the `BitSet`
+    #[inline]
     pub fn insert(&mut self, el: u32) {
         // we do not check saturated els.
         let higher = el / 64u32;
@@ -168,7 +265,21 @@ impl BitSet {
         };
     }
 
+    /// Inserts an element in the `BitSet`
+    #[inline]
+    pub fn remove(&mut self, el: u32) {
+        // we do not check saturated els.
+        let higher = el / 64u32;
+        let lower = el % 64u32;
+        self.len -= if self.tinysets[higher as usize].remove_mut(lower) {
+            1
+        } else {
+            0
+        };
+    }
+
     /// Returns true iff the elements is in the `BitSet`.
+    #[inline]
     pub fn contains(&self, el: u32) -> bool {
         self.tinyset(el / 64u32).contains(el % 64)
     }
@@ -198,16 +309,144 @@ impl BitSet {
     }
 }
 
+/// Lazy Read a serialized BitSet.
+#[derive(Clone)]
+pub struct ReadSerializedBitSet {
+    data: OwnedBytes,
+    max_value: u32,
+}
+
+impl ReadSerializedBitSet {
+    pub fn open(data: OwnedBytes) -> Self {
+        let (max_value_data, data) = data.split(4);
+        let max_value: u32 = u32::from_le_bytes(max_value_data.as_ref().try_into().unwrap());
+        ReadSerializedBitSet { data, max_value }
+    }
+
+    /// Count the number of unset bits from serialized data.
+    ///
+    #[inline]
+    pub fn count_unset(&self) -> usize {
+        let num_set: usize = self
+            .iter_tinysets()
+            .map(|tinyset| tinyset.len() as usize)
+            .sum();
+        self.max_value as usize - num_set
+    }
+
+    /// Iterate the tinyset on the fly from serialized data.
+    ///
+    #[inline]
+    fn iter_tinysets<'a>(&'a self) -> impl Iterator<Item = TinySet> + 'a {
+        assert!((self.data.len()) % 8 == 0);
+        self.data.chunks_exact(8).map(move |chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+            tinyset
+        })
+    }
+
+    /// Iterate over the positions of the elements.
+    ///
+    #[inline]
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = u32> + 'a {
+        self.iter_tinysets()
+            .enumerate()
+            .flat_map(move |(chunk_num, tinyset)| {
+                let chunk_base_val = chunk_num as u32 * 64;
+                tinyset
+                    .into_iter()
+                    .map(move |val| val + chunk_base_val)
+                    .take_while(move |doc| *doc < self.max_value)
+            })
+    }
+
+    /// Returns true iff the elements is in the `BitSet`.
+    #[inline]
+    pub fn contains(&self, el: u32) -> bool {
+        let byte_offset = el / 8u32;
+        let b: u8 = self.data[byte_offset as usize];
+        let shift = (el % 8) as u8;
+        b & (1u8 << shift) != 0
+    }
+
+    /// Returns the max_value.
+    #[inline]
+    pub fn max_value(&self) -> u32 {
+        self.max_value
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::BitSet;
+    use super::ReadSerializedBitSet;
     use super::TinySet;
+    use ownedbytes::OwnedBytes;
     use rand::distributions::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
+    use std::convert::TryInto;
 
+    #[test]
+    fn test_read_serialized_bitset_full() {
+        let mut bitset = BitSet::with_max_value_and_full(5);
+        bitset.remove(3);
+        let mut out = vec![];
+        bitset.serialize(&mut out).unwrap();
+
+        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+        assert_eq!(bitset.count_unset(), 1);
+    }
+
+    #[test]
+    fn test_read_serialized_bitset_empty() {
+        let mut bitset = BitSet::with_max_value(5);
+        bitset.insert(3);
+        let mut out = vec![];
+        bitset.serialize(&mut out).unwrap();
+
+        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+        assert_eq!(bitset.count_unset(), 4);
+
+        {
+            let bitset = BitSet::with_max_value(5);
+            let mut out = vec![];
+            bitset.serialize(&mut out).unwrap();
+
+            let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+            assert_eq!(bitset.count_unset(), 5);
+        }
+    }
+
+    #[test]
+    fn test_tiny_set_remove() {
+        {
+            let mut u = TinySet::empty().insert(63u32).insert(5).remove(63u32);
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert!(u.pop_lowest().is_none());
+        }
+        {
+            let mut u = TinySet::empty()
+                .insert(63u32)
+                .insert(1)
+                .insert(5)
+                .remove(63u32);
+            assert_eq!(u.pop_lowest(), Some(1u32));
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert!(u.pop_lowest().is_none());
+        }
+        {
+            let mut u = TinySet::empty().insert(1).remove(63u32);
+            assert_eq!(u.pop_lowest(), Some(1u32));
+            assert!(u.pop_lowest().is_none());
+        }
+        {
+            let mut u = TinySet::empty().insert(1).remove(1u32);
+            assert!(u.pop_lowest().is_none());
+        }
+    }
     #[test]
     fn test_tiny_set() {
         assert!(TinySet::empty().is_empty());
@@ -233,6 +472,21 @@ mod tests {
             assert_eq!(u.pop_lowest(), Some(63u32));
             assert!(u.pop_lowest().is_none());
         }
+        {
+            let mut u = TinySet::empty().insert(63u32).insert(5);
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert_eq!(u.pop_lowest(), Some(63u32));
+            assert!(u.pop_lowest().is_none());
+        }
+        {
+            let u = TinySet::empty().insert(63u32).insert(5);
+            let mut data = vec![];
+            u.serialize(&mut data).unwrap();
+            let mut u = TinySet::deserialize(data[..8].try_into().unwrap()).unwrap();
+            assert_eq!(u.pop_lowest(), Some(5u32));
+            assert_eq!(u.pop_lowest(), Some(63u32));
+            assert!(u.pop_lowest().is_none());
+        }
     }
 
     #[test]
@@ -249,6 +503,16 @@ mod tests {
                 assert_eq!(hashset.contains(&el), bitset.contains(el));
             }
             assert_eq!(bitset.max_value(), max_value);
+
+            // test deser
+            let mut data = vec![];
+            bitset.serialize(&mut data).unwrap();
+            let bitset = BitSet::deserialize(&data).unwrap();
+            for el in 0..max_value {
+                assert_eq!(hashset.contains(&el), bitset.contains(el));
+            }
+            assert_eq!(bitset.max_value(), max_value);
+            assert_eq!(bitset.len(), els.len());
         };
 
         test_against_hashset(&[], 0);
@@ -313,6 +577,14 @@ mod tests {
         assert_eq!(bitset.len(), 2);
         bitset.insert(104u32);
         assert_eq!(bitset.len(), 3);
+        bitset.remove(105u32);
+        assert_eq!(bitset.len(), 3);
+        bitset.remove(104u32);
+        assert_eq!(bitset.len(), 2);
+        bitset.remove(3u32);
+        assert_eq!(bitset.len(), 1);
+        bitset.remove(103u32);
+        assert_eq!(bitset.len(), 0);
     }
 
     pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {

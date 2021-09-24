@@ -5,7 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
@@ -47,7 +47,7 @@ pub struct SegmentReader {
     fieldnorm_readers: FieldNormReaders,
 
     store_file: FileSlice,
-    delete_bitset_opt: Option<DeleteBitSet>,
+    alive_bitset_opt: Option<AliveBitSet>,
     schema: Schema,
 }
 
@@ -72,14 +72,14 @@ impl SegmentReader {
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
-        self.delete_bitset()
-            .map(|delete_set| delete_set.num_deleted() as DocId)
+        self.alive_bitset()
+            .map(|alive_set| alive_set.num_deleted() as DocId)
             .unwrap_or(0u32)
     }
 
     /// Returns true iff some of the documents of the segment have been deleted.
     pub fn has_deletes(&self) -> bool {
-        self.delete_bitset().is_some()
+        self.alive_bitset().is_some()
     }
 
     /// Accessor to a segment's fast field reader given a field.
@@ -170,10 +170,10 @@ impl SegmentReader {
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
-        let delete_bitset_opt = if segment.meta().has_deletes() {
+        let alive_bitset_opt = if segment.meta().has_deletes() {
             let delete_data = segment.open_read(SegmentComponent::Delete)?;
-            let delete_bitset = DeleteBitSet::open(delete_data)?;
-            Some(delete_bitset)
+            let alive_bitset = AliveBitSet::open(delete_data)?;
+            Some(alive_bitset)
         } else {
             None
         };
@@ -188,7 +188,7 @@ impl SegmentReader {
             fieldnorm_readers,
             segment_id: segment.id(),
             store_file,
-            delete_bitset_opt,
+            alive_bitset_opt,
             positions_composite,
             schema,
         })
@@ -274,21 +274,25 @@ impl SegmentReader {
 
     /// Returns the bitset representing
     /// the documents that have been deleted.
-    pub fn delete_bitset(&self) -> Option<&DeleteBitSet> {
-        self.delete_bitset_opt.as_ref()
+    pub fn alive_bitset(&self) -> Option<&AliveBitSet> {
+        self.alive_bitset_opt.as_ref()
     }
 
     /// Returns true iff the `doc` is marked
     /// as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        self.delete_bitset()
+        self.alive_bitset()
             .map(|delete_set| delete_set.is_deleted(doc))
             .unwrap_or(false)
     }
 
     /// Returns an iterator that will iterate over the alive document ids
-    pub fn doc_ids_alive(&self) -> impl Iterator<Item = DocId> + '_ {
-        (0u32..self.max_doc).filter(move |doc| !self.is_deleted(*doc))
+    pub fn doc_ids_alive(&self) -> Box<dyn Iterator<Item = DocId> + '_> {
+        if let Some(alive_bitset) = &self.alive_bitset_opt {
+            Box::new(alive_bitset.iter_alive())
+        } else {
+            Box::new(0u32..self.max_doc)
+        }
     }
 
     /// Summarize total space usage of this segment.
@@ -301,9 +305,9 @@ impl SegmentReader {
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
             self.get_store_reader()?.space_usage(),
-            self.delete_bitset_opt
+            self.alive_bitset_opt
                 .as_ref()
-                .map(DeleteBitSet::space_usage)
+                .map(AliveBitSet::space_usage)
                 .unwrap_or(0),
         ))
     }

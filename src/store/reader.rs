@@ -5,7 +5,7 @@ use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use crate::{error::DataCorruption, fastfield::DeleteBitSet};
+use crate::{error::DataCorruption, fastfield::AliveBitSet};
 use common::{BinarySerializable, HasLen, VInt};
 use lru::LruCache;
 use std::io;
@@ -133,12 +133,12 @@ impl StoreReader {
 
     /// Iterator over all Documents in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
-    /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    /// The alive_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
     pub fn iter<'a: 'b, 'b>(
         &'b self,
-        delete_bitset: Option<&'a DeleteBitSet>,
+        alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<Document>> + 'b {
-        self.iter_raw(delete_bitset).map(|doc_bytes_res| {
+        self.iter_raw(alive_bitset).map(|doc_bytes_res| {
             let mut doc_bytes = doc_bytes_res?;
             Ok(Document::deserialize(&mut doc_bytes)?)
         })
@@ -146,10 +146,10 @@ impl StoreReader {
 
     /// Iterator over all RawDocuments in their order as they are stored in the doc store.
     /// Use this, if you want to extract all Documents from the doc store.
-    /// The delete_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
+    /// The alive_bitset has to be forwarded from the `SegmentReader` or the results maybe wrong.
     pub(crate) fn iter_raw<'a: 'b, 'b>(
         &'b self,
-        delete_bitset: Option<&'a DeleteBitSet>,
+        alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<OwnedBytes>> + 'b {
         let last_docid = self
             .block_checkpoints()
@@ -179,7 +179,7 @@ impl StoreReader {
                     num_skipped = 0;
                 }
 
-                let alive = delete_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
+                let alive = alive_bitset.map_or(true, |bitset| bitset.is_alive(doc_id));
                 if alive {
                     let ret = Some((curr_block.clone(), num_skipped, reset_block_pos));
                     // the map block will move over the num_skipped, so we reset to 0

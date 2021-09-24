@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::fastfield::{DeleteBitSet, FastFieldReader};
+    use crate::fastfield::{AliveBitSet, FastFieldReader};
     use crate::schema::IndexRecordOption;
     use crate::{
         collector::TopDocs,
@@ -257,10 +257,10 @@ mod tests {
                 .unwrap();
 
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
@@ -336,10 +336,10 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );
@@ -446,10 +446,10 @@ mod tests {
                 .unwrap();
 
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = DeleteBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
-                    segment_reader.delete_bitset().unwrap_or(&fallback_bitset)
+                    segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
                 ),
                 2
             );

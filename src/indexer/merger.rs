@@ -1,6 +1,5 @@
 use crate::error::DataCorruption;
 use crate::fastfield::CompositeFastFieldSerializer;
-use crate::fastfield::DeleteBitSet;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
 use crate::fastfield::FastFieldReader;
@@ -29,7 +28,6 @@ use crate::{
     SegmentOrdinal,
 };
 use crate::{DocId, InvertedIndexReader, SegmentComponent};
-use common::HasLen;
 use itertools::Itertools;
 use measure_time::debug_time;
 use std::cmp;
@@ -98,29 +96,24 @@ pub struct IndexMerger {
 
 fn compute_min_max_val(
     u64_reader: &impl FastFieldReader<u64>,
-    max_doc: DocId,
-    delete_bitset_opt: Option<&DeleteBitSet>,
+    segment_reader: &SegmentReader,
 ) -> Option<(u64, u64)> {
-    if max_doc == 0 {
-        None
-    } else {
-        match delete_bitset_opt {
-            Some(delete_bitset) => {
-                // some deleted documents,
-                // we need to recompute the max / min
-                minmax(
-                    (0..max_doc)
-                        .filter(|doc_id| delete_bitset.is_alive(*doc_id))
-                        .map(|doc_id| u64_reader.get(doc_id)),
-                )
-            }
-            None => {
-                // no deleted documents,
-                // we can use the previous min_val, max_val.
-                Some((u64_reader.min_value(), u64_reader.max_value()))
-            }
-        }
+    if segment_reader.max_doc() == 0 {
+        return None;
     }
+
+    if segment_reader.alive_bitset().is_none() {
+        // no deleted documents,
+        // we can use the previous min_val, max_val.
+        return Some((u64_reader.min_value(), u64_reader.max_value()));
+    }
+    // some deleted documents,
+    // we need to recompute the max / min
+    minmax(
+        segment_reader
+            .doc_ids_alive()
+            .map(|doc_id| u64_reader.get(doc_id)),
+    )
 }
 
 struct TermOrdinalMapping {
@@ -326,7 +319,7 @@ impl IndexMerger {
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
-                compute_min_max_val(&u64_reader, reader.max_doc(), reader.delete_bitset())
+                compute_min_max_val(&u64_reader, reader)
             })
             .flatten()
             .reduce(|a, b| {
@@ -503,13 +496,11 @@ impl IndexMerger {
         // what should be the bit length use for bitpacking.
         let mut num_docs = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
-            if let Some(delete_bitset) = reader.delete_bitset() {
-                num_docs += reader.max_doc() as u64 - delete_bitset.len() as u64;
-                for doc in 0u32..reader.max_doc() {
-                    if delete_bitset.is_alive(doc) {
-                        let num_vals = u64s_reader.get_len(doc) as u64;
-                        total_num_vals += num_vals;
-                    }
+            if let Some(alive_bitset) = reader.alive_bitset() {
+                num_docs += reader.max_doc() as u64 - alive_bitset.num_deleted() as u64;
+                for doc in reader.doc_ids_alive() {
+                    let num_vals = u64s_reader.get_len(doc) as u64;
+                    total_num_vals += num_vals;
                 }
             } else {
                 num_docs += reader.max_doc() as u64;
@@ -896,9 +887,9 @@ impl IndexMerger {
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
                     .read_postings_from_terminfo(&term_info, segment_postings_option)?;
-                let delete_bitset_opt = segment_reader.delete_bitset();
-                let doc_freq = if let Some(delete_bitset) = delete_bitset_opt {
-                    segment_postings.doc_freq_given_deletes(delete_bitset)
+                let alive_bitset_opt = segment_reader.alive_bitset();
+                let doc_freq = if let Some(alive_bitset) = alive_bitset_opt {
+                    segment_postings.doc_freq_given_deletes(alive_bitset)
                 } else {
                     segment_postings.doc_freq()
                 };
@@ -1018,7 +1009,7 @@ impl IndexMerger {
         let mut document_iterators: Vec<_> = store_readers
             .iter()
             .enumerate()
-            .map(|(i, store)| store.iter_raw(self.readers[i].delete_bitset()))
+            .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
             .collect();
         if !doc_id_mapping.is_trivial() {
             for (old_doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
@@ -1054,7 +1045,7 @@ impl IndexMerger {
                     || store_reader.block_checkpoints().take(7).count() < 6
                     || store_reader.compressor() != store_writer.compressor()
                 {
-                    for doc_bytes_res in store_reader.iter_raw(reader.delete_bitset()) {
+                    for doc_bytes_res in store_reader.iter_raw(reader.alive_bitset()) {
                         let doc_bytes = doc_bytes_res?;
                         store_writer.store_bytes(&doc_bytes)?;
                     }
