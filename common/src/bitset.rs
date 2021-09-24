@@ -336,9 +336,6 @@ impl ReadSerializedBitSet {
 
     /// Iterate the tinyset on the fly from serialized data.
     ///
-    /// Iterator returns (TinySet, is_last) element, so the consumer can ignore up to max_doc in the
-    /// last block.
-    ///
     #[inline]
     fn iter_tinysets<'a>(&'a self) -> impl Iterator<Item = TinySet> + 'a {
         assert!((self.data.len()) % 8 == 0);
