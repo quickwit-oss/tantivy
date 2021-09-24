@@ -47,7 +47,7 @@ impl AliveBitSet {
     /// Opens a delete bitset given its file.
     pub fn open(file: FileSlice) -> crate::Result<AliveBitSet> {
         let bytes = file.read_bytes()?;
-        let bitset = ReadSerializedBitSet::new(bytes.clone());
+        let bitset = ReadSerializedBitSet::open(bytes.clone());
         let num_deleted = bitset.count_unset();
 
         Ok(AliveBitSet {
@@ -72,7 +72,7 @@ impl AliveBitSet {
     /// Iterate over the alive docids.
     #[inline]
     pub fn iter_alive(&self) -> impl Iterator<Item = DocId> + '_ {
-        self.bitset.iter_unset()
+        self.bitset.iter()
     }
 
     /// Get underlying bitset

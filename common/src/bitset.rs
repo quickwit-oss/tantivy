@@ -60,7 +60,10 @@ impl TinySet {
 
     #[inline]
     /// Returns the complement of the set in `[0, 64[`.
-    pub fn complement(self) -> TinySet {
+    ///
+    /// Careful on making this function public, as it will break the padding handling in the last
+    /// bucket.
+    fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
@@ -224,7 +227,12 @@ impl BitSet {
     /// within `[0, max_val)`.
     pub fn with_max_value_and_full(max_value: u32) -> BitSet {
         let num_buckets = num_buckets(max_value);
-        let tinybisets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
+        let mut tinybisets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
+
+        // Fix padding
+        let lower = max_value % 64u32;
+        tinybisets[tinybisets.len() - 1] = TinySet::range_lower(lower);
+
         BitSet {
             tinysets: tinybisets,
             len: max_value as u64,
@@ -309,7 +317,7 @@ pub struct ReadSerializedBitSet {
 }
 
 impl ReadSerializedBitSet {
-    pub fn new(data: OwnedBytes) -> Self {
+    pub fn open(data: OwnedBytes) -> Self {
         let (max_value_data, data) = data.split(4);
         let max_value: u32 = u32::from_le_bytes(max_value_data.as_ref().try_into().unwrap());
         ReadSerializedBitSet { data, max_value }
@@ -319,17 +327,9 @@ impl ReadSerializedBitSet {
     ///
     #[inline]
     pub fn count_unset(&self) -> usize {
-        let lower = self.max_value % 64u32;
-
         let num_set: usize = self
             .iter_tinysets()
-            .map(|(tinyset, is_last)| {
-                if is_last {
-                    tinyset.intersect(TinySet::range_lower(lower)).len() as usize
-                } else {
-                    tinyset.len() as usize
-                }
-            })
+            .map(|tinyset| tinyset.len() as usize)
             .sum();
         self.max_value as usize - num_set
     }
@@ -340,26 +340,21 @@ impl ReadSerializedBitSet {
     /// last block.
     ///
     #[inline]
-    fn iter_tinysets<'a>(&'a self) -> impl Iterator<Item = (TinySet, bool)> + 'a {
+    fn iter_tinysets<'a>(&'a self) -> impl Iterator<Item = TinySet> + 'a {
         assert!((self.data.len()) % 8 == 0);
-        self.data
-            .chunks_exact(8)
-            .enumerate()
-            .map(move |(chunk_num, chunk)| {
-                let is_last = (chunk_num + 1) * 8 == self.data.len();
-
-                let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
-                (tinyset, is_last)
-            })
+        self.data.chunks_exact(8).map(move |chunk| {
+            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+            tinyset
+        })
     }
 
-    /// Iterate over the positions of the unset elements.
+    /// Iterate over the positions of the elements.
     ///
     #[inline]
-    pub fn iter_unset<'a>(&'a self) -> impl Iterator<Item = u32> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = u32> + 'a {
         self.iter_tinysets()
             .enumerate()
-            .flat_map(move |(chunk_num, (tinyset, _))| {
+            .flat_map(move |(chunk_num, tinyset)| {
                 let chunk_base_val = chunk_num as u32 * 64;
                 tinyset
                     .into_iter()
@@ -404,7 +399,7 @@ mod tests {
         let mut out = vec![];
         bitset.serialize(&mut out).unwrap();
 
-        let bitset = ReadSerializedBitSet::new(OwnedBytes::new(out));
+        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
         assert_eq!(bitset.count_unset(), 1);
     }
 
@@ -415,7 +410,7 @@ mod tests {
         let mut out = vec![];
         bitset.serialize(&mut out).unwrap();
 
-        let bitset = ReadSerializedBitSet::new(OwnedBytes::new(out));
+        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
         assert_eq!(bitset.count_unset(), 4);
 
         {
@@ -423,7 +418,7 @@ mod tests {
             let mut out = vec![];
             bitset.serialize(&mut out).unwrap();
 
-            let bitset = ReadSerializedBitSet::new(OwnedBytes::new(out));
+            let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
             assert_eq!(bitset.count_unset(), 5);
         }
     }
