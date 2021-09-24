@@ -3,6 +3,7 @@ use crate::directory::OwnedBytes;
 use crate::space_usage::ByteCount;
 use crate::DocId;
 use common::BitSet;
+use common::ReadSerializedBitSet;
 use std::io;
 use std::io::Write;
 
@@ -21,16 +22,17 @@ pub fn write_alive_bitset<T: Write>(alive_bitset: &BitSet, writer: &mut T) -> io
 pub struct AliveBitSet {
     data: OwnedBytes,
     num_deleted: usize,
+    bitset: ReadSerializedBitSet,
 }
 
 impl AliveBitSet {
     #[cfg(test)]
-    pub(crate) fn for_test(not_alive_docs: &[DocId], max_doc: u32) -> AliveBitSet {
+    pub(crate) fn for_test(deleted_docs: &[DocId], max_doc: u32) -> AliveBitSet {
         use crate::directory::{Directory, RamDirectory, TerminatingWrite};
         use std::path::Path;
-        assert!(not_alive_docs.iter().all(|&doc| doc < max_doc));
-        let mut bitset = BitSet::with_max_value_and_filled(max_doc);
-        for &doc in not_alive_docs {
+        assert!(deleted_docs.iter().all(|&doc| doc < max_doc));
+        let mut bitset = BitSet::with_max_value_and_full(max_doc);
+        for &doc in deleted_docs {
             bitset.remove(doc);
         }
         let directory = RamDirectory::create();
@@ -45,32 +47,38 @@ impl AliveBitSet {
     /// Opens a delete bitset given its file.
     pub fn open(file: FileSlice) -> crate::Result<AliveBitSet> {
         let bytes = file.read_bytes()?;
-        let num_deleted = BitSet::count_unset_from_bytes(bytes.as_slice());
+        let bitset = ReadSerializedBitSet::new(bytes.clone());
+        let num_deleted = bitset.count_unset();
 
         Ok(AliveBitSet {
             data: bytes,
             num_deleted,
+            bitset,
         })
     }
 
     /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
     #[inline]
     pub fn is_alive(&self, doc: DocId) -> bool {
-        !self.is_deleted(doc)
+        self.bitset.contains(doc)
     }
 
     /// Returns true iff the document has been marked as deleted.
     #[inline]
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        let data = self.data.as_slice();
-        !BitSet::contains_from_bytes(doc, data)
+        !self.is_alive(doc)
     }
 
-    /// Iterate over the positions of the set elements
+    /// Iterate over the alive docids.
     #[inline]
-    pub fn iter_unset(&self) -> impl Iterator<Item = u32> + '_ {
-        let data = self.data.as_slice();
-        BitSet::iter_unset_from_bytes(data)
+    pub fn iter_alive(&self) -> impl Iterator<Item = DocId> + '_ {
+        self.bitset.iter_unset()
+    }
+
+    /// Get underlying bitset
+    #[inline]
+    pub fn bitset(&self) -> &ReadSerializedBitSet {
+        &self.bitset
     }
 
     /// The number of deleted docs
@@ -121,7 +129,7 @@ mod tests {
     fn test_alive_bitset_iter_minimal() {
         let alive_bitset = AliveBitSet::for_test(&[7], 8);
 
-        let data: Vec<_> = alive_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_alive().collect();
         assert_eq!(data, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 
@@ -129,14 +137,14 @@ mod tests {
     fn test_alive_bitset_iter_small() {
         let alive_bitset = AliveBitSet::for_test(&[0, 2, 3, 6], 7);
 
-        let data: Vec<_> = alive_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_alive().collect();
         assert_eq!(data, vec![1, 4, 5]);
     }
     #[test]
     fn test_alive_bitset_iter() {
         let alive_bitset = AliveBitSet::for_test(&[0, 1, 1000], 1001);
 
-        let data: Vec<_> = alive_bitset.iter_unset().collect();
+        let data: Vec<_> = alive_bitset.iter_alive().collect();
         assert_eq!(data, (2..=999).collect::<Vec<_>>());
     }
 }
@@ -166,7 +174,7 @@ mod bench {
     fn bench_deletebitset_iter_deser_on_fly(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test(&[0, 1, 1000, 10000], 1_000_000);
 
-        bench.iter(|| alive_bitset.iter_unset().collect::<Vec<_>>());
+        bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]
@@ -184,7 +192,7 @@ mod bench {
     fn bench_deletebitset_iter_deser_on_fly_1_8_alive(bench: &mut Bencher) {
         let alive_bitset = AliveBitSet::for_test(&get_alive(), 1_000_000);
 
-        bench.iter(|| alive_bitset.iter_unset().collect::<Vec<_>>());
+        bench.iter(|| alive_bitset.iter_alive().collect::<Vec<_>>());
     }
 
     #[bench]

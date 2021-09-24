@@ -90,7 +90,7 @@ impl DocSet for BitSetDocSet {
     /// but we don't have access to any better
     /// value.
     fn size_hint(&self) -> u32 {
-        self.docs.num_set_bits() as u32
+        self.docs.len() as u32
     }
 }
 
@@ -124,7 +124,7 @@ mod tests {
         for i in 0..100_000 {
             assert_eq!(btreeset.contains(&i), bitset.contains(i));
         }
-        assert_eq!(btreeset.len(), bitset.num_set_bits());
+        assert_eq!(btreeset.len(), bitset.len());
         let mut bitset_docset = BitSetDocSet::from(bitset);
         let mut remaining = true;
         for el in btreeset.into_iter() {

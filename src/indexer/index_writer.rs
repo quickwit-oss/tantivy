@@ -151,7 +151,7 @@ pub(crate) fn advance_deletes(
     let max_doc = segment_reader.max_doc();
     let mut alive_bitset: BitSet = match segment_entry.alive_bitset() {
         Some(previous_alive_bitset) => (*previous_alive_bitset).clone(),
-        None => BitSet::with_max_value_and_filled(max_doc),
+        None => BitSet::with_max_value_and_full(max_doc),
     };
 
     let num_deleted_docs_before = segment.meta().num_deleted_docs();
@@ -175,7 +175,7 @@ pub(crate) fn advance_deletes(
         }
     }
 
-    let num_alive_docs: u32 = alive_bitset.num_set_bits() as u32;
+    let num_alive_docs: u32 = alive_bitset.len() as u32;
     let num_deleted_docs = max_doc - num_alive_docs;
     if num_deleted_docs > num_deleted_docs_before {
         // There are new deletes. We need to write a new delete file.
@@ -259,7 +259,7 @@ fn apply_deletes(
     let doc_to_opstamps = DocToOpstampMapping::WithMap(doc_opstamps);
 
     let max_doc = segment.meta().max_doc();
-    let mut deleted_bitset = BitSet::with_max_value_and_filled(max_doc);
+    let mut deleted_bitset = BitSet::with_max_value_and_full(max_doc);
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,

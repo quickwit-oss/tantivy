@@ -99,22 +99,21 @@ fn compute_min_max_val(
     segment_reader: &SegmentReader,
 ) -> Option<(u64, u64)> {
     if segment_reader.max_doc() == 0 {
-        None
-    } else {
-        if segment_reader.alive_bitset().is_some() {
-            // some deleted documents,
-            // we need to recompute the max / min
-            minmax(
-                segment_reader
-                    .doc_ids_alive()
-                    .map(|doc_id| u64_reader.get(doc_id)),
-            )
-        } else {
-            // no deleted documents,
-            // we can use the previous min_val, max_val.
-            Some((u64_reader.min_value(), u64_reader.max_value()))
-        }
+        return None;
     }
+
+    if segment_reader.alive_bitset().is_none() {
+        // no deleted documents,
+        // we can use the previous min_val, max_val.
+        return Some((u64_reader.min_value(), u64_reader.max_value()));
+    }
+    // some deleted documents,
+    // we need to recompute the max / min
+    minmax(
+        segment_reader
+            .doc_ids_alive()
+            .map(|doc_id| u64_reader.get(doc_id)),
+    )
 }
 
 struct TermOrdinalMapping {

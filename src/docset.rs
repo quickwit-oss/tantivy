@@ -89,7 +89,7 @@ pub trait DocSet: Send {
         let mut count = 0u32;
         let mut doc = self.doc();
         while doc != TERMINATED {
-            if !alive_bitset.is_deleted(doc) {
+            if alive_bitset.is_alive(doc) {
                 count += 1u32;
             }
             doc = self.advance();
