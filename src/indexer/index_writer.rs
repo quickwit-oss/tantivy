@@ -164,15 +164,8 @@ pub(crate) fn advance_deletes(
         target_opstamp,
     )?;
 
-    // TODO optimize
-    // It should be possible to do something smarter by manipulation bitsets directly
-    // to compute this union.
     if let Some(seg_alive_bitset) = segment_reader.alive_bitset() {
-        for doc in 0u32..max_doc {
-            if seg_alive_bitset.is_deleted(doc) {
-                alive_bitset.remove(doc);
-            }
-        }
+        alive_bitset.intersect_with(seg_alive_bitset.bitset());
     }
 
     let num_alive_docs: u32 = alive_bitset.len() as u32;

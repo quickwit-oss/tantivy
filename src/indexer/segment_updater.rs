@@ -7,7 +7,7 @@ use crate::core::SegmentId;
 use crate::core::SegmentMeta;
 use crate::core::META_FILEPATH;
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::index_writer::advance_deletes;
 use crate::indexer::merge_operation::MergeOperationInventory;
@@ -209,7 +209,7 @@ pub fn merge_indices<Dir: Directory>(
 pub fn merge_filtered_segments<Dir: Directory>(
     segments: &[Segment],
     target_settings: IndexSettings,
-    filter_docids: Vec<Option<DeleteBitSet>>,
+    filter_docids: Vec<Option<AliveBitSet>>,
     output_directory: Dir,
 ) -> crate::Result<Index> {
     if segments.is_empty() {
@@ -239,7 +239,7 @@ pub fn merge_filtered_segments<Dir: Directory>(
     )?;
     let merged_segment = merged_index.new_segment();
     let merged_segment_id = merged_segment.id();
-    let merger: IndexMerger = IndexMerger::open_with_custom_delete_set(
+    let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
         merged_index.schema(),
         merged_index.settings().clone(),
         &segments[..],
@@ -687,7 +687,7 @@ mod tests {
     use super::merge_indices;
     use crate::collector::TopDocs;
     use crate::directory::RamDirectory;
-    use crate::fastfield::DeleteBitSet;
+    use crate::fastfield::AliveBitSet;
     use crate::indexer::merge_policy::tests::MergeWheneverPossible;
     use crate::indexer::merger::IndexMerger;
     use crate::indexer::segment_updater::merge_filtered_segments;
@@ -735,6 +735,50 @@ mod tests {
         reader.reload()?;
         assert_eq!(reader.searcher().segment_readers().len(), 1);
         assert_eq!(reader.searcher().num_docs(), 302);
+        Ok(())
+    }
+
+    #[test]
+    fn delete_all_docs_min() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        // writing the segment
+        let mut index_writer = index.writer_for_tests()?;
+
+        for _ in 0..10 {
+            index_writer.add_document(doc!(text_field=>"a"));
+            index_writer.add_document(doc!(text_field=>"b"));
+        }
+        index_writer.commit()?;
+
+        let seg_ids = index.searchable_segment_ids()?;
+        // docs exist, should have at least 1 segment
+        assert!(!seg_ids.is_empty());
+
+        let term = Term::from_field_text(text_field, "a");
+        index_writer.delete_term(term);
+        index_writer.commit()?;
+
+        let term = Term::from_field_text(text_field, "b");
+        index_writer.delete_term(term);
+        index_writer.commit()?;
+
+        index_writer.wait_merging_threads()?;
+
+        let reader = index.reader()?;
+        assert_eq!(reader.searcher().num_docs(), 0);
+
+        let seg_ids = index.searchable_segment_ids()?;
+        assert!(seg_ids.is_empty());
+
+        reader.reload()?;
+        assert_eq!(reader.searcher().num_docs(), 0);
+        // empty segments should be erased
+        assert!(index.searchable_segment_metas()?.is_empty());
+        assert!(reader.searcher().segment_readers().is_empty());
+
         Ok(())
     }
 
@@ -921,8 +965,8 @@ mod tests {
 
         let target_settings = first_index.settings().clone();
 
-        let filter_segment_1 = DeleteBitSet::for_test(&[1], 2);
-        let filter_segment_2 = DeleteBitSet::for_test(&[0], 2);
+        let filter_segment_1 = AliveBitSet::for_test_from_deleted_docs(&[1], 2);
+        let filter_segment_2 = AliveBitSet::for_test_from_deleted_docs(&[0], 2);
 
         let filter_segments = vec![Some(filter_segment_1), Some(filter_segment_2)];
 
@@ -967,7 +1011,7 @@ mod tests {
 
         let target_settings = first_index.settings().clone();
 
-        let filter_segment = DeleteBitSet::for_test(&[0], 4);
+        let filter_segment = AliveBitSet::for_test_from_deleted_docs(&[0], 4);
 
         let filter_segments = vec![Some(filter_segment)];
 
@@ -1030,7 +1074,7 @@ mod tests {
 
         let target_settings = first_index.settings().clone();
         {
-            let filter_segment = DeleteBitSet::for_test(&[1], 4);
+            let filter_segment = AliveBitSet::for_test_from_deleted_docs(&[1], 4);
             let filter_segments = vec![Some(filter_segment)];
             let target_schema = segments[0].schema();
             let merged_index = Index::create(
@@ -1038,7 +1082,7 @@ mod tests {
                 target_schema.clone(),
                 target_settings.clone(),
             )?;
-            let merger: IndexMerger = IndexMerger::open_with_custom_delete_set(
+            let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
                 merged_index.settings().clone(),
                 &segments[..],
@@ -1057,7 +1101,7 @@ mod tests {
                 target_schema.clone(),
                 target_settings.clone(),
             )?;
-            let merger: IndexMerger = IndexMerger::open_with_custom_delete_set(
+            let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
                 merged_index.settings().clone(),
                 &segments[..],

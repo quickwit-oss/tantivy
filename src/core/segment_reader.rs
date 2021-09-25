@@ -5,7 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
-use crate::fastfield::merge_delete_bitset;
+use crate::fastfield::merge_alive_bitset;
 use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
@@ -71,14 +71,16 @@ impl SegmentReader {
     }
 
     /// Merges the passed bitset with the existing one.
-    pub fn apply_delete_bitset(&mut self, delete_bitset: DeleteBitSet) {
-        if let Some(existing_bitset) = self.delete_bitset_opt.as_mut() {
-            let merged_bitset = merge_delete_bitset(&delete_bitset, existing_bitset);
-            self.delete_bitset_opt = Some(merged_bitset);
+    pub fn apply_alive_bitset(&mut self, alive_bitset: AliveBitSet) -> crate::Result<()> {
+        if let Some(existing_bitset) = self.alive_bitset_opt.as_mut() {
+            let merged_bitset = merge_alive_bitset(&alive_bitset, existing_bitset)?;
+            self.num_docs = merged_bitset.num_alive_docs() as u32;
+            self.alive_bitset_opt = Some(merged_bitset);
         } else {
-            self.delete_bitset_opt = Some(delete_bitset);
+            self.num_docs = alive_bitset.num_alive_docs() as u32;
+            self.alive_bitset_opt = Some(alive_bitset);
         }
-        self.num_docs = self.max_doc - self.num_deleted_docs();
+        Ok(())
     }
 
     /// Return the number of documents that have been

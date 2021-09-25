@@ -1,7 +1,7 @@
 use common::BitSet;
 use itertools::Itertools;
 
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::{
     merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal, TantivyError,
 };
@@ -85,10 +85,10 @@ fn get_delete_bitsets(
     demux_mapping: &DemuxMapping,
     target_segment_ordinal: SegmentOrdinal,
     max_value_per_segment: &[u32],
-) -> Vec<DeleteBitSet> {
+) -> Vec<AliveBitSet> {
     let mut bitsets: Vec<_> = max_value_per_segment
         .iter()
-        .map(|max_value| BitSet::with_max_value(*max_value))
+        .map(|max_value| BitSet::with_max_value_and_full(*max_value))
         .collect();
 
     for (old_segment_ordinal, docid_to_new_segment) in demux_mapping.mapping.iter().enumerate() {
@@ -100,13 +100,13 @@ fn get_delete_bitsets(
             .map(|(docid, _)| docid)
         {
             // mark document as deleted if segment ordinal is not target segment ordinal
-            bitset_for_segment.insert(docid as u32);
+            bitset_for_segment.remove(docid as u32);
         }
     }
 
     bitsets
         .iter()
-        .map(|bitset| DeleteBitSet::from_bitset(bitset, bitset.max_value()))
+        .map(|bitset| AliveBitSet::from_bitset(bitset))
         .collect_vec()
 }
 

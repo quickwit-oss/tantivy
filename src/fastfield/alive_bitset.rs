@@ -6,6 +6,22 @@ use ownedbytes::OwnedBytes;
 use std::io;
 use std::io::Write;
 
+/// Merges (intersects) two AliveBitSet in a new one.
+pub fn merge_alive_bitset(left: &AliveBitSet, right: &AliveBitSet) -> crate::Result<AliveBitSet> {
+    let (mut merged_bitset, other) = if left.space_usage() > right.space_usage() {
+        (BitSet::deserialize(left.data().as_slice())?, right)
+    } else {
+        (BitSet::deserialize(right.data().as_slice())?, left)
+    };
+
+    merged_bitset.intersect_with(other.bitset());
+
+    let mut out = vec![];
+    write_alive_bitset(&merged_bitset, &mut out)?;
+
+    Ok(AliveBitSet::open(OwnedBytes::new(out)))
+}
+
 /// Write a alive `BitSet`
 ///
 /// where `alive_bitset` is the set of alive `DocId`.
@@ -22,6 +38,7 @@ pub struct AliveBitSet {
     num_alive_docs: usize,
     bitset: ReadSerializedBitSet,
     num_bytes: ByteCount,
+    data: OwnedBytes,
 }
 
 impl AliveBitSet {
@@ -38,14 +55,22 @@ impl AliveBitSet {
         Self::open(alive_bitset_bytes)
     }
 
+    pub(crate) fn from_bitset(bitset: &BitSet) -> AliveBitSet {
+        let mut out = vec![];
+        write_alive_bitset(&bitset, &mut out).unwrap();
+
+        AliveBitSet::open(OwnedBytes::new(out))
+    }
+
     /// Opens a delete bitset given its file.
     pub fn open(bytes: OwnedBytes) -> AliveBitSet {
         let num_bytes = bytes.len();
-        let bitset = ReadSerializedBitSet::open(bytes);
+        let bitset = ReadSerializedBitSet::open(bytes.clone());
         AliveBitSet {
             num_alive_docs: bitset.len(),
             bitset,
             num_bytes,
+            data: bytes,
         }
     }
 
@@ -81,6 +106,11 @@ impl AliveBitSet {
     /// Summarize total space usage of this bitset.
     pub fn space_usage(&self) -> ByteCount {
         self.num_bytes
+    }
+
+    /// Get underlying bytes.
+    pub(crate) fn data(&self) -> OwnedBytes {
+        self.data.clone()
     }
 }
 

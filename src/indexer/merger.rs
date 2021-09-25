@@ -1,4 +1,5 @@
 use crate::error::DataCorruption;
+use crate::fastfield::AliveBitSet;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
@@ -158,7 +159,7 @@ impl IndexMerger {
         segments: &[Segment],
     ) -> crate::Result<IndexMerger> {
         let delete_bitsets = segments.iter().map(|_| None).collect_vec();
-        Self::open_with_custom_delete_set(schema, index_settings, segments, delete_bitsets)
+        Self::open_with_custom_alive_set(schema, index_settings, segments, delete_bitsets)
     }
 
     // Create merge with a custom delete set.
@@ -169,11 +170,11 @@ impl IndexMerger {
     // This can be used to merge but also apply an additional filter.
     // One use case is demux, which is basically taking a list of
     // segments and partitions them e.g. by a value in a field.
-    pub fn open_with_custom_delete_set(
+    pub fn open_with_custom_alive_set(
         schema: Schema,
         index_settings: IndexSettings,
         segments: &[Segment],
-        delete_bitset_opt: Vec<Option<DeleteBitSet>>,
+        alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
         let mut max_doc: u32 = 0u32;
@@ -183,10 +184,9 @@ impl IndexMerger {
                 readers.push(reader);
             }
         }
-        for (reader, new_delete_bitset_opt) in readers.iter_mut().zip(delete_bitset_opt.into_iter())
-        {
-            if let Some(new_delete_bitset) = new_delete_bitset_opt {
-                reader.apply_delete_bitset(new_delete_bitset);
+        for (reader, new_alive_bitset_opt) in readers.iter_mut().zip(alive_bitset_opt.into_iter()) {
+            if let Some(new_alive_bitset) = new_alive_bitset_opt {
+                reader.apply_alive_bitset(new_alive_bitset)?;
             }
             max_doc += reader.num_docs();
         }
