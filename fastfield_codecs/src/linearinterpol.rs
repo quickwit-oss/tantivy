@@ -239,11 +239,21 @@ mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;
 
-    fn create_and_validate(data: &[u64], name: &str) {
+    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
             LinearInterpolFastFieldSerializer,
             LinearInterpolFastFieldReader,
-        >(data, name);
+        >(data, name)
+    }
+
+    #[test]
+    fn test_compression() {
+        let data = (10..=6_000_u64).collect::<Vec<_>>();
+        let (estimate, actual_compression) =
+            create_and_validate(&data, "simple monotonically large");
+
+        assert!(actual_compression < 0.01);
+        assert!(estimate < 0.01);
     }
 
     #[test]

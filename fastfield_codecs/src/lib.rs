@@ -118,7 +118,7 @@ mod tests {
                 );
             }
         }
-        let actual_compression = data.len() as f32 / out.len() as f32;
+        let actual_compression = out.len() as f32 / (data.len() as f32 * 8.0);
         (estimation, actual_compression)
     }
     pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
