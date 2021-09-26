@@ -12,7 +12,7 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
     unsafe {
         compressed.set_len(maximum_ouput_size + 4);
     }
-    let bytes_written = compress_into(uncompressed, compressed, 4)
+    let bytes_written = compress_into(uncompressed, &mut compressed[4..])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     let num_bytes = uncompressed.len() as u32;
     compressed[0..4].copy_from_slice(&num_bytes.to_le_bytes());
@@ -35,7 +35,7 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
     unsafe {
         decompressed.set_len(uncompressed_size);
     }
-    let bytes_written = decompress_into(&compressed[4..], decompressed, 0)
+    let bytes_written = decompress_into(&compressed[4..], decompressed)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     if bytes_written != uncompressed_size {
         return Err(io::Error::new(
