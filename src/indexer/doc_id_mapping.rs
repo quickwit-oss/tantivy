@@ -2,23 +2,23 @@
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
 //!
 
-use super::{merger::SegmentReaderWithOrdinal, SegmentWriter};
+use super::SegmentWriter;
 use crate::{
     schema::{Field, Schema},
-    DocId, IndexSortByField, Order, TantivyError,
+    DocId, IndexSortByField, Order, SegmentOrdinal, TantivyError,
 };
 use std::{cmp::Reverse, ops::Index};
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocidMapping<'a> {
-    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+pub(crate) struct SegmentDocidMapping {
+    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
     is_trivial: bool,
 }
 
-impl<'a> SegmentDocidMapping<'a> {
+impl SegmentDocidMapping {
     pub(crate) fn new(
-        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
         is_trivial: bool,
     ) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl<'a> SegmentDocidMapping<'a> {
             is_trivial,
         }
     }
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentReaderWithOrdinal)> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentOrdinal)> {
         self.new_doc_id_to_old_and_segment.iter()
     }
     pub(crate) fn len(&self) -> usize {
@@ -40,15 +40,15 @@ impl<'a> SegmentDocidMapping<'a> {
         self.is_trivial
     }
 }
-impl<'a> Index<usize> for SegmentDocidMapping<'a> {
-    type Output = (DocId, SegmentReaderWithOrdinal<'a>);
+impl Index<usize> for SegmentDocidMapping {
+    type Output = (DocId, SegmentOrdinal);
 
     fn index(&self, idx: usize) -> &Self::Output {
         &self.new_doc_id_to_old_and_segment[idx]
     }
 }
-impl<'a> IntoIterator for SegmentDocidMapping<'a> {
-    type Item = (DocId, SegmentReaderWithOrdinal<'a>);
+impl IntoIterator for SegmentDocidMapping {
+    type Item = (DocId, SegmentOrdinal);
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
