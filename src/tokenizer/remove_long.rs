@@ -70,3 +70,28 @@ impl<'a> TokenStream for RemoveLongFilterStream<'a> {
         self.tail.token_mut()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::{RemoveLongFilter, SimpleTokenizer, TextAnalyzer, Token};
+
+    #[test]
+    fn test_remove_long() {
+        let tokens = token_stream_helper("hello tantivy, happy searching!");
+        assert_eq!(tokens.len(), 2);
+        assert_token(&tokens[0], 0, "hello", 0, 5);
+        assert_token(&tokens[1], 2, "happy", 15, 20);
+    }
+
+    fn token_stream_helper(text: &str) -> Vec<Token> {
+        let a = TextAnalyzer::from(SimpleTokenizer).filter(RemoveLongFilter::limit(6));
+        let mut token_stream = a.token_stream(text);
+        let mut tokens: Vec<Token> = vec![];
+        let mut add_token = |token: &Token| {
+            tokens.push(token.clone());
+        };
+        token_stream.process(&mut add_token);
+        tokens
+    }
+}

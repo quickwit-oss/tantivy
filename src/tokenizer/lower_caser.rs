@@ -56,31 +56,30 @@ impl<'a> TokenStream for LowerCaserTokenStream<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer};
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer, Token};
 
     #[test]
     fn test_to_lower_case() {
-        assert_eq!(
-            lowercase_helper("Русский текст"),
-            vec!["русский".to_string(), "текст".to_string()]
-        );
+        let tokens = token_stream_helper("Tree");
+        assert_eq!(tokens.len(), 1);
+        assert_token(&tokens[0], 0, "tree", 0, 4);
+
+        let tokens = token_stream_helper("Русский текст");
+        assert_eq!(tokens.len(), 2);
+        assert_token(&tokens[0], 0, "русский", 0, 14);
+        assert_token(&tokens[1], 1, "текст", 15, 25);
     }
 
-    fn lowercase_helper(text: &str) -> Vec<String> {
-        let mut tokens = vec![];
+    fn token_stream_helper(text: &str) -> Vec<Token> {
         let mut token_stream = TextAnalyzer::from(SimpleTokenizer)
             .filter(LowerCaser)
             .token_stream(text);
-        while token_stream.advance() {
-            let token_text = token_stream.token().text.clone();
-            tokens.push(token_text);
-        }
+        let mut tokens = vec![];
+        let mut add_token = |token: &Token| {
+            tokens.push(token.clone());
+        };
+        token_stream.process(&mut add_token);
         tokens
-    }
-
-    #[test]
-    fn test_lowercaser() {
-        assert_eq!(lowercase_helper("Tree"), vec!["tree".to_string()]);
-        assert_eq!(lowercase_helper("Русский"), vec!["русский".to_string()]);
     }
 }
