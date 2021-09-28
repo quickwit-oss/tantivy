@@ -546,8 +546,9 @@ mod bench_sorted_index_merge {
         let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
         b.iter(|| {
 
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, reader)|{
-            let u64_reader: DynamicFastFieldReader<u64> = reader.reader
+            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, ordinal)|{
+            let reader = &merger.readers[*ordinal as usize];
+            let u64_reader: DynamicFastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");

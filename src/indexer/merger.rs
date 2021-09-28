@@ -70,7 +70,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
 pub struct IndexMerger {
     index_settings: IndexSettings,
     schema: Schema,
-    readers: Vec<SegmentReader>,
+    pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
 }
 
