@@ -436,20 +436,29 @@ impl IndexMerger {
                     })
                 });
 
+        let total_num_new_docs = self
+            .readers
+            .iter()
+            .map(|reader| reader.num_docs() as usize)
+            .sum();
+
+        let mut sorted_doc_ids = Vec::with_capacity(total_num_new_docs);
+
         // create iterator tuple of (old doc_id, reader) in order of the new doc_ids
-        let sorted_doc_ids: Vec<(DocId, SegmentOrdinal)> = doc_id_reader_pair
-            .into_iter()
-            .kmerge_by(|a, b| {
-                let val1 = a.2.get(a.0);
-                let val2 = b.2.get(b.0);
-                if sort_by_field.order == Order::Asc {
-                    val1 < val2
-                } else {
-                    val1 > val2
-                }
-            })
-            .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id))
-            .collect::<Vec<_>>();
+        sorted_doc_ids.extend(
+            doc_id_reader_pair
+                .into_iter()
+                .kmerge_by(|a, b| {
+                    let val1 = a.2.get(a.0);
+                    let val2 = b.2.get(b.0);
+                    if sort_by_field.order == Order::Asc {
+                        val1 < val2
+                    } else {
+                        val1 > val2
+                    }
+                })
+                .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id)),
+        );
         Ok(SegmentDocidMapping::new(sorted_doc_ids, false))
     }
 
@@ -498,7 +507,7 @@ impl IndexMerger {
         // acccess on the fly or 2. change the codec api to make random access optional, but
         // they both have also major drawbacks.
 
-        let mut offsets = vec![];
+        let mut offsets = Vec::with_capacity(doc_id_mapping.len());
         let mut offset = 0;
         for (doc_id, reader) in doc_id_mapping.iter() {
             let reader = &reader_ordinal_and_field_accessors[*reader as usize].1;
@@ -593,17 +602,25 @@ impl IndexMerger {
     /// Creates a mapping if the segments are stacked. this is helpful to merge codelines between index
     /// sorting and the others
     pub(crate) fn get_doc_id_from_concatenated_data(&self) -> crate::Result<SegmentDocidMapping> {
-        let mapping: Vec<_> = self
+        let total_num_new_docs = self
             .readers
             .iter()
-            .enumerate()
-            .map(|(reader_ordinal, reader)| {
-                reader
-                    .doc_ids_alive()
-                    .map(move |doc_id| (doc_id, reader_ordinal as SegmentOrdinal))
-            })
-            .flatten()
-            .collect();
+            .map(|reader| reader.num_docs() as usize)
+            .sum();
+
+        let mut mapping = Vec::with_capacity(total_num_new_docs);
+
+        mapping.extend(
+            self.readers
+                .iter()
+                .enumerate()
+                .map(|(reader_ordinal, reader)| {
+                    reader
+                        .doc_ids_alive()
+                        .map(move |doc_id| (doc_id, reader_ordinal as SegmentOrdinal))
+                })
+                .flatten(),
+        );
         Ok(SegmentDocidMapping::new(mapping, true))
     }
     fn write_multi_fast_field(
