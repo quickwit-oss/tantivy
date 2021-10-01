@@ -465,14 +465,11 @@ impl IndexMerger {
     // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
     // `MultiValuedFastFieldReader`
     //
-    // Important: reader_and_field_accessor needs
-    // to have the same order as self.readers since ReaderWithOrdinal
-    // is used to index the reader_ordinal_and_field_accessors vec.
     fn write_1_n_fast_field_idx_generic<T: MultiValueLength>(
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocidMapping,
-        reader_ordinal_and_field_accessors: &[(&SegmentReader, T)],
+        reader_and_field_accessors: &[(&SegmentReader, T)],
     ) -> crate::Result<Vec<u64>> {
         let mut total_num_vals = 0u64;
         // In the first pass, we compute the total number of vals.
@@ -480,7 +477,7 @@ impl IndexMerger {
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
         let mut num_docs = 0;
-        for (reader, u64s_reader) in reader_ordinal_and_field_accessors.iter() {
+        for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(alive_bitset) = reader.alive_bitset() {
                 num_docs += reader.max_doc() as u64 - alive_bitset.num_deleted() as u64;
                 for doc in reader.doc_ids_alive() {
@@ -510,7 +507,7 @@ impl IndexMerger {
         let mut offsets = Vec::with_capacity(doc_id_mapping.len());
         let mut offset = 0;
         for (doc_id, reader) in doc_id_mapping.iter() {
-            let reader = &reader_ordinal_and_field_accessors[*reader as usize].1;
+            let reader = &reader_and_field_accessors[*reader as usize].1;
             offsets.push(offset);
             offset += reader.get_len(*doc_id) as u64;
         }
@@ -753,7 +750,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocidMapping,
     ) -> crate::Result<()> {
-        let reader_ordinal_and_field_accessors = self
+        let reader_and_field_accessors = self
             .readers
             .iter()
             .map(|reader| {
@@ -767,12 +764,12 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &reader_ordinal_and_field_accessors,
+            &reader_and_field_accessors,
         )?;
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
 
         for (doc_id, reader_ordinal) in doc_id_mapping.iter() {
-            let bytes_reader = &reader_ordinal_and_field_accessors[*reader_ordinal as usize].1;
+            let bytes_reader = &reader_and_field_accessors[*reader_ordinal as usize].1;
             let val = bytes_reader.get_bytes(*doc_id);
             serialize_vals.write_all(val)?;
         }
