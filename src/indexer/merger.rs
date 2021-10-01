@@ -67,30 +67,10 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::R
             .sum::<u64>())
 }
 
-/// `ReaderWithOrdinal` is used to be able to easier associate
-/// data with a `SegmentReader`. The ordinal is supposed to be
-/// used as an index access.
-///
-/// The ordinal identifies the position within `Merger` readers.
-#[derive(Clone, Copy)]
-pub(crate) struct SegmentReaderWithOrdinal<'a> {
-    pub reader: &'a SegmentReader,
-    pub ordinal: SegmentOrdinal,
-}
-
-impl<'a> From<(usize, &'a SegmentReader)> for SegmentReaderWithOrdinal<'a> {
-    fn from(data: (usize, &'a SegmentReader)) -> Self {
-        SegmentReaderWithOrdinal {
-            reader: data.1,
-            ordinal: data.0 as u32,
-        }
-    }
-}
-
 pub struct IndexMerger {
     index_settings: IndexSettings,
     schema: Schema,
-    readers: Vec<SegmentReader>,
+    pub(crate) readers: Vec<SegmentReader>,
     max_doc: u32,
 }
 
@@ -245,8 +225,8 @@ impl IndexMerger {
                 .iter()
                 .map(|reader| reader.get_fieldnorms_reader(field))
                 .collect::<Result<_, _>>()?;
-            for (doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
-                let fieldnorms_reader = &fieldnorms_readers[reader_with_ordinal.ordinal as usize];
+            for (doc_id, reader_ordinal) in doc_id_mapping.iter() {
+                let fieldnorms_reader = &fieldnorms_readers[*reader_ordinal as usize];
                 let fieldnorm_id = fieldnorms_reader.fieldnorm_id(*doc_id);
                 fieldnorms_data.push(fieldnorm_id);
             }
@@ -345,25 +325,25 @@ impl IndexMerger {
         };
         #[derive(Clone)]
         struct SortedDocidFieldAccessProvider<'a> {
-            doc_id_mapping: &'a SegmentDocidMapping<'a>,
+            doc_id_mapping: &'a SegmentDocidMapping,
             fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
         }
         impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
-                let (doc_id, reader_with_ordinal) = self.doc_id_mapping[doc as usize];
-                self.fast_field_readers[reader_with_ordinal.ordinal as usize].get(doc_id)
+                let (doc_id, reader_ordinal) = self.doc_id_mapping[doc as usize];
+                self.fast_field_readers[reader_ordinal as usize].get(doc_id)
             }
         }
         let fastfield_accessor = SortedDocidFieldAccessProvider {
             doc_id_mapping,
             fast_field_readers: &fast_field_readers,
         };
-        let iter1 = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
-            let fast_field_reader = &fast_field_readers[reader_with_ordinal.ordinal as usize];
+        let iter1 = doc_id_mapping.iter().map(|(doc_id, reader_ordinal)| {
+            let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
             fast_field_reader.get(*doc_id)
         });
-        let iter2 = doc_id_mapping.iter().map(|(doc_id, reader_with_ordinal)| {
-            let fast_field_reader = &fast_field_readers[reader_with_ordinal.ordinal as usize];
+        let iter2 = doc_id_mapping.iter().map(|(doc_id, reader_ordinal)| {
+            let fast_field_reader = &fast_field_readers[*reader_ordinal as usize];
             fast_field_reader.get(*doc_id)
         });
         fast_field_serializer.create_auto_detect_u64_fast_field(
@@ -383,9 +363,10 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<bool> {
-        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
+        let reader_ordinal_and_field_accessors =
+            self.get_reader_with_sort_field_accessor(sort_by_field)?;
 
-        let everything_is_in_order = reader_and_field_accessors
+        let everything_is_in_order = reader_ordinal_and_field_accessors
             .into_iter()
             .map(|reader| reader.1)
             .tuple_windows()
@@ -411,24 +392,21 @@ impl IndexMerger {
     pub(crate) fn get_reader_with_sort_field_accessor<'a, 'b>(
         &'a self,
         sort_by_field: &'b IndexSortByField,
-    ) -> crate::Result<
-        Vec<(
-            SegmentReaderWithOrdinal<'a>,
-            impl FastFieldReader<u64> + Clone,
-        )>,
-    > {
-        let reader_and_field_accessors = self
+    ) -> crate::Result<Vec<(SegmentOrdinal, impl FastFieldReader<u64> + Clone)>> {
+        let reader_ordinal_and_field_accessors = self
             .readers
             .iter()
             .enumerate()
-            .map(Into::into)
-            .map(|reader_with_ordinal: SegmentReaderWithOrdinal| {
-                let value_accessor =
-                    Self::get_sort_field_accessor(reader_with_ordinal.reader, sort_by_field)?;
-                Ok((reader_with_ordinal, value_accessor))
+            .map(|(reader_ordinal, _)| reader_ordinal as SegmentOrdinal)
+            .map(|reader_ordinal: SegmentOrdinal| {
+                let value_accessor = Self::get_sort_field_accessor(
+                    &self.readers[reader_ordinal as usize],
+                    sort_by_field,
+                )?;
+                Ok((reader_ordinal, value_accessor))
             })
             .collect::<crate::Result<Vec<_>>>()?;
-        Ok(reader_and_field_accessors)
+        Ok(reader_ordinal_and_field_accessors)
     }
 
     /// Generates the doc_id mapping where position in the vec=new
@@ -439,50 +417,54 @@ impl IndexMerger {
         &self,
         sort_by_field: &IndexSortByField,
     ) -> crate::Result<SegmentDocidMapping> {
-        let reader_and_field_accessors = self.get_reader_with_sort_field_accessor(sort_by_field)?;
+        let reader_ordinal_and_field_accessors =
+            self.get_reader_with_sort_field_accessor(sort_by_field)?;
         // Loading the field accessor on demand causes a 15x regression
 
         // create iterators over segment/sort_accessor/doc_id  tuple
         let doc_id_reader_pair =
-            reader_and_field_accessors
+            reader_ordinal_and_field_accessors
                 .iter()
                 .map(|reader_and_field_accessor| {
-                    reader_and_field_accessor
-                        .0
-                        .reader
-                        .doc_ids_alive()
-                        .map(move |doc_id| {
-                            (
-                                doc_id,
-                                reader_and_field_accessor.0,
-                                &reader_and_field_accessor.1,
-                            )
-                        })
+                    let reader = &self.readers[reader_and_field_accessor.0 as usize];
+                    reader.doc_ids_alive().map(move |doc_id| {
+                        (
+                            doc_id,
+                            reader_and_field_accessor.0,
+                            &reader_and_field_accessor.1,
+                        )
+                    })
                 });
 
+        let total_num_new_docs = self
+            .readers
+            .iter()
+            .map(|reader| reader.num_docs() as usize)
+            .sum();
+
+        let mut sorted_doc_ids = Vec::with_capacity(total_num_new_docs);
+
         // create iterator tuple of (old doc_id, reader) in order of the new doc_ids
-        let sorted_doc_ids: Vec<(DocId, SegmentReaderWithOrdinal)> = doc_id_reader_pair
-            .into_iter()
-            .kmerge_by(|a, b| {
-                let val1 = a.2.get(a.0);
-                let val2 = b.2.get(b.0);
-                if sort_by_field.order == Order::Asc {
-                    val1 < val2
-                } else {
-                    val1 > val2
-                }
-            })
-            .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id))
-            .collect::<Vec<_>>();
+        sorted_doc_ids.extend(
+            doc_id_reader_pair
+                .into_iter()
+                .kmerge_by(|a, b| {
+                    let val1 = a.2.get(a.0);
+                    let val2 = b.2.get(b.0);
+                    if sort_by_field.order == Order::Asc {
+                        val1 < val2
+                    } else {
+                        val1 > val2
+                    }
+                })
+                .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id)),
+        );
         Ok(SegmentDocidMapping::new(sorted_doc_ids, false))
     }
 
     // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
     // `MultiValuedFastFieldReader`
     //
-    // Important: reader_and_field_accessor needs
-    // to have the same order as self.readers since ReaderWithOrdinal
-    // is used to index the reader_and_field_accessors vec.
     fn write_1_n_fast_field_idx_generic<T: MultiValueLength>(
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
@@ -522,10 +504,10 @@ impl IndexMerger {
         // acccess on the fly or 2. change the codec api to make random access optional, but
         // they both have also major drawbacks.
 
-        let mut offsets = vec![];
+        let mut offsets = Vec::with_capacity(doc_id_mapping.len());
         let mut offset = 0;
         for (doc_id, reader) in doc_id_mapping.iter() {
-            let reader = &reader_and_field_accessors[reader.ordinal as usize].1;
+            let reader = &reader_and_field_accessors[*reader as usize].1;
             offsets.push(offset);
             offset += reader.get_len(*doc_id) as u64;
         }
@@ -547,7 +529,7 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocidMapping,
     ) -> crate::Result<Vec<u64>> {
-        let reader_and_field_accessors = self.readers.iter().map(|reader|{
+        let reader_ordinal_and_field_accessors = self.readers.iter().map(|reader|{
             let u64s_reader: MultiValuedFastFieldReader<u64> = reader.fast_fields()
                 .typed_fast_field_multi_reader(field)
                 .expect("Failed to find index for multivalued field. This is a bug in tantivy, please report.");
@@ -558,7 +540,7 @@ impl IndexMerger {
             field,
             fast_field_serializer,
             doc_id_mapping,
-            &reader_and_field_accessors,
+            &reader_ordinal_and_field_accessors,
         )
     }
 
@@ -597,11 +579,11 @@ impl IndexMerger {
                 fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
             let mut vals = Vec::with_capacity(100);
 
-            for (old_doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
+            for (old_doc_id, reader_ordinal) in doc_id_mapping.iter() {
                 let term_ordinal_mapping: &[TermOrdinal] =
-                    term_ordinal_mappings.get_segment(reader_with_ordinal.ordinal as usize);
+                    term_ordinal_mappings.get_segment(*reader_ordinal as usize);
 
-                let ff_reader = &fast_field_reader[reader_with_ordinal.ordinal as usize];
+                let ff_reader = &fast_field_reader[*reader_ordinal as usize];
                 ff_reader.get_vals(*old_doc_id, &mut vals);
                 for &prev_term_ord in &vals {
                     let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
@@ -617,21 +599,25 @@ impl IndexMerger {
     /// Creates a mapping if the segments are stacked. this is helpful to merge codelines between index
     /// sorting and the others
     pub(crate) fn get_doc_id_from_concatenated_data(&self) -> crate::Result<SegmentDocidMapping> {
-        let mapping: Vec<_> = self
+        let total_num_new_docs = self
             .readers
             .iter()
-            .enumerate()
-            .map(|(ordinal, reader)| {
-                let reader_with_ordinal = SegmentReaderWithOrdinal {
-                    ordinal: ordinal as u32,
-                    reader,
-                };
-                reader
-                    .doc_ids_alive()
-                    .map(move |doc_id| (doc_id, reader_with_ordinal))
-            })
-            .flatten()
-            .collect();
+            .map(|reader| reader.num_docs() as usize)
+            .sum();
+
+        let mut mapping = Vec::with_capacity(total_num_new_docs);
+
+        mapping.extend(
+            self.readers
+                .iter()
+                .enumerate()
+                .map(|(reader_ordinal, reader)| {
+                    reader
+                        .doc_ids_alive()
+                        .map(move |doc_id| (doc_id, reader_ordinal as SegmentOrdinal))
+                })
+                .flatten(),
+        );
         Ok(SegmentDocidMapping::new(mapping, true))
     }
     fn write_multi_fast_field(
@@ -695,7 +681,7 @@ impl IndexMerger {
         };
 
         struct SortedDocidMultiValueAccessProvider<'a> {
-            doc_id_mapping: &'a SegmentDocidMapping<'a>,
+            doc_id_mapping: &'a SegmentDocidMapping,
             fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
             offsets: Vec<u64>,
         }
@@ -714,13 +700,11 @@ impl IndexMerger {
                 let num_pos_covered_until_now = self.offsets[new_docid];
                 let pos_in_values = pos - num_pos_covered_until_now;
 
-                let (old_doc_id, reader_with_ordinal) = self.doc_id_mapping[new_docid as usize];
-                let num_vals = self.fast_field_readers[reader_with_ordinal.ordinal as usize]
-                    .get_len(old_doc_id);
+                let (old_doc_id, reader_ordinal) = self.doc_id_mapping[new_docid as usize];
+                let num_vals = self.fast_field_readers[reader_ordinal as usize].get_len(old_doc_id);
                 assert!(num_vals >= pos_in_values);
                 let mut vals = vec![];
-                self.fast_field_readers[reader_with_ordinal.ordinal as usize]
-                    .get_vals(old_doc_id, &mut vals);
+                self.fast_field_readers[reader_ordinal as usize].get_vals(old_doc_id, &mut vals);
 
                 vals[pos_in_values as usize]
             }
@@ -732,8 +716,8 @@ impl IndexMerger {
         };
         let iter1 = doc_id_mapping
             .iter()
-            .map(|(doc_id, reader_with_ordinal)| {
-                let ff_reader = &ff_readers[reader_with_ordinal.ordinal as usize];
+            .map(|(doc_id, reader_ordinal)| {
+                let ff_reader = &ff_readers[*reader_ordinal as usize];
                 let mut vals = vec![];
                 ff_reader.get_vals(*doc_id, &mut vals);
                 vals.into_iter()
@@ -741,8 +725,8 @@ impl IndexMerger {
             .flatten();
         let iter2 = doc_id_mapping
             .iter()
-            .map(|(doc_id, reader_with_ordinal)| {
-                let ff_reader = &ff_readers[reader_with_ordinal.ordinal as usize];
+            .map(|(doc_id, reader_ordinal)| {
+                let ff_reader = &ff_readers[*reader_ordinal as usize];
                 let mut vals = vec![];
                 ff_reader.get_vals(*doc_id, &mut vals);
                 vals.into_iter()
@@ -784,8 +768,8 @@ impl IndexMerger {
         )?;
         let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1);
 
-        for (doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
-            let bytes_reader = &reader_and_field_accessors[reader_with_ordinal.ordinal as usize].1;
+        for (doc_id, reader_ordinal) in doc_id_mapping.iter() {
+            let bytes_reader = &reader_and_field_accessors[*reader_ordinal as usize].1;
             let val = bytes_reader.get_bytes(*doc_id);
             serialize_vals.write_all(val)?;
         }
@@ -839,8 +823,8 @@ impl IndexMerger {
                 segment_local_map
             })
             .collect();
-        for (new_doc_id, (old_doc_id, segment_and_ordinal)) in doc_id_mapping.iter().enumerate() {
-            let segment_map = &mut merged_doc_id_map[segment_and_ordinal.ordinal as usize];
+        for (new_doc_id, (old_doc_id, segment_ordinal)) in doc_id_mapping.iter().enumerate() {
+            let segment_map = &mut merged_doc_id_map[*segment_ordinal as usize];
             segment_map[*old_doc_id as usize] = Some(new_doc_id as DocId);
         }
 
@@ -1012,8 +996,8 @@ impl IndexMerger {
             .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
             .collect();
         if !doc_id_mapping.is_trivial() {
-            for (old_doc_id, reader_with_ordinal) in doc_id_mapping.iter() {
-                let doc_bytes_it = &mut document_iterators[reader_with_ordinal.ordinal as usize];
+            for (old_doc_id, reader_ordinal) in doc_id_mapping.iter() {
+                let doc_bytes_it = &mut document_iterators[*reader_ordinal as usize];
                 if let Some(doc_bytes_res) = doc_bytes_it.next() {
                     let doc_bytes = doc_bytes_res?;
                     store_writer.store_bytes(&doc_bytes)?;

@@ -133,7 +133,8 @@ impl MultiFieldPostingsWriter {
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
-            self.term_index.iter().collect();
+            Vec::with_capacity(self.term_index.len());
+        term_offsets.extend(self.term_index.iter());
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
 
         let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
