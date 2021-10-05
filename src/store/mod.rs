@@ -113,7 +113,8 @@ pub mod tests {
     fn test_doc_store_iter_with_delete_bug_1077() -> crate::Result<()> {
         // this will cover deletion of the first element in a checkpoint
         let deleted_docids = (200..300).collect::<Vec<_>>();
-        let alive_bitset = AliveBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
+        let alive_bitset =
+            AliveBitSet::for_test_from_deleted_docs(&deleted_docids, NUM_DOCS as u32);
 
         let path = Path::new("store");
         let directory = RamDirectory::create();

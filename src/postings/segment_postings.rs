@@ -296,9 +296,10 @@ mod tests {
     fn test_doc_freq() {
         let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), 3);
-        let alive_bitset = AliveBitSet::for_test(&[2], 12);
+        let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
         assert_eq!(docs.doc_freq_given_deletes(&alive_bitset), 2);
-        let all_deleted = AliveBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
+        let all_deleted =
+            AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

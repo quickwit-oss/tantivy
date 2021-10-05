@@ -309,7 +309,7 @@ impl BitSet {
     }
 }
 
-/// Lazy Read a serialized BitSet.
+/// Serialized BitSet.
 #[derive(Clone)]
 pub struct ReadSerializedBitSet {
     data: OwnedBytes,
@@ -323,15 +323,12 @@ impl ReadSerializedBitSet {
         ReadSerializedBitSet { data, max_value }
     }
 
-    /// Count the number of unset bits from serialized data.
-    ///
+    /// Number of elements in the bitset.
     #[inline]
-    pub fn count_unset(&self) -> usize {
-        let num_set: usize = self
-            .iter_tinysets()
+    pub fn len(&self) -> usize {
+        self.iter_tinysets()
             .map(|tinyset| tinyset.len() as usize)
-            .sum();
-        self.max_value as usize - num_set
+            .sum()
     }
 
     /// Iterate the tinyset on the fly from serialized data.
@@ -369,7 +366,11 @@ impl ReadSerializedBitSet {
         b & (1u8 << shift) != 0
     }
 
-    /// Returns the max_value.
+    /// Maximum value the bitset may contain.
+    /// (Note this is not the maximum value contained in the set.)
+    ///
+    /// A bitset has an intrinsic capacity.
+    /// It only stores elements within [0..max_value).
     #[inline]
     pub fn max_value(&self) -> u32 {
         self.max_value
@@ -397,7 +398,7 @@ mod tests {
         bitset.serialize(&mut out).unwrap();
 
         let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
-        assert_eq!(bitset.count_unset(), 1);
+        assert_eq!(bitset.len(), 4);
     }
 
     #[test]
@@ -408,15 +409,14 @@ mod tests {
         bitset.serialize(&mut out).unwrap();
 
         let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
-        assert_eq!(bitset.count_unset(), 4);
+        assert_eq!(bitset.len(), 1);
 
         {
             let bitset = BitSet::with_max_value(5);
             let mut out = vec![];
             bitset.serialize(&mut out).unwrap();
-
             let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
-            assert_eq!(bitset.count_unset(), 5);
+            assert_eq!(bitset.len(), 0);
         }
     }
 
