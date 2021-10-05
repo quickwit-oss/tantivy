@@ -479,7 +479,7 @@ impl IndexMerger {
         let mut num_docs = 0;
         for (reader, u64s_reader) in reader_and_field_accessors.iter() {
             if let Some(alive_bitset) = reader.alive_bitset() {
-                num_docs += reader.max_doc() as u64 - alive_bitset.num_deleted() as u64;
+                num_docs += alive_bitset.num_alive_docs() as u64;
                 for doc in reader.doc_ids_alive() {
                     let num_vals = u64s_reader.get_len(doc) as u64;
                     total_num_vals += num_vals;
@@ -1012,7 +1012,7 @@ impl IndexMerger {
         } else {
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
-                if reader.num_deleted_docs() > 0
+                if reader.has_deletes()
                     // If there is not enough data in the store, we avoid stacking in order to
                     // avoid creating many small blocks in the doc store. Once we have 5 full blocks,
                     // we start stacking. In the worst case 2/7 of the blocks would be very small.

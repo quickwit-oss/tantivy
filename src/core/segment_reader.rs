@@ -72,14 +72,12 @@ impl SegmentReader {
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {
-        self.alive_bitset()
-            .map(|alive_set| alive_set.num_deleted() as DocId)
-            .unwrap_or(0u32)
+        self.max_doc - self.num_docs
     }
 
     /// Returns true iff some of the documents of the segment have been deleted.
     pub fn has_deletes(&self) -> bool {
-        self.alive_bitset().is_some()
+        self.num_deleted_docs() > 0
     }
 
     /// Accessor to a segment's fast field reader given a field.
@@ -171,8 +169,8 @@ impl SegmentReader {
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
         let alive_bitset_opt = if segment.meta().has_deletes() {
-            let delete_data = segment.open_read(SegmentComponent::Delete)?;
-            let alive_bitset = AliveBitSet::open(delete_data)?;
+            let alive_bitset_bytes = segment.open_read(SegmentComponent::Delete)?.read_bytes()?;
+            let alive_bitset = AliveBitSet::open(alive_bitset_bytes);
             Some(alive_bitset)
         } else {
             None

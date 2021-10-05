@@ -854,7 +854,7 @@ mod tests {
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
-        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 0);
+        assert_eq!(searcher.segment_reader(0u32).num_docs(), 2);
 
         index_writer.delete_term(Term::from_field_text(text_field, "hello1"));
         assert!(index_writer.commit().is_ok());
@@ -862,7 +862,7 @@ mod tests {
         assert!(reader.reload().is_ok());
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
-        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 1);
+        assert_eq!(searcher.segment_reader(0u32).num_docs(), 1);
 
         let previous_delete_opstamp = index.load_metas().unwrap().segments[0].delete_opstamp();
 
@@ -874,7 +874,7 @@ mod tests {
         assert!(reader.reload().is_ok());
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
-        assert_eq!(searcher.segment_reader(0u32).num_deleted_docs(), 1);
+        assert_eq!(searcher.segment_reader(0u32).num_docs(), 1);
 
         let after_delete_opstamp = index.load_metas().unwrap().segments[0].delete_opstamp();
         assert_eq!(after_delete_opstamp, previous_delete_opstamp);
@@ -1644,7 +1644,7 @@ mod tests {
 
         let segment_reader = searcher.segment_reader(0);
         assert_eq!(segment_reader.max_doc(), 2);
-        assert_eq!(segment_reader.num_deleted_docs(), 1);
+        assert_eq!(segment_reader.num_docs(), 1);
         Ok(())
     }
 

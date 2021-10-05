@@ -257,7 +257,7 @@ mod tests {
                 .unwrap();
 
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
                     segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
@@ -336,7 +336,7 @@ mod tests {
                 .unwrap()
                 .unwrap();
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
                     segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
@@ -446,7 +446,7 @@ mod tests {
                 .unwrap();
 
             assert_eq!(postings.doc_freq(), 2);
-            let fallback_bitset = AliveBitSet::for_test(&[0], 100);
+            let fallback_bitset = AliveBitSet::for_test_from_deleted_docs(&[0], 100);
             assert_eq!(
                 postings.doc_freq_given_deletes(
                     segment_reader.alive_bitset().unwrap_or(&fallback_bitset)
