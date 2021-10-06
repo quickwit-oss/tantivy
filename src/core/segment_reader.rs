@@ -5,7 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
-use crate::fastfield::union_alive_bitset;
+use crate::fastfield::intersect_alive_bitsets;
 use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
@@ -176,27 +176,21 @@ impl SegmentReader {
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
-        let mut num_docs = segment.meta().num_docs();
-        let max_doc = segment.meta().max_doc();
-
-        let alive_bitset_opt = if segment.meta().has_deletes() {
-            let delete_data = segment.open_read(SegmentComponent::Delete)?;
-            let mut alive_bitset = AliveBitSet::open(delete_data.read_bytes()?);
-
-            if let Some(provided_bitset) = custom_bitset {
-                assert_eq!(max_doc, provided_bitset.bitset().max_value());
-                alive_bitset = union_alive_bitset(&alive_bitset, &provided_bitset)?;
-                num_docs = alive_bitset.num_alive_docs() as u32;
-            }
-            Some(alive_bitset)
+        let original_bitset = if segment.meta().has_deletes() {
+            let delete_file_slice = segment.open_read(SegmentComponent::Delete)?;
+            let delete_data = delete_file_slice.read_bytes()?;
+            Some(AliveBitSet::open(delete_data))
         } else {
-            if let Some(provided_bitset) = custom_bitset {
-                num_docs = provided_bitset.num_alive_docs() as u32;
-                Some(provided_bitset)
-            } else {
-                None
-            }
+            None
         };
+
+        let alive_bitset_opt = intersect_alive_bitset(original_bitset, custom_bitset);
+
+        let max_doc = segment.meta().max_doc();
+        let num_docs = alive_bitset_opt
+            .as_ref()
+            .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
+            .unwrap_or(max_doc);
 
         Ok(SegmentReader {
             inv_idx_reader_cache: Default::default(),
@@ -330,6 +324,21 @@ impl SegmentReader {
                 .map(AliveBitSet::space_usage)
                 .unwrap_or(0),
         ))
+    }
+}
+
+fn intersect_alive_bitset(
+    left_opt: Option<AliveBitSet>,
+    right_opt: Option<AliveBitSet>,
+) -> Option<AliveBitSet> {
+    match (left_opt, right_opt) {
+        (Some(left), Some(right)) => {
+            assert_eq!(left.bitset().max_value(), right.bitset().max_value());
+            Some(intersect_alive_bitsets(left, right))
+        }
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
     }
 }
 
