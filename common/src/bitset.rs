@@ -247,12 +247,12 @@ impl BitSet {
     }
 
     /// Intersect with serialized bitset
-    pub fn intersect_with(&mut self, other: &ReadSerializedBitSet) {
-        self.intersect_with_iter(other.iter_tinysets());
+    pub fn intersect_update(&mut self, other: &ReadSerializedBitSet) {
+        self.intersect_update_with_iter(other.iter_tinysets());
     }
 
     /// Intersect with tinysets
-    pub fn intersect_with_iter(&mut self, other: impl Iterator<Item = TinySet>) {
+    fn intersect_update_with_iter(&mut self, other: impl Iterator<Item = TinySet>) {
         self.len = 0;
         for (left, right) in self.tinysets.iter_mut().zip(other) {
             *left = left.intersect(right);
@@ -430,7 +430,7 @@ mod tests {
 
         let mut bitset = BitSet::with_max_value_and_full(5);
         bitset.remove(1);
-        bitset.intersect_with(&bitset_serialized);
+        bitset.intersect_update(&bitset_serialized);
 
         assert!(bitset.contains(0));
         assert!(!bitset.contains(1));
@@ -438,7 +438,7 @@ mod tests {
         assert!(!bitset.contains(3));
         assert!(bitset.contains(4));
 
-        bitset.intersect_with_iter(vec![TinySet::singleton(0)].into_iter());
+        bitset.intersect_update_with_iter(vec![TinySet::singleton(0)].into_iter());
 
         assert!(bitset.contains(0));
         assert!(!bitset.contains(1));
@@ -447,7 +447,7 @@ mod tests {
         assert!(!bitset.contains(4));
         assert_eq!(bitset.len(), 1);
 
-        bitset.intersect_with_iter(vec![TinySet::singleton(1)].into_iter());
+        bitset.intersect_update_with_iter(vec![TinySet::singleton(1)].into_iter());
         assert!(!bitset.contains(0));
         assert!(!bitset.contains(1));
         assert!(!bitset.contains(2));

@@ -167,6 +167,10 @@ impl IndexMerger {
     // will be merged with the existing bit set. Make sure the index
     // corresponds to the segment index.
     //
+    // If `None` is provided for custom alive set, the regular alive set will be used.
+    // If a delete_bitsets is provided, the union between the provided and regular
+    // alive set will be used.
+    //
     // This can be used to merge but also apply an additional filter.
     // One use case is demux, which is basically taking a list of
     // segments and partitions them e.g. by a value in a field.

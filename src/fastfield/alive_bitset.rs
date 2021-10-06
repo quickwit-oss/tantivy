@@ -12,7 +12,7 @@ pub fn union_alive_bitset(left: &AliveBitSet, right: &AliveBitSet) -> crate::Res
     assert_eq!(left.bitset().max_value(), right.bitset().max_value());
 
     let mut merged_bitset = BitSet::deserialize(left.data().as_slice())?;
-    merged_bitset.intersect_with(right.bitset());
+    merged_bitset.intersect_update(right.bitset());
 
     let mut alive_bitset_buffer = vec![];
     write_alive_bitset(&merged_bitset, &mut alive_bitset_buffer)?;

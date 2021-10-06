@@ -2,9 +2,7 @@ use common::BitSet;
 use itertools::Itertools;
 
 use crate::fastfield::AliveBitSet;
-use crate::{
-    merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal, TantivyError,
-};
+use crate::{merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal};
 /// DemuxMapping can be used to reorganize data from multiple segments.
 ///
 /// DemuxMapping is useful in a multitenant settings, in which each document might actually belong to a different tenant.
@@ -91,7 +89,7 @@ fn get_alive_bitsets(
 ) -> Vec<AliveBitSet> {
     let mut bitsets: Vec<_> = max_value_per_segment
         .iter()
-        .map(|max_value| BitSet::with_max_value_and_full(*max_value))
+        .map(|max_value| BitSet::with_max_value(*max_value))
         .collect();
 
     for (old_segment_ordinal, docid_to_new_segment) in demux_mapping.mapping.iter().enumerate() {
@@ -99,11 +97,11 @@ fn get_alive_bitsets(
         for docid in docid_to_new_segment
             .iter()
             .enumerate()
-            .filter(|(_docid, new_segment_ordinal)| *new_segment_ordinal != target_segment_ordinal)
+            .filter(|(_docid, new_segment_ordinal)| *new_segment_ordinal == target_segment_ordinal)
             .map(|(docid, _)| docid)
         {
-            // mark document as deleted if segment ordinal is not target segment ordinal
-            bitset_for_segment.remove(docid as u32);
+            // add document if segment ordinal = target segment ordinal
+            bitset_for_segment.insert(docid as u32);
         }
     }
 
@@ -123,14 +121,13 @@ pub fn demux<Dir: Directory>(
     target_settings: IndexSettings,
     mut output_directories: Vec<Dir>,
 ) -> crate::Result<Vec<Index>> {
-    output_directories.reverse();
     let max_value_per_segment = segments
         .iter()
         .map(|seg| seg.meta().max_doc())
         .collect_vec();
 
     let mut indices = vec![];
-    for target_segment_ordinal in 0..output_directories.len() {
+    for (target_segment_ordinal, output_directory) in output_directories.into_iter().enumerate() {
         let delete_bitsets = get_alive_bitsets(
             demux_mapping,
             target_segment_ordinal as u32,
@@ -144,9 +141,7 @@ pub fn demux<Dir: Directory>(
             segments,
             target_settings.clone(),
             delete_bitsets,
-            output_directories.pop().ok_or_else(|| {
-                TantivyError::InvalidArgument("not enough output_directories provided".to_string())
-            })?,
+            output_directory,
         )?;
         indices.push(index);
     }

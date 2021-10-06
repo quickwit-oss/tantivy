@@ -70,19 +70,6 @@ impl SegmentReader {
         &self.schema
     }
 
-    /// Merges the passed bitset with the existing one.
-    pub fn apply_alive_bitset(&mut self, alive_bitset: AliveBitSet) -> crate::Result<()> {
-        if let Some(existing_bitset) = self.alive_bitset_opt.as_mut() {
-            let merged_bitset = union_alive_bitset(&alive_bitset, existing_bitset)?;
-            self.num_docs = merged_bitset.num_alive_docs() as u32;
-            self.alive_bitset_opt = Some(merged_bitset);
-        } else {
-            self.num_docs = alive_bitset.num_alive_docs() as u32;
-            self.alive_bitset_opt = Some(alive_bitset);
-        }
-        Ok(())
-    }
-
     /// Return the number of documents that have been
     /// deleted in the segment.
     pub fn num_deleted_docs(&self) -> DocId {

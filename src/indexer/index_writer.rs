@@ -165,7 +165,7 @@ pub(crate) fn advance_deletes(
     )?;
 
     if let Some(seg_alive_bitset) = segment_reader.alive_bitset() {
-        alive_bitset.intersect_with(seg_alive_bitset.bitset());
+        alive_bitset.intersect_update(seg_alive_bitset.bitset());
     }
 
     let num_alive_docs: u32 = alive_bitset.len() as u32;
