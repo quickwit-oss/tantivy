@@ -158,8 +158,7 @@ mod tests {
         doc_id_to_segment.set(1, 1);
         demux_mapping.add(doc_id_to_segment);
         {
-            let bit_sets_for_demuxing_to_segment_ord_0 =
-                get_alive_bitsets(&demux_mapping, 0, &[max_value as u32, max_value as u32]);
+            let bit_sets_for_demuxing_to_segment_ord_0 = get_alive_bitsets(&demux_mapping, 0);
 
             assert_eq!(
                 bit_sets_for_demuxing_to_segment_ord_0[0].is_deleted(0),
@@ -180,8 +179,7 @@ mod tests {
         }
 
         {
-            let bit_sets_for_demuxing_to_segment_ord_1 =
-                get_alive_bitsets(&demux_mapping, 1, &[max_value as u32, max_value as u32]);
+            let bit_sets_for_demuxing_to_segment_ord_1 = get_alive_bitsets(&demux_mapping, 1);
 
             assert_eq!(
                 bit_sets_for_demuxing_to_segment_ord_1[0].is_deleted(0),
