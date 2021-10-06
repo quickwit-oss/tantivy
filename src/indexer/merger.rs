@@ -177,19 +177,14 @@ impl IndexMerger {
         alive_bitset_opt: Vec<Option<AliveBitSet>>,
     ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
-        let mut max_doc: u32 = 0u32;
-        for segment in segments {
+        for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt.into_iter()) {
             if segment.meta().num_docs() > 0 {
-                let reader = SegmentReader::open(segment)?;
+                let reader =
+                    SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
                 readers.push(reader);
             }
         }
-        for (reader, new_alive_bitset_opt) in readers.iter_mut().zip(alive_bitset_opt.into_iter()) {
-            if let Some(new_alive_bitset) = new_alive_bitset_opt {
-                reader.apply_alive_bitset(new_alive_bitset)?;
-            }
-            max_doc += reader.num_docs();
-        }
+        let max_doc = readers.iter().map(|reader| reader.num_docs()).sum();
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
             readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;
         }

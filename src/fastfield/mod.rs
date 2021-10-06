@@ -23,7 +23,7 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
-pub use self::alive_bitset::merge_alive_bitset;
+pub use self::alive_bitset::union_alive_bitset;
 pub use self::alive_bitset::write_alive_bitset;
 pub use self::alive_bitset::AliveBitSet;
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};

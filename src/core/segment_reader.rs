@@ -5,7 +5,7 @@ use crate::core::SegmentId;
 use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::error::DataCorruption;
-use crate::fastfield::merge_alive_bitset;
+use crate::fastfield::union_alive_bitset;
 use crate::fastfield::AliveBitSet;
 use crate::fastfield::FacetReader;
 use crate::fastfield::FastFieldReaders;
@@ -73,7 +73,7 @@ impl SegmentReader {
     /// Merges the passed bitset with the existing one.
     pub fn apply_alive_bitset(&mut self, alive_bitset: AliveBitSet) -> crate::Result<()> {
         if let Some(existing_bitset) = self.alive_bitset_opt.as_mut() {
-            let merged_bitset = merge_alive_bitset(&alive_bitset, existing_bitset)?;
+            let merged_bitset = union_alive_bitset(&alive_bitset, existing_bitset)?;
             self.num_docs = merged_bitset.num_alive_docs() as u32;
             self.alive_bitset_opt = Some(merged_bitset);
         } else {
@@ -154,6 +154,14 @@ impl SegmentReader {
 
     /// Open a new segment for reading.
     pub fn open(segment: &Segment) -> crate::Result<SegmentReader> {
+        Self::open_with_custom_alive_set(segment, None)
+    }
+
+    /// Open a new segment for reading.
+    pub fn open_with_custom_alive_set(
+        segment: &Segment,
+        custom_bitset: Option<AliveBitSet>,
+    ) -> crate::Result<SegmentReader> {
         let termdict_file = segment.open_read(SegmentComponent::Terms)?;
         let termdict_composite = CompositeFile::open(&termdict_file)?;
 
@@ -178,22 +186,34 @@ impl SegmentReader {
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
         let fast_field_readers =
             Arc::new(FastFieldReaders::new(schema.clone(), fast_fields_composite));
-
         let fieldnorm_data = segment.open_read(SegmentComponent::FieldNorms)?;
         let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
 
+        let mut num_docs = segment.meta().num_docs();
+        let max_doc = segment.meta().max_doc();
+
         let alive_bitset_opt = if segment.meta().has_deletes() {
-            let alive_bitset_bytes = segment.open_read(SegmentComponent::Delete)?.read_bytes()?;
-            let alive_bitset = AliveBitSet::open(alive_bitset_bytes);
+            let delete_data = segment.open_read(SegmentComponent::Delete)?;
+            let mut alive_bitset = AliveBitSet::open(delete_data.read_bytes()?);
+
+            if let Some(provided_bitset) = custom_bitset {
+                alive_bitset = union_alive_bitset(&alive_bitset, &provided_bitset)?;
+                num_docs = alive_bitset.num_alive_docs() as u32;
+            }
             Some(alive_bitset)
         } else {
-            None
+            if let Some(provided_bitset) = custom_bitset {
+                num_docs = provided_bitset.num_alive_docs() as u32;
+                Some(provided_bitset)
+            } else {
+                None
+            }
         };
 
         Ok(SegmentReader {
             inv_idx_reader_cache: Default::default(),
-            max_doc: segment.meta().max_doc(),
-            num_docs: segment.meta().num_docs(),
+            num_docs,
+            max_doc,
             termdict_composite,
             postings_composite,
             fast_fields_readers: fast_field_readers,

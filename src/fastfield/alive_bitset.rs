@@ -7,19 +7,17 @@ use std::io;
 use std::io::Write;
 
 /// Merges (intersects) two AliveBitSet in a new one.
-pub fn merge_alive_bitset(left: &AliveBitSet, right: &AliveBitSet) -> crate::Result<AliveBitSet> {
-    let (mut merged_bitset, other) = if left.space_usage() > right.space_usage() {
-        (BitSet::deserialize(left.data().as_slice())?, right)
-    } else {
-        (BitSet::deserialize(right.data().as_slice())?, left)
-    };
+/// The two bitsets need to have the same max_value.
+pub fn union_alive_bitset(left: &AliveBitSet, right: &AliveBitSet) -> crate::Result<AliveBitSet> {
+    assert_eq!(left.bitset().max_value(), right.bitset().max_value());
 
-    merged_bitset.intersect_with(other.bitset());
+    let mut merged_bitset = BitSet::deserialize(left.data().as_slice())?;
+    merged_bitset.intersect_with(right.bitset());
 
-    let mut out = vec![];
-    write_alive_bitset(&merged_bitset, &mut out)?;
+    let mut alive_bitset_buffer = vec![];
+    write_alive_bitset(&merged_bitset, &mut alive_bitset_buffer)?;
 
-    Ok(AliveBitSet::open(OwnedBytes::new(out)))
+    Ok(AliveBitSet::open(OwnedBytes::new(alive_bitset_buffer)))
 }
 
 /// Write a alive `BitSet`
