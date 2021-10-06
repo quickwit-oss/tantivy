@@ -16,7 +16,6 @@ pub struct FragmentCandidate {
     score: Score,
     start_offset: usize,
     stop_offset: usize,
-    num_chars: usize,
     highlighted: Vec<Range<usize>>,
 }
 
@@ -31,7 +30,6 @@ impl FragmentCandidate {
             score: 0.0,
             start_offset,
             stop_offset: start_offset,
-            num_chars: 0,
             highlighted: vec![],
         }
     }
