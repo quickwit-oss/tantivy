@@ -18,61 +18,52 @@ use crate::{merge_filtered_segments, Directory, Index, IndexSettings, Segment, S
 /// Seg 2 [TENANT_B, TENANT_B]
 ///
 /// Demuxing is the tool for that.
-/// Semantically you can define a mapping from [old segment ordinal, old docid] -> [new segment ordinal].
+/// Semantically you can define a mapping from [old segment ordinal, old doc_id] -> [new segment ordinal].
 #[derive(Debug, Default)]
 pub struct DemuxMapping {
-    /// [index old segment ordinal] -> [index docid] = new segment ordinal
-    mapping: Vec<DocidToSegmentOrdinal>,
+    /// [index old segment ordinal] -> [index doc_id] = new segment ordinal
+    mapping: Vec<DocIdToSegmentOrdinal>,
 }
 
-/// DocidToSegmentOrdinal maps from docid within a segment to the new segment ordinal for demuxing.
+/// DocIdToSegmentOrdinal maps from doc_id within a segment to the new segment ordinal for demuxing.
 ///
-/// For every source segment there is a `DocidToSegmentOrdinal` to distribute its docids.
+/// For every source segment there is a `DocIdToSegmentOrdinal` to distribute its doc_ids.
 #[derive(Debug, Default)]
-pub struct DocidToSegmentOrdinal {
-    docid_index_to_segment_ordinal: Vec<SegmentOrdinal>,
+pub struct DocIdToSegmentOrdinal {
+    doc_id_index_to_segment_ord: Vec<SegmentOrdinal>,
 }
 
-impl DocidToSegmentOrdinal {
-    /// Creates a new DocidToSegmentOrdinal with size of num_docids.
-    /// Initially all docids point to segment ordinal 0 and need to be set
+impl DocIdToSegmentOrdinal {
+    /// Creates a new DocIdToSegmentOrdinal with size of num_doc_ids.
+    /// Initially all doc_ids point to segment ordinal 0 and need to be set
     /// the via `set` method.
-    pub fn with_num_docs(num_docids: usize) -> Self {
-        let mut vec = vec![];
-        vec.resize(num_docids, 0);
-
-        DocidToSegmentOrdinal {
-            docid_index_to_segment_ordinal: vec,
+    pub fn with_max_doc(max_doc: usize) -> Self {
+        DocIdToSegmentOrdinal {
+            doc_id_index_to_segment_ord: vec![0; max_doc],
         }
     }
 
-    /// Associated a docids with a the new SegmentOrdinal.
-    pub fn set(&mut self, docid: u32, segment_ordinal: SegmentOrdinal) {
-        self.docid_index_to_segment_ordinal[docid as usize] = segment_ordinal;
+    /// Returns the number of documents in this mapping.
+    /// It should be equal to the `max_doc` of the segment it targets.
+    pub fn max_doc(&self) -> u32 {
+        self.doc_id_index_to_segment_ord.len() as u32
     }
 
-    /// Iterates over the new SegmentOrdinal in the order of the docid.
+    /// Associates a doc_id with an output `SegmentOrdinal`.
+    pub fn set(&mut self, doc_id: u32, segment_ord: SegmentOrdinal) {
+        self.doc_id_index_to_segment_ord[doc_id as usize] = segment_ord;
+    }
+
+    /// Iterates over the new SegmentOrdinal in the order of the doc_id.
     pub fn iter(&self) -> impl Iterator<Item = SegmentOrdinal> + '_ {
-        self.docid_index_to_segment_ordinal.iter().cloned()
+        self.doc_id_index_to_segment_ord.iter().cloned()
     }
 }
 
 impl DemuxMapping {
-    /// Creates a new empty DemuxMapping.
-    pub fn empty() -> Self {
-        DemuxMapping {
-            mapping: Default::default(),
-        }
-    }
-
-    /// Creates a DemuxMapping from existing mapping data.
-    pub fn new(mapping: Vec<DocidToSegmentOrdinal>) -> Self {
-        DemuxMapping { mapping }
-    }
-
-    /// Adds a DocidToSegmentOrdinal. The order of the pus calls
+    /// Adds a DocIdToSegmentOrdinal. The order of the pus calls
     /// defines the old segment ordinal. e.g. first push = ordinal 0.
-    pub fn add(&mut self, segment_mapping: DocidToSegmentOrdinal) {
+    pub fn add(&mut self, segment_mapping: DocIdToSegmentOrdinal) {
         self.mapping.push(segment_mapping);
     }
 
@@ -82,32 +73,33 @@ impl DemuxMapping {
     }
 }
 
+fn docs_for_segment_ord(
+    doc_id_to_segment_ord: &DocIdToSegmentOrdinal,
+    target_segment_ord: SegmentOrdinal,
+) -> AliveBitSet {
+    let mut bitset = BitSet::with_max_value(doc_id_to_segment_ord.max_doc());
+    for doc_id in doc_id_to_segment_ord
+        .iter()
+        .enumerate()
+        .filter(|(_doc_id, new_segment_ord)| *new_segment_ord == target_segment_ord)
+        .map(|(doc_id, _)| doc_id)
+    {
+        // add document if segment ordinal = target segment ordinal
+        bitset.insert(doc_id as u32);
+    }
+    AliveBitSet::from_bitset(&bitset)
+}
+
 fn get_alive_bitsets(
     demux_mapping: &DemuxMapping,
-    target_segment_ordinal: SegmentOrdinal,
-    max_value_per_segment: &[u32],
+    target_segment_ord: SegmentOrdinal,
 ) -> Vec<AliveBitSet> {
-    let mut bitsets: Vec<_> = max_value_per_segment
+    demux_mapping
+        .mapping
         .iter()
-        .map(|max_value| BitSet::with_max_value(*max_value))
-        .collect();
-
-    for (old_segment_ordinal, docid_to_new_segment) in demux_mapping.mapping.iter().enumerate() {
-        let bitset_for_segment = &mut bitsets[old_segment_ordinal];
-        for docid in docid_to_new_segment
-            .iter()
-            .enumerate()
-            .filter(|(_docid, new_segment_ordinal)| *new_segment_ordinal == target_segment_ordinal)
-            .map(|(docid, _)| docid)
-        {
-            // add document if segment ordinal = target segment ordinal
-            bitset_for_segment.insert(docid as u32);
-        }
-    }
-
-    bitsets
-        .iter()
-        .map(|bitset| AliveBitSet::from_bitset(bitset))
+        .map(|doc_id_to_segment_ord| {
+            docs_for_segment_ord(doc_id_to_segment_ord, target_segment_ord)
+        })
         .collect_vec()
 }
 
@@ -119,24 +111,14 @@ pub fn demux<Dir: Directory>(
     segments: &[Segment],
     demux_mapping: &DemuxMapping,
     target_settings: IndexSettings,
-    mut output_directories: Vec<Dir>,
+    output_directories: Vec<Dir>,
 ) -> crate::Result<Vec<Index>> {
-    let max_value_per_segment = segments
-        .iter()
-        .map(|seg| seg.meta().max_doc())
-        .collect_vec();
-
     let mut indices = vec![];
-    for (target_segment_ordinal, output_directory) in output_directories.into_iter().enumerate() {
-        let delete_bitsets = get_alive_bitsets(
-            demux_mapping,
-            target_segment_ordinal as u32,
-            &max_value_per_segment,
-        )
-        .into_iter()
-        .map(|bitset| Some(bitset))
-        .collect_vec();
-
+    for (target_segment_ord, output_directory) in output_directories.into_iter().enumerate() {
+        let delete_bitsets = get_alive_bitsets(demux_mapping, target_segment_ord as u32)
+            .into_iter()
+            .map(|bitset| Some(bitset))
+            .collect_vec();
         let index = merge_filtered_segments(
             segments,
             target_settings.clone(),
@@ -161,60 +143,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn demux_map_to_deletebitset_test() {
+    fn test_demux_map_to_deletebitset() {
         let max_value = 2;
         let mut demux_mapping = DemuxMapping::default();
         //segment ordinal 0 mapping
-        let mut docid_to_segment = DocidToSegmentOrdinal::with_num_docs(max_value);
-        docid_to_segment.set(0, 1);
-        docid_to_segment.set(1, 0);
-        demux_mapping.add(docid_to_segment);
+        let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
+        doc_id_to_segment.set(0, 1);
+        doc_id_to_segment.set(1, 0);
+        demux_mapping.add(doc_id_to_segment);
 
         //segment ordinal 1 mapping
-        let mut docid_to_segment = DocidToSegmentOrdinal::with_num_docs(max_value);
-        docid_to_segment.set(0, 1);
-        docid_to_segment.set(1, 1);
-        demux_mapping.add(docid_to_segment);
+        let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
+        doc_id_to_segment.set(0, 1);
+        doc_id_to_segment.set(1, 1);
+        demux_mapping.add(doc_id_to_segment);
         {
-            let bit_sets_for_demuxing_to_segment_ordinal_0 =
+            let bit_sets_for_demuxing_to_segment_ord_0 =
                 get_alive_bitsets(&demux_mapping, 0, &[max_value as u32, max_value as u32]);
 
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_0[0].is_deleted(0),
+                bit_sets_for_demuxing_to_segment_ord_0[0].is_deleted(0),
                 true
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_0[0].is_deleted(1),
+                bit_sets_for_demuxing_to_segment_ord_0[0].is_deleted(1),
                 false
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_0[1].is_deleted(0),
+                bit_sets_for_demuxing_to_segment_ord_0[1].is_deleted(0),
                 true
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_0[1].is_deleted(1),
+                bit_sets_for_demuxing_to_segment_ord_0[1].is_deleted(1),
                 true
             );
         }
 
         {
-            let bit_sets_for_demuxing_to_segment_ordinal_1 =
+            let bit_sets_for_demuxing_to_segment_ord_1 =
                 get_alive_bitsets(&demux_mapping, 1, &[max_value as u32, max_value as u32]);
 
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_1[0].is_deleted(0),
+                bit_sets_for_demuxing_to_segment_ord_1[0].is_deleted(0),
                 false
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_1[0].is_deleted(1),
+                bit_sets_for_demuxing_to_segment_ord_1[0].is_deleted(1),
                 true
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_1[1].is_deleted(0),
+                bit_sets_for_demuxing_to_segment_ord_1[1].is_deleted(0),
                 false
             );
             assert_eq!(
-                bit_sets_for_demuxing_to_segment_ordinal_1[1].is_deleted(1),
+                bit_sets_for_demuxing_to_segment_ord_1[1].is_deleted(1),
                 false
             );
         }
@@ -256,16 +238,16 @@ mod tests {
         {
             let max_value = 2;
             //segment ordinal 0 mapping
-            let mut docid_to_segment = DocidToSegmentOrdinal::with_num_docs(max_value);
-            docid_to_segment.set(0, 1);
-            docid_to_segment.set(1, 0);
-            demux_mapping.add(docid_to_segment);
+            let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
+            doc_id_to_segment.set(0, 1);
+            doc_id_to_segment.set(1, 0);
+            demux_mapping.add(doc_id_to_segment);
 
             //segment ordinal 1 mapping
-            let mut docid_to_segment = DocidToSegmentOrdinal::with_num_docs(max_value);
-            docid_to_segment.set(0, 1);
-            docid_to_segment.set(1, 1);
-            demux_mapping.add(docid_to_segment);
+            let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
+            doc_id_to_segment.set(0, 1);
+            doc_id_to_segment.set(1, 1);
+            demux_mapping.add(doc_id_to_segment);
         }
         assert_eq!(demux_mapping.get_old_num_segments(), 2);
 

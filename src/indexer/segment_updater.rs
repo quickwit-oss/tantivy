@@ -194,7 +194,7 @@ pub fn merge_indices<Dir: Directory>(
 }
 
 /// Advanced: Merges a list of segments from different indices in a new index.
-/// Additional you can provide a delete bitset for each segment to ignore docids.
+/// Additional you can provide a delete bitset for each segment to ignore doc_ids.
 ///
 /// Returns `TantivyError` if the the indices list is empty or their
 /// schemas don't match.
@@ -209,7 +209,7 @@ pub fn merge_indices<Dir: Directory>(
 pub fn merge_filtered_segments<Dir: Directory>(
     segments: &[Segment],
     target_settings: IndexSettings,
-    filter_docids: Vec<Option<AliveBitSet>>,
+    filter_doc_ids: Vec<Option<AliveBitSet>>,
     output_directory: Dir,
 ) -> crate::Result<Index> {
     if segments.is_empty() {
@@ -243,7 +243,7 @@ pub fn merge_filtered_segments<Dir: Directory>(
         merged_index.schema(),
         merged_index.settings().clone(),
         &segments[..],
-        filter_docids,
+        filter_doc_ids,
     )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
     let num_docs = merger.write(segment_serializer)?;
@@ -1051,7 +1051,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_docid_filter_in_merger() -> crate::Result<()> {
+    fn test_apply_doc_id_filter_in_merger() -> crate::Result<()> {
         let first_index = {
             let mut schema_builder = Schema::builder();
             let text_field = schema_builder.add_text_field("text", TEXT);
@@ -1089,8 +1089,8 @@ mod tests {
                 filter_segments,
             )?;
 
-            let docids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
-            assert_eq!(docids_alive, vec![0, 2]);
+            let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
+            assert_eq!(doc_ids_alive, vec![0, 2]);
         }
 
         {
@@ -1108,8 +1108,8 @@ mod tests {
                 filter_segments,
             )?;
 
-            let docids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
-            assert_eq!(docids_alive, vec![0, 1, 2]);
+            let doc_ids_alive: Vec<_> = merger.readers[0].doc_ids_alive().collect();
+            assert_eq!(doc_ids_alive, vec![0, 1, 2]);
         }
 
         Ok(())

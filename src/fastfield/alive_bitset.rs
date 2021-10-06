@@ -55,8 +55,7 @@ impl AliveBitSet {
 
     pub(crate) fn from_bitset(bitset: &BitSet) -> AliveBitSet {
         let mut out = vec![];
-        write_alive_bitset(&bitset, &mut out).unwrap();
-
+        write_alive_bitset(bitset, &mut out).unwrap();
         AliveBitSet::open(OwnedBytes::new(out))
     }
 
@@ -84,7 +83,7 @@ impl AliveBitSet {
         !self.is_alive(doc)
     }
 
-    /// Iterate over the alive docids.
+    /// Iterate over the alive doc_ids.
     #[inline]
     pub fn iter_alive(&self) -> impl Iterator<Item = DocId> + '_ {
         self.bitset.iter()

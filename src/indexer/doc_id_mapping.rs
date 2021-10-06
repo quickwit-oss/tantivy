@@ -11,12 +11,12 @@ use std::{cmp::Reverse, ops::Index};
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocidMapping {
+pub(crate) struct SegmentDocIdMapping {
     new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
     is_trivial: bool,
 }
 
-impl SegmentDocidMapping {
+impl SegmentDocIdMapping {
     pub(crate) fn new(
         new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
         is_trivial: bool,
@@ -40,14 +40,14 @@ impl SegmentDocidMapping {
         self.is_trivial
     }
 }
-impl Index<usize> for SegmentDocidMapping {
+impl Index<usize> for SegmentDocIdMapping {
     type Output = (DocId, SegmentOrdinal);
 
     fn index(&self, idx: usize) -> &Self::Output {
         &self.new_doc_id_to_old_and_segment[idx]
     }
 }
-impl IntoIterator for SegmentDocidMapping {
+impl IntoIterator for SegmentDocIdMapping {
     type Item = (DocId, SegmentOrdinal);
     type IntoIter = std::vec::IntoIter<Self::Item>;
 

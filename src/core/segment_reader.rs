@@ -184,6 +184,7 @@ impl SegmentReader {
             let mut alive_bitset = AliveBitSet::open(delete_data.read_bytes()?);
 
             if let Some(provided_bitset) = custom_bitset {
+                assert_eq!(max_doc, provided_bitset.bitset().max_value());
                 alive_bitset = union_alive_bitset(&alive_bitset, &provided_bitset)?;
                 num_docs = alive_bitset.num_alive_docs() as u32;
             }
