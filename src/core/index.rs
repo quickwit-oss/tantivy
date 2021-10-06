@@ -439,7 +439,7 @@ impl Index {
     /// Creates a multithreaded writer
     ///
     /// Tantivy will automatically define the number of threads to use, but
-    /// no more than [`MAX_NUM_THREAD`] threads.
+    /// no more than 8 threads.
     /// `overall_heap_size_in_bytes` is the total target memory usage that will be split
     /// between a given number of threads.
     ///

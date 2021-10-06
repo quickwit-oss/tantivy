@@ -1,4 +1,5 @@
 use crate::error::DataCorruption;
+use crate::fastfield::AliveBitSet;
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fastfield::DynamicFastFieldReader;
 use crate::fastfield::FastFieldDataAccess;
@@ -9,7 +10,7 @@ use crate::fastfield::MultiValuedFastFieldReader;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::fieldnorm::FieldNormsWriter;
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::indexer::doc_id_mapping::SegmentDocidMapping;
+use crate::indexer::doc_id_mapping::SegmentDocIdMapping;
 use crate::indexer::SegmentSerializer;
 use crate::postings::Postings;
 use crate::postings::{InvertedIndexSerializer, SegmentPostings};
@@ -157,15 +158,37 @@ impl IndexMerger {
         index_settings: IndexSettings,
         segments: &[Segment],
     ) -> crate::Result<IndexMerger> {
+        let delete_bitsets = segments.iter().map(|_| None).collect_vec();
+        Self::open_with_custom_alive_set(schema, index_settings, segments, delete_bitsets)
+    }
+
+    // Create merge with a custom delete set.
+    // For every Segment, a delete bitset can be provided, which
+    // will be merged with the existing bit set. Make sure the index
+    // corresponds to the segment index.
+    //
+    // If `None` is provided for custom alive set, the regular alive set will be used.
+    // If a delete_bitsets is provided, the union between the provided and regular
+    // alive set will be used.
+    //
+    // This can be used to merge but also apply an additional filter.
+    // One use case is demux, which is basically taking a list of
+    // segments and partitions them e.g. by a value in a field.
+    pub fn open_with_custom_alive_set(
+        schema: Schema,
+        index_settings: IndexSettings,
+        segments: &[Segment],
+        alive_bitset_opt: Vec<Option<AliveBitSet>>,
+    ) -> crate::Result<IndexMerger> {
         let mut readers = vec![];
-        let mut max_doc: u32 = 0u32;
-        for segment in segments {
+        for (segment, new_alive_bitset_opt) in segments.iter().zip(alive_bitset_opt.into_iter()) {
             if segment.meta().num_docs() > 0 {
-                let reader = SegmentReader::open(segment)?;
-                max_doc += reader.num_docs();
+                let reader =
+                    SegmentReader::open_with_custom_alive_set(segment, new_alive_bitset_opt)?;
                 readers.push(reader);
             }
         }
+        let max_doc = readers.iter().map(|reader| reader.num_docs()).sum();
         if let Some(sort_by_field) = index_settings.sort_by_field.as_ref() {
             readers = Self::sort_readers_by_min_sort_field(readers, sort_by_field)?;
         }
@@ -213,7 +236,7 @@ impl IndexMerger {
     fn write_fieldnorms(
         &self,
         mut fieldnorms_serializer: FieldNormsSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         let fields = FieldNormsWriter::fields_with_fieldnorm(&self.schema);
         let mut fieldnorms_data = Vec::with_capacity(self.max_doc as usize);
@@ -241,7 +264,7 @@ impl IndexMerger {
         &self,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write_fast_fields");
 
@@ -292,7 +315,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         let (min_value, max_value) = self.readers.iter().map(|reader|{
                 let u64_reader: DynamicFastFieldReader<u64> = reader
@@ -324,17 +347,17 @@ impl IndexMerger {
             num_vals: doc_id_mapping.len() as u64,
         };
         #[derive(Clone)]
-        struct SortedDocidFieldAccessProvider<'a> {
-            doc_id_mapping: &'a SegmentDocidMapping,
+        struct SortedDocIdFieldAccessProvider<'a> {
+            doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<DynamicFastFieldReader<u64>>,
         }
-        impl<'a> FastFieldDataAccess for SortedDocidFieldAccessProvider<'a> {
+        impl<'a> FastFieldDataAccess for SortedDocIdFieldAccessProvider<'a> {
             fn get_val(&self, doc: u64) -> u64 {
                 let (doc_id, reader_ordinal) = self.doc_id_mapping[doc as usize];
                 self.fast_field_readers[reader_ordinal as usize].get(doc_id)
             }
         }
-        let fastfield_accessor = SortedDocidFieldAccessProvider {
+        let fastfield_accessor = SortedDocIdFieldAccessProvider {
             doc_id_mapping,
             fast_field_readers: &fast_field_readers,
         };
@@ -416,7 +439,7 @@ impl IndexMerger {
     pub(crate) fn generate_doc_id_mapping(
         &self,
         sort_by_field: &IndexSortByField,
-    ) -> crate::Result<SegmentDocidMapping> {
+    ) -> crate::Result<SegmentDocIdMapping> {
         let reader_ordinal_and_field_accessors =
             self.get_reader_with_sort_field_accessor(sort_by_field)?;
         // Loading the field accessor on demand causes a 15x regression
@@ -459,7 +482,7 @@ impl IndexMerger {
                 })
                 .map(|(doc_id, reader_with_id, _)| (doc_id, reader_with_id)),
         );
-        Ok(SegmentDocidMapping::new(sorted_doc_ids, false))
+        Ok(SegmentDocIdMapping::new(sorted_doc_ids, false))
     }
 
     // Creating the index file to point into the data, generic over `BytesFastFieldReader` and
@@ -468,7 +491,7 @@ impl IndexMerger {
     fn write_1_n_fast_field_idx_generic<T: MultiValueLength>(
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
         reader_and_field_accessors: &[(&SegmentReader, T)],
     ) -> crate::Result<Vec<u64>> {
         let mut total_num_vals = 0u64;
@@ -527,7 +550,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Vec<u64>> {
         let reader_ordinal_and_field_accessors = self.readers.iter().map(|reader|{
             let u64s_reader: MultiValuedFastFieldReader<u64> = reader.fast_fields()
@@ -549,7 +572,7 @@ impl IndexMerger {
         field: Field,
         term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write_hierarchical_facet_field");
 
@@ -598,7 +621,7 @@ impl IndexMerger {
 
     /// Creates a mapping if the segments are stacked. this is helpful to merge codelines between index
     /// sorting and the others
-    pub(crate) fn get_doc_id_from_concatenated_data(&self) -> crate::Result<SegmentDocidMapping> {
+    pub(crate) fn get_doc_id_from_concatenated_data(&self) -> crate::Result<SegmentDocIdMapping> {
         let total_num_new_docs = self
             .readers
             .iter()
@@ -618,13 +641,13 @@ impl IndexMerger {
                 })
                 .flatten(),
         );
-        Ok(SegmentDocidMapping::new(mapping, true))
+        Ok(SegmentDocIdMapping::new(mapping, true))
     }
     fn write_multi_fast_field(
         &self,
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         // Multifastfield consists in 2 fastfields.
         // The first serves as an index into the second one and is stricly increasing.
@@ -680,16 +703,16 @@ impl IndexMerger {
             min_value,
         };
 
-        struct SortedDocidMultiValueAccessProvider<'a> {
-            doc_id_mapping: &'a SegmentDocidMapping,
+        struct SortedDocIdMultiValueAccessProvider<'a> {
+            doc_id_mapping: &'a SegmentDocIdMapping,
             fast_field_readers: &'a Vec<MultiValuedFastFieldReader<u64>>,
             offsets: Vec<u64>,
         }
-        impl<'a> FastFieldDataAccess for SortedDocidMultiValueAccessProvider<'a> {
+        impl<'a> FastFieldDataAccess for SortedDocIdMultiValueAccessProvider<'a> {
             fn get_val(&self, pos: u64) -> u64 {
                 // use the offsets index to find the doc_id which will contain the position.
                 // the offsets are stricly increasing so we can do a simple search on it.
-                let new_docid = self
+                let new_doc_id = self
                     .offsets
                     .iter()
                     .position(|&offset| offset > pos)
@@ -697,10 +720,10 @@ impl IndexMerger {
                     - 1;
 
                 // now we need to find the position of `pos` in the multivalued bucket
-                let num_pos_covered_until_now = self.offsets[new_docid];
+                let num_pos_covered_until_now = self.offsets[new_doc_id];
                 let pos_in_values = pos - num_pos_covered_until_now;
 
-                let (old_doc_id, reader_ordinal) = self.doc_id_mapping[new_docid as usize];
+                let (old_doc_id, reader_ordinal) = self.doc_id_mapping[new_doc_id as usize];
                 let num_vals = self.fast_field_readers[reader_ordinal as usize].get_len(old_doc_id);
                 assert!(num_vals >= pos_in_values);
                 let mut vals = vec![];
@@ -709,7 +732,7 @@ impl IndexMerger {
                 vals[pos_in_values as usize]
             }
         }
-        let fastfield_accessor = SortedDocidMultiValueAccessProvider {
+        let fastfield_accessor = SortedDocIdMultiValueAccessProvider {
             doc_id_mapping,
             fast_field_readers: &ff_readers,
             offsets,
@@ -748,7 +771,7 @@ impl IndexMerger {
         &self,
         field: Field,
         fast_field_serializer: &mut CompositeFastFieldSerializer,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         let reader_and_field_accessors = self
             .readers
@@ -784,7 +807,7 @@ impl IndexMerger {
         field_type: &FieldType,
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_reader: Option<FieldNormReader>,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<Option<TermOrdinalMapping>> {
         debug_time!("write_postings_for_field");
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
@@ -823,8 +846,8 @@ impl IndexMerger {
                 segment_local_map
             })
             .collect();
-        for (new_doc_id, (old_doc_id, segment_ordinal)) in doc_id_mapping.iter().enumerate() {
-            let segment_map = &mut merged_doc_id_map[*segment_ordinal as usize];
+        for (new_doc_id, (old_doc_id, segment_ord)) in doc_id_mapping.iter().enumerate() {
+            let segment_map = &mut merged_doc_id_map[*segment_ord as usize];
             segment_map[*old_doc_id as usize] = Some(new_doc_id as DocId);
         }
 
@@ -866,7 +889,7 @@ impl IndexMerger {
             let mut total_doc_freq = 0;
 
             // Let's compute the list of non-empty posting lists
-            for (segment_ord, term_info) in merged_terms.current_segment_ordinals_and_term_infos() {
+            for (segment_ord, term_info) in merged_terms.current_segment_ords_and_term_infos() {
                 let segment_reader = &self.readers[segment_ord];
                 let inverted_index: &InvertedIndexReader = &*field_readers[segment_ord];
                 let segment_postings = inverted_index
@@ -916,9 +939,9 @@ impl IndexMerger {
                         // there is at least one document.
                         let term_freq = segment_postings.term_freq();
                         segment_postings.positions(&mut positions_buffer);
-                        // if doc_id_mapping exists, the docids are reordered, they are
+                        // if doc_id_mapping exists, the doc_ids are reordered, they are
                         // not just stacked. The field serializer expects monotonically increasing
-                        // docids, so we collect and sort them first, before writing.
+                        // doc_ids, so we collect and sort them first, before writing.
                         //
                         // I think this is not strictly necessary, it would be possible to
                         // avoid the loading into a vec via some form of kmerge, but then the merge
@@ -958,7 +981,7 @@ impl IndexMerger {
         &self,
         serializer: &mut InvertedIndexSerializer,
         fieldnorm_readers: FieldNormReaders,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<HashMap<Field, TermOrdinalMapping>> {
         let mut term_ordinal_mappings = HashMap::new();
         for (field, field_entry) in self.schema.fields() {
@@ -981,7 +1004,7 @@ impl IndexMerger {
     fn write_storable_fields(
         &self,
         store_writer: &mut StoreWriter,
-        doc_id_mapping: &SegmentDocidMapping,
+        doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write_storable_fields");
 
@@ -1573,7 +1596,7 @@ mod tests {
 
     #[test]
     fn test_merge_facets_sort_asc() {
-        // In the merge case this will go through the docid mapping code
+        // In the merge case this will go through the doc_id mapping code
         test_merge_facets(
             Some(IndexSettings {
                 sort_by_field: Some(IndexSortByField {
@@ -1584,7 +1607,7 @@ mod tests {
             }),
             true,
         );
-        // In the merge case this will not go through the docid mapping code, because the data is
+        // In the merge case this will not go through the doc_id mapping code, because the data is
         // sorted and disjunct
         test_merge_facets(
             Some(IndexSettings {
@@ -1600,7 +1623,7 @@ mod tests {
 
     #[test]
     fn test_merge_facets_sort_desc() {
-        // In the merge case this will go through the docid mapping code
+        // In the merge case this will go through the doc_id mapping code
         test_merge_facets(
             Some(IndexSettings {
                 sort_by_field: Some(IndexSortByField {
@@ -1611,7 +1634,7 @@ mod tests {
             }),
             true,
         );
-        // In the merge case this will not go through the docid mapping code, because the data is
+        // In the merge case this will not go through the doc_id mapping code, because the data is
         // sorted and disjunct
         test_merge_facets(
             Some(IndexSettings {

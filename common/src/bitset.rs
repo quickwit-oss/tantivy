@@ -192,7 +192,6 @@ impl BitSet {
 
     /// Deserialize a `BitSet`.
     ///
-    #[cfg(test)]
     pub fn deserialize(mut data: &[u8]) -> io::Result<Self> {
         let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
         data = &data[4..];
@@ -247,7 +246,22 @@ impl BitSet {
         }
     }
 
+    /// Intersect with serialized bitset
+    pub fn intersect_update(&mut self, other: &ReadSerializedBitSet) {
+        self.intersect_update_with_iter(other.iter_tinysets());
+    }
+
+    /// Intersect with tinysets
+    fn intersect_update_with_iter(&mut self, other: impl Iterator<Item = TinySet>) {
+        self.len = 0;
+        for (left, right) in self.tinysets.iter_mut().zip(other) {
+            *left = left.intersect(right);
+            self.len += left.len() as u64;
+        }
+    }
+
     /// Returns the number of elements in the `BitSet`.
+    #[inline]
     pub fn len(&self) -> usize {
         self.len as usize
     }
@@ -297,6 +311,7 @@ impl BitSet {
             .map(|delta_bucket| bucket + delta_bucket as u32)
     }
 
+    #[inline]
     pub fn max_value(&self) -> u32 {
         self.max_value
     }
@@ -334,7 +349,7 @@ impl ReadSerializedBitSet {
     /// Iterate the tinyset on the fly from serialized data.
     ///
     #[inline]
-    fn iter_tinysets<'a>(&'a self) -> impl Iterator<Item = TinySet> + 'a {
+    fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
         assert!((self.data.len()) % 8 == 0);
         self.data.chunks_exact(8).map(move |chunk| {
             let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
@@ -399,6 +414,46 @@ mod tests {
 
         let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
         assert_eq!(bitset.len(), 4);
+    }
+
+    #[test]
+    fn test_bitset_intersect() {
+        let bitset_serialized = {
+            let mut bitset = BitSet::with_max_value_and_full(5);
+            bitset.remove(1);
+            bitset.remove(3);
+            let mut out = vec![];
+            bitset.serialize(&mut out).unwrap();
+
+            ReadSerializedBitSet::open(OwnedBytes::new(out))
+        };
+
+        let mut bitset = BitSet::with_max_value_and_full(5);
+        bitset.remove(1);
+        bitset.intersect_update(&bitset_serialized);
+
+        assert!(bitset.contains(0));
+        assert!(!bitset.contains(1));
+        assert!(bitset.contains(2));
+        assert!(!bitset.contains(3));
+        assert!(bitset.contains(4));
+
+        bitset.intersect_update_with_iter(vec![TinySet::singleton(0)].into_iter());
+
+        assert!(bitset.contains(0));
+        assert!(!bitset.contains(1));
+        assert!(!bitset.contains(2));
+        assert!(!bitset.contains(3));
+        assert!(!bitset.contains(4));
+        assert_eq!(bitset.len(), 1);
+
+        bitset.intersect_update_with_iter(vec![TinySet::singleton(1)].into_iter());
+        assert!(!bitset.contains(0));
+        assert!(!bitset.contains(1));
+        assert!(!bitset.contains(2));
+        assert!(!bitset.contains(3));
+        assert!(!bitset.contains(4));
+        assert_eq!(bitset.len(), 0);
     }
 
     #[test]

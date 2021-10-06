@@ -1,5 +1,6 @@
 pub mod delete_queue;
 
+pub mod demuxer;
 pub mod doc_id_mapping;
 mod doc_opstamp_mapping;
 pub mod index_writer;
@@ -26,7 +27,8 @@ pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub use self::segment_manager::SegmentManager;
 pub use self::segment_serializer::SegmentSerializer;
-pub use self::segment_updater::merge_segments;
+pub use self::segment_updater::merge_filtered_segments;
+pub use self::segment_updater::merge_indices;
 pub use self::segment_writer::SegmentWriter;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.

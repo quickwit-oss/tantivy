@@ -77,7 +77,7 @@ impl<'a> TermMerger<'a> {
     /// This method may be called
     /// iff advance() has been called before
     /// and "true" was returned.
-    pub fn current_segment_ordinals_and_term_infos<'b: 'a>(
+    pub fn current_segment_ords_and_term_infos<'b: 'a>(
         &'b self,
     ) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
         self.current_segment_and_term_ordinals

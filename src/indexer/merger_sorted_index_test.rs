@@ -554,7 +554,7 @@ mod bench_sorted_index_merge {
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
                 (doc_id, reader, u64_reader)
             });
-            // add values in order of the new docids
+            // add values in order of the new doc_ids
             let mut val = 0;
             for (doc_id, _reader, field_reader) in sorted_doc_ids {
                 val = field_reader.get(*doc_id);
@@ -567,7 +567,7 @@ mod bench_sorted_index_merge {
         Ok(())
     }
     #[bench]
-    fn create_sorted_index_create_docid_mapping(b: &mut Bencher) -> crate::Result<()> {
+    fn create_sorted_index_create_doc_id_mapping(b: &mut Bencher) -> crate::Result<()> {
         let sort_by_field = IndexSortByField {
             field: "intval".to_string(),
             order: Order::Desc,

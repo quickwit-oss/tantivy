@@ -88,7 +88,7 @@ impl Searcher {
         &self.segment_readers
     }
 
-    /// Returns the segment_reader associated with the given segment_ordinal
+    /// Returns the segment_reader associated with the given segment_ord
     pub fn segment_reader(&self, segment_ord: u32) -> &SegmentReader {
         &self.segment_readers[segment_ord as usize]
     }

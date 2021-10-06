@@ -151,7 +151,7 @@ impl StoreReader {
         &'b self,
         alive_bitset: Option<&'a AliveBitSet>,
     ) -> impl Iterator<Item = crate::Result<OwnedBytes>> + 'b {
-        let last_docid = self
+        let last_doc_id = self
             .block_checkpoints()
             .last()
             .map(|checkpoint| checkpoint.doc_range.end)
@@ -164,7 +164,7 @@ impl StoreReader {
         let mut block_start_pos = 0;
         let mut num_skipped = 0;
         let mut reset_block_pos = false;
-        (0..last_docid)
+        (0..last_doc_id)
             .filter_map(move |doc_id| {
                 // filter_map is only used to resolve lifetime issues between the two closures on
                 // the outer variables

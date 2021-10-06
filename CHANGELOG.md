@@ -1,6 +1,7 @@
 Tantivy 0.16.1
 ========================
 - Major Bugfix on multivalued fastfield.  #1151
+- Demux operation (@PSeitz)
 
 Tantivy 0.16.0
 =========================
