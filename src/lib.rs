@@ -11,6 +11,8 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 
+#![feature(async_closure)]
+
 //! # `tantivy`
 //!
 //! Tantivy is a search engine library.
@@ -125,6 +127,8 @@ mod macros;
 
 pub use crate::error::TantivyError;
 pub use chrono;
+
+pub const PKG_JS: &'static str = "./pkg/pool_exec.js"; // path to `wasm-bindgen`'s JS binding
 
 /// Tantivy result.
 ///

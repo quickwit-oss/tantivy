@@ -29,9 +29,12 @@ use futures::executor::block_on;
 use futures::future::Future;
 use smallvec::smallvec;
 use smallvec::SmallVec;
+use wasm_mt_pool::pool_exec;
+use wasm_mt::prelude::*;
 use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
+use wasm_mt_pool::prelude::*;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -75,7 +78,7 @@ pub struct IndexWriter {
 
     heap_size_in_bytes_per_thread: usize,
 
-    workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
+    workers_join_handle: Vec<JoinHandle<Result<JsValue, JsValue>>>,
 
     operation_receiver: OperationReceiver,
     operation_sender: OperationSender,
@@ -90,6 +93,8 @@ pub struct IndexWriter {
 
     stamper: Stamper,
     committed_opstamp: Opstamp,
+
+    worker_pool: wasm_mt_pool::ThreadPool,
 }
 
 fn compute_deleted_bitset(
@@ -318,6 +323,7 @@ impl IndexWriter {
         let segment_updater =
             SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
 
+        let worker_pool = block_on(wasm_mt_pool::ThreadPool::new(num_threads, crate::PKG_JS).and_init()).unwrap();
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
 
@@ -338,6 +344,7 @@ impl IndexWriter {
             stamper,
 
             worker_id: 0,
+            worker_pool,
         };
         index_writer.start_workers()?;
         Ok(index_writer)
@@ -411,9 +418,8 @@ impl IndexWriter {
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
         let index = self.index.clone();
-        let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
-            .name(format!("thrd-tantivy-index{}", self.worker_id))
-            .spawn(move || {
+        let join_handle: JoinHandle<crate::Result<_>> = pool_exec!(self.worker_pool,
+            move || {
                 loop {
                     let mut document_iterator =
                         document_receiver_clone.clone().into_iter().peekable();

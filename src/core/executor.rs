@@ -1,5 +1,4 @@
 use crossbeam::channel;
-use rayon::{ThreadPool, ThreadPoolBuilder};
 
 /// Search executor whether search request are single thread or multithread.
 ///
@@ -11,23 +10,12 @@ use rayon::{ThreadPool, ThreadPoolBuilder};
 pub enum Executor {
     /// Single thread variant of an Executor
     SingleThread,
-    /// Thread pool variant of an Executor
-    ThreadPool(ThreadPool),
 }
 
 impl Executor {
     /// Creates an Executor that performs all task in the caller thread.
     pub fn single_thread() -> Executor {
         Executor::SingleThread
-    }
-
-    /// Creates an Executor that dispatches the tasks in a thread pool.
-    pub fn multi_thread(num_threads: usize, prefix: &'static str) -> crate::Result<Executor> {
-        let pool = ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .thread_name(move |num| format!("{}{}", prefix, num))
-            .build()?;
-        Ok(Executor::ThreadPool(pool))
     }
 
     /// Perform a map in the thread pool.
@@ -46,40 +34,6 @@ impl Executor {
     ) -> crate::Result<Vec<R>> {
         match self {
             Executor::SingleThread => args.map(f).collect::<crate::Result<_>>(),
-            Executor::ThreadPool(pool) => {
-                let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
-                let num_fruits = args_with_indices.len();
-                let fruit_receiver = {
-                    let (fruit_sender, fruit_receiver) = channel::unbounded();
-                    pool.scope(|scope| {
-                        for arg_with_idx in args_with_indices {
-                            scope.spawn(|_| {
-                                let (idx, arg) = arg_with_idx;
-                                let fruit = f(arg);
-                                if let Err(err) = fruit_sender.send((idx, fruit)) {
-                                    error!("Failed to send search task. It probably means all search threads have panicked. {:?}", err);
-                                }
-                            });
-                        }
-                    });
-                    fruit_receiver
-                    // This ends the scope of fruit_sender.
-                    // This is important as it makes it possible for the fruit_receiver iteration to
-                    // terminate.
-                };
-                // This is lame, but safe.
-                let mut results_with_position = Vec::with_capacity(num_fruits);
-                for (pos, fruit_res) in fruit_receiver {
-                    let fruit = fruit_res?;
-                    results_with_position.push((pos, fruit));
-                }
-                results_with_position.sort_by_key(|(pos, _)| *pos);
-                assert_eq!(results_with_position.len(), num_fruits);
-                Ok(results_with_position
-                    .into_iter()
-                    .map(|(_, fruit)| fruit)
-                    .collect::<Vec<_>>())
-            }
         }
     }
 }
