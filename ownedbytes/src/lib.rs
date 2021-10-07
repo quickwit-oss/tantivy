@@ -76,6 +76,19 @@ impl OwnedBytes {
         (left, right)
     }
 
+    /// Splits the right part of the `OwnedBytes` at the given offset.
+    ///
+    /// `self` is truncated to `split_len`, left with the remaining bytes.
+    pub fn split_off(&mut self, split_len: usize) -> OwnedBytes {
+        let right_box_stable_deref = self.box_stable_deref.clone();
+        let right_piece = OwnedBytes {
+            data: &self.data[split_len..],
+            box_stable_deref: right_box_stable_deref,
+        };
+        self.data = &self.data[..split_len];
+        right_piece
+    }
+
     /// Returns true iff this `OwnedBytes` is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -121,6 +134,35 @@ impl fmt::Debug for OwnedBytes {
             self.as_slice()
         };
         write!(f, "OwnedBytes({:?}, len={})", bytes_truncated, self.len())
+    }
+}
+
+impl PartialEq for OwnedBytes {
+    fn eq(&self, other: &OwnedBytes) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for OwnedBytes {}
+
+impl PartialEq<[u8]> for OwnedBytes {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_slice() == other
+    }
+}
+
+impl PartialEq<str> for OwnedBytes {
+    fn eq(&self, other: &str) -> bool {
+        self.as_slice() == other.as_bytes()
+    }
+}
+
+impl<'a, T: ?Sized> PartialEq<&'a T> for OwnedBytes
+where
+    OwnedBytes: PartialEq<T>,
+{
+    fn eq(&self, other: &&'a T) -> bool {
+        *self == **other
     }
 }
 
@@ -286,5 +328,15 @@ mod tests {
             assert_eq!(left.as_slice(), b"abcdefghi");
             assert_eq!(right.as_slice(), b"");
         }
+    }
+
+    #[test]
+    fn test_split_off() {
+        let mut data = OwnedBytes::new(b"abcdef".as_ref());
+        assert_eq!(data, "abcdef");
+        assert_eq!(data.split_off(2), "cdef");
+        assert_eq!(data, "ab");
+        assert_eq!(data.split_off(1), "b");
+        assert_eq!(data, "a");
     }
 }

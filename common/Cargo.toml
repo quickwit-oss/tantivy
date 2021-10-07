@@ -10,7 +10,7 @@ description = "common traits and utility functions used by multiple tantivy subc
 
 [dependencies]
 byteorder = "1.4.3"
-ownedbytes = { version="0.1", path="../ownedbytes" }
+ownedbytes = { version="0.2", path="../ownedbytes" }
 
 [dev-dependencies]
 proptest = "1.0.0"
