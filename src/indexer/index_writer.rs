@@ -233,7 +233,7 @@ fn index_documents(
 /// `doc_opstamps` is required to be non-empty.
 fn apply_deletes(
     segment: &Segment,
-    mut delete_cursor: &mut DeleteCursor,
+    delete_cursor: &mut DeleteCursor,
     doc_opstamps: &[Opstamp],
 ) -> crate::Result<Option<BitSet>> {
     if delete_cursor.get().is_none() {
@@ -256,7 +256,7 @@ fn apply_deletes(
     let may_have_deletes = compute_deleted_bitset(
         &mut deleted_bitset,
         &segment_reader,
-        &mut delete_cursor,
+        delete_cursor,
         &doc_to_opstamps,
         max_doc_opstamp,
     )?;

@@ -117,7 +117,7 @@ pub fn demux<Dir: Directory>(
     for (target_segment_ord, output_directory) in output_directories.into_iter().enumerate() {
         let delete_bitsets = get_alive_bitsets(demux_mapping, target_segment_ord as u32)
             .into_iter()
-            .map(|bitset| Some(bitset))
+            .map(Some)
             .collect_vec();
         let index = merge_filtered_segments(
             segments,

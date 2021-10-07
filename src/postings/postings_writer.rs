@@ -33,7 +33,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                     SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
                 }
             })
-            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
+            .unwrap_or_else(SpecializedPostingsWriter::<NothingRecorder>::new_boxed),
         FieldType::U64(_)
         | FieldType::I64(_)
         | FieldType::F64(_)

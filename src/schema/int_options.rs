@@ -15,7 +15,7 @@ pub enum Cardinality {
 }
 
 /// Define how an u64, i64, of f64 field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct IntOptions {
     indexed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,16 +76,6 @@ impl IntOptions {
     /// the method returns None.
     pub fn get_fastfield_cardinality(&self) -> Option<Cardinality> {
         self.fast
-    }
-}
-
-impl Default for IntOptions {
-    fn default() -> IntOptions {
-        IntOptions {
-            indexed: false,
-            stored: false,
-            fast: None,
-        }
     }
 }
 

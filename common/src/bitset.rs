@@ -36,10 +36,14 @@ impl TinySet {
         writer.write_all(self.0.to_le_bytes().as_ref())
     }
 
+    pub fn into_bytes(self) -> [u8; 8] {
+        self.0.to_le_bytes()
+    }
+
     #[inline]
-    pub fn deserialize(data: [u8; 8]) -> io::Result<Self> {
+    pub fn deserialize(data: [u8; 8]) -> Self {
         let val: u64 = u64::from_le_bytes(data);
-        Ok(TinySet(val))
+        TinySet(val)
     }
 
     /// Returns an empty `TinySet`.
@@ -182,32 +186,11 @@ impl BitSet {
     ///
     pub fn serialize<T: Write>(&self, writer: &mut T) -> io::Result<()> {
         writer.write_all(self.max_value.to_le_bytes().as_ref())?;
-
-        for tinyset in self.tinysets.iter() {
-            tinyset.serialize(writer)?;
+        for tinyset in self.tinysets.iter().cloned() {
+            writer.write_all(&tinyset.into_bytes())?;
         }
         writer.flush()?;
         Ok(())
-    }
-
-    /// Deserialize a `BitSet`.
-    ///
-    pub fn deserialize(mut data: &[u8]) -> io::Result<Self> {
-        let max_value: u32 = u32::from_le_bytes(data[..4].try_into().unwrap());
-        data = &data[4..];
-
-        let mut len: u64 = 0;
-        let mut tinysets = vec![];
-        for chunk in data.chunks_exact(8) {
-            let tinyset = TinySet::deserialize(chunk.try_into().unwrap())?;
-            len += tinyset.len() as u64;
-            tinysets.push(tinyset);
-        }
-        Ok(BitSet {
-            tinysets: tinysets.into_boxed_slice(),
-            len,
-            max_value,
-        })
     }
 
     /// Create a new `BitSet` that may contain elements
@@ -247,7 +230,7 @@ impl BitSet {
     }
 
     /// Intersect with serialized bitset
-    pub fn intersect_update(&mut self, other: &ReadSerializedBitSet) {
+    pub fn intersect_update(&mut self, other: &ReadOnlyBitSet) {
         self.intersect_update_with_iter(other.iter_tinysets());
     }
 
@@ -326,16 +309,34 @@ impl BitSet {
 
 /// Serialized BitSet.
 #[derive(Clone)]
-pub struct ReadSerializedBitSet {
+pub struct ReadOnlyBitSet {
     data: OwnedBytes,
     max_value: u32,
 }
 
-impl ReadSerializedBitSet {
+pub fn intersect_bitsets(left: &ReadOnlyBitSet, other: &ReadOnlyBitSet) -> ReadOnlyBitSet {
+    assert_eq!(left.max_value(), other.max_value());
+    assert_eq!(left.data.len(), other.data.len());
+    let union_tinyset_it = left
+        .iter_tinysets()
+        .zip(other.iter_tinysets())
+        .map(|(left_tinyset, right_tinyset)| left_tinyset.intersect(right_tinyset));
+    let mut output_dataset: Vec<u8> = Vec::with_capacity(left.data.len());
+    for tinyset in union_tinyset_it {
+        output_dataset.extend_from_slice(&tinyset.into_bytes());
+    }
+    ReadOnlyBitSet {
+        data: OwnedBytes::new(output_dataset),
+        max_value: left.max_value(),
+    }
+}
+
+impl ReadOnlyBitSet {
     pub fn open(data: OwnedBytes) -> Self {
         let (max_value_data, data) = data.split(4);
+        assert_eq!(data.len() % 8, 0);
         let max_value: u32 = u32::from_le_bytes(max_value_data.as_ref().try_into().unwrap());
-        ReadSerializedBitSet { data, max_value }
+        ReadOnlyBitSet { data, max_value }
     }
 
     /// Number of elements in the bitset.
@@ -350,9 +351,8 @@ impl ReadSerializedBitSet {
     ///
     #[inline]
     fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
-        assert!((self.data.len()) % 8 == 0);
         self.data.chunks_exact(8).map(move |chunk| {
-            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap()).unwrap();
+            let tinyset: TinySet = TinySet::deserialize(chunk.try_into().unwrap());
             tinyset
         })
     }
@@ -360,7 +360,7 @@ impl ReadSerializedBitSet {
     /// Iterate over the positions of the elements.
     ///
     #[inline]
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = u32> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.iter_tinysets()
             .enumerate()
             .flat_map(move |(chunk_num, tinyset)| {
@@ -390,20 +390,34 @@ impl ReadSerializedBitSet {
     pub fn max_value(&self) -> u32 {
         self.max_value
     }
+
+    /// Number of bytes used in the bitset representation.
+    pub fn num_bytes(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl<'a> From<&'a BitSet> for ReadOnlyBitSet {
+    fn from(bitset: &'a BitSet) -> ReadOnlyBitSet {
+        let mut buffer = Vec::with_capacity(bitset.tinysets.len() * 8 + 4);
+        bitset
+            .serialize(&mut buffer)
+            .expect("serializing into a buffer should never fail");
+        ReadOnlyBitSet::open(OwnedBytes::new(buffer))
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::BitSet;
-    use super::ReadSerializedBitSet;
+    use super::ReadOnlyBitSet;
     use super::TinySet;
     use ownedbytes::OwnedBytes;
     use rand::distributions::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
-    use std::convert::TryInto;
 
     #[test]
     fn test_read_serialized_bitset_full() {
@@ -412,7 +426,7 @@ mod tests {
         let mut out = vec![];
         bitset.serialize(&mut out).unwrap();
 
-        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+        let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
         assert_eq!(bitset.len(), 4);
     }
 
@@ -425,7 +439,7 @@ mod tests {
             let mut out = vec![];
             bitset.serialize(&mut out).unwrap();
 
-            ReadSerializedBitSet::open(OwnedBytes::new(out))
+            ReadOnlyBitSet::open(OwnedBytes::new(out))
         };
 
         let mut bitset = BitSet::with_max_value_and_full(5);
@@ -463,14 +477,14 @@ mod tests {
         let mut out = vec![];
         bitset.serialize(&mut out).unwrap();
 
-        let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+        let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
         assert_eq!(bitset.len(), 1);
 
         {
             let bitset = BitSet::with_max_value(5);
             let mut out = vec![];
             bitset.serialize(&mut out).unwrap();
-            let bitset = ReadSerializedBitSet::open(OwnedBytes::new(out));
+            let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
             assert_eq!(bitset.len(), 0);
         }
     }
@@ -534,13 +548,9 @@ mod tests {
             assert!(u.pop_lowest().is_none());
         }
         {
-            let u = TinySet::empty().insert(63u32).insert(5);
-            let mut data = vec![];
-            u.serialize(&mut data).unwrap();
-            let mut u = TinySet::deserialize(data[..8].try_into().unwrap()).unwrap();
-            assert_eq!(u.pop_lowest(), Some(5u32));
-            assert_eq!(u.pop_lowest(), Some(63u32));
-            assert!(u.pop_lowest().is_none());
+            let original = TinySet::empty().insert(63u32).insert(5);
+            let after_serialize_deserialize = TinySet::deserialize(original.into_bytes());
+            assert_eq!(original, after_serialize_deserialize);
         }
     }
 
@@ -562,12 +572,12 @@ mod tests {
             // test deser
             let mut data = vec![];
             bitset.serialize(&mut data).unwrap();
-            let bitset = BitSet::deserialize(&data).unwrap();
+            let ro_bitset = ReadOnlyBitSet::open(OwnedBytes::new(data));
             for el in 0..max_value {
-                assert_eq!(hashset.contains(&el), bitset.contains(el));
+                assert_eq!(hashset.contains(&el), ro_bitset.contains(el));
             }
-            assert_eq!(bitset.max_value(), max_value);
-            assert_eq!(bitset.len(), els.len());
+            assert_eq!(ro_bitset.max_value(), max_value);
+            assert_eq!(ro_bitset.len(), els.len());
         };
 
         test_against_hashset(&[], 0);

@@ -1,24 +1,11 @@
 use crate::space_usage::ByteCount;
 use crate::DocId;
+use common::intersect_bitsets;
 use common::BitSet;
-use common::ReadSerializedBitSet;
+use common::ReadOnlyBitSet;
 use ownedbytes::OwnedBytes;
 use std::io;
 use std::io::Write;
-
-/// Merges (intersects) two AliveBitSet in a new one.
-/// The two bitsets need to have the same max_value.
-pub fn union_alive_bitset(left: &AliveBitSet, right: &AliveBitSet) -> crate::Result<AliveBitSet> {
-    assert_eq!(left.bitset().max_value(), right.bitset().max_value());
-
-    let mut merged_bitset = BitSet::deserialize(left.data().as_slice())?;
-    merged_bitset.intersect_update(right.bitset());
-
-    let mut alive_bitset_buffer = vec![];
-    write_alive_bitset(&merged_bitset, &mut alive_bitset_buffer)?;
-
-    Ok(AliveBitSet::open(OwnedBytes::new(alive_bitset_buffer)))
-}
 
 /// Write a alive `BitSet`
 ///
@@ -34,9 +21,19 @@ pub fn write_alive_bitset<T: Write>(alive_bitset: &BitSet, writer: &mut T) -> io
 #[derive(Clone)]
 pub struct AliveBitSet {
     num_alive_docs: usize,
-    bitset: ReadSerializedBitSet,
-    num_bytes: ByteCount,
-    data: OwnedBytes,
+    bitset: ReadOnlyBitSet,
+}
+
+/// Intersects two AliveBitSets in a new one.
+/// The two bitsets need to have the same max_value.
+pub fn intersect_alive_bitsets(left: AliveBitSet, right: AliveBitSet) -> AliveBitSet {
+    assert_eq!(left.bitset().max_value(), right.bitset().max_value());
+    let bitset = intersect_bitsets(left.bitset(), right.bitset());
+    let num_alive_docs = bitset.len();
+    AliveBitSet {
+        num_alive_docs,
+        bitset,
+    }
 }
 
 impl AliveBitSet {
@@ -54,21 +51,14 @@ impl AliveBitSet {
     }
 
     pub(crate) fn from_bitset(bitset: &BitSet) -> AliveBitSet {
-        let mut out = vec![];
-        write_alive_bitset(bitset, &mut out).unwrap();
-        AliveBitSet::open(OwnedBytes::new(out))
+        let readonly_bitset = ReadOnlyBitSet::from(bitset);
+        AliveBitSet::from(readonly_bitset)
     }
 
     /// Opens a delete bitset given its file.
     pub fn open(bytes: OwnedBytes) -> AliveBitSet {
-        let num_bytes = bytes.len();
-        let bitset = ReadSerializedBitSet::open(bytes.clone());
-        AliveBitSet {
-            num_alive_docs: bitset.len(),
-            bitset,
-            num_bytes,
-            data: bytes,
-        }
+        let bitset = ReadOnlyBitSet::open(bytes);
+        AliveBitSet::from(bitset)
     }
 
     /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
@@ -91,7 +81,7 @@ impl AliveBitSet {
 
     /// Get underlying bitset
     #[inline]
-    pub fn bitset(&self) -> &ReadSerializedBitSet {
+    pub fn bitset(&self) -> &ReadOnlyBitSet {
         &self.bitset
     }
 
@@ -102,12 +92,17 @@ impl AliveBitSet {
 
     /// Summarize total space usage of this bitset.
     pub fn space_usage(&self) -> ByteCount {
-        self.num_bytes
+        self.bitset().num_bytes()
     }
+}
 
-    /// Get underlying bytes.
-    pub(crate) fn data(&self) -> OwnedBytes {
-        self.data.clone()
+impl From<ReadOnlyBitSet> for AliveBitSet {
+    fn from(bitset: ReadOnlyBitSet) -> AliveBitSet {
+        let num_alive_docs = bitset.len();
+        AliveBitSet {
+            num_alive_docs,
+            bitset,
+        }
     }
 }
 
