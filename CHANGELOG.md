@@ -1,3 +1,7 @@
+Tantivy 0.16.2
+================================
+- Bugfix in FuzzyTermQuery. (tranposition_cost_one was not doing anything)
+
 Tantivy 0.16.1
 ========================
 - Major Bugfix on multivalued fastfield.  #1151

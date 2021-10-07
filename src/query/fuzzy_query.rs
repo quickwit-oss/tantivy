@@ -129,7 +129,7 @@ impl FuzzyTermQuery {
 
     fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
-        match LEV_BUILDER.get(&(self.distance, false)) {
+        match LEV_BUILDER.get(&(self.distance, self.transposition_cost_one)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
                 let automaton = if self.prefix {
@@ -164,6 +164,7 @@ impl Query for FuzzyTermQuery {
 mod test {
     use super::FuzzyTermQuery;
     use crate::assert_nearly_equals;
+    use crate::collector::Count;
     use crate::collector::TopDocs;
     use crate::schema::Schema;
     use crate::schema::TEXT;
@@ -225,5 +226,30 @@ mod test {
             let (score, _) = top_docs[0];
             assert_nearly_equals!(1.0, score);
         }
+    }
+
+    #[test]
+    pub fn test_fuzzy_term_transposition_cost_one() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let country_field = schema_builder.add_text_field("country", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(country_field => "japan"));
+        index_writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let term_jaapn = Term::from_field_text(country_field, "jaapn");
+        {
+            let fuzzy_query_transposition = FuzzyTermQuery::new(term_jaapn.clone(), 1, true);
+            let count = searcher.search(&fuzzy_query_transposition, &Count)?;
+            assert_eq!(count, 1);
+        }
+        {
+            let fuzzy_query_transposition = FuzzyTermQuery::new(term_jaapn, 1, false);
+            let count = searcher.search(&fuzzy_query_transposition, &Count)?;
+            assert_eq!(count, 0);
+        }
+        Ok(())
     }
 }
