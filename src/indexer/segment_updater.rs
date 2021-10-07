@@ -242,7 +242,7 @@ pub fn merge_filtered_segments<Dir: Directory>(
     let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
         merged_index.schema(),
         merged_index.settings().clone(),
-        &segments[..],
+        segments,
         filter_doc_ids,
     )?;
     let segment_serializer = SegmentSerializer::for_segment(merged_segment, true)?;
@@ -551,9 +551,7 @@ impl SegmentUpdater {
                         e
                     );
                     // ... cancel merge
-                    if cfg!(test) {
-                        panic!("Merge failed.");
-                    }
+                    assert!(!cfg!(test), "Merge failed.");
                 }
             }
         });
@@ -632,9 +630,8 @@ impl SegmentUpdater {
                                 merge_operation.segment_ids(),
                                 advance_deletes_err
                             );
-                            if cfg!(test) {
-                                panic!("Merge failed.");
-                            }
+                            assert!(!cfg!(test), "Merge failed.");
+
                             // ... cancel merge
                             // `merge_operations` are tracked. As it is dropped, the
                             // the segment_ids will be available again for merge.

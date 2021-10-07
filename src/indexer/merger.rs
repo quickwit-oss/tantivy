@@ -412,9 +412,9 @@ impl IndexMerger {
         Ok(value_accessor)
     }
     /// Collecting value_accessors into a vec to bind the lifetime.
-    pub(crate) fn get_reader_with_sort_field_accessor<'a, 'b>(
-        &'a self,
-        sort_by_field: &'b IndexSortByField,
+    pub(crate) fn get_reader_with_sort_field_accessor(
+        &self,
+        sort_by_field: &IndexSortByField,
     ) -> crate::Result<Vec<(SegmentOrdinal, impl FastFieldReader<u64> + Clone)>> {
         let reader_ordinal_and_field_accessors = self
             .readers

@@ -320,8 +320,7 @@ pub fn intersect_bitsets(left: &ReadOnlyBitSet, other: &ReadOnlyBitSet) -> ReadO
     let union_tinyset_it = left
         .iter_tinysets()
         .zip(other.iter_tinysets())
-        .map(|(left_tinyset, right_tinyset)| left_tinyset.intersect(right_tinyset))
-        .map(|union_tinyset| union_tinyset);
+        .map(|(left_tinyset, right_tinyset)| left_tinyset.intersect(right_tinyset));
     let mut output_dataset: Vec<u8> = Vec::with_capacity(left.data.len());
     for tinyset in union_tinyset_it {
         output_dataset.extend_from_slice(&tinyset.into_bytes());
@@ -419,7 +418,6 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
-    use std::convert::TryInto;
 
     #[test]
     fn test_read_serialized_bitset_full() {

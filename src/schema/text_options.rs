@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::ops::BitOr;
 
 /// Define how a text field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct TextOptions {
     indexing: Option<TextFieldIndexing>,
     stored: bool,
@@ -33,15 +33,6 @@ impl TextOptions {
     pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> TextOptions {
         self.indexing = Some(indexing);
         self
-    }
-}
-
-impl Default for TextOptions {
-    fn default() -> TextOptions {
-        TextOptions {
-            indexing: None,
-            stored: false,
-        }
     }
 }
 

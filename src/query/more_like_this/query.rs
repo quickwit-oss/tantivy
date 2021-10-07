@@ -61,17 +61,9 @@ impl Query for MoreLikeThisQuery {
 }
 
 /// The builder for more-like-this query
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MoreLikeThisQueryBuilder {
     mlt: MoreLikeThis,
-}
-
-impl Default for MoreLikeThisQueryBuilder {
-    fn default() -> Self {
-        Self {
-            mlt: MoreLikeThis::default(),
-        }
-    }
 }
 
 impl MoreLikeThisQueryBuilder {

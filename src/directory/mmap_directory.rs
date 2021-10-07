@@ -74,18 +74,10 @@ pub struct CacheInfo {
     pub mmapped: Vec<PathBuf>,
 }
 
+#[derive(Default)]
 struct MmapCache {
     counters: CacheCounters,
     cache: HashMap<PathBuf, WeakArcBytes>,
-}
-
-impl Default for MmapCache {
-    fn default() -> MmapCache {
-        MmapCache {
-            counters: CacheCounters::default(),
-            cache: HashMap::new(),
-        }
-    }
 }
 
 impl MmapCache {

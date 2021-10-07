@@ -57,7 +57,7 @@ impl AliveBitSet {
 
     /// Opens a delete bitset given its file.
     pub fn open(bytes: OwnedBytes) -> AliveBitSet {
-        let bitset = ReadOnlyBitSet::open(bytes.clone());
+        let bitset = ReadOnlyBitSet::open(bytes);
         AliveBitSet::from(bitset)
     }
 

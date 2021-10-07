@@ -3,7 +3,7 @@ use std::ops::BitOr;
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Define how an a bytes field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct BytesOptions {
     indexed: bool,
     fast: bool,
@@ -53,16 +53,6 @@ impl BytesOptions {
     pub fn set_stored(mut self) -> BytesOptions {
         self.stored = true;
         self
-    }
-}
-
-impl Default for BytesOptions {
-    fn default() -> BytesOptions {
-        BytesOptions {
-            indexed: false,
-            fast: false,
-            stored: false,
-        }
     }
 }
 

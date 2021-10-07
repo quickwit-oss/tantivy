@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
 /// Define how a facet field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FacetOptions {
     indexed: bool,
     stored: bool,
@@ -36,15 +36,6 @@ impl FacetOptions {
     pub fn set_indexed(mut self) -> FacetOptions {
         self.indexed = true;
         self
-    }
-}
-
-impl Default for FacetOptions {
-    fn default() -> FacetOptions {
-        FacetOptions {
-            indexed: false,
-            stored: false,
-        }
     }
 }
 

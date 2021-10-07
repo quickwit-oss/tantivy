@@ -70,9 +70,7 @@ where
     /// # Panics
     /// The method panics if limit is 0
     pub fn with_limit(limit: usize) -> TopCollector<T> {
-        if limit < 1 {
-            panic!("Limit must be strictly greater than 0.");
-        }
+        assert!(limit >= 1, "Limit must be strictly greater than 0.");
         Self {
             limit,
             offset: 0,
