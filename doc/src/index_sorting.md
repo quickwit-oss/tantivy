@@ -38,7 +38,7 @@ Note: Tantivy 0.16 does not do this optimization yet.
 In principle there are many algorithms possible that exploit the monotonically increasing nature. (aggregations maybe?)
 
 ## Usage
-The index sorting can be configured setting [`sort_by_field`](https://github.com/tantivy-search/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of tantvy 0.16 only fast fields are allowed to be used.
+The index sorting can be configured setting [`sort_by_field`](https://github.com/quickwit-inc/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/core/index_meta.rs#L238) on `IndexSettings` and passing it to a `IndexBuilder`. As of tantvy 0.16 only fast fields are allowed to be used.
 
 ```
 let settings = IndexSettings {
@@ -55,7 +55,7 @@ let index = index_builder.create_in_ram().unwrap();
 
 ## Implementation details
 
-Sorting an index is applied in the serialization step. In general there are two serialization steps: [Finishing a single segment](https://github.com/tantivy-search/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/indexer/segment_writer.rs#L338) and [merging multiple segments](https://github.com/tantivy-search/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/indexer/merger.rs#L1073).
+Sorting an index is applied in the serialization step. In general there are two serialization steps: [Finishing a single segment](https://github.com/quickwit-inc/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/indexer/segment_writer.rs#L338) and [merging multiple segments](https://github.com/quickwit-inc/tantivy/blob/000d76b11a139a84b16b9b95060a1c93e8b9851c/src/indexer/merger.rs#L1073).
 
 In both cases we generate a docid mapping reflecting the sort. This mapping is used when serializing the different components (doc store, fastfields, posting list, normfield, facets).
 

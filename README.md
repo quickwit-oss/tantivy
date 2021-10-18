@@ -1,12 +1,12 @@
 
 [![Docs](https://docs.rs/tantivy/badge.svg)](https://docs.rs/crate/tantivy/)
-[![Build Status](https://github.com/tantivy-search/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/tantivy-search/tantivy/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/tantivy-search/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/tantivy-search/tantivy)
+[![Build Status](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/quickwit-inc/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/quickwit-inc/tantivy)
 [![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
-![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
+![Tantivy](https://quickwit-inc.github.io/logo/tantivy-logo.png)
 
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/0)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/0)
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/1)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/1)
@@ -96,7 +96,7 @@ Tantivy compiles on stable Rust but requires `Rust >= 1.27`.
 To check out and run tests, you can simply run:
 
 ```bash
-    git clone https://github.com/tantivy-search/tantivy.git
+    git clone https://github.com/quickwit-inc/tantivy.git
     cd tantivy
     cargo build
 ```
