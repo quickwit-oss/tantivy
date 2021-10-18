@@ -1,14 +1,5 @@
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 
-unsafe fn binary_search_step(ptr: *const u32, target: u32, half_size: isize) -> *const u32 {
-    let mid = ptr.offset(half_size);
-    if *mid < target {
-        mid.offset(1)
-    } else {
-        ptr
-    }
-}
-
 /// Search the first index containing an element greater or equal to
 /// the target.
 ///
@@ -30,18 +21,16 @@ unsafe fn binary_search_step(ptr: *const u32, target: u32, half_size: isize) -> 
 /// end of the last block for instance.
 /// - The target is assumed smaller or equal to the last element of the block.
 pub fn branchless_binary_search(arr: &[u32; COMPRESSION_BLOCK_SIZE], target: u32) -> usize {
-    let start_ptr: *const u32 = &arr[0] as *const u32;
-    unsafe {
-        let mut ptr = start_ptr;
-        ptr = binary_search_step(ptr, target, 63);
-        ptr = binary_search_step(ptr, target, 31);
-        ptr = binary_search_step(ptr, target, 15);
-        ptr = binary_search_step(ptr, target, 7);
-        ptr = binary_search_step(ptr, target, 3);
-        ptr = binary_search_step(ptr, target, 1);
-        let extra = if *ptr < target { 1 } else { 0 };
-        (ptr.offset_from(start_ptr) as usize) + extra
+    let mut start = 0;
+    let mut len = arr.len();
+    for _ in 0..7 {
+        len /= 2;
+        let pivot = unsafe { *arr.get_unchecked(start + len - 1) };
+        if pivot < target {
+            start += len;
+        }
     }
+    start
 }
 
 #[cfg(test)]
