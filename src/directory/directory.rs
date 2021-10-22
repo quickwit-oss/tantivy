@@ -230,3 +230,40 @@ where
         Box::new(self.clone())
     }
 }
+
+impl<W: Directory + Clone> Directory for Box<W> {
+    #[inline]
+    fn get_file_handle(&self, path: &Path) -> Result<Box<dyn FileHandle>, OpenReadError> {
+        (**self).get_file_handle(path)
+    }
+
+    #[inline]
+    fn delete(&self, path: &Path) -> Result<(), DeleteError> {
+        (**self).delete(path)
+    }
+
+    #[inline]
+    fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
+        (**self).exists(path)
+    }
+
+    #[inline]
+    fn open_write(&self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        (**self).open_write(path)
+    }
+
+    #[inline]
+    fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
+        (**self).atomic_read(path)
+    }
+
+    #[inline]
+    fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
+        (**self).atomic_write(path, data)
+    }
+
+    #[inline]
+    fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
+        (**self).watch(watch_callback)
+    }
+}

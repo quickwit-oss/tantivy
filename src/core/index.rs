@@ -803,4 +803,11 @@ mod tests {
             mem_right_after_commit
         );
     }
+
+    #[test]
+    fn test_boxed_directory() {
+        let directory = RamDirectory::create();
+        let schema = throw_away_schema();
+        Index::create(Box::new(directory), schema, IndexSettings::default()).unwrap();
+    }
 }
