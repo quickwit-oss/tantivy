@@ -395,9 +395,7 @@ impl Index {
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
-    ///
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
+    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
@@ -445,8 +443,7 @@ impl Index {
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
+    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
     pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
