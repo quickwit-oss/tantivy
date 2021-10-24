@@ -107,11 +107,11 @@ fn get_alive_bitsets(
 /// The number of output_directories need to match max new segment ordinal from `demux_mapping`.
 ///
 /// The ordinal of `segments` need to match the ordinals provided in `demux_mapping`.
-pub fn demux<Dir: Directory>(
+pub fn demux(
     segments: &[Segment],
     demux_mapping: &DemuxMapping,
     target_settings: IndexSettings,
-    output_directories: Vec<Dir>,
+    output_directories: Vec<Box<dyn Directory>>,
 ) -> crate::Result<Vec<Index>> {
     let mut indices = vec![];
     for (target_segment_ord, output_directory) in output_directories.into_iter().enumerate() {
@@ -253,7 +253,10 @@ mod tests {
             &segments,
             &demux_mapping,
             target_settings,
-            vec![RamDirectory::default(), RamDirectory::default()],
+            vec![
+                Box::new(RamDirectory::default()),
+                Box::new(RamDirectory::default()),
+            ],
         )?;
 
         {

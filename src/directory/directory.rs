@@ -230,3 +230,15 @@ where
         Box::new(self.clone())
     }
 }
+
+impl Clone for Box<dyn Directory> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+impl<T: Directory + 'static> From<T> for Box<dyn Directory> {
+    fn from(t: T) -> Self {
+        Box::new(t)
+    }
+}
