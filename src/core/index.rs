@@ -123,8 +123,8 @@ impl IndexBuilder {
     /// If a previous index was in this directory, it returns an `IndexAlreadyExists` error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::open(directory_path)?;
-        if Index::exists(&mmap_directory)? {
+        let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
+        if Index::exists(&*mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
         self.create(mmap_directory)
@@ -139,7 +139,7 @@ impl IndexBuilder {
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(self) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::create_from_tempdir()?;
+        let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
         self.create(mmap_directory)
     }
     fn get_expect_schema(&self) -> crate::Result<Schema> {
@@ -149,8 +149,9 @@ impl IndexBuilder {
             .ok_or(TantivyError::IndexBuilderMissingArgument("schema"))
     }
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
-        if !Index::exists(&dir)? {
+    pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        let dir = dir.into();
+        if !Index::exists(&*dir)? {
             return self.create(dir);
         }
         let index = Index::open(dir)?;
@@ -165,7 +166,8 @@ impl IndexBuilder {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    fn create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
+    fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
             self.get_expect_schema()?,
@@ -198,7 +200,7 @@ impl Index {
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
-    pub fn exists<Dir: Directory>(dir: &Dir) -> Result<bool, OpenReadError> {
+    pub fn exists(dir: &dyn Directory) -> Result<bool, OpenReadError> {
         dir.exists(&META_FILEPATH)
     }
 
@@ -250,7 +252,11 @@ impl Index {
     }
 
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
+    pub fn open_or_create<T: Into<Box<dyn Directory>>>(
+        dir: T,
+        schema: Schema,
+    ) -> crate::Result<Index> {
+        let dir = dir.into();
         IndexBuilder::new().schema(schema).open_or_create(dir)
     }
 
@@ -270,11 +276,12 @@ impl Index {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    pub fn create<Dir: Directory>(
-        dir: Dir,
+    pub fn create<T: Into<Box<dyn Directory>>>(
+        dir: T,
         schema: Schema,
         settings: IndexSettings,
     ) -> crate::Result<Index> {
+        let dir: Box<dyn Directory> = dir.into();
         let mut builder = IndexBuilder::new().schema(schema);
         builder = builder.settings(settings);
         builder.create(dir)
@@ -365,7 +372,8 @@ impl Index {
     }
 
     /// Open the index using the provided directory
-    pub fn open<D: Directory>(directory: D) -> crate::Result<Index> {
+    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        let directory = directory.into();
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
@@ -574,15 +582,15 @@ mod tests {
 
     #[test]
     fn test_index_exists() {
-        let directory = RamDirectory::create();
-        assert!(!Index::exists(&directory).unwrap());
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        assert!(!Index::exists(directory.as_ref()).unwrap());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
     }
 
     #[test]
@@ -595,27 +603,27 @@ mod tests {
 
     #[test]
     fn open_or_create_should_open() {
-        let directory = RamDirectory::create();
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
 
     #[test]
     fn create_should_wipeoff_existing() {
-        let directory = RamDirectory::create();
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
         assert!(Index::create(
             directory,
             Schema::builder().build(),

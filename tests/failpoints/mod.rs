@@ -10,7 +10,7 @@ fn test_failpoints_managed_directory_gc_if_delete_fails() {
 
     let test_path: &'static Path = Path::new("some_path_for_test");
 
-    let ram_directory = RamDirectory::create();
+    let ram_directory = Box::new(RamDirectory::create());
     let mut managed_directory = ManagedDirectory::wrap(ram_directory).unwrap();
     managed_directory
         .open_write(test_path)

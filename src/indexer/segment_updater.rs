@@ -160,9 +160,9 @@ fn merge(
 /// meant to work if you have an IndexWriter running for the origin indices, or
 /// the destination Index.
 #[doc(hidden)]
-pub fn merge_indices<Dir: Directory>(
+pub fn merge_indices<T: Into<Box<dyn Directory>>>(
     indices: &[Index],
-    output_directory: Dir,
+    output_directory: T,
 ) -> crate::Result<Index> {
     if indices.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
@@ -206,11 +206,11 @@ pub fn merge_indices<Dir: Directory>(
 /// meant to work if you have an IndexWriter running for the origin indices, or
 /// the destination Index.
 #[doc(hidden)]
-pub fn merge_filtered_segments<Dir: Directory>(
+pub fn merge_filtered_segments<T: Into<Box<dyn Directory>>>(
     segments: &[Segment],
     target_settings: IndexSettings,
     filter_doc_ids: Vec<Option<AliveBitSet>>,
-    output_directory: Dir,
+    output_directory: T,
 ) -> crate::Result<Index> {
     if segments.is_empty() {
         // If there are no indices to merge, there is no need to do anything.
@@ -690,6 +690,7 @@ mod tests {
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
+    use crate::Directory;
     use crate::DocAddress;
     use crate::Index;
     use crate::Segment;
@@ -882,7 +883,7 @@ mod tests {
         }
 
         assert_eq!(indices.len(), 3);
-        let output_directory = RamDirectory::default();
+        let output_directory: Box<dyn Directory> = Box::new(RamDirectory::default());
         let index = merge_indices(&indices, output_directory)?;
         assert_eq!(index.schema(), schema);
 
