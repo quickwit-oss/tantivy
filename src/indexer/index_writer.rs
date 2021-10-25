@@ -280,8 +280,7 @@ impl IndexWriter {
     /// should work at the same time.
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
+    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
     pub(crate) fn new(
         index: &Index,
         num_threads: usize,
