@@ -10,7 +10,7 @@ pub mod merge_policy;
 pub mod merger;
 mod merger_sorted_index_test;
 pub mod operation;
-mod prepared_commit;
+pub mod prepared_commit;
 mod segment_entry;
 mod segment_manager;
 mod segment_register;
