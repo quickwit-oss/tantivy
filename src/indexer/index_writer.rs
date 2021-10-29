@@ -1436,6 +1436,8 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
 
+        let old_reader = index.reader()?;
+
         for &op in ops {
             match op {
                 IndexingOp::AddDoc { id } => {
@@ -1474,6 +1476,21 @@ mod tests {
                 assert!(index_writer.wait_merging_threads().is_ok());
             }
         }
+
+        old_reader.reload()?;
+        let old_searcher = old_reader.searcher();
+
+        let ids_old_searcher: HashSet<u64> = old_searcher
+            .segment_readers()
+            .iter()
+            .flat_map(|segment_reader| {
+                let ff_reader = segment_reader.fast_fields().u64(id_field).unwrap();
+                segment_reader
+                    .doc_ids_alive()
+                    .map(move |doc| ff_reader.get(doc))
+            })
+            .collect();
+
         let ids: HashSet<u64> = searcher
             .segment_readers()
             .iter()
@@ -1486,6 +1503,19 @@ mod tests {
             .collect();
 
         let (expected_ids_and_num_occurences, deleted_ids) = expected_ids(ops);
+        let num_docs_expected = expected_ids_and_num_occurences
+            .iter()
+            .map(|(_, id_occurences)| *id_occurences as usize)
+            .sum::<usize>();
+        assert_eq!(searcher.num_docs() as usize, num_docs_expected);
+        assert_eq!(old_searcher.num_docs() as usize, num_docs_expected);
+        assert_eq!(
+            ids_old_searcher,
+            expected_ids_and_num_occurences
+                .keys()
+                .cloned()
+                .collect::<HashSet<_>>()
+        );
         assert_eq!(
             ids,
             expected_ids_and_num_occurences
