@@ -197,9 +197,9 @@ impl BitSet {
     /// within `[0, max_val)`.
     pub fn with_max_value(max_value: u32) -> BitSet {
         let num_buckets = num_buckets(max_value);
-        let tinybisets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
+        let tinybitsets = vec![TinySet::empty(); num_buckets as usize].into_boxed_slice();
         BitSet {
-            tinysets: tinybisets,
+            tinysets: tinybitsets,
             len: 0,
             max_value,
         }
@@ -209,14 +209,15 @@ impl BitSet {
     /// within `[0, max_val)`.
     pub fn with_max_value_and_full(max_value: u32) -> BitSet {
         let num_buckets = num_buckets(max_value);
-        let mut tinybisets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
+        let mut tinybitsets = vec![TinySet::full(); num_buckets as usize].into_boxed_slice();
 
         // Fix padding
         let lower = max_value % 64u32;
-        tinybisets[tinybisets.len() - 1] = TinySet::range_lower(lower);
-
+        if lower != 0 {
+            tinybitsets[tinybitsets.len() - 1] = TinySet::range_lower(lower);
+        }
         BitSet {
-            tinysets: tinybisets,
+            tinysets: tinybitsets,
             len: max_value as u64,
             max_value,
         }
@@ -418,6 +419,28 @@ mod tests {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::collections::HashSet;
+
+    #[test]
+    fn test_read_serialized_bitset_full_multi() {
+        for i in 0..1000 {
+            let bitset = BitSet::with_max_value_and_full(i);
+            let mut out = vec![];
+            bitset.serialize(&mut out).unwrap();
+
+            let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
+            assert_eq!(bitset.len() as usize, i as usize);
+        }
+    }
+
+    #[test]
+    fn test_read_serialized_bitset_full_block() {
+        let bitset = BitSet::with_max_value_and_full(64);
+        let mut out = vec![];
+        bitset.serialize(&mut out).unwrap();
+
+        let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
+        assert_eq!(bitset.len() as usize, 64 as usize);
+    }
 
     #[test]
     fn test_read_serialized_bitset_full() {
