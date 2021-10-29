@@ -174,7 +174,6 @@ pub use crate::indexer::demuxer::*;
 pub use crate::indexer::merge_filtered_segments;
 pub use crate::indexer::merge_indices;
 pub use crate::indexer::operation::UserOperation;
-pub use crate::indexer::prepared_commit::PreparedCommit;
 pub use crate::indexer::IndexWriter;
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;

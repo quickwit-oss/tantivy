@@ -3,7 +3,7 @@ use crate::Opstamp;
 use futures::executor::block_on;
 
 /// A prepared commit
-pub struct PreparedCommit<'a> {
+pub(crate) struct PreparedCommit<'a> {
     index_writer: &'a mut IndexWriter,
     payload: Option<String>,
     opstamp: Opstamp,
@@ -18,19 +18,19 @@ impl<'a> PreparedCommit<'a> {
         }
     }
 
-    pub fn opstamp(&self) -> Opstamp {
+    pub(crate) fn opstamp(&self) -> Opstamp {
         self.opstamp
     }
 
-    pub fn set_payload(&mut self, payload: &str) {
+    pub(crate) fn set_payload(&mut self, payload: &str) {
         self.payload = Some(payload.to_string())
     }
 
-    pub fn abort(self) -> crate::Result<Opstamp> {
+    pub(crate) fn abort(self) -> crate::Result<Opstamp> {
         self.index_writer.rollback()
     }
 
-    pub fn commit(self) -> crate::Result<Opstamp> {
+    pub(crate) fn commit(self) -> crate::Result<Opstamp> {
         info!("committing {}", self.opstamp);
         let _ = block_on(
             self.index_writer
