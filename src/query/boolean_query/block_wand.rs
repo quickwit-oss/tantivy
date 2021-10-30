@@ -49,7 +49,7 @@ fn block_max_was_too_low_advance_one_scorer(
 ) {
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
     let mut scorer_to_seek = pivot_len - 1;
-    let mut doc_to_seek_after = scorers[scorer_to_seek].doc();
+    let mut doc_to_seek_after = scorers[scorer_to_seek].last_doc_in_block();
     for scorer_ord in (0..pivot_len - 1).rev() {
         let scorer = &scorers[scorer_ord];
         if scorer.last_doc_in_block() <= doc_to_seek_after {
@@ -57,12 +57,17 @@ fn block_max_was_too_low_advance_one_scorer(
             scorer_to_seek = scorer_ord;
         }
     }
+    // Add +1 to go to the next block unless we are already at the end.
+    if doc_to_seek_after != TERMINATED {
+        doc_to_seek_after += 1;
+    }
     for scorer in &scorers[pivot_len..] {
         if scorer.doc() <= doc_to_seek_after {
             doc_to_seek_after = scorer.doc();
         }
     }
-    scorers[scorer_to_seek].seek(doc_to_seek_after + 1);
+
+    scorers[scorer_to_seek].seek(doc_to_seek_after);
     restore_ordering(scorers, scorer_to_seek);
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
 }
@@ -130,6 +135,9 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
     term_scorers.sort_by_key(|scorer| scorer.doc());
 }
 
+/// Implements the WAND (Weak AND) algorithm for dynamic pruning
+/// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
+/// Link: http://engineering.nyu.edu/~suel/papers/bmw.pdf
 pub fn block_wand(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
@@ -187,6 +195,7 @@ pub fn block_wand(
             .iter_mut()
             .map(|scorer| scorer.score())
             .sum();
+
         if score > threshold {
             threshold = callback(pivot_doc, score);
         }
@@ -195,6 +204,15 @@ pub fn block_wand(
     }
 }
 
+/// Specialized version of [`block_wand`] for a single scorer.
+/// In this case, the algorithm is simple and readable and faster (~ x3)
+/// than the generic algorithm.
+/// The algorithm behaves as follows:
+/// - While we don't hit the end of the docset:
+///   - While the block max score is under the `threshold`, go to the
+///     next block.
+///   - On a block, advance until the end and execute `callback``
+///     when the doc score is greater or equal to the `threshold`.
 pub fn block_wand_single_scorer(
     mut scorer: TermScorer,
     mut threshold: Score,
@@ -230,7 +248,7 @@ pub fn block_wand_single_scorer(
                 return;
             }
         }
-        doc = doc + 1;
+        doc += 1;
         scorer.shallow_seek(doc);
     }
 }
@@ -285,8 +303,6 @@ mod tests {
     use std::collections::BinaryHeap;
     use std::iter;
 
-    use super::block_wand_single_scorer;
-
     struct Float(Score);
 
     impl Eq for Float {}
@@ -314,7 +330,7 @@ mod tests {
     }
 
     fn compute_checkpoints_for_each_pruning(
-        term_scorers: Vec<TermScorer>,
+        mut term_scorers: Vec<TermScorer>,
         n: usize,
     ) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
@@ -336,7 +352,8 @@ mod tests {
         };
 
         if term_scorers.len() == 1 {
-            block_wand_single_scorer(term_scorers.clone().pop().unwrap(), Score::MIN, callback);
+            let scorer = term_scorers.pop().unwrap();
+            super::block_wand_single_scorer(scorer, Score::MIN, callback);
         } else {
             super::block_wand(term_scorers, Score::MIN, callback);
         }
