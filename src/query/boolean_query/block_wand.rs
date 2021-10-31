@@ -231,7 +231,7 @@ pub fn block_wand_single_scorer(
         // the threshold.
         while scorer.block_max_score() < threshold {
             let last_doc_in_block = scorer.last_doc_in_block();
-            if doc == TERMINATED {
+            if last_doc_in_block == TERMINATED {
                 return;
             }
             doc = last_doc_in_block + 1;
@@ -247,7 +247,8 @@ pub fn block_wand_single_scorer(
             if score > threshold {
                 threshold = callback(doc, score);
             }
-            if doc >= scorer.last_doc_in_block() {
+            debug_assert!(doc <= scorer.last_doc_in_block());
+            if doc == scorer.last_doc_in_block() {
                 break;
             }
             doc = scorer.advance();
