@@ -42,18 +42,25 @@ fn find_pivot_doc(
     Some((before_pivot_len, pivot_len, pivot_doc))
 }
 
-// Before and after calling this method, scorers need to be sorted by their `.doc()`.
+/// Advance the scorer with best score among the scorers[..pivot_len] to
+/// the next doc candidate defined by the min of `last_doc_in_block + 1` for
+/// scorer in scorers[..pivot_len] and `scorer.doc()` for scorer in scorers[pivot_len..].
+/// Note: before and after calling this method, scorers need to be sorted by their `.doc()`.
 fn block_max_was_too_low_advance_one_scorer(
     scorers: &mut Vec<TermScorerWithMaxScore>,
     pivot_len: usize,
 ) {
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
     let mut scorer_to_seek = pivot_len - 1;
+    let mut global_max_score = scorers[scorer_to_seek].max_score;
     let mut doc_to_seek_after = scorers[scorer_to_seek].last_doc_in_block();
     for scorer_ord in (0..pivot_len - 1).rev() {
         let scorer = &scorers[scorer_ord];
         if scorer.last_doc_in_block() <= doc_to_seek_after {
             doc_to_seek_after = scorer.last_doc_in_block();
+        }
+        if scorers[scorer_ord].max_score > global_max_score {
+            global_max_score = scorers[scorer_ord].max_score;
             scorer_to_seek = scorer_ord;
         }
     }
@@ -66,8 +73,8 @@ fn block_max_was_too_low_advance_one_scorer(
             doc_to_seek_after = scorer.doc();
         }
     }
-
     scorers[scorer_to_seek].seek(doc_to_seek_after);
+
     restore_ordering(scorers, scorer_to_seek);
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
 }
