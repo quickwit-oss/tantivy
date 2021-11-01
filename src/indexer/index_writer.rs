@@ -1361,12 +1361,21 @@ mod tests {
         Merge,
     }
 
-    fn operation_strategy() -> impl Strategy<Value = IndexingOp> {
+    fn balanced_operation_strategy() -> impl Strategy<Value = IndexingOp> {
         prop_oneof![
-            (0u64..10u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
-            (0u64..10u64).prop_map(|id| IndexingOp::AddDoc { id }),
-            (0u64..2u64).prop_map(|_| IndexingOp::Commit),
+            (0u64..20u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
+            (0u64..20u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            (0u64..1u64).prop_map(|_| IndexingOp::Commit),
             (0u64..1u64).prop_map(|_| IndexingOp::Merge),
+        ]
+    }
+
+    fn adding_operation_strategy() -> impl Strategy<Value = IndexingOp> {
+        prop_oneof![
+            10 => (0u64..100u64).prop_map(|id| IndexingOp::DeleteDoc { id }),
+            50 => (0u64..100u64).prop_map(|id| IndexingOp::AddDoc { id }),
+            2 => (0u64..1u64).prop_map(|_| IndexingOp::Commit),
+            1 => (0u64..1u64).prop_map(|_| IndexingOp::Merge),
         ]
     }
 
@@ -1610,22 +1619,42 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
         #[test]
-        fn test_delete_with_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+        fn test_delete_with_sort_proptest_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
             assert!(test_operation_strategy(&ops[..], true, false).is_ok());
         }
         #[test]
-        fn test_delete_without_sort_proptest(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+        fn test_delete_without_sort_proptest_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
             assert!(test_operation_strategy(&ops[..], false, false).is_ok());
         }
         #[test]
-        fn test_delete_with_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+        fn test_delete_with_sort_proptest_with_merge_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
             assert!(test_operation_strategy(&ops[..], true, true).is_ok());
         }
         #[test]
-        fn test_delete_without_sort_proptest_with_merge(ops in proptest::collection::vec(operation_strategy(), 1..10)) {
+        fn test_delete_without_sort_proptest_with_merge_adding(ops in proptest::collection::vec(adding_operation_strategy(), 1..100)) {
             assert!(test_operation_strategy(&ops[..], false, true).is_ok());
         }
+
+        #[test]
+        fn test_delete_with_sort_proptest(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], true, false).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], false, false).is_ok());
+        }
+        #[test]
+        fn test_delete_with_sort_proptest_with_merge(ops in proptest::collection::vec(balanced_operation_strategy(), 1..10)) {
+            assert!(test_operation_strategy(&ops[..], true, true).is_ok());
+        }
+        #[test]
+        fn test_delete_without_sort_proptest_with_merge(ops in proptest::collection::vec(balanced_operation_strategy(), 1..100)) {
+            assert!(test_operation_strategy(&ops[..], false, true).is_ok());
+        }
+
+
     }
 
     #[test]
