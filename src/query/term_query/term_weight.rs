@@ -79,7 +79,7 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.specialized_scorer(reader, 1.0)?;
-        crate::query::boolean_query::block_wand(vec![scorer], threshold, callback);
+        crate::query::boolean_query::block_wand_single_scorer(scorer, threshold, callback);
         Ok(())
     }
 }

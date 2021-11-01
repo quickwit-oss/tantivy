@@ -3,6 +3,7 @@ mod boolean_query;
 mod boolean_weight;
 
 pub(crate) use self::block_wand::block_wand;
+pub(crate) use self::block_wand::block_wand_single_scorer;
 pub use self::boolean_query::BooleanQuery;
 
 #[cfg(test)]
