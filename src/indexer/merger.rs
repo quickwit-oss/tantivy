@@ -1026,6 +1026,7 @@ impl IndexMerger {
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
         debug_time!("write_storable_fields");
+        debug!("write-storable-field");
 
         let store_readers: Vec<_> = self
             .readers
@@ -1038,6 +1039,7 @@ impl IndexMerger {
             .map(|(i, store)| store.iter_raw(self.readers[i].alive_bitset()))
             .collect();
         if !doc_id_mapping.is_trivial() {
+            debug!("non-trivial-doc-id-mapping");
             for (old_doc_id, reader_ordinal) in doc_id_mapping.iter() {
                 let doc_bytes_it = &mut document_iterators[*reader_ordinal as usize];
                 if let Some(doc_bytes_res) = doc_bytes_it.next() {
@@ -1052,6 +1054,7 @@ impl IndexMerger {
                 }
             }
         } else {
+            debug!("trivial-doc-id-mapping");
             for reader in &self.readers {
                 let store_reader = reader.get_store_reader()?;
                 if reader.has_deletes()
@@ -1089,6 +1092,7 @@ impl IndexMerger {
     /// # Returns
     /// The number of documents in the resulting segment.
     pub fn write(&self, mut serializer: SegmentSerializer) -> crate::Result<u32> {
+        debug!("docidmapping");
         let doc_id_mapping = if let Some(sort_by_field) = self.index_settings.sort_by_field.as_ref()
         {
             // If the documents are already sorted and stackable, we ignore the mapping and execute
@@ -1101,10 +1105,11 @@ impl IndexMerger {
         } else {
             self.get_doc_id_from_concatenated_data()?
         };
-
+        debug!("write-fieldnorms");
         if let Some(fieldnorms_serializer) = serializer.extract_fieldnorms_serializer() {
             self.write_fieldnorms(fieldnorms_serializer, &doc_id_mapping)?;
         }
+        debug!("write-postings");
         let fieldnorm_data = serializer
             .segment()
             .open_read(SegmentComponent::FieldNorms)?;
@@ -1114,12 +1119,15 @@ impl IndexMerger {
             fieldnorm_readers,
             &doc_id_mapping,
         )?;
+        debug!("write-fastfields");
         self.write_fast_fields(
             serializer.get_fast_field_serializer(),
             term_ord_mappings,
             &doc_id_mapping,
         )?;
+        debug!("write-storagefields");
         self.write_storable_fields(serializer.get_store_writer(), &doc_id_mapping)?;
+        debug!("close");
         serializer.close()?;
         Ok(self.max_doc)
     }

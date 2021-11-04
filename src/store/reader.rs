@@ -9,6 +9,8 @@ use super::footer::DocStoreFooter;
 use super::index::SkipIndex;
 use super::Compressor;
 use crate::directory::{FileSlice, OwnedBytes};
+use crate::error::DataCorruption;
+use crate::fastfield::AliveBitSet;
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;

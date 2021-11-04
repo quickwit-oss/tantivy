@@ -127,8 +127,6 @@ mod macros;
 pub use crate::error::{AsyncIoError, TantivyError};
 pub use chrono;
 
-pub use crate::error::TantivyError;
-
 /// Tantivy result.
 ///
 /// Within tantivy, please avoid importing `Result` using `use crate::Result`

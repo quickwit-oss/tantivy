@@ -5,14 +5,9 @@ use std::{fmt, io};
 use common::HasLen;
 use stable_deref_trait::StableDeref;
 
-use common::HasLen;
 use crate::{AsyncIoError, AsyncIoResult};
 use crate::directory::OwnedBytes;
 use async_trait::async_trait;
-use std::fmt;
-use std::ops::Range;
-use std::sync::{Arc, Weak};
-use std::{io, ops::Deref};
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;

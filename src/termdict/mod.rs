@@ -24,6 +24,7 @@
 
 mod sstable_termdict;
 use sstable_termdict as termdict;
+use tantivy_fst::automaton::AlwaysMatch;
 
 
 #[cfg(test)]

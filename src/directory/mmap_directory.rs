@@ -1,3 +1,11 @@
+use std::collections::HashMap;
+use std::fs::{File, OpenOptions, self};
+use std::io::{BufWriter, self, Write, Seek, Read};
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::{result, fmt};
+use std::sync::{Arc, RwLock};
+
 use crate::core::META_FILEPATH;
 use crate::directory::error::LockError;
 use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
@@ -16,16 +24,6 @@ use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use stable_deref_trait::StableDeref;
 use tempfile::TempDir;
-
-use crate::core::META_FILEPATH;
-use crate::directory::error::{
-    DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
-};
-use crate::directory::file_watcher::FileWatcher;
-use crate::directory::{
-    AntiCallToken, ArcBytes, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes,
-    TerminatingWrite, WatchCallback, WatchHandle, WeakArcBytes, WritePtr,
-};
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
@@ -269,7 +267,7 @@ impl Write for SafeFileWriter {
 }
 
 impl Seek for SafeFileWriter {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.0.seek(pos)
     }
 }

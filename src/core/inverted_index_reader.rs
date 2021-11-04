@@ -7,7 +7,6 @@ use crate::positions::PositionReader;
 use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
 use crate::schema::{IndexRecordOption, Term};
 use crate::termdict::TermDictionary;
-use common::BinarySerializable;
 use crate::AsyncIoResult;
 
 /// The inverted index reader is in charge of accessing
