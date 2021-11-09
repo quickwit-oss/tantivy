@@ -4,10 +4,7 @@ use crate::schema::{is_valid_field_name, IntOptions};
 
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::FieldType;
-use serde::de::{self, MapAccess, Visitor};
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt;
+use serde::{Deserialize, Serialize};
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
@@ -16,9 +13,10 @@ use std::fmt;
 /// - a field name
 /// - a field type, itself wrapping up options describing
 /// how the field should be indexed.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FieldEntry {
     name: String,
+    #[serde(flatten)]
     field_type: FieldType,
 }
 
@@ -141,140 +139,6 @@ impl FieldEntry {
     }
 }
 
-impl Serialize for FieldEntry {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("field_entry", 3)?;
-        s.serialize_field("name", &self.name)?;
-
-        match self.field_type {
-            FieldType::Str(ref options) => {
-                s.serialize_field("type", "text")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::U64(ref options) => {
-                s.serialize_field("type", "u64")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::I64(ref options) => {
-                s.serialize_field("type", "i64")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::F64(ref options) => {
-                s.serialize_field("type", "f64")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::Date(ref options) => {
-                s.serialize_field("type", "date")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::HierarchicalFacet(ref options) => {
-                s.serialize_field("type", "hierarchical_facet")?;
-                s.serialize_field("options", options)?;
-            }
-            FieldType::Bytes(ref options) => {
-                s.serialize_field("type", "bytes")?;
-                s.serialize_field("options", options)?;
-            }
-        }
-
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for FieldEntry {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
-        enum Field {
-            Name,
-            Type,
-            Options,
-        }
-
-        const FIELDS: &[&str] = &["name", "type", "options"];
-
-        struct FieldEntryVisitor;
-
-        impl<'de> Visitor<'de> for FieldEntryVisitor {
-            type Value = FieldEntry;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("struct FieldEntry")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<FieldEntry, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut name = None;
-                let mut ty = None;
-                let mut field_type = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::Name => {
-                            if name.is_some() {
-                                return Err(de::Error::duplicate_field("name"));
-                            }
-                            name = Some(map.next_value()?);
-                        }
-                        Field::Type => {
-                            if ty.is_some() {
-                                return Err(de::Error::duplicate_field("type"));
-                            }
-                            let type_string = map.next_value::<String>()?;
-                            match type_string.as_str() {
-                                "text" | "u64" | "i64" | "f64" | "date" | "bytes"
-                                | "hierarchical_facet" => {
-                                    // These types require additional options to create a field_type
-                                }
-                                _ => panic!("unhandled type"),
-                            }
-                            ty = Some(type_string);
-                        }
-                        Field::Options => match ty {
-                            None => {
-                                let msg = "The `type` field must be \
-                                           specified before `options`";
-                                return Err(de::Error::custom(msg));
-                            }
-                            Some(ref ty) => match ty.as_str() {
-                                "text" => field_type = Some(FieldType::Str(map.next_value()?)),
-                                "u64" => field_type = Some(FieldType::U64(map.next_value()?)),
-                                "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
-                                "f64" => field_type = Some(FieldType::F64(map.next_value()?)),
-                                "date" => field_type = Some(FieldType::Date(map.next_value()?)),
-                                "bytes" => field_type = Some(FieldType::Bytes(map.next_value()?)),
-                                "hierarchical_facet" => {
-                                    field_type =
-                                        Some(FieldType::HierarchicalFacet(map.next_value()?))
-                                }
-                                _ => {
-                                    let msg = format!("Unrecognised type {}", ty);
-                                    return Err(de::Error::custom(msg));
-                                }
-                            },
-                        },
-                    }
-                }
-
-                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
-                ty.ok_or_else(|| de::Error::missing_field("ty"))?;
-                let field_type = field_type.ok_or_else(|| de::Error::missing_field("options"))?;
-
-                Ok(FieldEntry { name, field_type })
-            }
-        }
-
-        deserializer.deserialize_struct("field_entry", FIELDS, FieldEntryVisitor)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,6 +177,26 @@ mod tests {
         match field_value.field_type {
             FieldType::Str(_) => {}
             _ => panic!("expected FieldType::Str"),
+        }
+    }
+
+    #[test]
+    fn test_json_deserialization() {
+        let json_str = r#"{
+  "name": "title",
+  "options": {
+    "indexing": {
+      "record": "position",
+      "tokenizer": "default"
+    },
+    "stored": false
+  },
+  "type": "text"
+}"#;
+        let field_entry: FieldEntry = serde_json::from_str(json_str).unwrap();
+        match field_entry.field_type {
+            FieldType::Str(_) => {}
+            _ => panic!("expected FieldType::Str")
         }
     }
 }

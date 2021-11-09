@@ -7,6 +7,7 @@ use crate::schema::Value;
 use crate::schema::{IntOptions, TextOptions};
 use crate::tokenizer::PreTokenizedString;
 use chrono::{FixedOffset, Utc};
+use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -48,9 +49,12 @@ pub enum Type {
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "options")]
+#[serde(rename_all = "snake_case")]
 pub enum FieldType {
     /// String field type configuration
+    #[serde(rename = "text")]
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
     U64(IntOptions),
