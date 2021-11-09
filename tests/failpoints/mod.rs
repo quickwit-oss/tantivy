@@ -64,3 +64,34 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
     assert_eq!(num_docs_containing("b")?, 0);
     Ok(())
 }
+
+#[test]
+fn test_fail_on_flush_segment() -> tantivy::Result<()> {
+    let _fail_scenario_guard = fail::FailScenario::setup();
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT);
+    let index = Index::create_in_ram(schema_builder.build());
+    let index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
+    for i in 0..100_000 {
+        index_writer
+            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)));
+    }
+    Ok(())
+}
+
+#[test]
+fn test_fail_on_commit_segment() -> tantivy::Result<()> {
+    let _fail_scenario_guard = fail::FailScenario::setup();
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT);
+    let index = Index::create_in_ram(schema_builder.build());
+    let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
+    for i in 0..10 {
+        index_writer
+            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)));
+    }
+    assert!(index_writer.commit().is_err());
+    Ok(())
+}

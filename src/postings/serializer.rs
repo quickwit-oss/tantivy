@@ -13,6 +13,7 @@ use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::{DocId, Score};
 use common::CountingWriter;
 use common::{BinarySerializable, VInt};
+use fail::fail_point;
 use std::cmp::Ordering;
 use std::io::{self, Write};
 
@@ -212,6 +213,9 @@ impl<'a> FieldSerializer<'a> {
     /// If the current block is incomplete, it need to be encoded
     /// using `VInt` encoding.
     pub fn close_term(&mut self) -> io::Result<()> {
+        fail_point!("FieldSerializer::close_term", |msg: Option<String>| {
+            Err(io::Error::new(io::ErrorKind::Other, format!("{:?}", msg)))
+        });
         if self.term_open {
             self.postings_serializer
                 .close_term(self.current_term_info.doc_freq)?;
