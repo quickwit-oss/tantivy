@@ -46,7 +46,7 @@ impl VecWriter {
 impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_flushed {
-            panic!(
+            warn!(
                 "You forgot to flush {:?} before its writter got Drop. Do not rely on drop. This also occurs when the indexer crashed, so you may want to check the logs for the root cause.",
                 self.path
             )
