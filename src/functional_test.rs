@@ -49,7 +49,7 @@ fn test_functional_store() -> crate::Result<()> {
         }
         for _ in 0..num_docs {
             doc_set.push(doc_id);
-            index_writer.add_document(doc!(id_field=>doc_id));
+            index_writer.add_document(doc!(id_field=>doc_id))?;
             doc_id += 1;
         }
         index_writer.commit()?;
@@ -124,7 +124,7 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
                 doc.add_u64(multiples_field, random_val * i);
             }
             doc.add_text(text_field, get_text());
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
     }
     Ok(())
@@ -201,7 +201,7 @@ fn test_functional_indexing_unsorted() -> crate::Result<()> {
                 doc.add_u64(multiples_field, random_val * i);
             }
             doc.add_text(text_field, get_text());
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
     }
     Ok(())

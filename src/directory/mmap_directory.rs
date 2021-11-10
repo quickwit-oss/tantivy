@@ -574,8 +574,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mmap_released() {
-        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+    fn test_mmap_released() -> crate::Result<()> {
+        let mmap_directory = MmapDirectory::create_from_tempdir()?;
         let mut schema_builder: SchemaBuilder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -584,31 +584,30 @@ mod tests {
             let index =
                 Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
 
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             let mut log_merge_policy = LogMergePolicy::default();
             log_merge_policy.set_min_num_segments(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));
             for _num_commits in 0..10 {
                 for _ in 0..10 {
-                    index_writer.add_document(doc!(text_field=>"abc"));
+                    index_writer.add_document(doc!(text_field=>"abc"))?;
                 }
-                index_writer.commit().unwrap();
+                index_writer.commit()?;
             }
 
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
-                .try_into()
-                .unwrap();
+                .try_into()?;
 
             for _ in 0..4 {
-                index_writer.add_document(doc!(text_field=>"abc"));
-                index_writer.commit().unwrap();
-                reader.reload().unwrap();
+                index_writer.add_document(doc!(text_field=>"abc"))?;
+                index_writer.commit()?;
+                reader.reload()?;
             }
-            index_writer.wait_merging_threads().unwrap();
+            index_writer.wait_merging_threads()?;
 
-            reader.reload().unwrap();
+            reader.reload()?;
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
             let num_components_except_deletes_and_tempstore =
@@ -619,5 +618,6 @@ mod tests {
             );
         }
         assert!(mmap_directory.get_cache_info().mmapped.is_empty());
+        Ok(())
     }
 }

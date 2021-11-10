@@ -29,6 +29,7 @@ use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
 use smallvec::smallvec;
+use std::iter::Peekable;
 use std::ops::Range;
 use std::sync::Arc;
 use std::thread;
@@ -265,6 +266,23 @@ fn apply_deletes(
     })
 }
 
+/// Advance the peekable queue of document until it points to
+/// the first non-empty batch.
+///
+/// It also returns the first opstamp.
+fn advance_to_first_non_empty_batch<I: Iterator<Item = AddBatch>>(
+    add_batch_recv: &mut Peekable<I>,
+) -> Option<Opstamp> {
+    while let Some(add_batch) = add_batch_recv.peek() {
+        if let Some(first_element) = add_batch.first() {
+            return Some(first_element.opstamp);
+        } else {
+            add_batch_recv.next();
+        }
+    }
+    None
+}
+
 impl IndexWriter {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
@@ -399,6 +417,8 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     fn add_indexing_worker(&mut self) -> crate::Result<()> {
         let document_receiver_clone = self.operation_receiver()?;
+        let index_writer_bomb = self.index_writer_status.create_bomb();
+
         let mut segment_updater = self.segment_updater.clone();
 
         let mut delete_cursor = self.delete_queue.cursor();
@@ -419,18 +439,18 @@ impl IndexWriter {
                     // this is a valid guarantee as the
                     // peeked document now belongs to
                     // our local iterator.
-                    if let Some(operations) = document_iterator.peek() {
-                        if let Some(first) = operations.first() {
-                            delete_cursor.skip_to(first.opstamp);
-                        } else {
-                            return Ok(());
-                        }
+                    if let Some(first_opstamp) =
+                        advance_to_first_non_empty_batch(&mut document_iterator)
+                    {
+                        delete_cursor.skip_to(first_opstamp);
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
                         // was dropped.
+                        index_writer_bomb.defuse();
                         return Ok(());
                     }
+
                     let segment = index.new_segment();
                     index_documents(
                         mem_budget,
@@ -1028,116 +1048,108 @@ mod tests {
     }
 
     #[test]
-    fn test_with_merges() {
+    fn test_with_merges() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .unwrap();
+            .try_into()?;
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
             reader.searcher().doc_freq(&term_a).unwrap()
         };
-        {
-            // writing the segment
-            let mut index_writer = index.writer(12_000_000).unwrap();
-            // create 8 segments with 100 tiny docs
-            for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field=>"a"));
-            }
-            index_writer.commit().expect("commit failed");
-            for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field=>"a"));
-            }
-            //  this should create 8 segments and trigger a merge.
-            index_writer.commit().expect("commit failed");
-            index_writer
-                .wait_merging_threads()
-                .expect("waiting merging thread failed");
-
-            reader.reload().unwrap();
-
-            assert_eq!(num_docs_containing("a"), 200);
-            assert!(index.searchable_segments().unwrap().len() < 8);
+        // writing the segment
+        let mut index_writer = index.writer(12_000_000).unwrap();
+        // create 8 segments with 100 tiny docs
+        for _doc in 0..100 {
+            index_writer.add_document(doc!(text_field=>"a"))?;
         }
+        index_writer.commit()?;
+        for _doc in 0..100 {
+            index_writer.add_document(doc!(text_field=>"a"))?;
+        }
+        //  this should create 8 segments and trigger a merge.
+        index_writer.commit()?;
+        index_writer.wait_merging_threads()?;
+        reader.reload()?;
+        assert_eq!(num_docs_containing("a"), 200);
+        assert!(index.searchable_segments()?.len() < 8);
+        Ok(())
     }
 
     #[test]
-    fn test_prepare_with_commit_message() {
+    fn test_prepare_with_commit_message() -> crate::Result<()> {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        // writing the segment
+        let mut index_writer = index.writer(12_000_000)?;
+        // create 8 segments with 100 tiny docs
+        for _doc in 0..100 {
+            index_writer.add_document(doc!(text_field => "a"))?;
+        }
+        {
+            let mut prepared_commit = index_writer.prepare_commit()?;
+            prepared_commit.set_payload("first commit");
+            prepared_commit.commit()?;
+        }
+        {
+            let metas = index.load_metas()?;
+            assert_eq!(metas.payload.unwrap(), "first commit");
+        }
+        for _doc in 0..100 {
+            index_writer.add_document(doc!(text_field => "a"))?;
+        }
+        index_writer.commit()?;
+        {
+            let metas = index.load_metas()?;
+            assert!(metas.payload.is_none());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_prepare_but_rollback() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
 
         {
             // writing the segment
-            let mut index_writer = index.writer(12_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(4, 12_000_000)?;
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field => "a"));
+                index_writer.add_document(doc!(text_field => "a"))?;
             }
             {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
+                let mut prepared_commit = index_writer.prepare_commit()?;
                 prepared_commit.set_payload("first commit");
-                prepared_commit.commit().expect("commit failed");
+                prepared_commit.abort()?;
             }
             {
-                let metas = index.load_metas().unwrap();
-                assert_eq!(metas.payload.unwrap(), "first commit");
-            }
-            for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field => "a"));
-            }
-            index_writer.commit().unwrap();
-            {
-                let metas = index.load_metas().unwrap();
-                assert!(metas.payload.is_none());
-            }
-        }
-    }
-
-    #[test]
-    fn test_prepare_but_rollback() {
-        let mut schema_builder = schema::Schema::builder();
-        let text_field = schema_builder.add_text_field("text", schema::TEXT);
-        let index = Index::create_in_ram(schema_builder.build());
-
-        {
-            // writing the segment
-            let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
-            // create 8 segments with 100 tiny docs
-            for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field => "a"));
-            }
-            {
-                let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
-                prepared_commit.set_payload("first commit");
-                prepared_commit.abort().expect("commit failed");
-            }
-            {
-                let metas = index.load_metas().unwrap();
+                let metas = index.load_metas()?;
                 assert!(metas.payload.is_none());
             }
             for _doc in 0..100 {
-                index_writer.add_document(doc!(text_field => "b"));
+                index_writer.add_document(doc!(text_field => "b"))?;
             }
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
             index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
-                .try_into()
-                .unwrap()
+                .try_into()?
                 .searcher()
                 .doc_freq(&term_a)
-                .unwrap()
         };
-        assert_eq!(num_docs_containing("a"), 0);
-        assert_eq!(num_docs_containing("b"), 100);
+        assert_eq!(num_docs_containing("a")?, 0);
+        assert_eq!(num_docs_containing("b")?, 100);
+        Ok(())
     }
 
     #[test]
@@ -1328,13 +1340,13 @@ mod tests {
 
         // create and delete docs in same commit
         for id in 0u64..5u64 {
-            assert!(index_writer.add_document(doc!(id_field => id)).is_ok());
+            index_writer.add_document(doc!(id_field => id))?;
         }
         for id in 2u64..4u64 {
             index_writer.delete_term(Term::from_field_u64(id_field, id));
         }
         for id in 5u64..10u64 {
-            assert!(index_writer.add_document(doc!(id_field => id)).is_ok());
+            index_writer.add_document(doc!(id_field => id))?;
         }
         index_writer.commit()?;
         index_reader.reload()?;
@@ -1453,7 +1465,7 @@ mod tests {
                 IndexingOp::AddDoc { id } => {
                     let facet = Facet::from(&("/cola/".to_string() + &id.to_string()));
                     index_writer
-                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet, large_text_field=> LOREM));
+                        .add_document(doc!(id_field=>id, multi_numbers=> id, multi_numbers => id, text_field => id.to_string(), facet_field => facet, large_text_field=> LOREM))?;
                 }
                 IndexingOp::DeleteDoc { id } => {
                     index_writer.delete_term(Term::from_field_u64(id_field, id));
@@ -1680,11 +1692,11 @@ mod tests {
         let mut index_writer = index.writer_for_tests()?;
 
         // We add a doc...
-        index_writer.add_document(doc!(sort_by_field => 2u64, id_field => 0u64));
+        index_writer.add_document(doc!(sort_by_field => 2u64, id_field => 0u64))?;
         // And remove it.
         index_writer.delete_term(Term::from_field_u64(id_field, 0u64));
         // We add another doc.
-        index_writer.add_document(doc!(sort_by_field=>1u64, id_field => 0u64));
+        index_writer.add_document(doc!(sort_by_field=>1u64, id_field => 0u64))?;
 
         // The expected result is a segment with
         // maxdoc = 2
@@ -1701,14 +1713,14 @@ mod tests {
     }
 
     #[test]
-    fn test_index_doc_missing_field() {
+    fn test_index_doc_missing_field() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let idfield = schema_builder.add_text_field("id", STRING);
         schema_builder.add_text_field("optfield", STRING);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(idfield=>"myid"));
-        let commit = index_writer.commit();
-        assert!(commit.is_ok());
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(idfield=>"myid"))?;
+        index_writer.commit()?;
+        Ok(())
     }
 }

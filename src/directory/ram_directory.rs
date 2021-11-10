@@ -214,14 +214,8 @@ impl Directory for RamDirectory {
     }
 
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
-        fail_point!("RamDirectory::atomic_write", |msg| Err(io::Error::new(
-            io::ErrorKind::Other,
-            msg.unwrap_or_else(|| "Undefined".to_string())
-        )));
         let path_buf = PathBuf::from(path);
-
         self.fs.write().unwrap().write(path_buf, data);
-
         if path == *META_FILEPATH {
             let _ = self.fs.write().unwrap().watch_router.broadcast();
         }

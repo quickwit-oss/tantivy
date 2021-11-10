@@ -57,19 +57,20 @@ mod tests_mmap {
     use crate::{Index, Term};
 
     #[test]
-    fn test_advance_delete_bug() {
+    fn test_advance_delete_bug() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
-        let index = Index::create_from_tempdir(schema_builder.build()).unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let index = Index::create_from_tempdir(schema_builder.build())?;
+        let mut index_writer = index.writer_for_tests()?;
         // there must be one deleted document in the segment
-        index_writer.add_document(doc!(text_field=>"b"));
+        index_writer.add_document(doc!(text_field=>"b"))?;
         index_writer.delete_term(Term::from_field_text(text_field, "b"));
         // we need enough data to trigger the bug (at least 32 documents)
         for _ in 0..32 {
-            index_writer.add_document(doc!(text_field=>"c"));
+            index_writer.add_document(doc!(text_field=>"c"))?;
         }
-        index_writer.commit().unwrap();
-        index_writer.commit().unwrap();
+        index_writer.commit()?;
+        index_writer.commit()?;
+        Ok(())
     }
 }

@@ -185,11 +185,11 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(text_field=>"b"));
-        index_writer.add_document(doc!(text_field=>"a"));
-        index_writer.add_document(doc!(text_field=>"a"));
-        index_writer.add_document(doc!(text_field=>"b"));
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text_field=>"b"))?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.add_document(doc!(text_field=>"a"))?;
+        index_writer.add_document(doc!(text_field=>"b"))?;
         index_writer.commit()?;
         let term_a = Term::from_field_text(text_field, "a");
         let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);

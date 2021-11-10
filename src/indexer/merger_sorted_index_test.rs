@@ -39,14 +39,17 @@ mod tests {
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-
-            index_writer.add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")));
-            index_writer.add_document(doc!(int_field=>6_u64, facet_field=> Facet::from("/crime")));
-
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(int_field=>5_u64, facet_field=> Facet::from("/fanta")));
-
-            assert!(index_writer.commit().is_ok());
+            index_writer
+                .add_document(doc!(int_field=>3_u64, facet_field=> Facet::from("/crime")))
+                .unwrap();
+            index_writer
+                .add_document(doc!(int_field=>6_u64, facet_field=> Facet::from("/crime")))
+                .unwrap();
+            index_writer.commit().unwrap();
+            index_writer
+                .add_document(doc!(int_field=>5_u64, facet_field=> Facet::from("/fanta")))
+                .unwrap();
+            index_writer.commit().unwrap();
         }
 
         // Merging the segments
@@ -66,7 +69,7 @@ mod tests {
     fn create_test_index(
         index_settings: Option<IndexSettings>,
         force_disjunct_segment_sort_values: bool,
-    ) -> Index {
+    ) -> crate::Result<Index> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
@@ -95,34 +98,34 @@ mod tests {
         if let Some(settings) = index_settings {
             index_builder = index_builder.settings(settings);
         }
-        let index = index_builder.create_in_ram().unwrap();
+        let index = index_builder.create_in_ram()?;
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
 
             // segment 1 - range 1-3
-            index_writer.add_document(doc!(int_field=>1_u64));
+            index_writer.add_document(doc!(int_field=>1_u64))?;
             index_writer.add_document(
                 doc!(int_field=>3_u64, multi_numbers => 3_u64, multi_numbers => 4_u64, bytes_field => vec![1, 2, 3], text_field => "some text", facet_field=> Facet::from("/book/crime")),
-            );
+            )?;
             index_writer.add_document(
                 doc!(int_field=>1_u64, text_field=> "deleteme",  text_field => "ok text more text"),
-            );
+            )?;
             index_writer.add_document(
                 doc!(int_field=>2_u64, multi_numbers => 2_u64, multi_numbers => 3_u64, text_field => "ok text more text"),
-            );
+            )?;
 
-            assert!(index_writer.commit().is_ok());
+            index_writer.commit()?;
             // segment 2 - range 1-20 , with force_disjunct_segment_sort_values 10-20
-            index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64));
+            index_writer.add_document(doc!(int_field=>20_u64, multi_numbers => 20_u64))?;
 
             let in_val = if force_disjunct_segment_sort_values {
                 10_u64
             } else {
                 1
             };
-            index_writer.add_document(doc!(int_field=>in_val, text_field=> "deleteme" , text_field => "ok text more text", facet_field=> Facet::from("/book/crime")));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>in_val, text_field=> "deleteme" , text_field => "ok text more text", facet_field=> Facet::from("/book/crime")))?;
+            index_writer.commit()?;
             // segment 3 - range 5-1000, with force_disjunct_segment_sort_values 50-1000
             let int_vals = if force_disjunct_segment_sort_values {
                 [100_u64, 50]
@@ -131,26 +134,24 @@ mod tests {
             };
             index_writer.add_document( // position of this doc after delete in desc sorting = [2], in disjunct case [1]
                 doc!(int_field=>int_vals[0], multi_numbers => 10_u64, multi_numbers => 11_u64, text_field=> "blubber", facet_field=> Facet::from("/book/fantasy")),
-            );
-            index_writer.add_document(doc!(int_field=>int_vals[1], text_field=> "deleteme"));
+            )?;
+            index_writer.add_document(doc!(int_field=>int_vals[1], text_field=> "deleteme"))?;
             index_writer.add_document(
                 doc!(int_field=>1_000u64, multi_numbers => 1001_u64, multi_numbers => 1002_u64, bytes_field => vec![5, 5],text_field => "the biggest num")
-            );
+            )?;
 
             index_writer.delete_term(Term::from_field_text(text_field, "deleteme"));
-            assert!(index_writer.commit().is_ok());
+            index_writer.commit()?;
         }
 
         // Merging the segments
         {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
-            assert!(index_writer.wait_merging_threads().is_ok());
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
         }
-        index
+        Ok(index)
     }
 
     #[test]
@@ -183,7 +184,8 @@ mod tests {
                 ..Default::default()
             }),
             force_disjunct_segment_sort_values,
-        );
+        )
+        .unwrap();
 
         let int_field = index.schema().get_field("intval").unwrap();
         let reader = index.reader().unwrap();
@@ -300,7 +302,8 @@ mod tests {
                 ..Default::default()
             }),
             false,
-        );
+        )
+        .unwrap();
 
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
@@ -367,7 +370,8 @@ mod tests {
                 ..Default::default()
             }),
             false,
-        );
+        )
+        .unwrap();
 
         let int_field = index.schema().get_field("intval").unwrap();
         let multi_numbers = index.schema().get_field("multi_numbers").unwrap();

@@ -47,12 +47,12 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
 
     let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
     for _ in 0..100 {
-        index_writer.add_document(doc!(text_field => "a"));
+        index_writer.add_document(doc!(text_field => "a"))?;
     }
     index_writer.commit()?;
-    fail::cfg("RamDirectory::atomic_write", "return(error_write_failed)").unwrap();
+    fail::cfg("save_metas", "return(error_write_failed)").unwrap();
     for _ in 0..100 {
-        index_writer.add_document(doc!(text_field => "b"));
+        index_writer.add_document(doc!(text_field => "b"))?;
     }
     assert!(index_writer.commit().is_err());
 
@@ -65,6 +65,10 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
     Ok(())
 }
 
+// Motivated by
+// - https://github.com/quickwit-inc/quickwit/issues/730
+// Details at
+// - https://github.com/quickwit-inc/tantivy/issues/1198
 #[test]
 fn test_fail_on_flush_segment() -> tantivy::Result<()> {
     let _fail_scenario_guard = fail::FailScenario::setup();
@@ -74,10 +78,14 @@ fn test_fail_on_flush_segment() -> tantivy::Result<()> {
     let index_writer = index.writer_with_num_threads(1, 3_000_000)?;
     fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
     for i in 0..100_000 {
-        index_writer
-            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)));
+        if index_writer
+            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)))
+            .is_err()
+        {
+            return Ok(());
+        }
     }
-    Ok(())
+    panic!("add_document should have returned an error");
 }
 
 #[test]
@@ -90,7 +98,7 @@ fn test_fail_on_commit_segment() -> tantivy::Result<()> {
     fail::cfg("FieldSerializer::close_term", "return(simulatederror)").unwrap();
     for i in 0..10 {
         index_writer
-            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)));
+            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)))?;
     }
     assert!(index_writer.commit().is_err());
     Ok(())

@@ -40,7 +40,7 @@ fn main() -> tantivy::Result<()> {
             fresh and green with every spring, carrying in their lower leaf junctures the \
             debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
             limbs and branches that arch over the pool"
-    ));
+    ))?;
     // ...
     index_writer.commit()?;
 

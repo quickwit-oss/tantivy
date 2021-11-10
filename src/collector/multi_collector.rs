@@ -252,24 +252,24 @@ mod tests {
     use crate::Term;
 
     #[test]
-    fn test_multi_collector() {
+    fn test_multi_collector() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text=>"abc"));
-            index_writer.add_document(doc!(text=>"abc abc abc"));
-            index_writer.add_document(doc!(text=>"abc abc"));
-            index_writer.commit().unwrap();
-            index_writer.add_document(doc!(text=>""));
-            index_writer.add_document(doc!(text=>"abc abc abc abc"));
-            index_writer.add_document(doc!(text=>"abc"));
-            index_writer.commit().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text=>"abc"))?;
+            index_writer.add_document(doc!(text=>"abc abc abc"))?;
+            index_writer.add_document(doc!(text=>"abc abc"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text=>""))?;
+            index_writer.add_document(doc!(text=>"abc abc abc abc"))?;
+            index_writer.add_document(doc!(text=>"abc"))?;
+            index_writer.commit()?;
         }
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let term = Term::from_field_text(text, "abc");
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 
@@ -280,5 +280,6 @@ mod tests {
 
         assert_eq!(count_handler.extract(&mut multifruits), 5);
         assert_eq!(topdocs_handler.extract(&mut multifruits).len(), 2);
+        Ok(())
     }
 }

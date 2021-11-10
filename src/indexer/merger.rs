@@ -1162,18 +1162,17 @@ mod tests {
                 score_field => 3u64,
                 date_field => curr_time,
                 bytes_score_field => 3u32.to_be_bytes().as_ref()
-            ));
-
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "a b c",
                 score_field => 5u64,
                 bytes_score_field => 5u32.to_be_bytes().as_ref()
-            ));
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "a b c d",
                 score_field => 7u64,
                 bytes_score_field => 7u32.to_be_bytes().as_ref()
-            ));
+            ))?;
             index_writer.commit()?;
             // writing the segment
             index_writer.add_document(doc!(
@@ -1181,12 +1180,12 @@ mod tests {
                 date_field => curr_time,
                 score_field => 11u64,
                 bytes_score_field => 11u32.to_be_bytes().as_ref()
-            ));
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "a b c g",
                 score_field => 13u64,
                 bytes_score_field => 13u32.to_be_bytes().as_ref()
-            ));
+            ))?;
             index_writer.commit()?;
         }
         {
@@ -1320,18 +1319,18 @@ mod tests {
                 text_field => "a b d",
                 score_field => 1u64,
                 bytes_score_field => vec![0u8, 0, 0, 1],
-            ));
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "b c",
                 score_field => 2u64,
                 bytes_score_field => vec![0u8, 0, 0, 2],
-            ));
+            ))?;
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(doc!(
                 text_field => "c d",
                 score_field => 3u64,
                 bytes_score_field => vec![0u8, 0, 0, 3],
-            ));
+            ))?;
             index_writer.commit()?;
             reader.reload()?;
             let searcher = reader.searcher();
@@ -1361,24 +1360,24 @@ mod tests {
                 text_field => "a d e",
                 score_field => 4_000u64,
                 bytes_score_field => vec![0u8, 0, 0, 4],
-            ));
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "e f",
                 score_field => 5_000u64,
                 bytes_score_field => vec![0u8, 0, 0, 5],
-            ));
+            ))?;
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(doc!(
                 text_field => "f g",
                 score_field => 6_000u64,
                 bytes_score_field => vec![0u8, 0, 23, 112],
-            ));
+            ))?;
             index_writer.add_document(doc!(
                 text_field => "g h",
                 score_field => 7_000u64,
                 bytes_score_field => vec![0u8, 0, 27, 88],
-            ));
+            ))?;
             index_writer.commit()?;
             reader.reload()?;
             let searcher = reader.searcher();
@@ -1674,7 +1673,7 @@ mod tests {
                     }
                     doc.add_u64(int_field, *int_val);
                     *int_val += 1;
-                    index_writer.add_document(doc);
+                    index_writer.add_document(doc).unwrap();
                 };
 
             index_doc(
@@ -1787,70 +1786,69 @@ mod tests {
     }
 
     #[test]
-    fn test_bug_merge() {
+    fn test_bug_merge() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(int_field => 1u64));
+        index_writer.add_document(doc!(int_field => 1u64))?;
         index_writer.commit().expect("commit failed");
-        index_writer.add_document(doc!(int_field => 1u64));
+        index_writer.add_document(doc!(int_field => 1u64))?;
         index_writer.commit().expect("commit failed");
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 2);
         index_writer.delete_term(Term::from_field_u64(int_field, 1));
         let segment_ids = index
             .searchable_segment_ids()
             .expect("Searchable segments failed.");
-        block_on(index_writer.merge(&segment_ids)).expect("Merging failed");
-        reader.reload().unwrap();
+        block_on(index_writer.merge(&segment_ids))?;
+        reader.reload()?;
         // commit has not been called yet. The document should still be
         // there.
         assert_eq!(reader.searcher().num_docs(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_multivalued_int_fields_all_deleted() {
+    fn test_merge_multivalued_int_fields_all_deleted() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             let mut doc = Document::default();
             doc.add_u64(int_field, 1);
-            index_writer.add_document(doc.clone());
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc);
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc.clone())?;
+            index_writer.commit()?;
+            index_writer.add_document(doc)?;
+            index_writer.commit()?;
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
-
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
+            let segment_ids = index.searchable_segment_ids()?;
+            block_on(index_writer.merge(&segment_ids))?;
 
             // assert delete has not been committed
-            assert!(reader.reload().is_ok());
+            reader.reload()?;
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
 
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
 
-            index_writer.wait_merging_threads().unwrap();
+            index_writer.wait_merging_threads()?;
         }
 
-        reader.reload().unwrap();
+        reader.reload()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_merge_multivalued_int_fields_simple() {
+    fn test_merge_multivalued_int_fields_simple() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
@@ -1859,13 +1857,13 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
                 let mut doc = Document::default();
                 for &val in int_vals {
                     doc.add_u64(int_field, val);
                 }
-                index_writer.add_document(doc);
+                index_writer.add_document(doc).unwrap();
             };
             index_doc(&mut index_writer, &[1, 2]);
             index_doc(&mut index_writer, &[1, 2, 3]);
@@ -1881,7 +1879,7 @@ mod tests {
             index_doc(&mut index_writer, &[1_000]);
             assert!(index_writer.commit().is_ok());
         }
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut vals: Vec<u64> = Vec::new();
 
@@ -1930,14 +1928,12 @@ mod tests {
 
         // Merging the segments
         {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
-            assert!(index_writer.wait_merging_threads().is_ok());
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
         }
-        assert!(reader.reload().is_ok());
+        reader.reload()?;
 
         {
             let searcher = reader.searcher();
@@ -1974,6 +1970,7 @@ mod tests {
             ff_reader.get_vals(9, &mut vals);
             assert_eq!(&vals, &[20]);
         }
+        Ok(())
     }
 
     #[test]
@@ -1999,7 +1996,7 @@ mod tests {
             doc.add_f64(field, 42.0);
             doc.add_f64(multi_field, 0.24);
             doc.add_f64(multi_field, 0.27);
-            writer.add_document(doc);
+            writer.add_document(doc)?;
             if i % 5 == 0 {
                 writer.commit()?;
             }
@@ -2023,7 +2020,7 @@ mod tests {
         let happy_term = Term::from_field_text(text, "happy");
         let term_query = TermQuery::new(happy_term, IndexRecordOption::WithFreqs);
         for _ in 0..62 {
-            writer.add_document(doc!(text=>"hello happy tax payer"));
+            writer.add_document(doc!(text=>"hello happy tax payer"))?;
         }
         writer.commit()?;
         let reader = index.reader()?;
@@ -2035,7 +2032,7 @@ mod tests {
         assert_nearly_equals!(term_scorer.block_max_score(), 0.0079681855);
         assert_nearly_equals!(term_scorer.score(), 0.0079681855);
         for _ in 0..81 {
-            writer.add_document(doc!(text=>"hello happy tax payer"));
+            writer.add_document(doc!(text=>"hello happy tax payer"))?;
         }
         writer.commit()?;
         reader.reload()?;

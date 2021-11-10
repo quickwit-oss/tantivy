@@ -321,24 +321,24 @@ mod test {
     }
 
     #[test]
-    fn test_fast_indexed() {
+    fn test_fast_indexed() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", FAST | INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(name => 1u64));
-            index_writer.add_document(doc!(name => 2u64));
-            index_writer.add_document(doc!(name => 10u64));
-            index_writer.add_document(doc!(name => 20u64));
-            index_writer.commit().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(name => 1u64))?;
+            index_writer.add_document(doc!(name => 2u64))?;
+            index_writer.add_document(doc!(name => 10u64))?;
+            index_writer.add_document(doc!(name => 20u64))?;
+            index_writer.commit()?;
         }
 
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage().unwrap();
+        let searcher_space_usage = searcher.space_usage()?;
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -355,29 +355,30 @@ mod test {
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(0, segment.deletes());
+        Ok(())
     }
 
     #[test]
-    fn test_text() {
+    fn test_text() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(name => "hi"));
-            index_writer.add_document(doc!(name => "this is a test"));
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(name => "hi"))?;
+            index_writer.add_document(doc!(name => "this is a test"))?;
             index_writer.add_document(
                 doc!(name => "some more documents with some word overlap with the other test"),
-            );
-            index_writer.add_document(doc!(name => "hello hi goodbye"));
-            index_writer.commit().unwrap();
+            )?;
+            index_writer.add_document(doc!(name => "hello hi goodbye"))?;
+            index_writer.commit()?;
         }
 
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage().unwrap();
+        let searcher_space_usage = searcher.space_usage()?;
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -394,28 +395,29 @@ mod test {
         // TODO: understand why the following fails
         //        assert_eq!(0, segment.store().total());
         assert_eq!(0, segment.deletes());
+        Ok(())
     }
 
     #[test]
-    fn test_store() {
+    fn test_store() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(name => "hi"));
-            index_writer.add_document(doc!(name => "this is a test"));
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(name => "hi"))?;
+            index_writer.add_document(doc!(name => "this is a test"))?;
             index_writer.add_document(
                 doc!(name => "some more documents with some word overlap with the other test"),
-            );
-            index_writer.add_document(doc!(name => "hello hi goodbye"));
-            index_writer.commit().unwrap();
+            )?;
+            index_writer.add_document(doc!(name => "hello hi goodbye"))?;
+            index_writer.commit()?;
         }
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let searcher_space_usage = searcher.space_usage().unwrap();
+        let searcher_space_usage = searcher.space_usage()?;
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
 
@@ -432,6 +434,7 @@ mod test {
         assert!(segment.store().total() > 0);
         assert!(segment.store().total() < 512);
         assert_eq!(0, segment.deletes());
+        Ok(())
     }
 
     #[test]
@@ -443,10 +446,10 @@ mod test {
 
         {
             let mut index_writer = index.writer_for_tests()?;
-            index_writer.add_document(doc!(name => 1u64));
-            index_writer.add_document(doc!(name => 2u64));
-            index_writer.add_document(doc!(name => 3u64));
-            index_writer.add_document(doc!(name => 4u64));
+            index_writer.add_document(doc!(name => 1u64))?;
+            index_writer.add_document(doc!(name => 2u64))?;
+            index_writer.add_document(doc!(name => 3u64))?;
+            index_writer.add_document(doc!(name => 4u64))?;
             index_writer.commit()?;
         }
 

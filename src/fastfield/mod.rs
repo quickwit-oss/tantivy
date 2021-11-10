@@ -497,18 +497,18 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_missing_date_fast_field() {
+    fn test_merge_missing_date_fast_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()));
-        index_writer.commit().unwrap();
-        index_writer.add_document(doc!());
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!())?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let segment_ids: Vec<SegmentId> = reader
             .searcher()
             .segment_readers()
@@ -517,10 +517,10 @@ mod tests {
             .collect();
         assert_eq!(segment_ids.len(), 2);
         let merge_future = index_writer.merge(&segment_ids[..]);
-        let merge_res = futures::executor::block_on(merge_future);
-        assert!(merge_res.is_ok());
-        assert!(reader.reload().is_ok());
+        futures::executor::block_on(merge_future)?;
+        reader.reload()?;
         assert_eq!(reader.searcher().segment_readers().len(), 1);
+        Ok(())
     }
 
     #[test]
@@ -529,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn test_datefastfield() {
+    fn test_datefastfield() -> crate::Result<()> {
         use crate::fastfield::FastValue;
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", FAST);
@@ -539,22 +539,22 @@ mod tests {
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!(
             date_field => crate::DateTime::from_u64(1i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(2i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(3i64.to_u64())
-        ));
+        ))?;
         index_writer.add_document(doc!(
             date_field => crate::DateTime::from_u64(4i64.to_u64())
-        ));
+        ))?;
         index_writer.add_document(doc!(
             multi_date_field => crate::DateTime::from_u64(5i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(6i64.to_u64())
-        ));
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
@@ -581,6 +581,7 @@ mod tests {
             assert_eq!(dates[0].timestamp(), 5i64);
             assert_eq!(dates[1].timestamp(), 6i64);
         }
+        Ok(())
     }
 }
 

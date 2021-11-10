@@ -713,20 +713,18 @@ mod tests {
     use crate::Score;
     use crate::{DocAddress, DocId, SegmentReader};
 
-    fn make_index() -> Index {
+    fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        {
-            // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-            index_writer.add_document(doc!(text_field=>"Hello happy tax payer."));
-            index_writer.add_document(doc!(text_field=>"Droopy says hello happy tax payer"));
-            index_writer.add_document(doc!(text_field=>"I like Droopy"));
-            assert!(index_writer.commit().is_ok());
-        }
-        index
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+        index_writer.add_document(doc!(text_field=>"Hello happy tax payer."))?;
+        index_writer.add_document(doc!(text_field=>"Droopy says hello happy tax payer"))?;
+        index_writer.add_document(doc!(text_field=>"I like Droopy"))?;
+        index_writer.commit()?;
+        Ok(index)
     }
 
     fn assert_results_equals(results: &[(Score, DocAddress)], expected: &[(Score, DocAddress)]) {
@@ -737,17 +735,15 @@ mod tests {
     }
 
     #[test]
-    fn test_top_collector_not_at_capacity_without_offset() {
-        let index = make_index();
+    fn test_top_collector_not_at_capacity_without_offset() -> crate::Result<()> {
+        let index = make_index()?;
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
-        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let text_query = query_parser.parse_query("droopy tax")?;
         let score_docs: Vec<(Score, DocAddress)> = index
-            .reader()
-            .unwrap()
+            .reader()?
             .searcher()
-            .search(&text_query, &TopDocs::with_limit(4))
-            .unwrap();
+            .search(&text_query, &TopDocs::with_limit(4))?;
         assert_results_equals(
             &score_docs,
             &[
@@ -756,11 +752,12 @@ mod tests {
                 (0.48527452, DocAddress::new(0, 0)),
             ],
         );
+        Ok(())
     }
 
     #[test]
     fn test_top_collector_not_at_capacity_with_offset() {
-        let index = make_index();
+        let index = make_index().unwrap();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
@@ -775,7 +772,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_at_capacity() {
-        let index = make_index();
+        let index = make_index().unwrap();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
@@ -796,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_at_capacity_with_offset() {
-        let index = make_index();
+        let index = make_index().unwrap();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
@@ -817,7 +814,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_stable_sorting() {
-        let index = make_index();
+        let index = make_index().unwrap();
 
         // using AllQuery to get a constant score
         let searcher = index.reader().unwrap().searcher();
@@ -848,29 +845,35 @@ mod tests {
     const SIZE: &str = "size";
 
     #[test]
-    fn test_top_field_collector_not_at_capacity() {
+    fn test_top_field_collector_not_at_capacity() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
         let (index, query) = index("beer", title, schema, |index_writer| {
-            index_writer.add_document(doc!(
-                title => "bottle of beer",
-                size => 12u64,
-            ));
-            index_writer.add_document(doc!(
-                title => "growler of beer",
-                size => 64u64,
-            ));
-            index_writer.add_document(doc!(
-                title => "pint of beer",
-                size => 16u64,
-            ));
+            index_writer
+                .add_document(doc!(
+                    title => "bottle of beer",
+                    size => 12u64,
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    title => "growler of beer",
+                    size => 64u64,
+                ))
+                .unwrap();
+            index_writer
+                .add_document(doc!(
+                    title => "pint of beer",
+                    size => 16u64,
+                ))
+                .unwrap();
         });
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
-        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector)?;
         assert_eq!(
             &top_docs[..],
             &[
@@ -879,6 +882,7 @@ mod tests {
                 (12, DocAddress::new(0, 0))
             ]
         );
+        Ok(())
     }
 
     #[test]
@@ -894,12 +898,12 @@ mod tests {
         index_writer.add_document(doc!(
             name => "Paul Robeson",
             birthday => pr_birthday
-        ));
+        ))?;
         let mr_birthday = crate::DateTime::from_str("1947-11-08T00:00:00+00:00")?;
         index_writer.add_document(doc!(
             name => "Minnie Riperton",
             birthday => mr_birthday
-        ));
+        ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(birthday);
@@ -926,11 +930,11 @@ mod tests {
         index_writer.add_document(doc!(
                 city => "georgetown",
                 altitude =>  -1i64,
-        ));
+        ))?;
         index_writer.add_document(doc!(
             city => "tokyo",
             altitude =>  40i64,
-        ));
+        ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(altitude);
@@ -956,11 +960,11 @@ mod tests {
         index_writer.add_document(doc!(
                 city => "georgetown",
                 altitude =>  -1.0f64,
-        ));
+        ))?;
         index_writer.add_document(doc!(
             city => "tokyo",
             altitude =>  40f64,
-        ));
+        ))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let top_collector = TopDocs::with_limit(3).order_by_fast_field(altitude);
@@ -983,10 +987,12 @@ mod tests {
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
         let (index, _) = index("beer", title, schema, |index_writer| {
-            index_writer.add_document(doc!(
-                title => "bottle of beer",
-                size => 12u64,
-            ));
+            index_writer
+                .add_document(doc!(
+                    title => "bottle of beer",
+                    size => 12u64,
+                ))
+                .unwrap();
         });
         let searcher = index.reader().unwrap().searcher();
         let top_collector = TopDocs::with_limit(4).order_by_u64_field(Field::from_field_id(2));
@@ -1003,7 +1009,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(size=>1u64));
+        index_writer.add_document(doc!(size=>1u64))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let segment = searcher.segment_reader(0);
@@ -1020,7 +1026,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(size=>1u64));
+        index_writer.add_document(doc!(size=>1u64))?;
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();
         let segment = searcher.segment_reader(0);
@@ -1033,30 +1039,26 @@ mod tests {
     }
 
     #[test]
-    fn test_tweak_score_top_collector_with_offset() {
-        let index = make_index();
+    fn test_tweak_score_top_collector_with_offset() -> crate::Result<()> {
+        let index = make_index()?;
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
-        let text_query = query_parser.parse_query("droopy tax").unwrap();
+        let text_query = query_parser.parse_query("droopy tax")?;
         let collector = TopDocs::with_limit(2).and_offset(1).tweak_score(
             move |_segment_reader: &SegmentReader| move |doc: DocId, _original_score: Score| doc,
         );
-        let score_docs: Vec<(u32, DocAddress)> = index
-            .reader()
-            .unwrap()
-            .searcher()
-            .search(&text_query, &collector)
-            .unwrap();
-
+        let score_docs: Vec<(u32, DocAddress)> =
+            index.reader()?.searcher().search(&text_query, &collector)?;
         assert_eq!(
             score_docs,
             vec![(1, DocAddress::new(0, 1)), (0, DocAddress::new(0, 0)),]
         );
+        Ok(())
     }
 
     #[test]
     fn test_custom_score_top_collector_with_offset() {
-        let index = make_index();
+        let index = make_index().unwrap();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();

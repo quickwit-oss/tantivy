@@ -146,7 +146,7 @@ mod tests_indexsorting {
     fn create_test_index(
         index_settings: Option<IndexSettings>,
         text_field_options: TextOptions,
-    ) -> Index {
+    ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
 
         let my_text_field = schema_builder.add_text_field("text_field", text_field_options);
@@ -166,19 +166,20 @@ mod tests_indexsorting {
         if let Some(settings) = index_settings {
             index_builder = index_builder.settings(settings);
         }
-        let index = index_builder.create_in_ram().unwrap();
+        let index = index_builder.create_in_ram()?;
 
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(my_number=>40_u64));
-        index_writer
-            .add_document(doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64));
-        index_writer.add_document(doc!(my_number=>100_u64));
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(my_number=>40_u64))?;
+        index_writer.add_document(
+            doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64),
+        )?;
+        index_writer.add_document(doc!(my_number=>100_u64))?;
         index_writer.add_document(
             doc!(my_number=>10_u64, my_string_field=> "blublub", my_text_field => "some text"),
-        );
-        index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ));
-        index_writer.commit().unwrap();
-        index
+        )?;
+        index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ))?;
+        index_writer.commit()?;
+        Ok(index)
     }
     fn get_text_options() -> TextOptions {
         TextOptions::default().set_indexing_options(
@@ -203,7 +204,7 @@ mod tests_indexsorting {
         for option in options {
             //let options = get_text_options();
             // no index_sort
-            let index = create_test_index(None, option.clone());
+            let index = create_test_index(None, option.clone())?;
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let searcher = index.reader()?.searcher();
 
@@ -225,7 +226,7 @@ mod tests_indexsorting {
                     ..Default::default()
                 }),
                 option.clone(),
-            );
+            )?;
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let reader = index.reader()?;
             let searcher = reader.searcher();
@@ -257,7 +258,7 @@ mod tests_indexsorting {
                     ..Default::default()
                 }),
                 option.clone(),
-            );
+            )?;
             let my_string_field = index.schema().get_field("text_field").unwrap();
             let searcher = index.reader()?.searcher();
 
@@ -287,7 +288,7 @@ mod tests_indexsorting {
     #[test]
     fn test_sort_index_get_documents() -> crate::Result<()> {
         // default baseline
-        let index = create_test_index(None, get_text_options());
+        let index = create_test_index(None, get_text_options())?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -316,7 +317,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -341,7 +342,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -356,7 +357,7 @@ mod tests_indexsorting {
 
     #[test]
     fn test_sort_index_test_string_field() -> crate::Result<()> {
-        let index = create_test_index(None, get_text_options());
+        let index = create_test_index(None, get_text_options())?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
 
@@ -376,7 +377,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -407,7 +408,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
 
@@ -443,7 +444,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         assert_eq!(
             index.settings().sort_by_field.as_ref().unwrap().field,
             "my_number".to_string()
