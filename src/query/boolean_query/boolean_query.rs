@@ -217,11 +217,11 @@ mod tests {
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_for_tests().unwrap();
-        writer.add_document(doc!(text=>"b c"));
-        writer.add_document(doc!(text=>"a c"));
-        writer.add_document(doc!(text=>"a b"));
-        writer.add_document(doc!(text=>"a d"));
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(text=>"b c"))?;
+        writer.add_document(doc!(text=>"a c"))?;
+        writer.add_document(doc!(text=>"a b"))?;
+        writer.add_document(doc!(text=>"a d"))?;
         writer.commit()?;
         Ok(index)
     }

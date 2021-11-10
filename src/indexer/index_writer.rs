@@ -14,6 +14,7 @@ use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
 use crate::indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
+use crate::indexer::index_writer_status::IndexWriterStatus;
 use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
 use crate::indexer::MergePolicy;
@@ -28,12 +29,12 @@ use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
 use smallvec::smallvec;
-use smallvec::SmallVec;
-use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+
+use super::{AddBatch, AddBatchReceiver, AddBatchSender};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -50,15 +51,12 @@ pub const MAX_NUM_THREAD: usize = 8;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-// Group of operations.
-// Most of the time, users will send operation one-by-one, but it can be useful to
-// send them as a small block to ensure that
-// - all docs in the operation will happen on the same segment and continuous doc_ids.
-// - all operations in the group are committed at the same time, making the group
-// atomic.
-type OperationGroup = SmallVec<[AddOperation; 4]>;
-type OperationSender = channel::Sender<OperationGroup>;
-type OperationReceiver = channel::Receiver<OperationGroup>;
+fn error_in_index_worker_thread(context: &str) -> TantivyError {
+    TantivyError::ErrorInThread(format!(
+        "{}. A worker thread encounterred an error (io::Error most likely) or panicked.",
+        context
+    ))
+}
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -77,8 +75,8 @@ pub struct IndexWriter {
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
-    operation_receiver: OperationReceiver,
-    operation_sender: OperationSender,
+    index_writer_status: IndexWriterStatus,
+    operation_sender: AddBatchSender,
 
     segment_updater: SegmentUpdater,
 
@@ -185,10 +183,10 @@ pub(crate) fn advance_deletes(
 fn index_documents(
     memory_budget: usize,
     segment: Segment,
-    grouped_document_iterator: &mut dyn Iterator<Item = OperationGroup>,
+    grouped_document_iterator: &mut dyn Iterator<Item = AddBatch>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
-) -> crate::Result<bool> {
+) -> crate::Result<()> {
     let schema = segment.schema();
 
     let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
@@ -207,7 +205,7 @@ fn index_documents(
     }
 
     if !segment_updater.is_alive() {
-        return Ok(false);
+        return Ok(());
     }
 
     let max_doc = segment_writer.max_doc();
@@ -227,7 +225,7 @@ fn index_documents(
     // update segment_updater inventory to remove tempstore
     let segment_entry = SegmentEntry::new(meta, delete_cursor, alive_bitset_opt);
     block_on(segment_updater.schedule_add_segment(segment_entry))?;
-    Ok(true)
+    Ok(())
 }
 
 /// `doc_opstamps` is required to be non-empty.
@@ -298,7 +296,7 @@ impl IndexWriter {
             let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
             return Err(TantivyError::InvalidArgument(err_msg));
         }
-        let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
+        let (document_sender, document_receiver): (AddBatchSender, AddBatchReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
         let delete_queue = DeleteQueue::new();
@@ -316,7 +314,7 @@ impl IndexWriter {
             heap_size_in_bytes_per_thread,
             index: index.clone(),
 
-            operation_receiver: document_receiver,
+            index_writer_status: IndexWriterStatus::from(document_receiver),
             operation_sender: document_sender,
 
             segment_updater,
@@ -356,16 +354,14 @@ impl IndexWriter {
         for join_handle in former_workers_handles {
             join_handle
                 .join()
-                .expect("Indexing Worker thread panicked")
-                .map_err(|_| {
-                    TantivyError::ErrorInThread("Error in indexing worker thread.".into())
-                })?;
+                .map_err(|_| error_in_index_worker_thread("Worker thread panicked."))?
+                .map_err(|_| error_in_index_worker_thread("Worker thread failed."))?;
         }
 
         let result = self
             .segment_updater
             .wait_merging_thread()
-            .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
+            .map_err(|_| error_in_index_worker_thread("Failed to join merging thread."));
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -393,10 +389,16 @@ impl IndexWriter {
         self.index.new_segment()
     }
 
+    fn operation_receiver(&self) -> crate::Result<AddBatchReceiver> {
+        self.index_writer_status
+            .operation_receiver()
+            .ok_or_else(|| crate::TantivyError::ErrorInThread("The index writer was killed. It can happen if an indexing worker encounterred an Io error for instance.".to_string()))
+    }
+
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
     fn add_indexing_worker(&mut self) -> crate::Result<()> {
-        let document_receiver_clone = self.operation_receiver.clone();
+        let document_receiver_clone = self.operation_receiver()?;
         let mut segment_updater = self.segment_updater.clone();
 
         let mut delete_cursor = self.delete_queue.cursor();
@@ -532,12 +534,11 @@ impl IndexWriter {
     /// when no documents are remaining.
     ///
     /// Returns the former segment_ready channel.
-    #[allow(unused_must_use)]
-    fn recreate_document_channel(&mut self) -> OperationReceiver {
-        let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
+    fn recreate_document_channel(&mut self) {
+        let (document_sender, document_receiver): (AddBatchSender, AddBatchReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        mem::replace(&mut self.operation_sender, document_sender);
-        mem::replace(&mut self.operation_receiver, document_receiver)
+        self.operation_sender = document_sender;
+        self.index_writer_status = IndexWriterStatus::from(document_receiver);
     }
 
     /// Rollback to the last commit
@@ -553,7 +554,7 @@ impl IndexWriter {
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
-        let document_receiver = self.operation_receiver.clone();
+        let document_receiver = self.operation_receiver();
 
         // take the directory lock to create a new index_writer.
         let directory_lock = self
@@ -693,14 +694,10 @@ impl IndexWriter {
     /// The opstamp is an increasing `u64` that can
     /// be used by the client to align commits with its own
     /// document queue.
-    pub fn add_document(&self, document: Document) -> Opstamp {
+    pub fn add_document(&self, document: Document) -> crate::Result<Opstamp> {
         let opstamp = self.stamper.stamp();
-        let add_operation = AddOperation { opstamp, document };
-        let send_result = self.operation_sender.send(smallvec![add_operation]);
-        if let Err(e) = send_result {
-            panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
-        }
-        opstamp
+        self.send_add_documents_batch(smallvec![AddOperation { opstamp, document }])?;
+        Ok(opstamp)
     }
 
     /// Gets a range of stamps from the stamper and "pops" the last stamp
@@ -713,11 +710,7 @@ impl IndexWriter {
     fn get_batch_opstamps(&self, count: Opstamp) -> (Opstamp, Range<Opstamp>) {
         let Range { start, end } = self.stamper.stamps(count + 1u64);
         let last_opstamp = end - 1;
-        let stamps = Range {
-            start,
-            end: last_opstamp,
-        };
-        (last_opstamp, stamps)
+        (last_opstamp, start..last_opstamp)
     }
 
     /// Runs a group of document operations ensuring that the operations are
@@ -736,16 +729,20 @@ impl IndexWriter {
     /// Like adds and deletes (see `IndexWriter.add_document` and
     /// `IndexWriter.delete_term`), the changes made by calling `run` will be
     /// visible to readers only after calling `commit()`.
-    pub fn run(&self, user_operations: Vec<UserOperation>) -> Opstamp {
-        let count = user_operations.len() as u64;
+    pub fn run<I>(&self, user_operations: I) -> crate::Result<Opstamp>
+    where
+        I: IntoIterator<Item = UserOperation>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let user_operations_it = user_operations.into_iter();
+        let count = user_operations_it.len() as u64;
         if count == 0 {
-            return self.stamper.stamp();
+            return Ok(self.stamper.stamp());
         }
         let (batch_opstamp, stamps) = self.get_batch_opstamps(count);
 
-        let mut adds = OperationGroup::default();
-
-        for (user_op, opstamp) in user_operations.into_iter().zip(stamps) {
+        let mut adds = AddBatch::default();
+        for (user_op, opstamp) in user_operations_it.zip(stamps) {
             match user_op {
                 UserOperation::Delete(term) => {
                     let delete_operation = DeleteOperation { opstamp, term };
@@ -757,12 +754,14 @@ impl IndexWriter {
                 }
             }
         }
-        let send_result = self.operation_sender.send(adds);
-        if let Err(e) = send_result {
-            panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
-        };
+        self.send_add_documents_batch(adds)?;
+        Ok(batch_opstamp)
+    }
 
-        batch_opstamp
+    fn send_add_documents_batch(&self, add_ops: AddBatch) -> crate::Result<()> {
+        self.operation_sender
+            .send(add_ops)
+            .map_err(|_| crate::TantivyError::ErrorInThread(format!("Index writer was killed. ")))
     }
 }
 
@@ -828,7 +827,7 @@ mod tests {
             UserOperation::Add(doc!(text_field=>"a")),
             UserOperation::Add(doc!(text_field=>"b")),
         ];
-        let batch_opstamp1 = index_writer.run(operations);
+        let batch_opstamp1 = index_writer.run(operations).unwrap();
         assert_eq!(batch_opstamp1, 2u64);
     }
 
@@ -839,8 +838,12 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(text_field => "hello1"));
-        index_writer.add_document(doc!(text_field => "hello2"));
+        index_writer
+            .add_document(doc!(text_field => "hello1"))
+            .unwrap();
+        index_writer
+            .add_document(doc!(text_field => "hello2"))
+            .unwrap();
         assert!(index_writer.commit().is_ok());
 
         let reader = index.reader().unwrap();
@@ -897,7 +900,7 @@ mod tests {
             UserOperation::Delete(b_term),
         ];
 
-        index_writer.run(operations);
+        index_writer.run(operations).unwrap();
         index_writer.commit().expect("failed to commit");
         reader.reload().expect("failed to load searchers");
 
@@ -927,10 +930,10 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let index_writer = index.writer(3_000_000).unwrap();
         let operations1 = vec![];
-        let batch_opstamp1 = index_writer.run(operations1);
+        let batch_opstamp1 = index_writer.run(operations1).unwrap();
         assert_eq!(batch_opstamp1, 0u64);
         let operations2 = vec![];
-        let batch_opstamp2 = index_writer.run(operations2);
+        let batch_opstamp2 = index_writer.run(operations2).unwrap();
         assert_eq!(batch_opstamp2, 1u64);
     }
 
@@ -990,15 +993,14 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_and_rollback() {
+    fn test_commit_and_rollback() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .unwrap();
+            .try_into()?;
         let num_docs_containing = |s: &str| {
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
@@ -1007,23 +1009,22 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer(3_000_000).unwrap();
-            index_writer.add_document(doc!(text_field=>"a"));
-            index_writer.rollback().unwrap();
+            let mut index_writer = index.writer(3_000_000)?;
+            index_writer.add_document(doc!(text_field=>"a"))?;
+            index_writer.rollback()?;
             assert_eq!(index_writer.commit_opstamp(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
-            {
-                index_writer.add_document(doc!(text_field=>"b"));
-                index_writer.add_document(doc!(text_field=>"c"));
-            }
-            assert!(index_writer.commit().is_ok());
-            reader.reload().unwrap();
+            index_writer.add_document(doc!(text_field=>"b"))?;
+            index_writer.add_document(doc!(text_field=>"c"))?;
+            index_writer.commit()?;
+            reader.reload()?;
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
             assert_eq!(num_docs_containing("c"), 1);
         }
-        reader.reload().unwrap();
+        reader.reload()?;
         reader.searcher();
+        Ok(())
     }
 
     #[test]
@@ -1157,7 +1158,7 @@ mod tests {
         };
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
 
-        let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
+        let add_tstamp = index_writer.add_document(doc!(text_field => "a")).unwrap();
         let commit_tstamp = index_writer.commit().unwrap();
         assert!(commit_tstamp > add_tstamp);
         index_writer.delete_all_documents().unwrap();
@@ -1174,7 +1175,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
 
-        let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
+        let add_tstamp = index_writer.add_document(doc!(text_field => "a")).unwrap();
 
         // commit documents - they are now available
         let first_commit = index_writer.commit();
@@ -1193,7 +1194,7 @@ mod tests {
 
         // add new documents again
         for _ in 0..100 {
-            index_writer.add_document(doc!(text_field => "b"));
+            index_writer.add_document(doc!(text_field => "b")).unwrap();
         }
 
         // rollback to last commit, when index was empty
@@ -1227,7 +1228,7 @@ mod tests {
 
         assert!(index_writer.commit().is_ok());
         // add one simple doc
-        index_writer.add_document(doc!(text_field => "a"));
+        index_writer.add_document(doc!(text_field => "a")).unwrap();
         assert!(index_writer.commit().is_ok());
 
         let term_a = Term::from_field_text(text_field, "a");
@@ -1251,7 +1252,7 @@ mod tests {
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
 
         // add one simple doc
-        index_writer.add_document(doc!(text_field => "a"));
+        assert!(index_writer.add_document(doc!(text_field => "a")).is_ok());
         let comm = index_writer.commit();
         assert!(comm.is_ok());
         let commit_tstamp = comm.unwrap();
@@ -1327,13 +1328,13 @@ mod tests {
 
         // create and delete docs in same commit
         for id in 0u64..5u64 {
-            index_writer.add_document(doc!(id_field => id));
+            assert!(index_writer.add_document(doc!(id_field => id)).is_ok());
         }
         for id in 2u64..4u64 {
             index_writer.delete_term(Term::from_field_u64(id_field, id));
         }
         for id in 5u64..10u64 {
-            index_writer.add_document(doc!(id_field => id));
+            assert!(index_writer.add_document(doc!(id_field => id)).is_ok());
         }
         index_writer.commit()?;
         index_reader.reload()?;

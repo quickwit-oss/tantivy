@@ -657,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_on_commit_reload_policy() {
+    fn test_index_on_commit_reload_policy() -> crate::Result<()> {
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
         let index = Index::create_in_ram(schema);
@@ -667,7 +667,7 @@ mod tests {
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
-        test_index_on_commit_reload_policy_aux(field, &index, &reader);
+        test_index_on_commit_reload_policy_aux(field, &index, &reader)
     }
 
     #[cfg(feature = "mmap")]
@@ -679,7 +679,7 @@ mod tests {
         use tempfile::TempDir;
 
         #[test]
-        fn test_index_on_commit_reload_policy_mmap() {
+        fn test_index_on_commit_reload_policy_mmap() -> crate::Result<()> {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
             let tempdir = TempDir::new().unwrap();
@@ -691,7 +691,7 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &index, &reader);
+            test_index_on_commit_reload_policy_aux(field, &index, &reader)
         }
 
         #[test]
@@ -706,7 +706,7 @@ mod tests {
                 .reload_policy(ReloadPolicy::Manual)
                 .try_into()?;
             assert_eq!(reader.searcher().num_docs(), 0);
-            writer.add_document(doc!(field=>1u64));
+            writer.add_document(doc!(field=>1u64))?;
             let (sender, receiver) = crossbeam::channel::unbounded();
             let _handle = index.directory_mut().watch(WatchCallback::new(move || {
                 let _ = sender.send(());
@@ -720,7 +720,7 @@ mod tests {
         }
 
         #[test]
-        fn test_index_on_commit_reload_policy_different_directories() {
+        fn test_index_on_commit_reload_policy_different_directories() -> crate::Result<()> {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
             let tempdir = TempDir::new().unwrap();
@@ -733,10 +733,14 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &write_index, &reader);
+            test_index_on_commit_reload_policy_aux(field, &write_index, &reader)
         }
     }
-    fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        index: &Index,
+        reader: &IndexReader,
+    ) -> crate::Result<()> {
         let mut reader_index = reader.index();
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _watch_handle = reader_index
@@ -744,9 +748,9 @@ mod tests {
             .watch(WatchCallback::new(move || {
                 let _ = sender.send(());
             }));
-        let mut writer = index.writer_for_tests().unwrap();
+        let mut writer = index.writer_for_tests()?;
         assert_eq!(reader.searcher().num_docs(), 0);
-        writer.add_document(doc!(field=>1u64));
+        writer.add_document(doc!(field=>1u64))?;
         writer.commit().unwrap();
         // We need a loop here because it is possible for notify to send more than
         // one modify event. It was observed on CI on MacOS.
@@ -756,7 +760,7 @@ mod tests {
                 break;
             }
         }
-        writer.add_document(doc!(field=>2u64));
+        writer.add_document(doc!(field=>2u64))?;
         writer.commit().unwrap();
         // ... Same as above
         loop {
@@ -765,37 +769,37 @@ mod tests {
                 break;
             }
         }
+        Ok(())
     }
 
     // This test will not pass on windows, because windows
     // prevent deleting files that are MMapped.
     #[cfg(not(target_os = "windows"))]
     #[test]
-    fn garbage_collect_works_as_intended() {
+    fn garbage_collect_works_as_intended() -> crate::Result<()> {
         let directory = RamDirectory::create();
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
-        let index = Index::create(directory.clone(), schema, IndexSettings::default()).unwrap();
+        let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
 
         let mut writer = index.writer_with_num_threads(8, 24_000_000).unwrap();
         for i in 0u64..8_000u64 {
-            writer.add_document(doc!(field => i));
+            writer.add_document(doc!(field => i))?;
         }
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _handle = directory.watch(WatchCallback::new(move || {
             let _ = sender.send(());
         }));
-        writer.commit().unwrap();
+        writer.commit()?;
         let mem_right_after_commit = directory.total_mem_usage();
         assert!(receiver.recv().is_ok());
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .unwrap();
+            .try_into()?;
 
         assert_eq!(reader.searcher().num_docs(), 8_000);
-        writer.wait_merging_threads().unwrap();
+        writer.wait_merging_threads()?;
         let mem_right_after_merge_finished = directory.total_mem_usage();
 
         reader.reload().unwrap();
@@ -807,5 +811,6 @@ mod tests {
             mem_right_after_merge_finished,
             mem_right_after_commit
         );
+        Ok(())
     }
 }

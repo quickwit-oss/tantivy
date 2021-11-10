@@ -20,14 +20,14 @@ fn main() -> tantivy::Result<()> {
         title => "Fried egg",
         ingredient => Facet::from("/ingredient/egg"),
         ingredient => Facet::from("/ingredient/oil"),
-    ));
+    ))?;
     index_writer.add_document(doc!(
         title => "Scrambled egg",
         ingredient => Facet::from("/ingredient/egg"),
         ingredient => Facet::from("/ingredient/butter"),
         ingredient => Facet::from("/ingredient/milk"),
         ingredient => Facet::from("/ingredient/salt"),
-    ));
+    ))?;
     index_writer.add_document(doc!(
         title => "Egg rolls",
         ingredient => Facet::from("/ingredient/egg"),
@@ -36,7 +36,7 @@ fn main() -> tantivy::Result<()> {
         ingredient => Facet::from("/ingredient/oil"),
         ingredient => Facet::from("/ingredient/tortilla-wrap"),
         ingredient => Facet::from("/ingredient/mushroom"),
-    ));
+    ))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

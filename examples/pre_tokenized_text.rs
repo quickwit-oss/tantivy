@@ -68,7 +68,7 @@ fn main() -> tantivy::Result<()> {
     let old_man_doc = doc!(title => title_tok, body => body_tok);
 
     // ... now let's just add it to the IndexWriter
-    index_writer.add_document(old_man_doc);
+    index_writer.add_document(old_man_doc)?;
 
     // Pretokenized text can also be fed as JSON
     let short_man_json = r#"{
@@ -84,7 +84,7 @@ fn main() -> tantivy::Result<()> {
 
     let short_man_doc = schema.parse_document(short_man_json)?;
 
-    index_writer.add_document(short_man_doc);
+    index_writer.add_document(short_man_doc)?;
 
     // Let's commit changes
     index_writer.commit()?;
@@ -106,9 +106,8 @@ fn main() -> tantivy::Result<()> {
         IndexRecordOption::Basic,
     );
 
-    let (top_docs, count) = searcher
-        .search(&query, &(TopDocs::with_limit(2), Count))
-        .unwrap();
+    let (top_docs, count) =
+        searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
 
     assert_eq!(count, 2);
 
@@ -129,9 +128,7 @@ fn main() -> tantivy::Result<()> {
         IndexRecordOption::Basic,
     );
 
-    let (_top_docs, count) = searcher
-        .search(&query, &(TopDocs::with_limit(2), Count))
-        .unwrap();
+    let (_top_docs, count) = searcher.search(&query, &(TopDocs::with_limit(2), Count))?;
 
     assert_eq!(count, 0);
 
