@@ -18,13 +18,6 @@ use super::FileHandle;
 /// Writer associated with the `RamDirectory`
 ///
 /// The Writer just writes a buffer.
-///
-/// # Panics
-///
-/// On drop, if the writer was left in a *dirty* state.
-/// That is, if flush was not called after the last call
-/// to write.
-///
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,

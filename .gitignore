@@ -1,4 +1,5 @@
 tantivy.iml
+.cargo
 proptest-regressions
 *.swp
 target
