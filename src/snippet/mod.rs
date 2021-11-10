@@ -207,7 +207,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// #  Quand avec mes haleurs ont fini ces tapages,
 /// #  Les Fleuves m'ont laissé descendre où je voulais.
 /// #  "#);
-/// #    index_writer.add_document(doc.clone());
+/// #    index_writer.add_document(doc.clone())?;
 /// #    index_writer.commit()?;
 /// #    let query_parser = QueryParser::for_index(&index, vec![text_field]);
 /// // ...

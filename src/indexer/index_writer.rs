@@ -29,7 +29,6 @@ use crossbeam::channel;
 use futures::executor::block_on;
 use futures::future::Future;
 use smallvec::smallvec;
-use std::iter::Peekable;
 use std::ops::Range;
 use std::sync::Arc;
 use std::thread;
@@ -266,23 +265,6 @@ fn apply_deletes(
     })
 }
 
-/// Advance the peekable queue of document until it points to
-/// the first non-empty batch.
-///
-/// It also returns the first opstamp.
-fn advance_to_first_non_empty_batch<I: Iterator<Item = AddBatch>>(
-    add_batch_recv: &mut Peekable<I>,
-) -> Option<Opstamp> {
-    while let Some(add_batch) = add_batch_recv.peek() {
-        if let Some(first_element) = add_batch.first() {
-            return Some(first_element.opstamp);
-        } else {
-            add_batch_recv.next();
-        }
-    }
-    None
-}
-
 impl IndexWriter {
     /// Create a new index writer. Attempts to acquire a lockfile.
     ///
@@ -429,32 +411,31 @@ impl IndexWriter {
             .name(format!("thrd-tantivy-index{}", self.worker_id))
             .spawn(move || {
                 loop {
-                    let mut document_iterator =
-                        document_receiver_clone.clone().into_iter().peekable();
+                    let mut document_iterator = document_receiver_clone
+                        .clone()
+                        .into_iter()
+                        .filter(|batch| !batch.is_empty())
+                        .peekable();
 
-                    // the peeking here is to avoid
-                    // creating a new segment's files
+                    // The peeking here is to avoid creating a new segment's files
                     // if no document are available.
                     //
-                    // this is a valid guarantee as the
-                    // peeked document now belongs to
+                    // This is a valid guarantee as the peeked document now belongs to
                     // our local iterator.
-                    if let Some(first_opstamp) =
-                        advance_to_first_non_empty_batch(&mut document_iterator)
-                    {
-                        delete_cursor.skip_to(first_opstamp);
+                    if let Some(batch) = document_iterator.peek() {
+                        assert!(!batch.is_empty());
+                        delete_cursor.skip_to(batch[0].opstamp);
                     } else {
                         // No more documents.
-                        // Happens when there is a commit, or if the `IndexWriter`
+                        // It happens when there is a commit, or if the `IndexWriter`
                         // was dropped.
                         index_writer_bomb.defuse();
                         return Ok(());
                     }
 
-                    let segment = index.new_segment();
                     index_documents(
                         mem_budget,
-                        segment,
+                        index.new_segment(),
                         &mut document_iterator,
                         &mut segment_updater,
                         delete_cursor.clone(),
@@ -510,7 +491,7 @@ impl IndexWriter {
     ///     let index = Index::create_in_ram(schema.clone());
     ///
     ///     let mut index_writer = index.writer_with_num_threads(1, 50_000_000)?;
-    ///     index_writer.add_document(doc!(title => "The modern Promotheus"));
+    ///     index_writer.add_document(doc!(title => "The modern Promotheus"))?;
     ///     index_writer.commit()?;
     ///
     ///     let clear_res = index_writer.delete_all_documents().unwrap();
@@ -779,9 +760,11 @@ impl IndexWriter {
     }
 
     fn send_add_documents_batch(&self, add_ops: AddBatch) -> crate::Result<()> {
-        self.operation_sender
-            .send(add_ops)
-            .map_err(|_| crate::TantivyError::ErrorInThread(format!("Index writer was killed. ")))
+        if self.index_writer_status.is_alive() && self.operation_sender.send(add_ops).is_ok() {
+            Ok(())
+        } else {
+            Err(error_in_index_worker_thread("An index writer was killed."))
+        }
     }
 }
 

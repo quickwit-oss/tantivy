@@ -103,23 +103,23 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///             title => "The Name of the Wind",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/fiction/fantasy")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "Dune",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/fiction/sci-fi")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "La Vénus d'Ille",
 ///             facet => Facet::from("/lang/fr"),
 ///             facet => Facet::from("/category/fiction/fantasy"),
 ///             facet => Facet::from("/category/fiction/horror")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "The Diary of a Young Girl",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/biography")
-///         ));
+///         ))?;
 ///         index_writer.commit()?;
 ///     }
 ///     let reader = index.reader()?;

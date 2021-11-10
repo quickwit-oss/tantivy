@@ -28,17 +28,17 @@ use tantivy_fst::Regex;
 ///     let mut index_writer = index.writer(3_000_000)?;
 ///     index_writer.add_document(doc!(
 ///         title => "The Name of the Wind",
-///     ));
+///     ))?;
 ///     index_writer.add_document(doc!(
 ///         title => "The Diary of Muadib",
-///     ));
+///     ))?;
 ///     index_writer.add_document(doc!(
 ///         title => "A Dairy Cow",
-///     ));
+///     ))?;
 ///     index_writer.add_document(doc!(
 ///         title => "The Diary of a Young Girl",
-///     ));
-///     index_writer.commit().unwrap();
+///     ))?;
+///     index_writer.commit()?;
 /// }
 ///
 /// let reader = index.reader()?;

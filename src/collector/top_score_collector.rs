@@ -94,27 +94,30 @@ where
 /// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{doc, DocAddress, Index};
 ///
+/// # fn main() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let title = schema_builder.add_text_field("title", TEXT);
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-/// index_writer.add_document(doc!(title => "The Name of the Wind"));
-/// index_writer.add_document(doc!(title => "The Diary of Muadib"));
-/// index_writer.add_document(doc!(title => "A Dairy Cow"));
-/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
-/// assert!(index_writer.commit().is_ok());
+/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// index_writer.add_document(doc!(title => "The Name of the Wind"))?;
+/// index_writer.add_document(doc!(title => "The Diary of Muadib"))?;
+/// index_writer.add_document(doc!(title => "A Dairy Cow"))?;
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"))?;
+/// index_writer.commit()?;
 ///
-/// let reader = index.reader().unwrap();
+/// let reader = index.reader()?;
 /// let searcher = reader.searcher();
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
-/// let query = query_parser.parse_query("diary").unwrap();
-/// let top_docs = searcher.search(&query, &TopDocs::with_limit(2)).unwrap();
+/// let query = query_parser.parse_query("diary")?;
+/// let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
 ///
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 /// assert_eq!(top_docs[1].1, DocAddress::new(0, 3));
+/// # Ok(())
+/// # }
 /// ```
 pub struct TopDocs(TopCollector<Score>);
 
@@ -180,29 +183,32 @@ impl TopDocs {
     /// use tantivy::schema::{Schema, TEXT};
     /// use tantivy::{doc, DocAddress, Index};
     ///
+    /// # fn main() -> tantivy::Result<()> {
     /// let mut schema_builder = Schema::builder();
     /// let title = schema_builder.add_text_field("title", TEXT);
     /// let schema = schema_builder.build();
     /// let index = Index::create_in_ram(schema);
     ///
-    /// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-    /// index_writer.add_document(doc!(title => "The Name of the Wind"));
-    /// index_writer.add_document(doc!(title => "The Diary of Muadib"));
-    /// index_writer.add_document(doc!(title => "A Dairy Cow"));
-    /// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
-    /// index_writer.add_document(doc!(title => "The Diary of Lena Mukhina"));
-    /// assert!(index_writer.commit().is_ok());
+    /// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+    /// index_writer.add_document(doc!(title => "The Name of the Wind"))?;
+    /// index_writer.add_document(doc!(title => "The Diary of Muadib"))?;
+    /// index_writer.add_document(doc!(title => "A Dairy Cow"))?;
+    /// index_writer.add_document(doc!(title => "The Diary of a Young Girl"))?;
+    /// index_writer.add_document(doc!(title => "The Diary of Lena Mukhina"))?;
+    /// index_writer.commit()?;
     ///
-    /// let reader = index.reader().unwrap();
+    /// let reader = index.reader()?;
     /// let searcher = reader.searcher();
     ///
     /// let query_parser = QueryParser::for_index(&index, vec![title]);
-    /// let query = query_parser.parse_query("diary").unwrap();
-    /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1)).unwrap();
+    /// let query = query_parser.parse_query("diary")?;
+    /// let top_docs = searcher.search(&query, &TopDocs::with_limit(2).and_offset(1))?;
     ///
     /// assert_eq!(top_docs.len(), 2);
     /// assert_eq!(top_docs[0].1, DocAddress::new(0, 4));
     /// assert_eq!(top_docs[1].1, DocAddress::new(0, 3));
+    /// Ok(())
+    /// # }
     /// ```
     pub fn and_offset(self, offset: usize) -> TopDocs {
         TopDocs(self.0.and_offset(offset))
@@ -234,11 +240,11 @@ impl TopDocs {
     /// #
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
-    /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64));
-    /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
-    /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
-    /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
-    /// #   assert!(index_writer.commit().is_ok());
+    /// #   index_writer.add_document(doc!(title => "The Name of the Wind", rating => 92u64))?;
+    /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64))?;
+    /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64))?;
+    /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64))?;
+    /// #   index_writer.commit()?;
     /// #   let reader = index.reader()?;
     /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
     /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
@@ -316,9 +322,9 @@ impl TopDocs {
     /// #
     /// #   let index = Index::create_in_ram(schema);
     /// #   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
-    /// #   index_writer.add_document(doc!(title => "MadCow Inc.", rating => 92_000_000i64));
-    /// #   index_writer.add_document(doc!(title => "Zozo Cow KKK", rating => 119_000_000i64));
-    /// #   index_writer.add_document(doc!(title => "Declining Cow", rating => -63_000_000i64));
+    /// #   index_writer.add_document(doc!(title => "MadCow Inc.", rating => 92_000_000i64))?;
+    /// #   index_writer.add_document(doc!(title => "Zozo Cow KKK", rating => 119_000_000i64))?;
+    /// #   index_writer.add_document(doc!(title => "Declining Cow", rating => -63_000_000i64))?;
     /// #   assert!(index_writer.commit().is_ok());
     /// #   let reader = index.reader()?;
     /// #   let top_docs = docs_sorted_by_revenue(&reader.searcher(), &AllQuery, rating)?;
@@ -417,9 +423,9 @@ impl TopDocs {
     ///   let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
     ///   let product_name = index.schema().get_field("product_name").unwrap();
     ///   let popularity: Field = index.schema().get_field("popularity").unwrap();
-    ///   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64));
-    ///   index_writer.add_document(doc!(product_name => "A Dairy Cow", popularity => 10u64));
-    ///   index_writer.add_document(doc!(product_name => "The Diary of a Young Girl", popularity => 15u64));
+    ///   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64))?;
+    ///   index_writer.add_document(doc!(product_name => "A Dairy Cow", popularity => 10u64))?;
+    ///   index_writer.add_document(doc!(product_name => "The Diary of a Young Girl", popularity => 15u64))?;
     ///   index_writer.commit()?;
     ///   Ok(index)
     /// }
@@ -527,9 +533,9 @@ impl TopDocs {
     /// #
     /// let popularity: Field = index.schema().get_field("popularity").unwrap();
     /// let boosted: Field = index.schema().get_field("boosted").unwrap();
-    /// #   index_writer.add_document(doc!(boosted=>1u64, product_name => "The Diary of Muadib", popularity => 1u64));
-    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "A Dairy Cow", popularity => 10u64));
-    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "The Diary of a Young Girl", popularity => 15u64));
+    /// #   index_writer.add_document(doc!(boosted=>1u64, product_name => "The Diary of Muadib", popularity => 1u64))?;
+    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "A Dairy Cow", popularity => 10u64))?;
+    /// #   index_writer.add_document(doc!(boosted=>0u64, product_name => "The Diary of a Young Girl", popularity => 15u64))?;
     /// #   index_writer.commit()?;
     /// // ...
     /// # let user_query = "diary";

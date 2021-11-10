@@ -63,7 +63,7 @@
 //!     body => "He was an old man who fished alone in a skiff in \
 //!             the Gulf Stream and he had gone eighty-four days \
 //!             now without taking a fish."
-//! ));
+//! ))?;
 //!
 //! // We need to call .commit() explicitly to force the
 //! // index_writer to finish processing the documents in the queue,

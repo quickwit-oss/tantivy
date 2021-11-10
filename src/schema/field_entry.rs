@@ -196,7 +196,7 @@ mod tests {
         let field_entry: FieldEntry = serde_json::from_str(json_str).unwrap();
         match field_entry.field_type {
             FieldType::Str(_) => {}
-            _ => panic!("expected FieldType::Str")
+            _ => panic!("expected FieldType::Str"),
         }
     }
 }

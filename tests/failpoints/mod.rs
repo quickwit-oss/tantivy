@@ -89,6 +89,25 @@ fn test_fail_on_flush_segment() -> tantivy::Result<()> {
 }
 
 #[test]
+fn test_fail_on_flush_segment_but_one_worker_remains() -> tantivy::Result<()> {
+    let _fail_scenario_guard = fail::FailScenario::setup();
+    let mut schema_builder = Schema::builder();
+    let text_field = schema_builder.add_text_field("text", TEXT);
+    let index = Index::create_in_ram(schema_builder.build());
+    let index_writer = index.writer_with_num_threads(2, 6_000_000)?;
+    fail::cfg("FieldSerializer::close_term", "1*return(simulatederror)").unwrap();
+    for i in 0..100_000 {
+        if index_writer
+            .add_document(doc!(text_field => format!("hellohappytaxpayerlongtokenblabla{}", i)))
+            .is_err()
+        {
+            return Ok(());
+        }
+    }
+    panic!("add_document should have returned an error");
+}
+
+#[test]
 fn test_fail_on_commit_segment() -> tantivy::Result<()> {
     let _fail_scenario_guard = fail::FailScenario::setup();
     let mut schema_builder = Schema::builder();

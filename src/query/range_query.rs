@@ -51,7 +51,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
-///       index_writer.add_document(doc!(year_field => year));
+///       index_writer.add_document(doc!(year_field => year))?;
 ///     }
 /// }
 /// index_writer.commit()?;

@@ -111,7 +111,7 @@ impl SegmentWriter {
         })
     }
 
-    /// Lay on disk the current content oxf the `SegmentWriter`
+    /// Lay on disk the current content of the `SegmentWriter`
     ///
     /// Finalize consumes the `SegmentWriter`, so that it cannot
     /// be used afterwards.
