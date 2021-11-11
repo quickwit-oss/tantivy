@@ -207,8 +207,8 @@ mod tests {
             let text_field = schema_builder.add_text_field("text", TEXT);
             let index = Index::create_in_ram(schema_builder.build());
             let mut index_writer = index.writer_for_tests()?;
-            index_writer.add_document(doc!(text_field=>"texto1"));
-            index_writer.add_document(doc!(text_field=>"texto2"));
+            index_writer.add_document(doc!(text_field=>"texto1"))?;
+            index_writer.add_document(doc!(text_field=>"texto2"))?;
             index_writer.commit()?;
             index
         };
@@ -218,8 +218,8 @@ mod tests {
             let text_field = schema_builder.add_text_field("text", TEXT);
             let index = Index::create_in_ram(schema_builder.build());
             let mut index_writer = index.writer_for_tests()?;
-            index_writer.add_document(doc!(text_field=>"texto3"));
-            index_writer.add_document(doc!(text_field=>"texto4"));
+            index_writer.add_document(doc!(text_field=>"texto3"))?;
+            index_writer.add_document(doc!(text_field=>"texto4"))?;
             index_writer.delete_term(Term::from_field_text(text_field, "4"));
 
             index_writer.commit()?;

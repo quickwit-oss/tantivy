@@ -7,7 +7,7 @@ use crate::schema::Value;
 use crate::schema::{IntOptions, TextOptions};
 use crate::tokenizer::PreTokenizedString;
 use chrono::{FixedOffset, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value

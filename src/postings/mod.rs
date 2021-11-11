@@ -87,12 +87,12 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(title => r#"abc abc abc"#));
-        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        index_writer.add_document(doc!(title => r#"abc abc abc"#))?;
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#))?;
         for _ in 0..1_000 {
-            index_writer.add_document(doc!(title => r#"abc abc abc"#));
+            index_writer.add_document(doc!(title => r#"abc abc abc"#))?;
         }
-        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
@@ -174,9 +174,9 @@ pub mod tests {
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         {
-            index_writer.add_document(doc!(text_field=>exceeding_token_text));
-            index_writer.commit().unwrap();
-            reader.reload().unwrap();
+            index_writer.add_document(doc!(text_field=>exceeding_token_text))?;
+            index_writer.commit()?;
+            reader.reload()?;
             let searcher = reader.searcher();
             let segment_reader = searcher.segment_reader(0u32);
             let inverted_index = segment_reader.inverted_index(text_field)?;
@@ -186,9 +186,9 @@ pub mod tests {
             assert_eq!(&bytes, b"hello");
         }
         {
-            index_writer.add_document(doc!(text_field=>ok_token_text.clone()));
-            index_writer.commit().unwrap();
-            reader.reload().unwrap();
+            index_writer.add_document(doc!(text_field=>ok_token_text.clone()))?;
+            index_writer.commit()?;
+            reader.reload()?;
             let searcher = reader.searcher();
             let segment_reader = searcher.segment_reader(1u32);
             let inverted_index = segment_reader.inverted_index(text_field)?;
@@ -315,13 +315,13 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field => "g b b d c g c"));
-            index_writer.add_document(doc!(text_field => "g a b b a d c g c"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "g b b d c g c"))?;
+            index_writer.add_document(doc!(text_field => "g a b b a d c g c"))?;
+            index_writer.commit()?;
         }
         let term_a = Term::from_field_text(text_field, "a");
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut postings = segment_reader
             .inverted_index(text_field)?
@@ -350,7 +350,7 @@ pub mod tests {
                 let mut index_writer = index.writer_for_tests()?;
                 for i in 0u64..num_docs as u64 {
                     let doc = doc!(value_field => 2u64, value_field => i % 2u64);
-                    index_writer.add_document(doc);
+                    index_writer.add_document(doc)?;
                 }
                 assert!(index_writer.commit().is_ok());
             }

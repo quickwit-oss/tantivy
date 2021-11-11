@@ -141,19 +141,20 @@ mod tests {
     use crate::{DocAddress, Document, Index};
 
     #[test]
-    fn test_boost_query_explain() {
+    fn test_boost_query_explain() -> crate::Result<()> {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(Document::new());
-        assert!(index_writer.commit().is_ok());
-        let reader = index.reader().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(Document::new())?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         let query = BoostQuery::new(Box::new(AllQuery), 0.2);
         let explanation = query.explain(&searcher, DocAddress::new(0, 0u32)).unwrap();
         assert_eq!(
             explanation.to_pretty_json(),
             "{\n  \"value\": 0.2,\n  \"description\": \"Boost x0.2 of ...\",\n  \"details\": [\n    {\n      \"value\": 1.0,\n      \"description\": \"AllQuery\",\n      \"context\": []\n    }\n  ],\n  \"context\": []\n}"
-        )
+        );
+        Ok(())
     }
 }

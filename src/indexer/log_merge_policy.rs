@@ -114,7 +114,7 @@ mod tests {
     use crate::Index;
 
     #[test]
-    fn create_index_test_max_merge_issue_1035() {
+    fn create_index_test_max_merge_issue_1035() -> crate::Result<()> {
         let mut schema_builder = schema::Schema::builder();
         let int_field = schema_builder.add_u64_field("intval", INDEXED);
         let schema = schema_builder.build();
@@ -127,34 +127,34 @@ mod tests {
             log_merge_policy.set_max_docs_before_merge(1);
             log_merge_policy.set_min_layer_size(0);
 
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             index_writer.set_merge_policy(Box::new(log_merge_policy));
 
             // after every commit the merge checker is started, it will merge only segments with 1
             // element in it because of the max_merge_size.
-            index_writer.add_document(doc!(int_field=>1_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>1_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>2_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>2_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>3_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>3_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>4_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>4_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>5_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>5_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>6_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>6_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>7_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>7_u64))?;
+            index_writer.commit()?;
 
-            index_writer.add_document(doc!(int_field=>8_u64));
-            assert!(index_writer.commit().is_ok());
+            index_writer.add_document(doc!(int_field=>8_u64))?;
+            index_writer.commit()?;
         }
 
         let _segment_ids = index
@@ -169,6 +169,7 @@ mod tests {
                 panic!("segment can't have more than two segments");
             } // don't know how to wait for the merge, then it could be a simple eq
         }
+        Ok(())
     }
 
     fn test_merge_policy() -> LogMergePolicy {

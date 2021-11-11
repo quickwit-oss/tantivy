@@ -176,20 +176,20 @@ mod tests {
     use crate::DocAddress;
     use crate::Index;
 
-    fn create_test_index() -> Index {
+    fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field("title", TEXT);
         let body = schema_builder.add_text_field("body", TEXT | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(title => "aaa", body => "the old man and the sea"));
-        index_writer.add_document(doc!(title => "bbb", body => "an old man sailing on the sea"));
-        index_writer.add_document(doc!(title => "ccc", body=> "send this message to alice"));
-        index_writer.add_document(doc!(title => "ddd", body=> "a lady was riding and old bike"));
-        index_writer.add_document(doc!(title => "eee", body=> "Yes, my lady."));
-        index_writer.commit().unwrap();
-        index
+        index_writer.add_document(doc!(title => "aaa", body => "the old man and the sea"))?;
+        index_writer.add_document(doc!(title => "bbb", body => "an old man sailing on the sea"))?;
+        index_writer.add_document(doc!(title => "ccc", body=> "send this message to alice"))?;
+        index_writer.add_document(doc!(title => "ddd", body=> "a lady was riding and old bike"))?;
+        index_writer.add_document(doc!(title => "eee", body=> "Yes, my lady."))?;
+        index_writer.commit()?;
+        Ok(index)
     }
 
     #[test]
@@ -235,9 +235,9 @@ mod tests {
     }
 
     #[test]
-    fn test_more_like_this_query() {
-        let index = create_test_index();
-        let reader = index.reader().unwrap();
+    fn test_more_like_this_query() -> crate::Result<()> {
+        let index = create_test_index()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
 
         // search base 1st doc with words [sea, and] skipping [old]
@@ -250,7 +250,7 @@ mod tests {
             .with_boost_factor(1.0)
             .with_stop_words(vec!["old".to_string()])
             .with_document(DocAddress::new(0, 0));
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(5)).unwrap();
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5))?;
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
         doc_ids.sort_unstable();
 
@@ -266,11 +266,12 @@ mod tests {
             .with_max_word_length(5)
             .with_boost_factor(1.0)
             .with_document(DocAddress::new(0, 4));
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(5)).unwrap();
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(5))?;
         let mut doc_ids: Vec<_> = top_docs.iter().map(|item| item.1.doc_id).collect();
         doc_ids.sort_unstable();
 
         assert_eq!(doc_ids.len(), 2);
         assert_eq!(doc_ids, vec![3, 4]);
+        Ok(())
     }
 }

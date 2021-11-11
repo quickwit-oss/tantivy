@@ -213,24 +213,23 @@ pub mod tests {
         let schema = schema_builder.build();
         let index_builder = Index::builder().schema(schema);
 
-        let index = index_builder.create_in_ram().unwrap();
+        let index = index_builder.create_in_ram()?;
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-
-            index_writer.add_document(doc!(text_field=> "deleteme"));
-            index_writer.add_document(doc!(text_field=> "deletemenot"));
-            index_writer.add_document(doc!(text_field=> "deleteme"));
-            index_writer.add_document(doc!(text_field=> "deletemenot"));
-            index_writer.add_document(doc!(text_field=> "deleteme"));
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
+            index_writer.add_document(doc!(text_field=> "deletemenot"))?;
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
+            index_writer.add_document(doc!(text_field=> "deletemenot"))?;
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
 
             index_writer.delete_term(Term::from_field_text(text_field, "deleteme"));
-            assert!(index_writer.commit().is_ok());
+            index_writer.commit()?;
         }
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
-        let store = reader.get_store_reader().unwrap();
+        let store = reader.get_store_reader()?;
         for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().text().unwrap(),
@@ -311,33 +310,30 @@ pub mod tests {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-
-            index_writer.add_document(doc!(text_field=> "1"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "2"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "3"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "4"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "5"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field=> "1"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "2"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "3"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "4"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "5"))?;
+            index_writer.commit()?;
         }
         // Merging the segments
         {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
-            assert!(index_writer.wait_merging_threads().is_ok());
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
         }
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader().unwrap();
+        let store = reader.get_store_reader()?;
         assert_eq!(store.block_checkpoints().count(), 1);
         Ok(())
     }

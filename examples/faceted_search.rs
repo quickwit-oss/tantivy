@@ -35,35 +35,35 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(
         name => "Cat",
         classification => Facet::from("/Felidae/Felinae/Felis")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Canada lynx",
         classification => Facet::from("/Felidae/Felinae/Lynx")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Cheetah",
         classification => Facet::from("/Felidae/Felinae/Acinonyx")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Tiger",
         classification => Facet::from("/Felidae/Pantherinae/Panthera")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Lion",
         classification => Facet::from("/Felidae/Pantherinae/Panthera")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Jaguar",
         classification => Facet::from("/Felidae/Pantherinae/Panthera")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Sunda clouded leopard",
         classification => Facet::from("/Felidae/Pantherinae/Neofelis")
-    ));
+    ))?;
     index_writer.add_document(doc!(
         name => "Fossa",
         classification => Facet::from("/Eupleridae/Cryptoprocta")
-    ));
+    ))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

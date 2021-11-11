@@ -145,23 +145,23 @@ fn main() -> tantivy::Result<()> {
         product_description => "While it is ok for short distance travel, this broom \
         was designed quiditch. It will up your game.",
         price => 30_200u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Turbulobroom",
         product_description => "You might have heard of this broom before : it is the sponsor of the Wales team.\
             You'll enjoy its sharp turns, and rapid acceleration",
         price => 29_240u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Broomio",
         product_description => "Great value for the price. This broom is a market favorite",
         price => 21_240u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Whack a Mole",
         product_description => "Prime quality bat.",
         price => 5_200u64
-    ));
+    ))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

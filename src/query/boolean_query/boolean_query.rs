@@ -41,22 +41,22 @@ use std::collections::BTreeMap;
 ///        let mut index_writer = index.writer(3_000_000)?;
 ///        index_writer.add_document(doc!(
 ///            title => "The Name of the Wind",
-///        ));
+///        ))?;
 ///        index_writer.add_document(doc!(
 ///            title => "The Diary of Muadib",
-///        ));
+///        ))?;
 ///        index_writer.add_document(doc!(
 ///            title => "A Dairy Cow",
 ///            body => "hidden",
-///        ));
+///        ))?;
 ///        index_writer.add_document(doc!(
 ///            title => "A Dairy Cow",
 ///            body => "found",
-///        ));
+///        ))?;
 ///        index_writer.add_document(doc!(
 ///            title => "The Diary of a Young Girl",
-///        ));
-///        index_writer.commit().unwrap();
+///        ))?;
+///        index_writer.commit()?;
 ///    }
 ///
 ///    let reader = index.reader()?;
@@ -217,11 +217,11 @@ mod tests {
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut writer = index.writer_for_tests().unwrap();
-        writer.add_document(doc!(text=>"b c"));
-        writer.add_document(doc!(text=>"a c"));
-        writer.add_document(doc!(text=>"a b"));
-        writer.add_document(doc!(text=>"a d"));
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(text=>"b c"))?;
+        writer.add_document(doc!(text=>"a c"))?;
+        writer.add_document(doc!(text=>"a b"))?;
+        writer.add_document(doc!(text=>"a d"))?;
         writer.commit()?;
         Ok(index)
     }

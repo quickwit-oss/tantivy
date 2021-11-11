@@ -136,12 +136,12 @@ mod tests {
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         let long_text: String = "abcdefghijklmnopqrstuvwxyz".repeat(1_000);
         for _ in 0..20 {
-            index_writer.add_document(doc!(body=>long_text.clone()));
+            index_writer.add_document(doc!(body=>long_text.clone()))?;
         }
         index_writer.commit()?;
-        index_writer.add_document(doc!(text=>"testb"));
+        index_writer.add_document(doc!(text=>"testb"))?;
         for _ in 0..10 {
-            index_writer.add_document(doc!(text=>"testd", body=>long_text.clone()));
+            index_writer.add_document(doc!(text=>"testd", body=>long_text.clone()))?;
         }
         index_writer.commit()?;
         index_writer.delete_term(Term::from_field_text(text, "testb"));

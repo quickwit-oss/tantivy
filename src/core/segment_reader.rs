@@ -364,10 +364,10 @@ mod test {
 
         {
             let mut index_writer = index.writer_for_tests()?;
-            index_writer.add_document(doc!(name => "tantivy"));
-            index_writer.add_document(doc!(name => "horse"));
-            index_writer.add_document(doc!(name => "jockey"));
-            index_writer.add_document(doc!(name => "cap"));
+            index_writer.add_document(doc!(name => "tantivy"))?;
+            index_writer.add_document(doc!(name => "horse"))?;
+            index_writer.add_document(doc!(name => "jockey"))?;
+            index_writer.add_document(doc!(name => "cap"))?;
             // we should now have one segment with two docs
             index_writer.delete_term(Term::from_field_text(name, "horse"));
             index_writer.delete_term(Term::from_field_text(name, "cap"));
@@ -390,10 +390,10 @@ mod test {
 
         {
             let mut index_writer = index.writer_for_tests()?;
-            index_writer.add_document(doc!(name => "tantivy"));
-            index_writer.add_document(doc!(name => "horse"));
-            index_writer.add_document(doc!(name => "jockey"));
-            index_writer.add_document(doc!(name => "cap"));
+            index_writer.add_document(doc!(name => "tantivy"))?;
+            index_writer.add_document(doc!(name => "horse"))?;
+            index_writer.add_document(doc!(name => "jockey"))?;
+            index_writer.add_document(doc!(name => "cap"))?;
             // we should now have one segment with two docs
             index_writer.commit()?;
         }

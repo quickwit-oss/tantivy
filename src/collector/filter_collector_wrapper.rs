@@ -25,34 +25,37 @@ use crate::{Score, SegmentReader, TantivyError};
 /// use tantivy::schema::{Schema, TEXT, INDEXED, FAST};
 /// use tantivy::{doc, DocAddress, Index};
 ///
+/// # fn main() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let title = schema_builder.add_text_field("title", TEXT);
 /// let price = schema_builder.add_u64_field("price", INDEXED | FAST);
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
 ///
-/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-/// index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64));
-/// index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64));
-/// index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64));
-/// index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64));
-/// assert!(index_writer.commit().is_ok());
+/// let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+/// index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64))?;
+/// index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64))?;
+/// index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64))?;
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64))?;
+/// index_writer.commit()?;
 ///
-/// let reader = index.reader().unwrap();
+/// let reader = index.reader()?;
 /// let searcher = reader.searcher();
 ///
 /// let query_parser = QueryParser::for_index(&index, vec![title]);
-/// let query = query_parser.parse_query("diary").unwrap();
+/// let query = query_parser.parse_query("diary")?;
 /// let no_filter_collector = FilterCollector::new(price, &|value: u64| value > 20_120u64, TopDocs::with_limit(2));
-/// let top_docs = searcher.search(&query, &no_filter_collector).unwrap();
+/// let top_docs = searcher.search(&query, &no_filter_collector)?;
 ///
 /// assert_eq!(top_docs.len(), 1);
 /// assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
 ///
 /// let filter_all_collector: FilterCollector<_, _, u64> = FilterCollector::new(price, &|value| value < 5u64, TopDocs::with_limit(2));
-/// let filtered_top_docs = searcher.search(&query, &filter_all_collector).unwrap();
+/// let filtered_top_docs = searcher.search(&query, &filter_all_collector)?;
 ///
 /// assert_eq!(filtered_top_docs.len(), 0);
+/// # Ok(())
+/// # }
 /// ```
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
 where

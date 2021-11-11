@@ -96,7 +96,7 @@ fn main() -> tantivy::Result<()> {
     );
 
     // ... and add it to the `IndexWriter`.
-    index_writer.add_document(old_man_doc);
+    index_writer.add_document(old_man_doc)?;
 
     // For convenience, tantivy also comes with a macro to
     // reduce the boilerplate above.
@@ -110,7 +110,7 @@ fn main() -> tantivy::Result<()> {
             fresh and green with every spring, carrying in their lower leaf junctures the \
             debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
             limbs and branches that arch over the pool"
-    ));
+    ))?;
 
     // Multivalued field just need to be repeated.
     index_writer.add_document(doc!(
@@ -120,7 +120,7 @@ fn main() -> tantivy::Result<()> {
              enterprise which you have regarded with such evil forebodings.  I arrived here \
              yesterday, and my first task is to assure my dear sister of my welfare and \
              increasing confidence in the success of my undertaking."
-    ));
+    ))?;
 
     // This is an example, so we will only index 3 documents
     // here. You can check out tantivy's tutorial to index
