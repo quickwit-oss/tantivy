@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rayon::iter::IntoParallelRefIterator;
+
 use crate::core::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::explanation::does_not_match;
@@ -11,7 +13,6 @@ use crate::query::{
     Union, Weight,
 };
 use crate::{DocId, Score};
-use rayon::iter::IntoParallelRefIterator;
 
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
@@ -19,9 +20,7 @@ enum SpecializedScorer {
 }
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> SpecializedScorer
-where
-    TScoreCombiner: ScoreCombiner + Send,
-{
+where TScoreCombiner: ScoreCombiner + Send {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehands
@@ -80,8 +79,7 @@ impl BooleanWeight {
         reader: &SegmentReader,
         boost: Score,
     ) -> crate::Result<HashMap<Occur, Vec<Box<dyn Scorer>>>> {
-        use rayon::iter::IndexedParallelIterator;
-        use rayon::iter::ParallelIterator;
+        use rayon::iter::{IndexedParallelIterator, ParallelIterator};
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<dyn Scorer>>> = HashMap::new();
         let mut items_res: Vec<crate::Result<(Occur, Box<dyn Scorer>)>> = Vec::new();
         let pool = rayon::ThreadPoolBuilder::new()

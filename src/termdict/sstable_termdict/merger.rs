@@ -1,7 +1,7 @@
-use crate::termdict::TermOrdinal;
-use crate::termdict::TermStreamer;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+
+use crate::termdict::{TermOrdinal, TermStreamer};
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,
@@ -42,7 +42,6 @@ pub struct TermMerger<'a> {
 
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
-    ///
     pub fn new(streams: Vec<TermStreamer<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),

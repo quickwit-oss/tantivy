@@ -1,5 +1,6 @@
-use super::{vint, BlockReader};
 use std::io;
+
+use super::{vint, BlockReader};
 
 pub trait ValueReader: Default {
     type Value;

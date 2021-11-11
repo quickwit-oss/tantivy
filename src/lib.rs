@@ -124,8 +124,9 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use crate::error::{AsyncIoError, TantivyError};
 pub use chrono;
+
+pub use crate::error::{AsyncIoError, TantivyError};
 
 /// Tantivy result.
 ///
@@ -167,10 +168,14 @@ pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
 
+use std::fmt;
+
 pub use census::{Inventory, TrackedObject};
+pub use common;
 pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+
 pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{
     Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
@@ -184,9 +189,6 @@ pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, Pr
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
-pub use common;
-use std::fmt;
-
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 4;

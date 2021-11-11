@@ -1,11 +1,10 @@
-use crate::termdict::sstable_termdict::sstable::{Reader, SSTable, Writer};
-
-use super::SingleValueMerger;
-use super::ValueMerger;
 use std::cmp::Ordering;
 use std::collections::binary_heap::PeekMut;
 use std::collections::BinaryHeap;
 use std::io;
+
+use super::{SingleValueMerger, ValueMerger};
+use crate::termdict::sstable_termdict::sstable::{Reader, SSTable, Writer};
 
 struct HeapItem<B: AsRef<[u8]>>(B);
 

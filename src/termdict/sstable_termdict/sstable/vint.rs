@@ -39,8 +39,9 @@ pub fn deserialize_read(buf: &[u8]) -> (usize, u64) {
 
 #[cfg(test)]
 mod tests {
-    use super::{deserialize_read, serialize};
     use std::u64;
+
+    use super::{deserialize_read, serialize};
 
     fn aux_test_int(val: u64, expect_len: usize) {
         let mut buffer = [0u8; 14];

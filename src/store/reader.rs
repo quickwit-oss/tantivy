@@ -4,11 +4,12 @@ use std::sync::{Arc, Mutex};
 
 use common::{BinarySerializable, HasLen, VInt};
 use lru::LruCache;
+use ownedbytes::OwnedBytes;
 
 use super::footer::DocStoreFooter;
 use super::index::SkipIndex;
 use super::Compressor;
-use crate::directory::{FileSlice, OwnedBytes};
+use crate::directory::FileSlice;
 use crate::error::DataCorruption;
 use crate::fastfield::AliveBitSet;
 use crate::schema::Document;
@@ -142,8 +143,8 @@ impl StoreReader {
         Ok(Document::deserialize(&mut doc_bytes)?)
     }
 
-    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a document and its start and end
-    /// position within the block.
+    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a
+    /// document and its start and end position within the block.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,

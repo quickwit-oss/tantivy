@@ -5,16 +5,16 @@ mod sstable;
 mod streamer;
 mod termdict;
 
-pub use self::merger::TermMerger;
-use self::sstable::value::{ValueReader, ValueWriter};
-use self::sstable::{BlockReader, SSTable};
 use std::iter::ExactSizeIterator;
 
 use common::VInt;
-use crate::postings::TermInfo;
 
+pub use self::merger::TermMerger;
+use self::sstable::value::{ValueReader, ValueWriter};
+use self::sstable::{BlockReader, SSTable};
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
+use crate::postings::TermInfo;
 
 pub struct TermSSTable;
 
@@ -93,7 +93,6 @@ mod tests {
     use std::io;
 
     use super::BlockReader;
-
     use crate::directory::OwnedBytes;
     use crate::postings::TermInfo;
     use crate::termdict::sstable_termdict::sstable::value::{ValueReader, ValueWriter};

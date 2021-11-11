@@ -1,20 +1,21 @@
 use std::io;
 
 use common::BinarySerializable;
+use once_cell::sync::Lazy;
+use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::Automaton;
+
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::sstable_termdict::sstable::sstable_index::BlockAddr;
-use crate::termdict::sstable_termdict::sstable::Writer;
-use crate::termdict::sstable_termdict::sstable::{DeltaReader, SSTable};
-use crate::termdict::sstable_termdict::sstable::{Reader, SSTableIndex};
+use crate::termdict::sstable_termdict::sstable::{
+    DeltaReader, Reader, SSTable, SSTableIndex, Writer,
+};
 use crate::termdict::sstable_termdict::{
     TermInfoReader, TermInfoWriter, TermSSTable, TermStreamer, TermStreamerBuilder,
 };
 use crate::termdict::TermOrdinal;
 use crate::AsyncIoResult;
-use once_cell::sync::Lazy;
-use tantivy_fst::automaton::AlwaysMatch;
-use tantivy_fst::Automaton;
 
 pub struct TermInfoSSTable;
 impl SSTable for TermInfoSSTable {
@@ -243,9 +244,7 @@ impl TermDictionary {
     // Returns a search builder, to stream all of the terms
     // within the Automaton
     pub fn search<'a, A: Automaton + 'a>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A>
-    where
-        A::State: Clone,
-    {
+    where A::State: Clone {
         TermStreamerBuilder::<A>::new(self, automaton)
     }
 

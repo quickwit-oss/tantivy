@@ -1,11 +1,13 @@
+use std::io;
+use std::ops::Bound;
+
+use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::Automaton;
+
 use super::TermDictionary;
 use crate::postings::TermInfo;
 use crate::termdict::sstable_termdict::TermInfoReader;
 use crate::termdict::TermOrdinal;
-use std::io;
-use std::ops::Bound;
-use tantivy_fst::automaton::AlwaysMatch;
-use tantivy_fst::Automaton;
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.

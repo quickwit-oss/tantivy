@@ -1,6 +1,7 @@
-use merge::ValueMerger;
 use std::io::{self, Write};
 use std::usize;
+
+use merge::ValueMerger;
 
 mod delta;
 pub mod merge;
@@ -12,12 +13,11 @@ pub(crate) use self::sstable_index::{SSTableIndex, SSTableIndexBuilder};
 pub(crate) mod vint;
 
 mod block_reader;
+pub use self::block_reader::BlockReader;
 pub use self::delta::DeltaReader;
 use self::delta::DeltaWriter;
-use self::value::{U64MonotonicReader, U64MonotonicWriter, ValueReader, ValueWriter};
-
-pub use self::block_reader::BlockReader;
 pub use self::merge::VoidMerge;
+use self::value::{U64MonotonicReader, U64MonotonicWriter, ValueReader, ValueWriter};
 
 const DEFAULT_KEY_CAPACITY: usize = 50;
 
@@ -96,8 +96,7 @@ pub struct Reader<'a, TValueReader> {
 }
 
 impl<'a, TValueReader> Reader<'a, TValueReader>
-where
-    TValueReader: ValueReader,
+where TValueReader: ValueReader
 {
     pub fn advance(&mut self) -> io::Result<bool> {
         if !self.delta_reader.advance()? {
@@ -127,8 +126,7 @@ impl<'a, TValueReader> AsRef<[u8]> for Reader<'a, TValueReader> {
 }
 
 pub struct Writer<W, TValueWriter>
-where
-    W: io::Write,
+where W: io::Write
 {
     previous_key: Vec<u8>,
     index_builder: SSTableIndexBuilder,
@@ -213,10 +211,7 @@ where
 mod test {
     use std::io;
 
-    use super::SSTable;
-    use super::VoidMerge;
-    use super::VoidSSTable;
-    use super::{common_prefix_len, SSTableMonotonicU64};
+    use super::{common_prefix_len, SSTable, SSTableMonotonicU64, VoidMerge, VoidSSTable};
 
     fn aux_test_common_prefix_len(left: &str, right: &str, expect_len: usize) {
         assert_eq!(

@@ -1,5 +1,6 @@
-use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{self, Read};
+
+use byteorder::{LittleEndian, ReadBytesExt};
 
 pub struct BlockReader<'a> {
     buffer: Vec<u8>,

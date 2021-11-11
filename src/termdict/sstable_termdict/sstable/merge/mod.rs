@@ -68,12 +68,11 @@ impl SingleValueMerger<()> for () {
 #[cfg(test)]
 mod tests {
 
-    use super::super::SSTable;
-    use super::super::{SSTableMonotonicU64, VoidSSTable};
-    use super::U64Merge;
-    use super::VoidMerge;
     use std::collections::{BTreeMap, BTreeSet};
     use std::str;
+
+    use super::super::{SSTable, SSTableMonotonicU64, VoidSSTable};
+    use super::{U64Merge, VoidMerge};
 
     fn write_sstable(keys: &[&'static str]) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![];

@@ -4,12 +4,13 @@ use std::path::PathBuf;
 use std::sync::PoisonError;
 use std::{fmt, io};
 
+use thiserror::Error;
+
 use crate::directory::error::{
     Incompatibility, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
 };
 use crate::fastfield::FastFieldNotAvailableError;
 use crate::{query, schema};
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[doc(hidden)]

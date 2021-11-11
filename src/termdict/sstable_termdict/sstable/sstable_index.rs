@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
 use std::io;
 use std::ops::Range;
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct SSTableIndex {

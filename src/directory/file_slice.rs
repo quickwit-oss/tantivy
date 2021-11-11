@@ -2,12 +2,12 @@ use std::ops::{Deref, Range};
 use std::sync::{Arc, Weak};
 use std::{fmt, io};
 
+use async_trait::async_trait;
 use common::HasLen;
 use stable_deref_trait::StableDeref;
 
-use crate::{AsyncIoError, AsyncIoResult};
 use crate::directory::OwnedBytes;
-use async_trait::async_trait;
+use crate::{AsyncIoError, AsyncIoResult};
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -222,7 +222,6 @@ impl FileHandle for OwnedBytes {
         self.read_bytes(range).map_err(AsyncIoError::from)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
