@@ -46,7 +46,7 @@ census = "0.4"
 fnv = "1.0.7"
 thiserror = "1.0.24"
 htmlescape = "0.3.1"
-fail = "0.4"
+fail = "0.5"
 murmurhash32 = "0.2"
 chrono = "0.4.19"
 smallvec = "1.6.1"
@@ -69,7 +69,7 @@ test-env-log = "0.2.7"
 env_logger = "0.9.0"
 
 [dev-dependencies.fail]
-version = "0.4"
+version = "0.5"
 features = ["failpoints"]
 
 [profile.release]
