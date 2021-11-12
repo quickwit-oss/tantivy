@@ -351,37 +351,39 @@ impl SegmentUpdater {
         *self.merge_policy.write().unwrap() = arc_merge_policy;
     }
 
-    fn schedule_future<T: 'static + Send, F: Future<Output = crate::Result<T>> + 'static + Send>(
+    async fn schedule_task<
+        T: 'static + Send,
+        F: Future<Output = crate::Result<T>> + 'static + Send,
+    >(
         &self,
-        f: F,
-    ) -> impl Future<Output = crate::Result<T>> {
-        let (sender, receiver) = oneshot::channel();
-        if self.is_alive() {
-            self.pool.spawn_ok(async move {
-                let _ = sender.send(f.await);
-            });
-        } else {
-            let _ = sender.send(Err(crate::TantivyError::SystemError(
+        task: F,
+    ) -> crate::Result<T> {
+        if !self.is_alive() {
+            return Err(crate::TantivyError::SystemError(
                 "Segment updater killed".to_string(),
-            )));
+            ));
         }
-        receiver.unwrap_or_else(|_| {
+        let (sender, receiver) = oneshot::channel();
+        self.pool.spawn_ok(async move {
+            let task_result = task.await;
+            let _ = sender.send(task_result);
+        });
+        let task_result = receiver.await;
+        task_result.unwrap_or_else(|_| {
             let err_msg =
                 "A segment_updater future did not success. This should never happen.".to_string();
             Err(crate::TantivyError::SystemError(err_msg))
         })
     }
 
-    pub fn schedule_add_segment(
-        &self,
-        segment_entry: SegmentEntry,
-    ) -> impl Future<Output = crate::Result<()>> {
+    pub async fn schedule_add_segment(&self, segment_entry: SegmentEntry) -> crate::Result<()> {
         let segment_updater = self.clone();
-        self.schedule_future(async move {
+        self.schedule_task(async move {
             segment_updater.segment_manager.add_segment(segment_entry);
             segment_updater.consider_merge_options().await;
             Ok(())
         })
+        .await
     }
 
     /// Orders `SegmentManager` to remove all segments
@@ -448,11 +450,9 @@ impl SegmentUpdater {
         Ok(())
     }
 
-    pub fn schedule_garbage_collect(
-        &self,
-    ) -> impl Future<Output = crate::Result<GarbageCollectionResult>> {
+    pub async fn schedule_garbage_collect(&self) -> crate::Result<GarbageCollectionResult> {
         let garbage_collect_future = garbage_collect_files(self.clone());
-        self.schedule_future(garbage_collect_future)
+        self.schedule_task(garbage_collect_future).await
     }
 
     /// List the files that are useful to the index.
@@ -470,13 +470,13 @@ impl SegmentUpdater {
         files
     }
 
-    pub fn schedule_commit(
+    pub(crate) async fn schedule_commit(
         &self,
         opstamp: Opstamp,
         payload: Option<String>,
-    ) -> impl Future<Output = crate::Result<()>> {
+    ) -> crate::Result<()> {
         let segment_updater: SegmentUpdater = self.clone();
-        self.schedule_future(async move {
+        self.schedule_task(async move {
             let segment_entries = segment_updater.purge_deletes(opstamp)?;
             segment_updater.segment_manager.commit(segment_entries);
             segment_updater.save_metas(opstamp, payload)?;
@@ -484,6 +484,7 @@ impl SegmentUpdater {
             segment_updater.consider_merge_options().await;
             Ok(())
         })
+        .await
     }
 
     fn store_meta(&self, index_meta: &IndexMeta) {
@@ -611,14 +612,14 @@ impl SegmentUpdater {
         }
     }
 
-    fn end_merge(
+    async fn end_merge(
         &self,
         merge_operation: MergeOperation,
         mut after_merge_segment_entry: SegmentEntry,
-    ) -> impl Future<Output = crate::Result<SegmentMeta>> {
+    ) -> crate::Result<SegmentMeta> {
         let segment_updater = self.clone();
         let after_merge_segment_meta = after_merge_segment_entry.meta().clone();
-        let end_merge_future = self.schedule_future(async move {
+        self.schedule_task(async move {
             info!("End merge {:?}", after_merge_segment_entry.meta());
             {
                 let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
@@ -661,8 +662,9 @@ impl SegmentUpdater {
 
             let _ = garbage_collect_files(segment_updater).await;
             Ok(())
-        });
-        end_merge_future.map_ok(|_| after_merge_segment_meta)
+        })
+        .await?;
+        Ok(after_merge_segment_meta)
     }
 
     /// Wait for current merging threads.

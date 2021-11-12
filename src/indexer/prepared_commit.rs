@@ -3,7 +3,7 @@ use crate::Opstamp;
 use futures::executor::block_on;
 
 /// A prepared commit
-pub(crate) struct PreparedCommit<'a> {
+pub struct PreparedCommit<'a> {
     index_writer: &'a mut IndexWriter,
     payload: Option<String>,
     opstamp: Opstamp,
@@ -18,25 +18,38 @@ impl<'a> PreparedCommit<'a> {
         }
     }
 
-    pub(crate) fn opstamp(&self) -> Opstamp {
+    /// Returns the opstamp associated to the prepared commit.
+    pub fn opstamp(&self) -> Opstamp {
         self.opstamp
     }
 
-    pub(crate) fn set_payload(&mut self, payload: &str) {
+    /// Adds an arbitrary payload to the commit.
+    pub fn set_payload(&mut self, payload: &str) {
         self.payload = Some(payload.to_string())
     }
 
-    pub(crate) fn abort(self) -> crate::Result<Opstamp> {
+    /// Rollbacks any change.
+    pub fn abort(self) -> crate::Result<Opstamp> {
         self.index_writer.rollback()
     }
 
-    pub(crate) fn commit(self) -> crate::Result<Opstamp> {
+    /// Proceeds to commit.
+    /// See `.commit_async()`.
+    pub fn commit(self) -> crate::Result<Opstamp> {
+        block_on(self.commit_async())
+    }
+
+    /// Proceeds to commit.
+    ///
+    /// Unfortunately, contrary to what `PrepareCommit` may suggests,
+    /// this operation is not at all really light.
+    /// At this point deletes have not been flushed yet.
+    pub async fn commit_async(self) -> crate::Result<Opstamp> {
         info!("committing {}", self.opstamp);
-        block_on(
-            self.index_writer
-                .segment_updater()
-                .schedule_commit(self.opstamp, self.payload),
-        )?;
+        self.index_writer
+            .segment_updater()
+            .schedule_commit(self.opstamp, self.payload)
+            .await?;
         Ok(self.opstamp)
     }
 }

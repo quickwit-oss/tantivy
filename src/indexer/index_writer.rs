@@ -465,10 +465,8 @@ impl IndexWriter {
     }
 
     /// Detects and removes the files that are not used by the index anymore.
-    pub fn garbage_collect_files(
-        &self,
-    ) -> impl Future<Output = crate::Result<GarbageCollectionResult>> {
-        self.segment_updater.schedule_garbage_collect()
+    pub async fn garbage_collect_files(&self) -> crate::Result<GarbageCollectionResult> {
+        self.segment_updater.schedule_garbage_collect().await
     }
 
     /// Deletes all documents from the index
@@ -607,7 +605,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub(crate) fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
