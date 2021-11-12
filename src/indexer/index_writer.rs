@@ -605,7 +605,7 @@ impl IndexWriter {
     /// It is also possible to add a payload to the `commit`
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
-    pub(crate) fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
+    pub fn prepare_commit(&mut self) -> crate::Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.

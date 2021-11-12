@@ -470,7 +470,7 @@ impl SegmentUpdater {
         files
     }
 
-    pub async fn schedule_commit(
+    pub(crate) async fn schedule_commit(
         &self,
         opstamp: Opstamp,
         payload: Option<String>,
