@@ -75,13 +75,12 @@ It walks you through getting a wikipedia search engine up and running in a few m
 
 There are many ways to support this project. 
 
-- Use Tantivy and tell us about your experience on [Gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
+- Use Tantivy and tell us about your experience on [Discord](https://discord.gg/MT27AG5EVE) or by email (paul.masurel@gmail.com)
 - Report bugs
 - Write a blog post
 - Help with documentation by asking questions or submitting PRs
-- Contribute code (you can join [our Gitter](https://gitter.im/tantivy-search/tantivy))
+- Contribute code (you can join [our Discord server](https://discord.gg/MT27AG5EVE))
 - Talk about Tantivy around you
-- [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
 
 # Contributing code
 
