@@ -2,7 +2,7 @@
 [![Docs](https://docs.rs/tantivy/badge.svg)](https://docs.rs/crate/tantivy/)
 [![Build Status](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/quickwit-inc/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/quickwit-inc/tantivy)
-[![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://discord.gg/MT27AG5EVE](https://shields.io/discord/908281611840282624?label=chat%20on%20discord)](https://discord.gg/MT27AG5EVE)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
