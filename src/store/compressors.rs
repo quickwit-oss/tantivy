@@ -53,7 +53,7 @@ impl Compressor {
     }
     pub(crate) fn get_id(&self) -> u8 {
         match self {
-            Compressor::NoOp => 0,
+            Self::NoOp => 0,
             Self::Lz4 => 1,
             Self::Brotli => 2,
             Self::Snappy => 3,
