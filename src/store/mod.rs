@@ -183,6 +183,10 @@ pub mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_store_noop() -> crate::Result<()> {
+        test_store(Compressor::None)
+    }
     #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_store_lz4_block() -> crate::Result<()> {
