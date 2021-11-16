@@ -63,7 +63,7 @@ impl Compressor {
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
         match self {
             Self::None => {
-                debug_assert!(compressed.is_empty());
+                compressed.clear();
                 compressed.extend_from_slice(uncompressed);
                 Ok(())
             }
@@ -108,7 +108,7 @@ impl Compressor {
     ) -> io::Result<()> {
         match self {
             Self::None => {
-                debug_assert!(decompressed.is_empty());
+                decompressed.clear();
                 decompressed.extend_from_slice(compressed);
                 Ok(())
             }
