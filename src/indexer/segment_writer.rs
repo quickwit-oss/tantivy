@@ -1,7 +1,4 @@
-use super::{
-    doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping},
-    operation::AddOperation,
-};
+use super::{doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping}, operation::AddOperation, vector_writer::VectorWriter};
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
@@ -61,6 +58,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
+    pub(crate) vector_writer: VectorWriter,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     term_buffer: Term,
@@ -108,6 +106,7 @@ impl SegmentWriter {
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
             term_buffer: Term::new(),
+            vector_writer: VectorWriter::from_schema(schema)
         })
     }
 
@@ -160,6 +159,7 @@ impl SegmentWriter {
 
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_entry = schema.get_field_entry(field);
+            
             let make_schema_error = || {
                 crate::TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
@@ -167,11 +167,14 @@ impl SegmentWriter {
                     field_entry.name()
                 ))
             };
+            
             if !field_entry.is_indexed() {
                 continue;
             }
+            
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
+
             match *field_entry.field_type() {
                 FieldType::HierarchicalFacet(_) => {
                     term_buffer.set_field(field);
@@ -297,6 +300,19 @@ impl SegmentWriter {
                             .ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
                         self.multifield_postings.subscribe(doc_id, term_buffer);
+                    }
+                }
+                FieldType::Vector(_) => {
+                    for field_value in field_values {
+                        
+                        let field = field_value.field();                        
+                        let vec_val = field_value
+                            .value()
+                            .vec_value()
+                            .ok_or_else(make_schema_error)?;
+
+                        trace!("SegmentWritter::add_document vector {:?} - {:?}", field, vec_val);
+                        self.vector_writer.record(doc_id, field, vec_val);
                     }
                 }
             }

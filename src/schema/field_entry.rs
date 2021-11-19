@@ -6,6 +6,8 @@ use crate::schema::bytes_options::BytesOptions;
 use crate::schema::FieldType;
 use serde::{Deserialize, Serialize};
 
+use super::VectorOptions;
+
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
 ///
@@ -30,13 +32,23 @@ impl FieldEntry {
         }
     }
 
-    /// Creates a new u64 field entry in the schema, given
+    /// Creates a new text field entry in the schema, given
     /// a name, and some options.
     pub fn new_text(field_name: String, text_options: TextOptions) -> FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
             field_type: FieldType::Str(text_options),
+        }
+    }
+
+    /// Creates a new vector field entry in the schema, given
+    /// a name, and some options.
+    pub fn new_vector(field_name: String, vector_options: VectorOptions) -> FieldEntry {
+        assert!(is_valid_field_name(&field_name));
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::Vector(vector_options),
         }
     }
 
@@ -135,6 +147,7 @@ impl FieldEntry {
             FieldType::Str(ref options) => options.is_stored(),
             FieldType::HierarchicalFacet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
+            FieldType::Vector(ref options) => options.is_stored()
         }
     }
 }

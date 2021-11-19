@@ -10,6 +10,9 @@ use chrono::{FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
+use super::vector_options;
+use super::VectorOptions;
+
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
 #[derive(Debug, PartialEq)]
@@ -45,6 +48,8 @@ pub enum Type {
     HierarchicalFacet,
     /// `Vec<u8>`
     Bytes,
+    /// Vector
+    Vector,
 }
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
@@ -68,6 +73,8 @@ pub enum FieldType {
     HierarchicalFacet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
+    /// Vector
+    Vector(VectorOptions),
 }
 
 impl FieldType {
@@ -81,6 +88,7 @@ impl FieldType {
             FieldType::Date(_) => Type::Date,
             FieldType::HierarchicalFacet(_) => Type::HierarchicalFacet,
             FieldType::Bytes(_) => Type::Bytes,
+            FieldType::Vector(_) => Type::Vector,
         }
     }
 
@@ -94,6 +102,7 @@ impl FieldType {
             FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::HierarchicalFacet(ref facet_options) => facet_options.is_indexed(),
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
+            FieldType::Vector(ref vector_options) => vector_options.is_indexed(),
         }
     }
 
@@ -125,6 +134,15 @@ impl FieldType {
             }
             FieldType::Bytes(ref bytes_options) => {
                 if bytes_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
+            FieldType::Vector(ref vector_options) => {
+                // I'm assuming that a vector field will be always indexed using its vector record
+                // options
+                if vector_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
                     None
@@ -162,6 +180,22 @@ impl FieldType {
                         field_text
                     ))
                 }),
+                FieldType::Vector(_) => {
+                    let v: Vec<f32> = field_text
+                        .split(',')
+                        .map(|f| {
+                            f.parse()
+                                .map_err(|_| {
+                                    ValueParsingError::TypeError(format!(
+                                        "Expected vector like \"2.3,5.6,2.0\", got {:?}",
+                                        field_text
+                                    ))
+                                })
+                                .unwrap()
+                        })
+                        .collect();
+                    Ok(Value::Vector(v))
+                }
             },
             JsonValue::Number(ref field_val_num) => match *self {
                 FieldType::I64(_) | FieldType::Date(_) => {
@@ -188,7 +222,10 @@ impl FieldType {
                         Err(ValueParsingError::OverflowError(msg))
                     }
                 }
-                FieldType::Str(_) | FieldType::HierarchicalFacet(_) | FieldType::Bytes(_) => {
+                FieldType::Str(_)
+                | FieldType::HierarchicalFacet(_)
+                | FieldType::Bytes(_)
+                | FieldType::Vector(_) => {
                     let msg = format!("Expected a string, got {:?}", json);
                     Err(ValueParsingError::TypeError(msg))
                 }

@@ -376,6 +376,11 @@ impl QueryParser {
                 let term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![(0, term)])
             }
+            FieldType::Vector(_) => {
+                let v: Vec<f32> = phrase.split(',').map(|s| s.parse().unwrap()).collect();
+                let term = Term::from_field_vector(field, &v);
+                Ok(vec![(0, term)])
+            }
         }
     }
 

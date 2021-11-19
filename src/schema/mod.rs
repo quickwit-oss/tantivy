@@ -118,6 +118,7 @@ mod index_record_option;
 mod int_options;
 mod named_field_document;
 mod text_options;
+mod vector_options;
 mod value;
 
 mod flags;
@@ -136,6 +137,7 @@ pub use self::document::Document;
 pub use self::field::Field;
 pub use self::term::Term;
 
+
 pub use self::field_entry::FieldEntry;
 pub use self::field_type::{FieldType, Type};
 pub use self::field_value::FieldValue;
@@ -150,6 +152,8 @@ pub use self::bytes_options::BytesOptions;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;
+
+pub use self::vector_options::VectorOptions;
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

@@ -103,6 +103,13 @@ impl Term {
         term
     }
 
+    /// Builds a term bytes.
+    pub fn from_field_vector(field: Field, vector: &Vec<f32>) -> Term {
+        let mut term = Term::for_field(field);
+        term.set_vector(vector);
+        term
+    }
+
     /// Creates a new Term for a given field.
     pub(crate) fn for_field(field: Field) -> Term {
         let mut term = Term(Vec::with_capacity(100));
@@ -141,6 +148,13 @@ impl Term {
     pub fn set_bytes(&mut self, bytes: &[u8]) {
         self.0.resize(4, 0u8);
         self.0.extend(bytes);
+    }
+
+    /// Sets the value of a `Vector` field.
+    pub fn set_vector(&mut self, vector: &Vec<f32>) {
+        self.0.resize(4, 0u8);
+        let output: Vec<u8> = vector.iter().flat_map(|val| val.to_be_bytes()).collect();
+        self.0.extend(output);
     }
 
     /// Set the texts only, keeping the field untouched.

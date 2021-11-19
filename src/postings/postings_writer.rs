@@ -39,6 +39,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::F64(_)
         | FieldType::Date(_)
         | FieldType::Bytes(_)
+        | FieldType::Vector(_)
         | FieldType::HierarchicalFacet(_) => {
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
         }
@@ -120,6 +121,7 @@ impl MultiFieldPostingsWriter {
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
         let postings_writer =
             self.per_field_postings_writers[term.field().field_id() as usize].deref_mut();
+            
         postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &mut self.heap)
     }
 
@@ -161,7 +163,7 @@ impl MultiFieldPostingsWriter {
                     unordered_term_mappings.insert(field, mapping);
                 }
                 FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
-                FieldType::Bytes(_) => {}
+                FieldType::Bytes(_) | FieldType::Vector(_) => {}
             }
 
             let postings_writer =

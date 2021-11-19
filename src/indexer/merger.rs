@@ -300,6 +300,9 @@ impl IndexMerger {
                     // They can be implemented using what is done
                     // for facets in the future.
                 }
+                FieldType::Vector(_) => {
+                    // TODO: Undestand if we have to implement this.
+                }
                 FieldType::Bytes(byte_options) => {
                     if byte_options.is_fast() {
                         self.write_bytes_fast_field(field, fast_field_serializer, doc_id_mapping)?;

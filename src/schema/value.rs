@@ -25,6 +25,8 @@ pub enum Value {
     Facet(Facet),
     /// Arbitrarily sized byte array
     Bytes(Vec<u8>),
+    /// Vector representing the embedding of a document
+    Vector(Vec<f32>)
 }
 
 impl Eq for Value {}
@@ -43,6 +45,7 @@ impl Ord for Value {
             (Value::Date(l), Value::Date(r)) => l.cmp(r),
             (Value::Facet(l), Value::Facet(r)) => l.cmp(r),
             (Value::Bytes(l), Value::Bytes(r)) => l.cmp(r),
+            (Value::Vector(l), Value::Vector(r)) => l.partial_cmp(r).unwrap(),
             (Value::F64(l), Value::F64(r)) => {
                 match (l.is_nan(), r.is_nan()) {
                     (false, false) => l.partial_cmp(r).unwrap(), // only fail on NaN
@@ -65,9 +68,13 @@ impl Ord for Value {
             (_, Value::Date(_)) => Ordering::Greater,
             (Value::Facet(_), _) => Ordering::Less,
             (_, Value::Facet(_)) => Ordering::Greater,
+            (Value::Vector(_), _) => Ordering::Less,
+            (_, Value::Vector(_)) => Ordering::Greater,
         }
     }
 }
+
+
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -83,6 +90,7 @@ impl Serialize for Value {
             Value::Date(ref date) => serializer.serialize_str(&date.to_rfc3339()),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
+            Value::Vector(ref vector) => vector.serialize(serializer)
         }
     }
 }
@@ -212,6 +220,14 @@ impl Value {
             None
         }
     }
+
+    pub fn vec_value(&self) -> Option<&Vec<f32>> {
+        if let Value::Vector(bytes) = self {
+            Some(bytes)
+        } else {
+            None
+        }
+    }
 }
 
 impl From<String> for Value {
@@ -290,6 +306,7 @@ mod binary_serialize {
     const DATE_CODE: u8 = 5;
     const F64_CODE: u8 = 6;
     const EXT_CODE: u8 = 7;
+    const VEC_CODE: u8 = 8;
 
     // extended types
 
@@ -337,6 +354,10 @@ mod binary_serialize {
                 Value::Bytes(ref bytes) => {
                     BYTES_CODE.serialize(writer)?;
                     bytes.serialize(writer)
+                },
+                Value::Vector(ref vector) => {
+                    VEC_CODE.serialize(writer);
+                    vector.serialize(writer)
                 }
             }
         }
