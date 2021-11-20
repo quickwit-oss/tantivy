@@ -52,7 +52,7 @@ impl<'a> ShingleFilterStream<'a> {
     }
 }
 
-fn make_shingle(token: &mut Token, pendings: &Vec<Token>, buffer: &mut String, separator: char) {
+fn make_shingle(token: &mut Token, pendings: &[Token], buffer: &mut String, separator: char) {
     buffer.clear();
     buffer.push_str(token.text.as_str());
 
