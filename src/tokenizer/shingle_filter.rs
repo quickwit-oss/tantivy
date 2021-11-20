@@ -74,12 +74,11 @@ fn make_shingle(token: &mut Token, pendings: &[Token], buffer: &mut String, sepa
 impl<'a> TokenStream for ShingleFilterStream<'a> {
     fn advance(&mut self) -> bool {
         while !self.is_window_filled() {
-            if self.tail.advance() {
-                self.push_token(self.tail.token().clone());
-                self.original_token_position += 1;  // This is not compatible with StopWordFilter
-            } else {
+            if !self.tail.advance() {
                 return false;
             }
+            self.push_token(self.tail.token().clone());
+            self.original_token_position += 1;  // This is not compatible with StopWordFilter
         }
         if self.tail.advance() {
             let next_token = self.tail.token().clone();
