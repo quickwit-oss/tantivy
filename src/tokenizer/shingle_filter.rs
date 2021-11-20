@@ -80,19 +80,19 @@ impl<'a> TokenStream for ShingleFilterStream<'a> {
             self.push_token(self.tail.token().clone());
             self.original_token_position += 1;  // This is not compatible with StopWordFilter
         }
-        if self.tail.advance() {
-            let next_token = self.tail.token().clone();
-            make_shingle(
-                &mut self.tail.token_mut(),
-                &self.pendings,
-                &mut self.buffer,
-                self.separator,
-            );
-            self.push_token(next_token);
-            self.original_token_position += 1;
-            return true;
+        if !self.tail.advance() {
+            return false;
         }
-        false
+        let next_token = self.tail.token().clone();
+        make_shingle(
+            &mut self.tail.token_mut(),
+            &self.pendings,
+            &mut self.buffer,
+            self.separator,
+        );
+        self.push_token(next_token);
+        self.original_token_position += 1;
+        true
     }
 
     fn token(&self) -> &Token {
