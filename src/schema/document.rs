@@ -113,6 +113,11 @@ impl Document {
         self.add(FieldValue::new(field, Value::Bytes(value.into())))
     }
 
+    /// Add a vector field
+    pub fn add_vector<T: Into<Vec<f32>>>(&mut self, field: Field, value: T) {
+        self.add(FieldValue::new(field, Value::Vector(value.into())))
+    }
+
     /// Add a field value
     pub fn add(&mut self, field_value: FieldValue) {
         self.field_values.push(field_value);

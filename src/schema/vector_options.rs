@@ -1,13 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use super::flags::StoredFlag;
-
 /// Define how an a bytes field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct VectorOptions {
-    dimension: usize,
-    indexed: bool,
-    stored: bool
+    pub dimension: usize,
+    pub indexed: bool,
+    pub stored: bool
 }
 
 impl VectorOptions {

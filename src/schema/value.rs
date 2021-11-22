@@ -284,6 +284,12 @@ impl From<Vec<u8>> for Value {
     }
 }
 
+impl From<Vec<f32>> for Value {
+    fn from(vector: Vec<f32>) -> Value {
+        Value::Vector(vector)
+    }
+}
+
 impl From<PreTokenizedString> for Value {
     fn from(pretokenized_string: PreTokenizedString) -> Value {
         Value::PreTokStr(pretokenized_string)
@@ -386,6 +392,7 @@ mod binary_serialize {
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),
+                VEC_CODE => Ok(Value::Vector(Vec::<f32>::deserialize(reader)?)),
                 EXT_CODE => {
                     let ext_type_code = u8::deserialize(reader)?;
                     match ext_type_code {
