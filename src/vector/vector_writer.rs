@@ -9,8 +9,8 @@ pub struct VectorWriter {
 
 impl VectorWriter {
 
-    pub fn from_schema(schema: &Schema) -> VectorWriter {
-        trace!("Create VectorWriter for schema: {:?}", schema);
+    pub fn from_schema(_schema: &Schema) -> VectorWriter {
+        trace!("Create VectorWriter for schema");
 
         VectorWriter{}
     }

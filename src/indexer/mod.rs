@@ -19,7 +19,6 @@ pub mod segment_serializer;
 pub mod segment_updater;
 mod segment_writer;
 mod stamper;
-pub mod vector_writer;
 
 use crossbeam::channel;
 use smallvec::SmallVec;

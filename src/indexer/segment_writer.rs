@@ -1,5 +1,5 @@
-use super::{doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping}, operation::AddOperation, vector_writer::VectorWriter};
-use crate::fastfield::FastFieldsWriter;
+use super::{doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping}, operation::AddOperation};
+use crate::{fastfield::FastFieldsWriter, vector::VectorWriter};
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
