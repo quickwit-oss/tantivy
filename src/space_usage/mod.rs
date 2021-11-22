@@ -71,6 +71,7 @@ pub struct SegmentSpaceUsage {
     positions: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
+    vectors: PerFieldSpaceUsage,
 
     store: StoreSpaceUsage,
 
@@ -88,16 +89,20 @@ impl SegmentSpaceUsage {
         positions: PerFieldSpaceUsage,
         fast_fields: PerFieldSpaceUsage,
         fieldnorms: PerFieldSpaceUsage,
+        vectors: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
         deletes: ByteCount,
     ) -> SegmentSpaceUsage {
+
         let total = termdict.total()
             + postings.total()
             + positions.total()
             + fast_fields.total()
             + fieldnorms.total()
+            + vectors.total()
             + store.total()
             + deletes;
+
         SegmentSpaceUsage {
             num_docs,
             termdict,
@@ -108,6 +113,7 @@ impl SegmentSpaceUsage {
             store,
             deletes,
             total,
+            vectors
         }
     }
 
@@ -127,7 +133,12 @@ impl SegmentSpaceUsage {
             SegmentComponent::Store => ComponentSpaceUsage::Store(self.store().clone()),
             SegmentComponent::TempStore => ComponentSpaceUsage::Store(self.store().clone()),
             Delete => Basic(self.deletes()),
+            Vectors => PerField(self.vectors().clone()),
         }
+    }
+
+    pub fn vectors(&self) -> &PerFieldSpaceUsage {
+        &self.vectors
     }
 
     /// Num docs in segment
