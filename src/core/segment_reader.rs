@@ -17,6 +17,7 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
+use crate::vector::VectorReader;
 use fail::fail_point;
 use std::fmt;
 use std::sync::Arc;
@@ -46,6 +47,7 @@ pub struct SegmentReader {
     positions_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
+    vector_reader: Arc<VectorReader>,
 
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
@@ -93,6 +95,21 @@ impl SegmentReader {
     /// May panic if the index is corrupted.
     pub fn fast_fields(&self) -> &FastFieldReaders {
         &self.fast_fields_readers
+    }
+
+    pub fn vector_reader(&self, field: Field) -> crate::Result<VectorReader> {
+        let field_entry = self.schema.get_field_entry(field);
+
+        match field_entry.field_type() {
+            FieldType::Vector(_) => {
+
+                Ok(VectorReader::new())
+            }
+            _ => Err(crate::TantivyError::InvalidArgument(format!(
+                "Field {:?} is not a facet field.",
+                field_entry.name()
+            ))),
+        }
     }
 
     /// Accessor to the `FacetReader` associated to a given `Field`.
@@ -192,6 +209,8 @@ impl SegmentReader {
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
             .unwrap_or(max_doc);
 
+        let vector_reader = Arc::new(VectorReader::new());
+
         Ok(SegmentReader {
             inv_idx_reader_cache: Default::default(),
             num_docs,
@@ -205,6 +224,7 @@ impl SegmentReader {
             alive_bitset_opt,
             positions_composite,
             schema,
+            vector_reader
         })
     }
 
@@ -318,6 +338,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
+            self.vector_reader.space_usage(),
             self.get_store_reader()?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
