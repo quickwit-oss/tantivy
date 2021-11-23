@@ -18,6 +18,7 @@ use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
 use crate::vector::VectorReader;
+use crate::vector::VectorReaders;
 use fail::fail_point;
 use std::fmt;
 use std::sync::Arc;
@@ -47,7 +48,7 @@ pub struct SegmentReader {
     positions_composite: CompositeFile,
     fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorm_readers: FieldNormReaders,
-    vector_reader: Arc<VectorReader>,
+    vector_readers: Arc<VectorReaders>,
 
     store_file: FileSlice,
     alive_bitset_opt: Option<AliveBitSet>,
@@ -103,7 +104,8 @@ impl SegmentReader {
         match field_entry.field_type() {
             FieldType::Vector(_) => {
 
-                Ok(VectorReader::new())
+                let reader = self.vector_readers.open_read(field);
+                Ok(reader)
             }
             _ => Err(crate::TantivyError::InvalidArgument(format!(
                 "Field {:?} is not a facet field.",
@@ -209,7 +211,9 @@ impl SegmentReader {
             .map(|alive_bitset| alive_bitset.num_alive_docs() as u32)
             .unwrap_or(max_doc);
 
-        let vector_reader = Arc::new(VectorReader::new());
+
+        let vectors_path = segment.relative_path(SegmentComponent::Vectors);
+        let vector_readers = Arc::new(VectorReaders::new(vectors_path));
 
         Ok(SegmentReader {
             inv_idx_reader_cache: Default::default(),
@@ -224,7 +228,7 @@ impl SegmentReader {
             alive_bitset_opt,
             positions_composite,
             schema,
-            vector_reader
+            vector_readers
         })
     }
 
@@ -338,7 +342,7 @@ impl SegmentReader {
             self.positions_composite.space_usage(),
             self.fast_fields_readers.space_usage(),
             self.fieldnorm_readers.space_usage(),
-            self.vector_reader.space_usage(),
+            self.vector_readers.space_usage(),
             self.get_store_reader()?.space_usage(),
             self.alive_bitset_opt
                 .as_ref()
