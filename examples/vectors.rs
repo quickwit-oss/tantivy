@@ -13,8 +13,8 @@
 use log::{info, trace};
 // ---
 // Importing tantivy...
-use tantivy::collector::TopDocs;
-use tantivy::query::{QueryParser, TermQuery};
+use tantivy::collector::{TopDocs, VectorCollector};
+use tantivy::query::{QueryParser, TermQuery, VectorQuery};
 use tantivy::schema::*;
 use tantivy::{doc, Index, ReloadPolicy};
 use tempfile::TempDir;
@@ -116,15 +116,10 @@ fn main() -> tantivy::Result<()> {
     // ### Query
 
     let v: Vec<f32> = vec![0.4, 0.5, 0.3];
-    let term_query = TermQuery::new(
-        Term::from_field_vector(vector, &v),
-        IndexRecordOption::Basic,
-    );
-
-    let top_docs = searcher.search(&term_query, &TopDocs::with_limit(10))?;
-    for (_score, doc_address) in top_docs {
-        let retrieved_doc = searcher.doc(doc_address)?;
-        println!("{}", schema.to_json(&retrieved_doc));
+    let term_query = VectorQuery::new(vector, v);
+    let top_docs = searcher.search(&term_query, &VectorCollector::for_field(vector))?;
+    for (doc_id, vector) in top_docs {
+        println!("doc_id: {:?}, vector: {:?}", doc_id, vector);
     }
 
 
