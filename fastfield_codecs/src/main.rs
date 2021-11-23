@@ -91,6 +91,10 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         .collect::<Vec<_>>();
     data_and_names.push((data, "Almost monotonically increasing"));
 
+    let data = (1000..=200_000_u64)
+        .map(|_| rand::random::<u8>() as u64)
+        .collect::<Vec<_>>();
+    data_and_names.push((data, "Random"));
     data_and_names
 }
 
