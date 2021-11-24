@@ -103,6 +103,12 @@ impl Term {
         term
     }
 
+    /// Builds a term vector.
+    pub fn from_field_vector(field: Field, vector: &Vec<f32>) -> Term {
+        let mut term = Term::for_field(field);
+        term.set_vector(vector);
+        term
+    }
 
     /// Creates a new Term for a given field.
     pub(crate) fn for_field(field: Field) -> Term {
