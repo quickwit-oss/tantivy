@@ -1,5 +1,5 @@
 use super::{doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping}, operation::AddOperation};
-use crate::{fastfield::FastFieldsWriter, vector::VectorWriter};
+use crate::{fastfield::FastFieldsWriter, vector::VectorWriter, vector::VectorWriters};
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
@@ -58,7 +58,7 @@ pub struct SegmentWriter {
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
-    pub(crate) vector_writer: VectorWriter,
+    pub(crate) vector_writers: VectorWriters,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     term_buffer: Term,
@@ -79,6 +79,7 @@ impl SegmentWriter {
         segment: Segment,
         schema: &Schema,
     ) -> crate::Result<SegmentWriter> {
+        let vectors_path = segment.relative_path(SegmentComponent::Vectors);
         let tokenizer_manager = segment.index().tokenizers().clone();
         let table_num_bits = initial_table_size(memory_budget)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
@@ -97,6 +98,9 @@ impl SegmentWriter {
                 },
             )
             .collect();
+
+        
+
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
@@ -106,7 +110,7 @@ impl SegmentWriter {
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
             term_buffer: Term::new(),
-            vector_writer: VectorWriter::from_schema(schema)
+            vector_writers: VectorWriters::new(vectors_path)
         })
     }
 
@@ -312,7 +316,7 @@ impl SegmentWriter {
                             .ok_or_else(make_schema_error)?;
 
                         trace!("SegmentWritter::add_document vector {:?} - {:?}", field, vec_val);
-                        self.vector_writer.record(doc_id, field, vec_val);
+                        self.vector_writers.record(doc_id, field, vec_val);
                     }
                 }
             }
