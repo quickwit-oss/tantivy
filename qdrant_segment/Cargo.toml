@@ -1,5 +1,5 @@
 [package]
-name = "segment"
+name = "qdrant-segment"
 version = "0.3.1"
 authors = ["Andrey Vasnetsov <vasnetsov93@gmail.com>"]
 edition = "2018"
