@@ -8,6 +8,7 @@ use std::io::Write;
 pub mod bitpacked;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
+pub mod multilinearinterpol_v2;
 
 pub trait FastFieldCodecReader: Sized {
     /// reads the metadata and returns the CodecReader
