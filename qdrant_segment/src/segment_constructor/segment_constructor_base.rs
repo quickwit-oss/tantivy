@@ -144,11 +144,9 @@ pub fn load_segment(path: &Path) -> OperationResult<Segment> {
 ///
 ///
 pub fn build_segment(path: &Path, config: &SegmentConfig) -> OperationResult<Segment> {
-    let segment_path = path.join(Uuid::new_v4().to_string());
+    create_dir_all(&path)?;
 
-    create_dir_all(&segment_path)?;
-
-    let segment = create_segment(0, &segment_path, config)?;
+    let segment = create_segment(0, &path, config)?;
     segment.save_current_state()?;
 
     Ok(segment)
