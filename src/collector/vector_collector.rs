@@ -1,4 +1,6 @@
-use futures::SinkExt;
+use std::sync::Arc;
+
+
 
 use crate::{DocAddress, SegmentOrdinal, schema::Field, vector::VectorReader};
 
@@ -23,9 +25,10 @@ impl Collector for VectorCollector {
         trace!("for_segment");
         trace!("Segment local id: {}", segment_local_id);
 
-        let vector_reader = reader.vector_reader(self.field)?;
+        let a = reader.vector_readers.read().unwrap();
+        let vector_reader = a.get(&self.field).unwrap();
 
-        Ok(VectorSegmentCollector::new(vector_reader, segment_local_id))
+        Ok(VectorSegmentCollector::new(Arc::clone(vector_reader), segment_local_id))
     }
 
     fn requires_scoring(&self) -> bool {
@@ -58,13 +61,13 @@ impl VectorCollector {
 }
 
 pub struct VectorSegmentCollector {
-    reader: VectorReader,
+    reader: Arc<VectorReader>,
     fruits: Vec<(DocAddress, Vec<f32>)>,
     segment_ord: u32,
 }
 
 impl VectorSegmentCollector {
-    fn new(reader: VectorReader, segment_ord: SegmentOrdinal) -> VectorSegmentCollector {
+    fn new(reader: Arc<VectorReader>, segment_ord: SegmentOrdinal) -> VectorSegmentCollector {
         VectorSegmentCollector {
             reader,
             fruits: Vec::new(),

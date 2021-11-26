@@ -51,9 +51,10 @@ impl Weight for VectorWeight {
         boost: Score,
     ) -> crate::Result<Box<dyn super::Scorer>> {
 
-        let reader = reader.vector_reader(self.field)?;
+        let a = reader.vector_readers.read().unwrap();
+        let vector_reader = a.get(&self.field).unwrap();
         // TODO: Pass limit.
-        let docs = reader.search(&self.vector, 50);
+        let docs = vector_reader.search(&self.vector, 50);
 
         Ok(Box::new(VectorScorer::from_docs(docs)))
     }
