@@ -66,13 +66,11 @@ impl SegmentRegister {
     }
 
     pub fn segment_metas(&self) -> Vec<SegmentMeta> {
-        let mut segment_ids: Vec<SegmentMeta> = self
+        return self
             .segment_states
             .values()
             .map(|segment_entry| segment_entry.meta().clone())
             .collect();
-        segment_ids.sort_by_key(SegmentMeta::id);
-        segment_ids
     }
 
     pub fn contains_all(&self, segment_ids: &[SegmentId]) -> bool {
