@@ -15,6 +15,8 @@ use fastfield_codecs::{
     FastFieldStats,
 };
 use prettytable::{Cell, Row, Table};
+use rand::prelude::StdRng;
+use rand::Rng;
 use std::fs::File;
 use std::io;
 use std::io::BufRead;
@@ -106,7 +108,6 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
             current_cumulative
         })
         .collect::<Vec<_>>();
-    // let data = (1..=200000_u64).map(|num| num + num).collect::<Vec<_>>();
     data_and_names.push((data, "Monotonically increasing concave"));
 
     let mut current_cumulative = 0;
@@ -119,13 +120,14 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
         .collect::<Vec<_>>();
     data_and_names.push((data, "Monotonically increasing convex"));
 
+    let mut rng: StdRng = rand::SeedableRng::seed_from_u64(1);
     let data = (1000..=200_000_u64)
-        .map(|num| num + rand::random::<u8>() as u64)
+        .map(|num| num + rng.gen::<u8>() as u64)
         .collect::<Vec<_>>();
     data_and_names.push((data, "Almost monotonically increasing"));
 
     let data = (1000..=200_000_u64)
-        .map(|_| rand::random::<u8>() as u64)
+        .map(|_| rng.gen::<u8>() as u64)
         .collect::<Vec<_>>();
     data_and_names.push((data, "Random"));
 
