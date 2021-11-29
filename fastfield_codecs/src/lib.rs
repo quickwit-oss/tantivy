@@ -6,6 +6,7 @@ use std::io;
 use std::io::Write;
 
 pub mod bitpacked;
+pub mod frame_of_reference;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
 pub mod multilinearinterpol_v2;

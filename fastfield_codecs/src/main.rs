@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate prettytable;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader;
+use fastfield_codecs::frame_of_reference::{
+    FrameOfReferenceFastFieldReader, FramedOfReferenceFastFieldSerializer,
+};
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
 use fastfield_codecs::multilinearinterpol_v2::MultiLinearInterpolV2FastFieldReader;
@@ -47,15 +50,16 @@ fn main() {
         >(&data);
         results.push(res);
         let res = serialize_with_codec::<
+            FramedOfReferenceFastFieldSerializer,
+            FrameOfReferenceFastFieldReader,
+        >(&data);
+        results.push(res);
+        let res = serialize_with_codec::<
             fastfield_codecs::bitpacked::BitpackedFastFieldSerializer,
             BitpackedFastFieldReader,
         >(&data);
         results.push(res);
 
-        // let best_estimation_codec = results
-        //.iter()
-        //.min_by(|res1, res2| res1.partial_cmp(&res2).unwrap())
-        //.unwrap();
         let best_compression_ratio_codec = results
             .iter()
             .min_by(|res1, res2| res1.partial_cmp(res2).unwrap())

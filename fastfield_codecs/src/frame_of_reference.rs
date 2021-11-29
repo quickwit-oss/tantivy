@@ -1,24 +1,8 @@
-/*!
-
-MultiLinearInterpolV2 compressor uses blockwise linear interpolation to guess values and stores the difference between the actual value
-and the one given by the linear interpolation.
-This is done for every block of 512 values. For every block, our linear function can be expressed as
-`computed_value = slope * block_position + first_value + positive_offset`
-where:
-- `block_position` is the position inside of the block from 0 to 511
-- `first_value` is the first value on the block
-- `positive_offset` is computed such that we ensure the diff `real_value - computed_value` is always positive.
-
-21 bytes is needed to store the block metadata, it adds an overhead of 21 * 8 / 512 = 0,33 bits per element.
-
-*/
-
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
 use crate::FastFieldStats;
 use std::io::{self, Read, Write};
-use std::ops::Sub;
 use tantivy_bitpacker::compute_num_bits;
 use tantivy_bitpacker::BitPacker;
 
@@ -26,28 +10,19 @@ use common::BinarySerializable;
 use common::DeserializeFrom;
 use tantivy_bitpacker::BitUnpacker;
 
-const BLOCK_SIZE: u64 = 512;
+const BLOCK_SIZE: u64 = 128;
 
 #[derive(Clone)]
-pub struct MultiLinearInterpolV2FastFieldReader {
+pub struct FrameOfReferenceFastFieldReader {
     num_vals: u64,
     min_value: u64,
     max_value: u64,
     block_readers: Vec<BlockReader>,
 }
 
-/// Block metadata needed to define the linear function `y = a.x + b`
-/// and to bitpack the difference between the real value and the
-/// the linear function computed value where:
-/// - `a` is the `slope`
-/// - `b` is the sum of the `first_value` in the block + an offset
-///   `positive_offset` which ensures that difference between the real
-///   value and the linear function computed value is always positive.
 #[derive(Clone, Debug, Default)]
 struct BlockMetadata {
-    first_value: u64,
-    positive_offset: u64,
-    slope: f32,
+    min: u64,
     num_bits: u8,
 }
 
@@ -72,44 +47,33 @@ impl BlockReader {
         let diff = self
             .bit_unpacker
             .get(block_pos, &data[self.start_offset as usize..]);
-        let computed_value =
-            get_computed_value(self.metadata.first_value, block_pos, self.metadata.slope);
-        (computed_value + diff) - self.metadata.positive_offset
+        self.metadata.min + diff
     }
 }
 
 impl BinarySerializable for BlockMetadata {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
-        self.first_value.serialize(write)?;
-        self.positive_offset.serialize(write)?;
-        self.slope.serialize(write)?;
+        self.min.serialize(write)?;
         self.num_bits.serialize(write)?;
         Ok(())
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let constant = u64::deserialize(reader)?;
-        let constant_positive_offset = u64::deserialize(reader)?;
-        let slope = f32::deserialize(reader)?;
+        let min = u64::deserialize(reader)?;
         let num_bits = u8::deserialize(reader)?;
-        Ok(Self {
-            first_value: constant,
-            positive_offset: constant_positive_offset,
-            slope,
-            num_bits,
-        })
+        Ok(Self { min, num_bits })
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct MultiLinearInterpolV2Footer {
+pub struct FrameOfReferenceFooter {
     pub num_vals: u64,
     pub min_value: u64,
     pub max_value: u64,
     block_metadatas: Vec<BlockMetadata>,
 }
 
-impl BinarySerializable for MultiLinearInterpolV2Footer {
+impl BinarySerializable for FrameOfReferenceFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         let mut out = vec![];
         self.num_vals.serialize(&mut out)?;
@@ -132,12 +96,12 @@ impl BinarySerializable for MultiLinearInterpolV2Footer {
     }
 }
 
-impl FastFieldCodecReader for MultiLinearInterpolV2FastFieldReader {
+impl FastFieldCodecReader for FrameOfReferenceFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let (_, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
-        let footer = MultiLinearInterpolV2Footer::deserialize(&mut footer)?;
+        let footer = FrameOfReferenceFooter::deserialize(&mut footer)?;
         let mut block_readers = Vec::with_capacity(footer.block_metadatas.len());
         let mut current_data_offset = 0;
         for block_metadata in footer.block_metadatas.into_iter() {
@@ -171,17 +135,12 @@ impl FastFieldCodecReader for MultiLinearInterpolV2FastFieldReader {
     }
 }
 
-#[inline]
-fn get_computed_value(first_val: u64, pos: u64, slope: f32) -> u64 {
-    (first_val as i64 + (pos as f32 * slope) as i64) as u64
-}
-
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct MultiLinearInterpolV2FastFieldSerializer {}
+pub struct FramedOfReferenceFastFieldSerializer {}
 
-impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
-    const NAME: &'static str = "MultiLinearInterpolV2";
-    const ID: u8 = 4;
+impl FastFieldCodecSerializer for FramedOfReferenceFastFieldSerializer {
+    const NAME: &'static str = "FramedOfReference";
+    const ID: u8 = 5;
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -196,40 +155,23 @@ impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
         for data_pos in (0..data.len() as u64).step_by(BLOCK_SIZE as usize) {
             let block_num_vals = BLOCK_SIZE.min(data.len() as u64 - data_pos) as usize;
             let block_values = &mut data[data_pos as usize..data_pos as usize + block_num_vals];
-            let slope = if block_num_vals == 1 {
-                0f32
-            } else {
-                ((block_values[block_values.len() - 1] as f64 - block_values[0] as f64)
-                    / (block_num_vals - 1) as f64) as f32
-            };
-            let first_value = block_values[0];
-            let mut positive_offset = 0;
-            let mut max_delta = 0;
-            for (pos, &current_value) in block_values[1..].iter().enumerate() {
-                let computed_value = get_computed_value(first_value, pos as u64 + 1, slope);
-                if computed_value > current_value {
-                    positive_offset = positive_offset.max(computed_value - current_value);
-                } else {
-                    max_delta = max_delta.max(current_value - computed_value);
-                }
+            let mut min = block_values[0];
+            for &current_value in block_values.iter() {
+                min = min.min(current_value);
             }
-            let num_bits = compute_num_bits(max_delta + positive_offset);
-            for (pos, current_value) in block_values.iter().enumerate() {
-                let computed_value = get_computed_value(first_value, pos as u64, slope);
-                let diff = (current_value + positive_offset) - computed_value;
+            let min = *block_values.iter().min().unwrap();
+            let max_delta = *block_values.iter().max().unwrap() - min;
+            let num_bits = compute_num_bits(max_delta);
+            for current_value in block_values.iter() {
+                let diff = current_value - min;
                 bit_packer.write(diff, num_bits, write)?;
             }
             bit_packer.flush(write)?;
-            block_metadatas.push(BlockMetadata {
-                first_value,
-                positive_offset,
-                slope,
-                num_bits,
-            });
+            block_metadatas.push(BlockMetadata { min, num_bits });
         }
         bit_packer.close(write)?;
 
-        let footer = MultiLinearInterpolV2Footer {
+        let footer = FrameOfReferenceFooter {
             num_vals: stats.num_vals,
             min_value: stats.min_value,
             max_value: stats.max_value,
@@ -265,13 +207,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
     fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
-        let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = BLOCK_SIZE.min(stats.num_vals);
-        let last_val_in_first_block =
-            fastfield_accessor.get_val(last_elem_in_first_chunk as u64 - 1);
-        let slope = ((last_val_in_first_block as f64 - first_val_in_first_block as f64)
-            / (stats.num_vals - 1) as f64) as f32;
-
         // let's sample at 0%, 5%, 10% .. 95%, 100%, but for the first block only
         let sample_positions = (0..20)
             .map(|pos| (last_elem_in_first_chunk as f32 / 100.0 * pos as f32 * 5.0) as usize)
@@ -280,10 +216,8 @@ impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
         let max_distance = sample_positions
             .iter()
             .map(|&pos| {
-                let calculated_value =
-                    get_computed_value(first_val_in_first_block, pos as u64, slope);
                 let actual_value = fastfield_accessor.get_val(pos as u64);
-                distance(calculated_value, actual_value)
+                actual_value - stats.min_value
             })
             .max()
             .unwrap();
@@ -297,17 +231,9 @@ impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
 
         let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
             // function metadata per block
-            + 21 * (stats.num_vals / BLOCK_SIZE);
+            + 9 * (stats.num_vals / BLOCK_SIZE);
         let num_bits_uncompressed = 64 * stats.num_vals;
         num_bits as f32 / num_bits_uncompressed as f32
-    }
-}
-
-fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
-    if x < y {
-        y - x
-    } else {
-        x - y
     }
 }
 
@@ -318,8 +244,8 @@ mod tests {
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
-            MultiLinearInterpolV2FastFieldSerializer,
-            MultiLinearInterpolV2FastFieldReader,
+            FramedOfReferenceFastFieldSerializer,
+            FrameOfReferenceFastFieldReader,
         >(data, name)
     }
 
@@ -328,10 +254,11 @@ mod tests {
         let data = (10..=6_000_u64).collect::<Vec<_>>();
         let (estimate, actual_compression) =
             create_and_validate(&data, "simple monotonically large");
+        println!("{}", actual_compression);
         assert!(actual_compression < 0.2);
+        assert!(actual_compression > 0.006);
         assert!(estimate < 0.20);
-        assert!(estimate > 0.15);
-        assert!(actual_compression > 0.001);
+        //assert!(estimate > 0.15);
     }
 
     #[test]
