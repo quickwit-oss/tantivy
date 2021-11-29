@@ -1,3 +1,7 @@
+Tantivy 0.17
+================================
+- Change to non-strict schema. Ignore fields in data which are not defined in schema. Previously this returned an error. #1211
+
 Tantivy 0.16.2
 ================================
 - Bugfix in FuzzyTermQuery. (tranposition_cost_one was not doing anything)
