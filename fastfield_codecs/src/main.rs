@@ -143,7 +143,7 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data_and_names.push((data, "Amazon review product ids SORTED"));
 
     let data = load_float_dataset("datasets/nooc_temperatures.txt");
-    data_and_names.push((data.clone(), "Temperatures"));
+    data_and_names.push((data, "Temperatures"));
 
     data_and_names
 }
