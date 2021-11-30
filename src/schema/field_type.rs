@@ -98,18 +98,18 @@ impl FieldType {
     }
 
     /// returns true iff the field is normed.
-    pub fn is_normed(&self) -> bool {
+    pub fn has_fieldnorms(&self) -> bool {
         match *self {
-            FieldType::Str(ref text_options) => text_options.get_indexing_options().map_or_else(
-                || false,
-                |opt| opt.index_option() != IndexRecordOption::Basic,
-            ),
+            FieldType::Str(ref text_options) => text_options
+                .get_indexing_options()
+                .map(|options| options.fieldnorms())
+                .unwrap_or(false),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
-            | FieldType::Date(ref int_options) => int_options.is_normed(),
+            | FieldType::Date(ref int_options) => int_options.fieldnorms(),
             FieldType::HierarchicalFacet(_) => false,
-            FieldType::Bytes(ref bytes_options) => bytes_options.is_normed(),
+            FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
         }
     }
 

@@ -41,17 +41,29 @@ use tantivy_bitpacker::minmax;
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
-fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
+fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
     let mut total_tokens = 0u64;
     let mut count: [usize; 256] = [0; 256];
     for reader in readers {
+        // When there are deletes, we use an approximation either
+        // - by using the fieldnorm
+        // - or by using a multiplying the total number of tokens by a ratio (1 - deleted docs / num docs).
         if reader.has_deletes() {
-            // if there are deletes, then we use an approximation
-            // using the fieldnorm
-            let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
-            for doc in reader.doc_ids_alive() {
-                let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
-                count[fieldnorm_id as usize] += 1;
+            if reader
+                .schema()
+                .get_field_entry(field)
+                .field_type()
+                .has_fieldnorms()
+            {
+                let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
+                for doc in reader.doc_ids_alive() {
+                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
+                    count[fieldnorm_id as usize] += 1;
+                }
+            } else {
+                let segment_num_tokens = reader.inverted_index(field)?.total_num_tokens();
+                let ratio = 1f64 - reader.num_deleted_docs() as f64 / reader.num_docs() as f64;
+                total_tokens += (segment_num_tokens as f64 * ratio) as u64;
             }
         } else {
             total_tokens += reader.inverted_index(field)?.total_num_tokens();
@@ -851,10 +863,11 @@ impl IndexMerger {
             segment_map[*old_doc_id as usize] = Some(new_doc_id as DocId);
         }
 
-        // The total number of tokens will only be exact when there has been no deletes.
+        // The total number of tokens will only be exact when there has been no deletes
+        // and if the field has a norm.
         //
         // Otherwise, we approximate by removing deleted documents proportionally.
-        let total_num_tokens: u64 = compute_total_num_tokens(&self.readers, indexed_field)?;
+        let total_num_tokens: u64 = estimate_total_num_tokens(&self.readers, indexed_field)?;
 
         // Create the total list of doc ids
         // by stacking the doc ids from the different segment.

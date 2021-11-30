@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
-use super::flags::{FastFlag, IndexedFlag, NormedFlag, SchemaFlagList, StoredFlag};
+use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Define how an a bytes field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BytesOptions {
     indexed: bool,
-    normed: bool,
+    fieldnorms: bool,
     fast: bool,
     stored: bool,
 }
@@ -18,8 +18,8 @@ impl BytesOptions {
     }
 
     /// Returns true iff the value is normed.
-    pub fn is_normed(&self) -> bool {
-        self.normed
+    pub fn fieldnorms(&self) -> bool {
+        self.fieldnorms
     }
 
     /// Returns true iff the value is a fast field.
@@ -45,8 +45,8 @@ impl BytesOptions {
     ///
     /// Setting an integer as normed will generate
     /// the fieldnorm data for it.
-    pub fn set_normed(mut self) -> BytesOptions {
-        self.normed = true;
+    pub fn set_fieldnorms(mut self) -> BytesOptions {
+        self.fieldnorms = true;
         self
     }
 
@@ -75,7 +75,7 @@ impl Default for BytesOptions {
     fn default() -> BytesOptions {
         BytesOptions {
             indexed: false,
-            normed: false,
+            fieldnorms: false,
             fast: false,
             stored: false,
         }
@@ -89,7 +89,7 @@ impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
         let other = other.into();
         BytesOptions {
             indexed: self.indexed | other.indexed,
-            normed: self.normed | other.normed,
+            fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
         }
@@ -106,7 +106,7 @@ impl From<FastFlag> for BytesOptions {
     fn from(_: FastFlag) -> Self {
         BytesOptions {
             indexed: false,
-            normed: false,
+            fieldnorms: false,
             stored: false,
             fast: true,
         }
@@ -117,7 +117,7 @@ impl From<StoredFlag> for BytesOptions {
     fn from(_: StoredFlag) -> Self {
         BytesOptions {
             indexed: false,
-            normed: false,
+            fieldnorms: false,
             stored: true,
             fast: false,
         }
@@ -128,18 +128,7 @@ impl From<IndexedFlag> for BytesOptions {
     fn from(_: IndexedFlag) -> Self {
         BytesOptions {
             indexed: true,
-            normed: false,
-            stored: false,
-            fast: false,
-        }
-    }
-}
-
-impl From<NormedFlag> for BytesOptions {
-    fn from(_: NormedFlag) -> Self {
-        BytesOptions {
-            indexed: false,
-            normed: true,
+            fieldnorms: true,
             stored: false,
             fast: false,
         }
@@ -159,13 +148,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{BytesOptions, FAST, INDEXED, NORMED, STORED};
+    use crate::schema::{BytesOptions, FAST, INDEXED, STORED};
 
     #[test]
     fn test_bytes_option_fast_flag() {
         assert_eq!(BytesOptions::default().set_fast(), FAST.into());
-        assert_eq!(BytesOptions::default().set_indexed(), INDEXED.into());
-        assert_eq!(BytesOptions::default().set_normed(), NORMED.into());
+        assert_eq!(
+            BytesOptions::default().set_indexed().set_fieldnorms(),
+            INDEXED.into()
+        );
         assert_eq!(BytesOptions::default().set_stored(), STORED.into());
     }
     #[test]
@@ -175,11 +166,17 @@ mod tests {
             (FAST | STORED).into()
         );
         assert_eq!(
-            BytesOptions::default().set_indexed().set_fast(),
+            BytesOptions::default()
+                .set_indexed()
+                .set_fieldnorms()
+                .set_fast(),
             (INDEXED | FAST).into()
         );
         assert_eq!(
-            BytesOptions::default().set_stored().set_indexed(),
+            BytesOptions::default()
+                .set_stored()
+                .set_fieldnorms()
+                .set_indexed(),
             (STORED | INDEXED).into()
         );
     }
@@ -189,10 +186,10 @@ mod tests {
         assert!(!BytesOptions::default().is_stored());
         assert!(!BytesOptions::default().is_fast());
         assert!(!BytesOptions::default().is_indexed());
-        assert!(!BytesOptions::default().is_normed());
+        assert!(!BytesOptions::default().fieldnorms());
         assert!(BytesOptions::default().set_stored().is_stored());
         assert!(BytesOptions::default().set_fast().is_fast());
         assert!(BytesOptions::default().set_indexed().is_indexed());
-        assert!(BytesOptions::default().set_normed().is_normed());
+        assert!(BytesOptions::default().set_fieldnorms().fieldnorms());
     }
 }
