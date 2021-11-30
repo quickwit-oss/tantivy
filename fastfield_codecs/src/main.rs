@@ -142,7 +142,7 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data.sort_unstable();
     data_and_names.push((data, "Amazon review product ids SORTED"));
 
-    let mut data = load_float_dataset("datasets/nooc_temperatures.txt");
+    let data = load_float_dataset("datasets/nooc_temperatures.txt");
     data_and_names.push((data, "Temperatures"));
 
     data_and_names
@@ -190,7 +190,7 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader
         );
     }
     let start_time_compression = Instant::now();
-    let estimation = S::estimate(&data, stats_from_vec(data));
+    let estimation = S::estimate_compression_ratio(&data, stats_from_vec(data));
     let mut out = vec![];
     S::serialize(
         &mut out,

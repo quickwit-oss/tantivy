@@ -128,7 +128,10 @@ impl FastFieldCodecSerializer for BitpackedFastFieldSerializer {
     ) -> bool {
         true
     }
-    fn estimate(_fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate_compression_ratio(
+        _fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> f32 {
         let amplitude = stats.max_value - stats.min_value;
         let num_bits = compute_num_bits(amplitude);
         let num_bits_uncompressed = 64;

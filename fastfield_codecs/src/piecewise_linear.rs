@@ -154,9 +154,9 @@ impl FastFieldCodecReader for PiecewiseLinearFastFieldReader {
     }
 
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let block_idx = (doc / BLOCK_SIZE) as usize;
-        let block_pos = doc - (block_idx as u64) * BLOCK_SIZE;
+    fn get_u64(&self, idx: u64, data: &[u8]) -> u64 {
+        let block_idx = (idx / BLOCK_SIZE) as usize;
+        let block_pos = idx - (block_idx as u64) * BLOCK_SIZE;
         let block_reader = &self.block_readers[block_idx];
         block_reader.get_u64(block_pos, data)
     }
@@ -180,7 +180,7 @@ pub struct PiecewiseLinearFastFieldSerializer;
 
 impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
     const NAME: &'static str = "PiecewiseLinear";
-    const ID: u8 = 5;
+    const ID: u8 = 4;
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,
@@ -263,7 +263,10 @@ impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
     /// Estimation for linear interpolation is hard because, you don't know
     /// where the local maxima are for the deviation of the calculated value and
     /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    fn estimate_compression_ratio(
+        fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> f32 {
         let first_val_in_first_block = fastfield_accessor.get_val(0);
         let last_elem_in_first_chunk = BLOCK_SIZE.min(stats.num_vals);
         let last_val_in_first_block =

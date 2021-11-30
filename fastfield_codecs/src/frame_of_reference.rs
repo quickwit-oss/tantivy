@@ -118,9 +118,9 @@ impl FastFieldCodecReader for FORFastFieldReader {
     }
 
     #[inline]
-    fn get_u64(&self, doc: u64, data: &[u8]) -> u64 {
-        let block_idx = (doc / BLOCK_SIZE) as usize;
-        let block_pos = doc - (block_idx as u64) * BLOCK_SIZE;
+    fn get_u64(&self, idx: u64, data: &[u8]) -> u64 {
+        let block_idx = (idx / BLOCK_SIZE) as usize;
+        let block_pos = idx - (block_idx as u64) * BLOCK_SIZE;
         let block_reader = &self.block_readers[block_idx];
         block_reader.get_u64(block_pos, data)
     }
@@ -187,31 +187,24 @@ impl FastFieldCodecSerializer for FORFastFieldSerializer {
         stats.num_vals > BLOCK_SIZE
     }
 
-    /// Estimation for linear interpolation is hard because, you don't know
-    /// where the local maxima are for the deviation of the calculated value and
-    /// the offset is also unknown.
-    fn estimate(fastfield_accessor: &impl FastFieldDataAccess, stats: FastFieldStats) -> f32 {
+    /// Estimate compression ratio by compute the ratio of the first block.
+    fn estimate_compression_ratio(
+        fastfield_accessor: &impl FastFieldDataAccess,
+        stats: FastFieldStats,
+    ) -> f32 {
         let last_elem_in_first_chunk = BLOCK_SIZE.min(stats.num_vals);
-        // let's sample at 0%, 5%, 10% .. 95%, 100%, but for the first block only
-        let sample_positions = (0..20)
-            .map(|pos| (last_elem_in_first_chunk as f32 / 100.0 * pos as f32 * 5.0) as usize)
-            .collect::<Vec<_>>();
-
-        let max_distance = sample_positions
-            .iter()
-            .map(|&pos| {
+        let max_distance = (0..last_elem_in_first_chunk)
+            .into_iter()
+            .map(|pos| {
                 let actual_value = fastfield_accessor.get_val(pos as u64);
                 actual_value - stats.min_value
             })
             .max()
             .unwrap();
 
-        // Estimate one block and extrapolate the cost to all blocks.
-        // the theory would be that we don't have the actual max_distance, but we are close within 50%
-        // threshold.
-        // It is multiplied by 2 because in a log case scenario the line would be as much above as
-        // below. So the offset would = max_distance
-        let relative_max_value = (max_distance as f32 * 1.5) * 2.0;
+        // Estimate one block and multiply by a magic number 3 to select this codec
+        // when we are almost sure that this is relevant.
+        let relative_max_value = max_distance as f32 * 3.0;
 
         let num_bits = compute_num_bits(relative_max_value as u64) as u64 * stats.num_vals as u64
             // function metadata per block
