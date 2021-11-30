@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate prettytable;
+use common::f64_to_u64;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader;
 use fastfield_codecs::frame_of_reference::{
     FrameOfReferenceFastFieldReader, FramedOfReferenceFastFieldSerializer,
@@ -146,6 +147,9 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data.sort_unstable();
     data_and_names.push((data, "Amazon review product ids SORTED"));
 
+    let data = load_float_dataset("datasets/nooc_temperatures.txt");
+    data_and_names.push((data.clone(), "Temperatures"));
+
     data_and_names
 }
 
@@ -158,6 +162,22 @@ pub fn load_dataset(file_path: &str) -> Vec<u64> {
         let l = line.unwrap();
         data.push(l.parse::<u64>().unwrap());
     }
+    data
+}
+
+pub fn load_float_dataset(file_path: &str) -> Vec<u64> {
+    println!("Load float dataset from `{}`", file_path);
+    let file = File::open(file_path).expect("Error when opening file.");
+    let lines = io::BufReader::new(file).lines();
+    let mut data = Vec::new();
+    for line in lines {
+        let line_string = line.unwrap();
+        let value = line_string.parse::<f64>().unwrap();
+        let bytes = value.to_le_bytes();
+        let u64_value = u64::from_le_bytes(bytes);
+        data.push(u64_value);
+    }
+    println!("len {}, {} {}", data.len(), data[0], data[1]);
     data
 }
 

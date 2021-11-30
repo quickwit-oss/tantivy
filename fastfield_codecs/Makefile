@@ -1,4 +1,4 @@
-DATASETS ?= hdfs_logs_timestamps http_logs_timestamps amazon_reviews_product_ids
+DATASETS ?= hdfs_logs_timestamps http_logs_timestamps amazon_reviews_product_ids nooc_temperatures.txt
 download:
 	@echo "--- Downloading datasets ---"
 	mkdir -p datasets
