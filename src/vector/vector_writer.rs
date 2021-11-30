@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use qdrant_segment::{
+use nuclia_vectors::{
     entry::entry_point::SegmentEntry,
     segment_constructor::{build_segment, load_segment},
     types::{Distance, Indexes, SegmentConfig},
@@ -59,7 +59,7 @@ impl VectorWriters {
 }
 
 pub struct VectorWriter {
-    segment: qdrant_segment::segment::Segment,
+    segment: nuclia_vectors::segment::Segment,
 }
 
 impl VectorWriter {

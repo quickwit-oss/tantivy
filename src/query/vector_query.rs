@@ -1,5 +1,5 @@
 use common::BitSet;
-use qdrant_segment::types::ScoreType;
+use nuclia_vectors::types::ScoreType;
 
 use crate::{DocId, DocSet, Score, Searcher, SegmentReader, TERMINATED, schema::Field};
 

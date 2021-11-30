@@ -56,7 +56,7 @@ fastdivide = "0.3"
 itertools = "0.10.0"
 measure_time = "0.8.0"
 
-qdrant-segment = { path = "qdrant_segment" }
+nuclia_vectors = { git = "https://github.com/nuclia/nuclia_vectors.git" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.9"
@@ -96,7 +96,7 @@ unstable = [] # useful for benches.
 wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [workspace]
-members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes", "qdrant_segment"]
+members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::{Arc, RwLock}};
 
 use crate::{schema::Field, space_usage::PerFieldSpaceUsage, DocId};
 
-use qdrant_segment::{
+use nuclia_vectors::{
     entry::entry_point::SegmentEntry,
     segment_constructor::{build_segment, load_segment},
     types::WithPayload,
@@ -46,7 +46,7 @@ type ScoreType = f32;
 
 /// VectorReader for a segment and field.
 pub struct VectorReader {
-    segment: Arc<RwLock<qdrant_segment::segment::Segment>>,
+    segment: Arc<RwLock<nuclia_vectors::segment::Segment>>,
 }
 
 unsafe impl Send for VectorReader {}
@@ -68,7 +68,7 @@ impl VectorReader {
         let res = self
             .segment
             .read().unwrap()
-            .search(&vector, &WithPayload::default(), None, limit, None)
+            .search(&vector, &WithPayload::default(), limit, None)
             .unwrap();
 
         res.iter().map(|x | {
