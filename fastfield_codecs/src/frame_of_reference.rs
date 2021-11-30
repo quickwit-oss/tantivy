@@ -104,7 +104,7 @@ impl FastFieldCodecReader for FrameOfReferenceFastFieldReader {
         let footer = FrameOfReferenceFooter::deserialize(&mut footer)?;
         let mut block_readers = Vec::with_capacity(footer.block_metadatas.len());
         let mut current_data_offset = 0;
-        for block_metadata in footer.block_metadatas.into_iter() {
+        for block_metadata in footer.block_metadatas {
             let num_bits = block_metadata.num_bits;
             block_readers.push(BlockReader::new(block_metadata, current_data_offset));
             current_data_offset += num_bits as u64 * BLOCK_SIZE / 8;
@@ -149,22 +149,21 @@ impl FastFieldCodecSerializer for FramedOfReferenceFastFieldSerializer {
         data_iter: impl Iterator<Item = u64>,
         _data_iter1: impl Iterator<Item = u64>,
     ) -> io::Result<()> {
-        let mut data = data_iter.collect::<Vec<_>>();
+        let data = data_iter.collect::<Vec<_>>();
         let mut bit_packer = BitPacker::new();
         let mut block_metadatas = Vec::new();
         for data_pos in (0..data.len() as u64).step_by(BLOCK_SIZE as usize) {
             let block_num_vals = BLOCK_SIZE.min(data.len() as u64 - data_pos) as usize;
-            let block_values = &mut data[data_pos as usize..data_pos as usize + block_num_vals];
+            let block_values = &data[data_pos as usize..data_pos as usize + block_num_vals];
             let mut min = block_values[0];
-            for &current_value in block_values.iter() {
+            let mut max = block_values[0];
+            for &current_value in block_values[1..].iter() {
                 min = min.min(current_value);
+                max = max.max(current_value);
             }
-            let min = *block_values.iter().min().unwrap();
-            let max_delta = *block_values.iter().max().unwrap() - min;
-            let num_bits = compute_num_bits(max_delta);
+            let num_bits = compute_num_bits(max - min);
             for current_value in block_values.iter() {
-                let diff = current_value - min;
-                bit_packer.write(diff, num_bits, write)?;
+                bit_packer.write(current_value - min, num_bits, write)?;
             }
             bit_packer.flush(write)?;
             block_metadatas.push(BlockMetadata { min, num_bits });
@@ -185,22 +184,7 @@ impl FastFieldCodecSerializer for FramedOfReferenceFastFieldSerializer {
         _fastfield_accessor: &impl FastFieldDataAccess,
         stats: FastFieldStats,
     ) -> bool {
-        if stats.num_vals < 10 * BLOCK_SIZE {
-            return false;
-        }
-        // On serialization the offset is added to the actual value.
-        // We need to make sure this won't run into overflow calculation issues.
-        // For this we take the maximum theroretical offset and add this to the max value.
-        // If this doesn't overflow the algortihm should be fine
-        let theorethical_maximum_offset = stats.max_value - stats.min_value;
-        if stats
-            .max_value
-            .checked_add(theorethical_maximum_offset)
-            .is_none()
-        {
-            return false;
-        }
-        true
+        stats.num_vals > BLOCK_SIZE
     }
 
     /// Estimation for linear interpolation is hard because, you don't know
