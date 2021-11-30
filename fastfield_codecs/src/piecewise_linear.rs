@@ -180,7 +180,7 @@ pub struct PiecewiseLinearFastFieldSerializer;
 
 impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
     const NAME: &'static str = "PiecewiseLinear";
-    const ID: u8 = 4;
+    const ID: u8 = 5;
     /// Creates a new fast field serializer.
     fn serialize(
         write: &mut impl Write,

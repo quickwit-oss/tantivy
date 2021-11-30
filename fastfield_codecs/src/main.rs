@@ -142,7 +142,7 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
     data.sort_unstable();
     data_and_names.push((data, "Amazon review product ids SORTED"));
 
-    let data = load_float_dataset("datasets/nooc_temperatures.txt");
+    let mut data = load_float_dataset("datasets/nooc_temperatures.txt");
     data_and_names.push((data, "Temperatures"));
 
     data_and_names
@@ -172,7 +172,6 @@ pub fn load_float_dataset(file_path: &str) -> Vec<u64> {
         let u64_value = u64::from_le_bytes(bytes);
         data.push(u64_value);
     }
-    println!("len {}, {} {}", data.len(), data[0], data[1]);
     data
 }
 
