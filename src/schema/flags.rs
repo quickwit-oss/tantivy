@@ -20,25 +20,13 @@ pub const STORED: SchemaFlagList<StoredFlag, ()> = SchemaFlagList {
 
 #[derive(Clone)]
 pub struct IndexedFlag;
-/// Flag to mark the field as indexed. An indexed field is searchable.
+/// Flag to mark the field as indexed. An indexed field is searchable and has a fieldnorm.
 ///
 /// The `INDEXED` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
 /// Of course, text fields can also be indexed... But this is expressed by using either the
 /// `STRING` (untokenized) or `TEXT` (tokenized with the english tokenizer) flags.
 pub const INDEXED: SchemaFlagList<IndexedFlag, ()> = SchemaFlagList {
     head: IndexedFlag,
-    tail: (),
-};
-
-#[derive(Clone)]
-pub struct NormedFlag;
-/// Flag to mark the field as indexed.
-///
-/// The `INDEXED` flag can only be used when building `IntOptions` (`u64`, `i64` and `f64` fields)
-/// Of course, text fields can also be indexed... But this is expressed by using either the
-/// `STRING` (untokenized) or `TEXT` (tokenized with the english tokenizer) flags.
-pub const NORMED: SchemaFlagList<NormedFlag, ()> = SchemaFlagList {
-    head: NormedFlag,
     tail: (),
 };
 

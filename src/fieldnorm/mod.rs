@@ -29,19 +29,16 @@ use self::code::{fieldnorm_to_id, id_to_fieldnorm};
 
 #[cfg(test)]
 mod tests {
-    use crate::common::CompositeFile;
+    use crate::directory::CompositeFile;
     use crate::fieldnorm::FieldNormReader;
     use crate::fieldnorm::FieldNormsSerializer;
     use crate::fieldnorm::FieldNormsWriter;
     use crate::{
-        directory::{Directory, RAMDirectory, WritePtr},
+        directory::{Directory, RamDirectory, WritePtr},
         schema::{STRING, TEXT},
     };
     use once_cell::sync::Lazy;
-    use std::{
-        panic::{catch_unwind, AssertUnwindSafe},
-        path::Path,
-    };
+    use std::path::Path;
 
     use crate::schema::{Field, Schema, STORED};
 
@@ -57,45 +54,25 @@ mod tests {
     pub static TXT_FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("txt_field").unwrap());
     pub static STR_FIELD: Lazy<Field> = Lazy::new(|| SCHEMA.get_field("str_field").unwrap());
 
-    #[ignore]
     #[test]
-    pub fn test_fieldnorm_bug() -> crate::Result<()> {
-        let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
-        {
-            let write: WritePtr = directory.open_write(Path::new("test"))?;
-            let serializer = FieldNormsSerializer::from_write(write)?;
-            let mut fieldnorm_writers = FieldNormsWriter::for_schema(&SCHEMA);
-            fieldnorm_writers.fill_up_to_max_doc(1u32);
-            fieldnorm_writers.record(0u32, *TXT_FIELD, 5);
-            fieldnorm_writers.record(1u32, *TXT_FIELD, 3);
-            fieldnorm_writers.serialize(serializer)?;
-        }
-        let file = directory.open_read(&path)?;
-        {
-            let fields_composite = CompositeFile::open(&file)?;
-            assert!(fields_composite.open_read(*FIELD).is_none());
-            assert!(fields_composite.open_read(*TXT_FIELD).is_none());
-            assert!(fields_composite.open_read(*STR_FIELD).is_none());
-            let data = fields_composite.open_read(*TXT_FIELD).unwrap();
-            let fieldnorm_reader = FieldNormReader::open(data)?;
-            assert_eq!(fieldnorm_reader.fieldnorm(0u32), 5u32);
-            assert_eq!(fieldnorm_reader.fieldnorm(1u32), 3u32);
-        }
-        Ok(())
+    #[should_panic(expected = "Cannot register a given fieldnorm twice")]
+    pub fn test_should_panic_when_recording_fieldnorm_twice_for_same_doc() {
+        let mut fieldnorm_writers = FieldNormsWriter::for_schema(&SCHEMA);
+        fieldnorm_writers.record(0u32, *TXT_FIELD, 5);
+        fieldnorm_writers.record(0u32, *TXT_FIELD, 3);
     }
 
     #[test]
     pub fn test_fieldnorm() -> crate::Result<()> {
         let path = Path::new("test");
-        let directory: RAMDirectory = RAMDirectory::create();
+        let directory: RamDirectory = RamDirectory::create();
         {
             let write: WritePtr = directory.open_write(Path::new("test"))?;
             let serializer = FieldNormsSerializer::from_write(write)?;
             let mut fieldnorm_writers = FieldNormsWriter::for_schema(&SCHEMA);
-            fieldnorm_writers.fill_up_to_max_doc(1u32);
-            fieldnorm_writers.record(1u32, *TXT_FIELD, 3);
-            fieldnorm_writers.serialize(serializer)?;
+            fieldnorm_writers.record(2u32, *TXT_FIELD, 5);
+            fieldnorm_writers.record(3u32, *TXT_FIELD, 3);
+            fieldnorm_writers.serialize(serializer, None)?;
         }
         let file = directory.open_read(&path)?;
         {
@@ -104,19 +81,16 @@ mod tests {
             assert!(fields_composite.open_read(*STR_FIELD).is_none());
             let data = fields_composite.open_read(*TXT_FIELD).unwrap();
             let fieldnorm_reader = FieldNormReader::open(data)?;
-            assert_eq!(fieldnorm_reader.fieldnorm(1u32), 3u32);
+            assert_eq!(fieldnorm_reader.fieldnorm(0u32), 0u32);
+            assert_eq!(fieldnorm_reader.fieldnorm(1u32), 0u32);
+            assert_eq!(fieldnorm_reader.fieldnorm(2u32), 5u32);
+            assert_eq!(fieldnorm_reader.fieldnorm(3u32), 3u32);
         }
         Ok(())
     }
 
     #[test]
-    pub fn test_fail_fieldnorm_cannot_registered_twice() {
-        let mut fieldnorm_writers = FieldNormsWriter::for_schema(&SCHEMA);
-        fieldnorm_writers.fill_up_to_max_doc(1u32);
-        fieldnorm_writers.record(1u32, *TXT_FIELD, 5);
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            fieldnorm_writers.record(1u32, *TXT_FIELD, 3)
-        }));
-        assert!(result.is_err());
+    pub fn test_retrieve_fields_with_norms() {
+        //TODO
     }
 }

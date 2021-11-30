@@ -242,7 +242,7 @@ impl SegmentWriter {
                         )
                     };
 
-                    if field_entry.is_normed() {
+                    if field_entry.has_fieldnorms() {
                         self.fieldnorms_writer.record(doc_id, field, num_tokens);
                     }
                 }
