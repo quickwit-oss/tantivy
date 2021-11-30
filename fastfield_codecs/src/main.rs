@@ -1,18 +1,16 @@
 #[macro_use]
 extern crate prettytable;
-use common::f64_to_u64;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader;
-use fastfield_codecs::frame_of_reference::{
-    FrameOfReferenceFastFieldReader, FramedOfReferenceFastFieldSerializer,
-};
+use fastfield_codecs::frame_of_reference::{FORFastFieldReader, FORFastFieldSerializer};
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
-use fastfield_codecs::multilinearinterpol_v2::MultiLinearInterpolV2FastFieldReader;
+use fastfield_codecs::piecewise_linear::{
+    PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
+};
 use fastfield_codecs::FastFieldCodecReader;
 use fastfield_codecs::{
     linearinterpol::LinearInterpolFastFieldSerializer,
-    multilinearinterpol::MultiLinearInterpolFastFieldSerializer,
-    multilinearinterpol_v2::MultiLinearInterpolV2FastFieldSerializer, FastFieldCodecSerializer,
+    multilinearinterpol::MultiLinearInterpolFastFieldSerializer, FastFieldCodecSerializer,
     FastFieldStats,
 };
 use prettytable::{Cell, Row, Table};
@@ -48,14 +46,11 @@ fn main() {
         >(&data);
         results.push(res);
         let res = serialize_with_codec::<
-            MultiLinearInterpolV2FastFieldSerializer,
-            MultiLinearInterpolV2FastFieldReader,
+            PiecewiseLinearFastFieldSerializer,
+            PiecewiseLinearFastFieldReader,
         >(&data);
         results.push(res);
-        let res = serialize_with_codec::<
-            FramedOfReferenceFastFieldSerializer,
-            FrameOfReferenceFastFieldReader,
-        >(&data);
+        let res = serialize_with_codec::<FORFastFieldSerializer, FORFastFieldReader>(&data);
         results.push(res);
         let res = serialize_with_codec::<
             fastfield_codecs::bitpacked::BitpackedFastFieldSerializer,

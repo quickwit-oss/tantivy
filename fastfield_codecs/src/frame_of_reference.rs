@@ -13,7 +13,7 @@ use tantivy_bitpacker::BitUnpacker;
 const BLOCK_SIZE: u64 = 128;
 
 #[derive(Clone)]
-pub struct FrameOfReferenceFastFieldReader {
+pub struct FORFastFieldReader {
     num_vals: u64,
     min_value: u64,
     max_value: u64,
@@ -66,14 +66,14 @@ impl BinarySerializable for BlockMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct FrameOfReferenceFooter {
+pub struct FORFooter {
     pub num_vals: u64,
     pub min_value: u64,
     pub max_value: u64,
     block_metadatas: Vec<BlockMetadata>,
 }
 
-impl BinarySerializable for FrameOfReferenceFooter {
+impl BinarySerializable for FORFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         let mut out = vec![];
         self.num_vals.serialize(&mut out)?;
@@ -96,12 +96,12 @@ impl BinarySerializable for FrameOfReferenceFooter {
     }
 }
 
-impl FastFieldCodecReader for FrameOfReferenceFastFieldReader {
+impl FastFieldCodecReader for FORFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let (_, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
-        let footer = FrameOfReferenceFooter::deserialize(&mut footer)?;
+        let footer = FORFooter::deserialize(&mut footer)?;
         let mut block_readers = Vec::with_capacity(footer.block_metadatas.len());
         let mut current_data_offset = 0;
         for block_metadata in footer.block_metadatas {
@@ -136,10 +136,10 @@ impl FastFieldCodecReader for FrameOfReferenceFastFieldReader {
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct FramedOfReferenceFastFieldSerializer {}
+pub struct FORFastFieldSerializer {}
 
-impl FastFieldCodecSerializer for FramedOfReferenceFastFieldSerializer {
-    const NAME: &'static str = "FramedOfReference";
+impl FastFieldCodecSerializer for FORFastFieldSerializer {
+    const NAME: &'static str = "FOR";
     const ID: u8 = 5;
     /// Creates a new fast field serializer.
     fn serialize(
@@ -170,7 +170,7 @@ impl FastFieldCodecSerializer for FramedOfReferenceFastFieldSerializer {
         }
         bit_packer.close(write)?;
 
-        let footer = FrameOfReferenceFooter {
+        let footer = FORFooter {
             num_vals: stats.num_vals,
             min_value: stats.min_value,
             max_value: stats.max_value,
@@ -227,10 +227,7 @@ mod tests {
     use crate::tests::get_codec_test_data_sets;
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
-        crate::tests::create_and_validate::<
-            FramedOfReferenceFastFieldSerializer,
-            FrameOfReferenceFastFieldReader,
-        >(data, name)
+        crate::tests::create_and_validate::<FORFastFieldSerializer, FORFastFieldReader>(data, name)
     }
 
     #[test]

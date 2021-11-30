@@ -9,7 +9,7 @@ pub mod bitpacked;
 pub mod frame_of_reference;
 pub mod linearinterpol;
 pub mod multilinearinterpol;
-pub mod multilinearinterpol_v2;
+pub mod piecewise_linear;
 
 pub trait FastFieldCodecReader: Sized {
     /// reads the metadata and returns the CodecReader

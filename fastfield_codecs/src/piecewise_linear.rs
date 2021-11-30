@@ -1,8 +1,8 @@
 /*!
 
-MultiLinearInterpolV2 compressor uses blockwise linear interpolation to guess values and stores the difference between the actual value
-and the one given by the linear interpolation.
-This is done for every block of 512 values. For every block, our linear function can be expressed as
+PiecewiseLinear codec uses piecewise linear functions for every block of 512 values to guess values and stores the
+difference between the actual value and the one given by the linear interpolation.
+For every block, the linear function can be expressed as
 `computed_value = slope * block_position + first_value + positive_offset`
 where:
 - `block_position` is the position inside of the block from 0 to 511
@@ -29,7 +29,7 @@ use tantivy_bitpacker::BitUnpacker;
 const BLOCK_SIZE: u64 = 512;
 
 #[derive(Clone)]
-pub struct MultiLinearInterpolV2FastFieldReader {
+pub struct PiecewiseLinearFastFieldReader {
     num_vals: u64,
     min_value: u64,
     max_value: u64,
@@ -102,14 +102,14 @@ impl BinarySerializable for BlockMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct MultiLinearInterpolV2Footer {
+pub struct PiecewiseLinearFooter {
     pub num_vals: u64,
     pub min_value: u64,
     pub max_value: u64,
     block_metadatas: Vec<BlockMetadata>,
 }
 
-impl BinarySerializable for MultiLinearInterpolV2Footer {
+impl BinarySerializable for PiecewiseLinearFooter {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         let mut out = vec![];
         self.num_vals.serialize(&mut out)?;
@@ -132,12 +132,12 @@ impl BinarySerializable for MultiLinearInterpolV2Footer {
     }
 }
 
-impl FastFieldCodecReader for MultiLinearInterpolV2FastFieldReader {
+impl FastFieldCodecReader for PiecewiseLinearFastFieldReader {
     /// Opens a fast field given a file.
     fn open_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let footer_len: u32 = (&bytes[bytes.len() - 4..]).deserialize()?;
         let (_, mut footer) = bytes.split_at(bytes.len() - (4 + footer_len) as usize);
-        let footer = MultiLinearInterpolV2Footer::deserialize(&mut footer)?;
+        let footer = PiecewiseLinearFooter::deserialize(&mut footer)?;
         let mut block_readers = Vec::with_capacity(footer.block_metadatas.len());
         let mut current_data_offset = 0;
         for block_metadata in footer.block_metadatas.into_iter() {
@@ -176,11 +176,10 @@ fn get_computed_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     (first_val as i64 + (pos as f32 * slope) as i64) as u64
 }
 
-/// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
-pub struct MultiLinearInterpolV2FastFieldSerializer {}
+pub struct PiecewiseLinearFastFieldSerializer;
 
-impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
-    const NAME: &'static str = "MultiLinearInterpolV2";
+impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
+    const NAME: &'static str = "PiecewiseLinear";
     const ID: u8 = 4;
     /// Creates a new fast field serializer.
     fn serialize(
@@ -229,7 +228,7 @@ impl FastFieldCodecSerializer for MultiLinearInterpolV2FastFieldSerializer {
         }
         bit_packer.close(write)?;
 
-        let footer = MultiLinearInterpolV2Footer {
+        let footer = PiecewiseLinearFooter {
             num_vals: stats.num_vals,
             min_value: stats.min_value,
             max_value: stats.max_value,
@@ -318,8 +317,8 @@ mod tests {
 
     fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
-            MultiLinearInterpolV2FastFieldSerializer,
-            MultiLinearInterpolV2FastFieldReader,
+            PiecewiseLinearFastFieldSerializer,
+            PiecewiseLinearFastFieldReader,
         >(data, name)
     }
 
