@@ -66,11 +66,11 @@ impl SegmentRegister {
     }
 
     pub fn segment_metas(&self) -> Vec<SegmentMeta> {
-        return self
+        self
             .segment_states
             .values()
             .map(|segment_entry| segment_entry.meta().clone())
-            .collect();
+            .collect()
     }
 
     pub fn contains_all(&self, segment_ids: &[SegmentId]) -> bool {
