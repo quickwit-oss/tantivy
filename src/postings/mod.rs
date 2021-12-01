@@ -167,9 +167,8 @@ pub mod tests {
         index
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
-        let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
 
         let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
         index_writer.add_document(doc!(text_field=>ok_token_text.clone()))?;
@@ -200,9 +199,8 @@ pub mod tests {
         index
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
-        let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
 
         let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
         exceeding_token_text.push_str(" hello");
