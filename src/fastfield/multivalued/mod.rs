@@ -12,9 +12,9 @@ mod tests {
     use crate::query::QueryParser;
     use crate::schema::Cardinality;
     use crate::schema::Facet;
+    use crate::schema::FacetOptions;
     use crate::schema::IntOptions;
     use crate::schema::Schema;
-    use crate::schema::INDEXED;
     use crate::Document;
     use crate::Index;
     use crate::Term;
@@ -334,7 +334,7 @@ mod tests {
     #[ignore]
     fn test_many_facets() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_facet_field("facetfield", INDEXED);
+        let field = schema_builder.add_facet_field("facetfield", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;

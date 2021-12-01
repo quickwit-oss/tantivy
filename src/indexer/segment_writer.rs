@@ -175,16 +175,9 @@ impl SegmentWriter {
             match *field_entry.field_type() {
                 FieldType::HierarchicalFacet(_) => {
                     term_buffer.set_field(field);
-                    let facets =
-                        field_values
-                            .iter()
-                            .flat_map(|field_value| match *field_value.value() {
-                                Value::Facet(ref facet) => Some(facet.encoded_str()),
-                                _ => {
-                                    panic!("Expected hierarchical facet");
-                                }
-                            });
-                    for facet_str in facets {
+                    for field_value in field_values {
+                        let facet = field_value.value().facet().ok_or_else(make_schema_error)?;
+                        let facet_str = facet.encoded_str();
                         let mut unordered_term_id_opt = None;
                         FacetTokenizer
                             .token_stream(facet_str)

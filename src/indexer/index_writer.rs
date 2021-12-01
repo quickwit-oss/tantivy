@@ -796,6 +796,7 @@ mod tests {
     use crate::query::TermQuery;
     use crate::schema::Cardinality;
     use crate::schema::Facet;
+    use crate::schema::FacetOptions;
     use crate::schema::IntOptions;
     use crate::schema::TextFieldIndexing;
     use crate::schema::TextOptions;
@@ -1417,7 +1418,7 @@ mod tests {
                 .set_fast(Cardinality::MultiValues)
                 .set_stored(),
         );
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let settings = if sort_index {
             IndexSettings {
