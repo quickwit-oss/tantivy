@@ -154,10 +154,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_drop_token_that_are_too_long() -> crate::Result<()> {
-        let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
-        let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
-        exceeding_token_text.push_str(" hello");
+    pub fn test_index_max_length_token() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
@@ -170,33 +167,54 @@ pub mod tests {
         index
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
-        let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        {
-            index_writer.add_document(doc!(text_field=>exceeding_token_text))?;
-            index_writer.commit()?;
-            reader.reload()?;
-            let searcher = reader.searcher();
-            let segment_reader = searcher.segment_reader(0u32);
-            let inverted_index = segment_reader.inverted_index(text_field)?;
-            assert_eq!(inverted_index.terms().num_terms(), 1);
-            let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
-            assert_eq!(&bytes, b"hello");
-        }
-        {
-            index_writer.add_document(doc!(text_field=>ok_token_text.clone()))?;
-            index_writer.commit()?;
-            reader.reload()?;
-            let searcher = reader.searcher();
-            let segment_reader = searcher.segment_reader(1u32);
-            let inverted_index = segment_reader.inverted_index(text_field)?;
-            assert_eq!(inverted_index.terms().num_terms(), 1);
-            let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
-            assert_eq!(&bytes[..], ok_token_text.as_bytes());
-        }
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
+
+        let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
+        index_writer.add_document(doc!(text_field=>ok_token_text.clone()))?;
+        index_writer.commit()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+        let inverted_index = segment_reader.inverted_index(text_field)?;
+        assert_eq!(inverted_index.terms().num_terms(), 1);
+        let mut bytes = vec![];
+        assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+        assert_eq!(&bytes[..], ok_token_text.as_bytes());
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_drop_token_that_are_too_long() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                .set_tokenizer("simple_no_truncation"),
+        );
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        index
+            .tokenizers()
+            .register("simple_no_truncation", SimpleTokenizer);
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
+
+        let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
+        exceeding_token_text.push_str(" hello");
+        index_writer.add_document(doc!(text_field=>exceeding_token_text))?;
+        index_writer.commit()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+        let inverted_index = segment_reader.inverted_index(text_field)?;
+        assert_eq!(inverted_index.terms().num_terms(), 1);
+        let mut bytes = vec![];
+        assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+        assert_eq!(&bytes, b"hello");
+
         Ok(())
     }
 
