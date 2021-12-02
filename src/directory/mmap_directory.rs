@@ -234,7 +234,7 @@ impl MmapDirectory {
         }
 
         let fd = open_opts.open(&self.inner.root_path)?;
-        fd.sync_all()?;
+        fd.sync_data()?;
         Ok(())
     }
 
@@ -288,8 +288,7 @@ impl Write for SafeFileWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()?;
-        self.0.sync_all()
+        Ok(())
     }
 }
 
@@ -301,7 +300,9 @@ impl Seek for SafeFileWriter {
 
 impl TerminatingWrite for SafeFileWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.flush()
+        self.0.flush()?;
+        self.0.sync_data()?;
+        Ok(())
     }
 }
 
@@ -331,6 +332,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
     let mut tempfile = tempfile::Builder::new().tempfile_in(&parent_path)?;
     tempfile.write_all(content)?;
     tempfile.flush()?;
+    tempfile.as_file_mut().sync_data()?;
     tempfile.into_temp_path().persist(path)?;
     Ok(())
 }
