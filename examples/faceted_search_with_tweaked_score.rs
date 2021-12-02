@@ -9,7 +9,7 @@ fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
 
     let title = schema_builder.add_text_field("title", STORED);
-    let ingredient = schema_builder.add_facet_field("ingredient", FacetOptions::default());
+    let ingredient = schema_builder.add_facet_field("ingredient", INDEXED);
 
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);

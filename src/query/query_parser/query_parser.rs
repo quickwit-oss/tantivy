@@ -587,7 +587,6 @@ mod test {
     use super::QueryParser;
     use super::QueryParserError;
     use crate::query::Query;
-    use crate::schema::FacetOptions;
     use crate::schema::Field;
     use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
@@ -616,7 +615,8 @@ mod test {
         schema_builder.add_text_field("with_stop_words", text_options);
         schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_f64_field("float", INDEXED);
-        schema_builder.add_facet_field("facet", FacetOptions::default());
+        schema_builder.add_facet_field("facet", INDEXED);
+        schema_builder.add_facet_field("facet_not_indexed", STORED);
         schema_builder.add_bytes_field("bytes", INDEXED);
         schema_builder.add_bytes_field("bytes_not_indexed", STORED);
         schema_builder.build()
@@ -667,6 +667,13 @@ mod test {
             format!("{:?}", query),
             "TermQuery(Term(field=11,bytes=[114, 111, 111, 116, 0, 98, 114, 97, 110, 99, 104, 0, 108, 101, 97, 102]))"
         );
+    }
+
+    #[test]
+    fn test_parse_query_facet_not_indexed() {
+        let error =
+            parse_query_to_logical_ast("facet_not_indexed:/root/branch/leaf", false).unwrap_err();
+        assert!(matches!(error, QueryParserError::FieldNotIndexed(_)));
     }
 
     #[test]
@@ -810,7 +817,7 @@ mod test {
     fn test_parse_bytes() {
         test_parse_query_to_logical_ast_helper(
             "bytes:YnVidQ==",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(field=13,bytes=[98, 117, 98, 117])",
             false,
         );
     }
@@ -825,7 +832,7 @@ mod test {
     fn test_parse_bytes_phrase() {
         test_parse_query_to_logical_ast_helper(
             "bytes:\"YnVidQ==\"",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(field=13,bytes=[98, 117, 98, 117])",
             false,
         );
     }

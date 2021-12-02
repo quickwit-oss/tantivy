@@ -47,6 +47,7 @@ pub mod tests {
     use crate::fieldnorm::FieldNormReader;
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
+    use crate::merge_policy::NoMergePolicy;
     use crate::query::Scorer;
     use crate::schema::{Field, TextOptions};
     use crate::schema::{IndexRecordOption, TextFieldIndexing};

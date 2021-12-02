@@ -1,17 +1,22 @@
 #[cfg(test)]
 mod tests {
-    use crate::collector::TopDocs;
-    use crate::core::Index;
-    use crate::fastfield::MultiValuedFastFieldReader;
     use crate::fastfield::{AliveBitSet, FastFieldReader};
-    use crate::query::QueryParser;
-    use crate::schema::{
-        self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, TextFieldIndexing,
+    use crate::schema::IndexRecordOption;
+    use crate::{
+        collector::TopDocs,
+        schema::{Cardinality, TextFieldIndexing},
     };
-    use crate::schema::{IntOptions, TextOptions};
-    use crate::DocAddress;
-    use crate::IndexSortByField;
-    use crate::Order;
+    use crate::{core::Index, fastfield::MultiValuedFastFieldReader};
+    use crate::{
+        query::QueryParser,
+        schema::{IntOptions, TextOptions},
+    };
+    use crate::{schema::Facet, IndexSortByField};
+    use crate::{schema::INDEXED, Order};
+    use crate::{
+        schema::{self, BytesOptions},
+        DocAddress,
+    };
     use crate::{DocSet, IndexSettings, Postings, Term};
     use futures::executor::block_on;
 
@@ -22,7 +27,7 @@ mod tests {
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intval", int_options);
 
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
 
         let schema = schema_builder.build();
 
@@ -74,7 +79,7 @@ mod tests {
 
         let bytes_options = BytesOptions::default().set_fast().set_indexed();
         let bytes_field = schema_builder.add_bytes_field("bytes", bytes_options);
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
 
         let multi_numbers = schema_builder.add_u64_field(
             "multi_numbers",

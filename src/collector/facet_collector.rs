@@ -83,7 +83,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// ```rust
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
-/// use tantivy::schema::{Facet, Schema, FacetOptions, TEXT};
+/// use tantivy::schema::{Facet, Schema, INDEXED, TEXT};
 /// use tantivy::{doc, Index};
 ///
 /// fn example() -> tantivy::Result<()> {
@@ -92,7 +92,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     // Facet have their own specific type.
 ///     // It is not a bad practise to put all of your
 ///     // facet information in the same field.
-///     let facet = schema_builder.add_facet_field("facet", FacetOptions::default());
+///     let facet = schema_builder.add_facet_field("facet", INDEXED);
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -462,7 +462,7 @@ mod tests {
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{Document, Facet, FacetOptions, Field, IndexRecordOption, Schema};
+    use crate::schema::{Document, Facet, Field, IndexRecordOption, Schema, INDEXED};
     use crate::Term;
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;
@@ -472,7 +472,7 @@ mod tests {
     #[test]
     fn test_facet_collector_drilldown() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_doc_unsorted_multifacet() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn test_doc_search_by_facet() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
@@ -615,7 +615,7 @@ mod tests {
     #[test]
     fn test_facet_collector_topk() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn test_facet_collector_topk_tie_break() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 

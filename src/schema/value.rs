@@ -137,18 +137,19 @@ impl Value {
         }
     }
 
-    /// Returns the facet value, provided the value is of the `Facet` type.
+    /// Returns the path value, provided the value is of the `Facet` type.
     /// (Returns None if the value is not of the `Facet` type).
-    pub fn facet(&self) -> Option<&Facet> {
+    pub fn path(&self) -> Option<String> {
         if let Value::Facet(facet) = self {
-            Some(facet)
+            Some(facet.to_path_string())
         } else {
             None
         }
     }
 
     /// Returns the tokenized text, provided the value is of the `PreTokStr` type.
-    /// (Returns None if the value is not of the `PreTokStr` type.)
+    ///
+    /// Returns None if the value is not of the `PreTokStr` type.
     pub fn tokenized_text(&self) -> Option<&PreTokenizedString> {
         if let Value::PreTokStr(tokenized_text) = self {
             Some(tokenized_text)
@@ -158,7 +159,8 @@ impl Value {
     }
 
     /// Returns the u64-value, provided the value is of the `U64` type.
-    /// (Returns None if the value is not of the `U64` type)
+    ///
+    /// Returns None if the value is not of the `U64` type.
     pub fn u64_value(&self) -> Option<u64> {
         if let Value::U64(val) = self {
             Some(*val)

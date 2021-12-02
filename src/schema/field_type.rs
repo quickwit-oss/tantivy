@@ -92,7 +92,7 @@ impl FieldType {
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::HierarchicalFacet(ref _facet_options) => true,
+            FieldType::HierarchicalFacet(ref facet_options) => facet_options.is_indexed(),
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
         }
     }
@@ -116,7 +116,13 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::HierarchicalFacet(ref _facet_options) => Some(IndexRecordOption::Basic),
+            FieldType::HierarchicalFacet(ref facet_options) => {
+                if facet_options.is_indexed() {
+                    Some(IndexRecordOption::Basic)
+                } else {
+                    None
+                }
+            }
             FieldType::Bytes(ref bytes_options) => {
                 if bytes_options.is_indexed() {
                     Some(IndexRecordOption::Basic)

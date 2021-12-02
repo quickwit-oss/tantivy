@@ -91,12 +91,12 @@ impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
 mod tests {
 
     use crate::core::Index;
-    use crate::schema::{Cardinality, Facet, FacetOptions, IntOptions, Schema};
+    use crate::schema::{Cardinality, Facet, IntOptions, Schema, INDEXED};
 
     #[test]
     fn test_multifastfield_reader() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets", FacetOptions::default());
+        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;

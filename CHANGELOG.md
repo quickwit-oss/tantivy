@@ -1,7 +1,6 @@
 Tantivy 0.17
 ================================
 - Change to non-strict schema. Ignore fields in data which are not defined in schema. Previously this returned an error. #1211
-- Facets are necessarily indexed. Existing index with indexed facets should work out of the box. Index without facets that are marked with index: false should be broken (but they were already broken in a sense). (@fulmicoton) #1195 .
 
 Tantivy 0.16.2
 ================================
