@@ -1,14 +1,15 @@
 use std::io::{self};
 
 use core::convert::TryInto;
-use std::mem;
 use lz4_flex::{compress_into, decompress_into};
+use std::mem;
 
 #[inline]
 #[allow(clippy::uninit_vec)]
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();
-    let maximum_ouput_size = mem::size_of::<u32>() + lz4_flex::block::get_maximum_output_size(uncompressed.len());
+    let maximum_ouput_size =
+        mem::size_of::<u32>() + lz4_flex::block::get_maximum_output_size(uncompressed.len());
     compressed.reserve(maximum_ouput_size);
     unsafe {
         compressed.set_len(maximum_ouput_size);
