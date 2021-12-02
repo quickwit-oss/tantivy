@@ -22,7 +22,7 @@ impl IndexWriterStatus {
             .receive_channel
             .read()
             .expect("This lock should never be poisoned");
-        rlock.as_ref().map(|receiver| receiver.clone())
+        rlock.as_ref().cloned()
     }
 
     /// Create an index writer bomb.
