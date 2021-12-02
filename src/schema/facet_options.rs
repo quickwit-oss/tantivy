@@ -1,4 +1,4 @@
-use crate::schema::flags::{SchemaFlagList, StoredFlag};
+use crate::schema::flags::{SchemaFlagList, StoredFlag, IndexedFlag};
 use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
@@ -57,5 +57,24 @@ where
 {
     fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
         Self::from(head_tail.head) | Self::from(head_tail.tail)
+    }
+}
+
+impl From<IndexedFlag> for FacetOptions {
+    fn from(_: IndexedFlag) -> Self {
+        FacetOptions {
+            stored: false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::schema::{FacetOptions, INDEXED};
+
+    #[test]
+    fn test_from_index_flag() {
+        let facet_option = FacetOptions::from(INDEXED);
+        assert_eq!(facet_option, FacetOptions::default());
     }
 }
