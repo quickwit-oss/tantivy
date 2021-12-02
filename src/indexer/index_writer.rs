@@ -553,7 +553,7 @@ impl IndexWriter {
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
-        let document_receiver = self.operation_receiver();
+        let document_receiver_res = self.operation_receiver();
 
         // take the directory lock to create a new index_writer.
         let directory_lock = self
@@ -579,7 +579,9 @@ impl IndexWriter {
         //
         // This will reach an end as the only document_sender
         // was dropped with the index_writer.
-        for _ in document_receiver {}
+        if let Ok(document_receiver) = document_receiver_res {
+            for _ in document_receiver {}
+        }
 
         Ok(self.committed_opstamp)
     }

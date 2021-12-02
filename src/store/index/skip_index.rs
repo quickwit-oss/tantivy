@@ -19,9 +19,7 @@ impl<'a> Iterator for LayerCursor<'a> {
                 return None;
             }
             let (block_mut, remaining_mut) = (&mut self.block, &mut self.remaining);
-            if block_mut.deserialize(remaining_mut).is_err() {
-                return None;
-            }
+            block_mut.deserialize(remaining_mut).ok()?;
             self.cursor = 0;
         }
         let res = Some(self.block.get(self.cursor));
