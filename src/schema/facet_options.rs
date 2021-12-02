@@ -1,4 +1,4 @@
-use crate::schema::flags::{SchemaFlagList, StoredFlag, IndexedFlag};
+use crate::schema::flags::{IndexedFlag, SchemaFlagList, StoredFlag};
 use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
@@ -62,9 +62,7 @@ where
 
 impl From<IndexedFlag> for FacetOptions {
     fn from(_: IndexedFlag) -> Self {
-        FacetOptions {
-            stored: false,
-        }
+        FacetOptions { stored: false }
     }
 }
 
