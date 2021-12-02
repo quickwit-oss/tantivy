@@ -1,11 +1,12 @@
-use crate::schema::flags::{IndexedFlag, SchemaFlagList, StoredFlag};
+use crate::schema::flags::{SchemaFlagList, StoredFlag, IndexedFlag};
 use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
 
 /// Define how a facet field should be handled by tantivy.
+///
+/// Note that a Facet is always indexed and stored as a fastfield.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FacetOptions {
-    indexed: bool,
     stored: bool,
 }
 
@@ -15,26 +16,12 @@ impl FacetOptions {
         self.stored
     }
 
-    /// Returns true iff the value is indexed.
-    pub fn is_indexed(&self) -> bool {
-        self.indexed
-    }
-
     /// Set the field as stored.
     ///
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
     pub fn set_stored(mut self) -> FacetOptions {
         self.stored = true;
-        self
-    }
-
-    /// Set the field as indexed.
-    ///
-    /// Setting a facet as indexed will generate
-    /// a walkable path.
-    pub fn set_indexed(mut self) -> FacetOptions {
-        self.indexed = true;
         self
     }
 }
@@ -47,19 +34,7 @@ impl From<()> for FacetOptions {
 
 impl From<StoredFlag> for FacetOptions {
     fn from(_: StoredFlag) -> Self {
-        FacetOptions {
-            indexed: false,
-            stored: true,
-        }
-    }
-}
-
-impl From<IndexedFlag> for FacetOptions {
-    fn from(_: IndexedFlag) -> Self {
-        FacetOptions {
-            indexed: true,
-            stored: false,
-        }
+        FacetOptions { stored: true }
     }
 }
 
@@ -69,7 +44,6 @@ impl<T: Into<FacetOptions>> BitOr<T> for FacetOptions {
     fn bitor(self, other: T) -> FacetOptions {
         let other = other.into();
         FacetOptions {
-            indexed: self.indexed | other.indexed,
             stored: self.stored | other.stored,
         }
     }
@@ -83,5 +57,24 @@ where
 {
     fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
         Self::from(head_tail.head) | Self::from(head_tail.tail)
+    }
+}
+
+impl From<IndexedFlag> for FacetOptions {
+    fn from(_: IndexedFlag) -> Self {
+        FacetOptions {
+            stored: false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::schema::{FacetOptions, INDEXED};
+
+    #[test]
+    fn test_from_index_flag() {
+        let facet_option = FacetOptions::from(INDEXED);
+        assert_eq!(facet_option, FacetOptions::default());
     }
 }
