@@ -1131,13 +1131,13 @@ mod tests {
     use crate::query::BooleanQuery;
     use crate::query::Scorer;
     use crate::query::TermQuery;
-    use crate::schema::Document;
     use crate::schema::Facet;
     use crate::schema::IndexRecordOption;
     use crate::schema::IntOptions;
     use crate::schema::Term;
     use crate::schema::TextFieldIndexing;
     use crate::schema::{Cardinality, TEXT};
+    use crate::schema::{Document, FacetOptions};
     use crate::DocAddress;
     use crate::IndexSettings;
     use crate::IndexSortByField;
@@ -1663,7 +1663,7 @@ mod tests {
     // ranges between segments so that merge algorithm can't apply certain optimizations
     fn test_merge_facets(index_settings: Option<IndexSettings>, force_segment_value_overlap: bool) {
         let mut schema_builder = schema::Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let int_options = IntOptions::default()
             .set_fast(Cardinality::SingleValue)
             .set_indexed();
