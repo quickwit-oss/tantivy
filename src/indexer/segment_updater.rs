@@ -61,7 +61,9 @@ pub fn save_new_metas(
             payload: None,
         },
         directory,
-    )
+    )?;
+    directory.sync_directory()?;
+    Ok(())
 }
 
 /// Save the index meta file.
@@ -82,6 +84,7 @@ fn save_metas(metas: &IndexMeta, directory: &dyn Directory) -> crate::Result<()>
         io::ErrorKind::Other,
         msg.unwrap_or_else(|| "Undefined".to_string())
     ))));
+    directory.sync_directory()?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
     Ok(())

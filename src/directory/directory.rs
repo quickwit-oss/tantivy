@@ -142,9 +142,15 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a writer for the *virtual file* associated with
     /// a Path.
     ///
-    /// Right after this call, the file should be created
-    /// and any subsequent call to `open_read` for the
+    /// Right after this call, for the span of the execution of the program
+    /// the file should be created and any subsequent call to `open_read` for the
     /// same path should return a `FileSlice`.
+    ///
+    /// However, depending on the directory implementation,
+    /// it might be required to call `sync_directory` to ensure
+    /// that the file is durably created.
+    /// (The semantics here are the same when dealing with
+    /// a posix filesystem.)
     ///
     /// Write operations may be aggressively buffered.
     /// The client of this trait is responsible for calling flush
@@ -175,6 +181,12 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// The file may or may not previously exist.
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()>;
+
+    /// Sync the directory.
+    ///
+    /// This call is required to ensure that newly created files are
+    /// effectively stored durably.
+    fn sync_directory(&self) -> io::Result<()>;
 
     /// Acquire a lock in the given directory.
     ///
