@@ -227,14 +227,15 @@ impl ManagedDirectory {
             return Ok(());
         }
         save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
-        if meta_wlock.managed_paths.len() > 1 {
-            // This is not the first file we add.
-            // `.managed.json` has been already properly created and we do not need to
-            // sync its parent directory.
-            //
-            // Note we do not try to create the managed.json file, upon the
-            // creation of the ManagedDirectory because it would prevent
-            // the usage of a ReadOnly directory.
+        // This is not the first file we add.
+        // Therefore, we are sure that `.managed.json` has been already
+        // properly created and we do not need to sync its parent directory.
+        //
+        // (It might seem like a nicer solution to create the managed_json on the
+        // creation of the ManagedDirectory instance but it would actually
+        // prevent the use of read-only directories..)
+        let managed_file_definitely_already_exists = meta_wlock.managed_paths.len() > 1;
+        if managed_file_definitely_already_exists {
             return Ok(());
         }
         self.directory.sync_directory()?;
