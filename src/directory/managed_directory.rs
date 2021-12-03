@@ -192,6 +192,7 @@ impl ManagedDirectory {
             for delete_file in &deleted_files {
                 managed_paths_write.remove(delete_file);
             }
+            self.directory.sync_directory()?;
             save_managed_paths(self.directory.as_mut(), &meta_informations_wlock)?;
         }
 
@@ -222,9 +223,22 @@ impl ManagedDirectory {
             .write()
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
-        if has_changed {
-            save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
+        if !has_changed {
+            return Ok(());
         }
+        save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
+        // This is not the first file we add.
+        // Therefore, we are sure that `.managed.json` has been already
+        // properly created and we do not need to sync its parent directory.
+        //
+        // (It might seem like a nicer solution to create the managed_json on the
+        // creation of the ManagedDirectory instance but it would actually
+        // prevent the use of read-only directories..)
+        let managed_file_definitely_already_exists = meta_wlock.managed_paths.len() > 1;
+        if managed_file_definitely_already_exists {
+            return Ok(());
+        }
+        self.directory.sync_directory()?;
         Ok(())
     }
 
@@ -309,6 +323,11 @@ impl Directory for ManagedDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.directory.watch(watch_callback)
+    }
+
+    fn sync_directory(&self) -> io::Result<()> {
+        self.directory.sync_directory()?;
+        Ok(())
     }
 }
 

@@ -211,33 +211,6 @@ impl MmapDirectory {
         self.inner.root_path.join(relative_path)
     }
 
-    /// Sync the root directory.
-    /// In certain FS, this is required to persistently create
-    /// a file.
-    fn sync_directory(&self) -> Result<(), io::Error> {
-        let mut open_opts = OpenOptions::new();
-
-        // Linux needs read to be set, otherwise returns EINVAL
-        // write must not be set, or it fails with EISDIR
-        open_opts.read(true);
-
-        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
-        // and calling sync_all() only works if write access is requested.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-            use winapi::um::winbase;
-
-            open_opts
-                .write(true)
-                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
-        }
-
-        let fd = open_opts.open(&self.inner.root_path)?;
-        fd.sync_data()?;
-        Ok(())
-    }
-
     /// Returns some statistical information
     /// about the Mmap cache.
     ///
@@ -367,22 +340,17 @@ impl Directory for MmapDirectory {
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         let full_path = self.resolve_path(path);
-        match fs::remove_file(&full_path) {
-            Ok(_) => self.sync_directory().map_err(|e| DeleteError::IoError {
-                io_error: e,
-                filepath: path.to_path_buf(),
-            }),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::NotFound {
-                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
-                } else {
-                    Err(DeleteError::IoError {
-                        io_error: e,
-                        filepath: path.to_path_buf(),
-                    })
+        fs::remove_file(&full_path).map_err(|e| {
+            if e.kind() == io::ErrorKind::NotFound {
+                DeleteError::FileDoesNotExist(path.to_owned())
+            } else {
+                DeleteError::IoError {
+                    io_error: e,
+                    filepath: path.to_path_buf(),
                 }
             }
-        }
+        })?;
+        Ok(())
     }
 
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
@@ -411,10 +379,13 @@ impl Directory for MmapDirectory {
         file.flush()
             .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
 
-        // Apparetntly, on some filesystem syncing the parent
-        // directory is required.
-        self.sync_directory()
-            .map_err(|io_err| OpenWriteError::wrap_io_error(io_err, path.to_path_buf()))?;
+        // Note we actually do not sync the parent directory here.
+        //
+        // A newly created file, may, in some case, be created and even flushed to disk.
+        // and then lost...
+        //
+        // The file will only be durably written after we terminate AND
+        // sync_directory() is called.
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -444,7 +415,7 @@ impl Directory for MmapDirectory {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
         atomic_write(&full_path, content)?;
-        self.sync_directory()
+        Ok(())
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
@@ -469,6 +440,30 @@ impl Directory for MmapDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.inner.watch(watch_callback))
+    }
+
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        let mut open_opts = OpenOptions::new();
+
+        // Linux needs read to be set, otherwise returns EINVAL
+        // write must not be set, or it fails with EISDIR
+        open_opts.read(true);
+
+        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
+        // and calling sync_all() only works if write access is requested.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            use winapi::um::winbase;
+
+            open_opts
+                .write(true)
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
+        }
+
+        let fd = open_opts.open(&self.inner.root_path)?;
+        fd.sync_data()?;
+        Ok(())
     }
 }
 
