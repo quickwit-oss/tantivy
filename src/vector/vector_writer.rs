@@ -6,7 +6,7 @@ use std::{
 use nuclia_vectors::{
     entry::entry_point::SegmentEntry,
     segment_constructor::{build_segment, load_segment},
-    types::{Distance, Indexes, SegmentConfig},
+    types::{Distance, Indexes, SegmentConfig, HnswConfig, StorageType},
 };
 
 use crate::{DocId, TantivyError, schema::{Field, Schema}};
@@ -21,19 +21,21 @@ pub struct VectorWriters {
 }
 
 impl VectorWriters {
-    pub fn new(path: PathBuf) -> VectorWriters {
+    pub fn new(path: &PathBuf) -> VectorWriters {
         trace!("Create VectorWriter for segment");
+
+        //let hsnw_config = HnswConfig::default();
 
         let config = SegmentConfig {
             vector_size: 3,
             distance: Distance::Dot,
-            index: Indexes::Plain {},
+            index: Indexes::Plain{},
             payload_index: None,
-            storage_type: Default::default(),
+            storage_type: StorageType::Drive,
         };
 
         VectorWriters {
-            segment_path: path,
+            segment_path: path.clone(),
             segment_config: config,
             writers: HashMap::new(),
         }
@@ -70,9 +72,9 @@ impl VectorWriter {
 
         trace!("New VectorWriter for field: {:?} at {}", field, path.to_str().unwrap());
 
-        let segment = match load_segment(path.as_path()) {
+        let segment = match load_segment(path.as_path(), false) {
             Ok(segment) => segment,
-            Err(e) => match build_segment(path.as_path(), &config) {
+            Err(e) => match build_segment(path.as_path(), &config, false) {
                 Ok(segment) => segment,
                 Err(e) => {
                     panic!("Error loading VectorWriter: {}", e);
@@ -84,7 +86,7 @@ impl VectorWriter {
     }
 
     fn record(&mut self, doc_id: DocId, vector: &Vec<f32>) -> crate::Result<bool> {
-        trace!("record => {} - {:?}", doc_id, vector);
+        trace!("record => {} - {:?} - {:?}", doc_id, vector, self.segment.current_path);
         match self.segment.upsert_point(1, doc_id as u64, vector) {
             Ok(b) => Ok(b),
             Err(e) => Err(TantivyError::InvalidArgument(e.to_string())),

@@ -110,7 +110,7 @@ impl SegmentWriter {
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
             term_buffer: Term::new(),
-            vector_writers: VectorWriters::new(vectors_path)
+            vector_writers: VectorWriters::new(&vectors_path)
         })
     }
 

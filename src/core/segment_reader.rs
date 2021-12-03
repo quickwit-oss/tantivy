@@ -222,7 +222,7 @@ impl SegmentReader {
             alive_bitset_opt,
             positions_composite,
             schema,
-            vector_readers: Default::default()
+            vector_readers
         })
     }
 
