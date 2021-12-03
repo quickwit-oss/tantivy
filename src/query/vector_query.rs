@@ -30,7 +30,7 @@ impl Query for VectorQuery {
     ) -> crate::Result<Box<dyn super::Weight>> {
 
         let schema = searcher.schema();
-        // Check dimension of the vector.
+        //TODO: Check dimension of the vector.
         
         Ok(Box::new(VectorWeight {
             field: self.field,
@@ -77,9 +77,9 @@ pub struct VectorScorer {
 
 impl VectorScorer {
     pub fn from_docs(docs: Vec<(DocId, ScoreType)>) -> VectorScorer {
-        VectorScorer {
-            docs,
-            i: 0
+        match docs.is_empty() {
+            true => VectorScorer { docs, i: TERMINATED as usize},
+            false => VectorScorer { docs, i: 0 },
         }
     }
 }
@@ -92,7 +92,7 @@ impl Scorer for VectorScorer {
 
 impl DocSet for VectorScorer {
     fn advance(&mut self) -> crate::DocId {
-        if self.i < self.docs.len() {
+        if self.i + 1 < self.docs.len() {
             self.i += 1;
         } else {
             self.i = TERMINATED as usize;
@@ -101,7 +101,10 @@ impl DocSet for VectorScorer {
     }
 
     fn doc(&self) -> crate::DocId {
-        self.docs[self.i].0
+        if self.i != TERMINATED as usize{
+            return self.docs[self.i].0
+        }
+        TERMINATED
     }
 
     fn size_hint(&self) -> u32 {
