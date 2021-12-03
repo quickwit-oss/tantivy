@@ -225,6 +225,10 @@ impl Directory for RamDirectory {
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.fs.write().unwrap().watch(watch_callback))
     }
+
+    fn sync_directory(&self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
