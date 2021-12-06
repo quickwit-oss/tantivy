@@ -39,6 +39,13 @@ pub enum OpenDirectoryError {
     },
 }
 
+impl OpenDirectoryError {
+    /// Wraps an io error.
+    pub fn wrap_io_error(io_error: io::Error, directory_path: PathBuf) -> Self {
+        Self::IoError { io_error, directory_path }
+    }
+}
+
 /// Error that may occur when starting to write in a file
 #[derive(Debug, Error)]
 pub enum OpenWriteError {
