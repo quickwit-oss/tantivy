@@ -196,7 +196,7 @@ impl MmapDirectory {
             |io_err| OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
         )?;
         if !canonical_path.exists() {
-            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
+            return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
             )))
         } else if !canonical_path.is_dir() {
