@@ -199,10 +199,11 @@ impl MmapDirectory {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
             )))
-        } else if !canonical_path.is_dir() {
-            Err(OpenDirectoryError::NotADirectory(PathBuf::from(
+        }
+        if !canonical_path.is_dir() {
+            return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
                 directory_path,
-            )))
+            )));
         }
         Ok(MmapDirectory::new(canonical_path, None))
     }
