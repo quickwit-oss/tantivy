@@ -6,7 +6,8 @@ extern crate test;
 mod tests {
     use fastfield_codecs::{
         bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
-        *, piecewise_linear::{PiecewiseLinearFastFieldSerializer, PiecewiseLinearFastFieldReader},
+        piecewise_linear::{PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer},
+        *,
     };
 
     fn get_data() -> Vec<u64> {
@@ -78,9 +79,7 @@ mod tests {
     #[bench]
     fn bench_fastfield_piecewise_linear_get(b: &mut Bencher) {
         let data: Vec<_> = get_data();
-        bench_get::<PiecewiseLinearFastFieldSerializer, PiecewiseLinearFastFieldReader>(
-            b, &data,
-        );
+        bench_get::<PiecewiseLinearFastFieldSerializer, PiecewiseLinearFastFieldReader>(b, &data);
     }
     pub fn stats_from_vec(data: &[u64]) -> FastFieldStats {
         let min_value = data.iter().cloned().min().unwrap_or(0);
