@@ -1,7 +1,7 @@
 /*!
 
-PiecewiseLinear codec uses piecewise linear functions for every block of 512 values to guess values and stores the
-difference between the actual value and the one given by the linear interpolation.
+PiecewiseLinear codec uses piecewise linear functions for every block of 512 values to predict values
+and fast field values. The difference with real fast field values is then stored.
 For every block, the linear function can be expressed as
 `computed_value = slope * block_position + first_value + positive_offset`
 where:
@@ -36,13 +36,10 @@ pub struct PiecewiseLinearFastFieldReader {
     block_readers: Vec<BlockReader>,
 }
 
-/// Block metadata needed to define the linear function `y = a.x + b`
-/// and to bitpack the difference between the real value and the
-/// the linear function computed value where:
-/// - `a` is the `slope`
-/// - `b` is the sum of the `first_value` in the block + an offset
-///   `positive_offset` which ensures that difference between the real
-///   value and the linear function computed value is always positive.
+/// Block that stores metadata to predict value with a linear
+/// function `predicted_value = slope * position + first_value + positive_offset`
+/// where `positive_offset` is comupted such that predicted values
+/// are always positive.
 #[derive(Clone, Debug, Default)]
 struct BlockMetadata {
     first_value: u64,
@@ -72,9 +69,9 @@ impl BlockReader {
         let diff = self
             .bit_unpacker
             .get(block_pos, &data[self.start_offset as usize..]);
-        let computed_value =
-            get_computed_value(self.metadata.first_value, block_pos, self.metadata.slope);
-        (computed_value + diff) - self.metadata.positive_offset
+        let predicted_value =
+            predict_value(self.metadata.first_value, block_pos, self.metadata.slope);
+        (predicted_value + diff) - self.metadata.positive_offset
     }
 }
 
@@ -88,13 +85,13 @@ impl BinarySerializable for BlockMetadata {
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let constant = u64::deserialize(reader)?;
-        let constant_positive_offset = u64::deserialize(reader)?;
+        let first_value = u64::deserialize(reader)?;
+        let positive_offset = u64::deserialize(reader)?;
         let slope = f32::deserialize(reader)?;
         let num_bits = u8::deserialize(reader)?;
         Ok(Self {
-            first_value: constant,
-            positive_offset: constant_positive_offset,
+            first_value,
+            positive_offset,
             slope,
             num_bits,
         })
@@ -172,7 +169,7 @@ impl FastFieldCodecReader for PiecewiseLinearFastFieldReader {
 }
 
 #[inline]
-fn get_computed_value(first_val: u64, pos: u64, slope: f32) -> u64 {
+fn predict_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     (first_val as i64 + (pos as f32 * slope) as i64) as u64
 }
 
@@ -205,7 +202,7 @@ impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
             let mut positive_offset = 0;
             let mut max_delta = 0;
             for (pos, &current_value) in block_values[1..].iter().enumerate() {
-                let computed_value = get_computed_value(first_value, pos as u64 + 1, slope);
+                let computed_value = predict_value(first_value, pos as u64 + 1, slope);
                 if computed_value > current_value {
                     positive_offset = positive_offset.max(computed_value - current_value);
                 } else {
@@ -214,7 +211,7 @@ impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
             }
             let num_bits = compute_num_bits(max_delta + positive_offset);
             for (pos, current_value) in block_values.iter().enumerate() {
-                let computed_value = get_computed_value(first_value, pos as u64, slope);
+                let computed_value = predict_value(first_value, pos as u64, slope);
                 let diff = (current_value + positive_offset) - computed_value;
                 bit_packer.write(diff, num_bits, write)?;
             }
@@ -282,8 +279,7 @@ impl FastFieldCodecSerializer for PiecewiseLinearFastFieldSerializer {
         let max_distance = sample_positions
             .iter()
             .map(|&pos| {
-                let calculated_value =
-                    get_computed_value(first_val_in_first_block, pos as u64, slope);
+                let calculated_value = predict_value(first_val_in_first_block, pos as u64, slope);
                 let actual_value = fastfield_accessor.get_val(pos as u64);
                 distance(calculated_value, actual_value)
             })

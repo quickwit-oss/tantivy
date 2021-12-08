@@ -6,8 +6,6 @@ license = "MIT"
 edition = "2018"
 description = "Fast field codecs used by tantivy"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 common = { version = "0.2", path = "../common/", package = "tantivy-common" }
 tantivy-bitpacker = { version="0.1.1", path = "../bitpacker/" }
@@ -19,6 +17,6 @@ more-asserts = "0.2.1"
 rand = "0.8.3"
 
 [features]
+unstable = [] # useful for benches and experimental codecs.
 bin = ["prettytable-rs", "rand"]
 default = ["bin"]
-

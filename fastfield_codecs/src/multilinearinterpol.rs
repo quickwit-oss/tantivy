@@ -190,8 +190,12 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
 }
 
 /// Same as LinearInterpolFastFieldSerializer, but working on chunks of CHUNK_SIZE elements.
+#[deprecated(
+    note = "MultiLinearInterpol is replaced by PiecewiseLinear codec which fixes the slope and is a little bit more optimized."
+)]
 pub struct MultiLinearInterpolFastFieldSerializer {}
 
+#[allow(deprecated)]
 impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
     const NAME: &'static str = "MultiLinearInterpol";
     const ID: u8 = 3;
@@ -372,6 +376,7 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;

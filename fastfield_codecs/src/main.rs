@@ -1,18 +1,14 @@
 #[macro_use]
 extern crate prettytable;
+use common::f64_to_u64;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader;
+#[cfg(feature = "unstable")]
 use fastfield_codecs::frame_of_reference::{FORFastFieldReader, FORFastFieldSerializer};
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
 use fastfield_codecs::piecewise_linear::{
     PiecewiseLinearFastFieldReader, PiecewiseLinearFastFieldSerializer,
 };
 use fastfield_codecs::FastFieldCodecReader;
-use fastfield_codecs::{
-    linearinterpol::LinearInterpolFastFieldSerializer,
-    multilinearinterpol::MultiLinearInterpolFastFieldSerializer, FastFieldCodecSerializer,
-    FastFieldStats,
-};
+use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 use rand::prelude::StdRng;
 use rand::Rng;
@@ -36,22 +32,15 @@ fn main() {
     for (data, data_set_name) in get_codec_test_data_sets() {
         let mut results = vec![];
         let res = serialize_with_codec::<
-            LinearInterpolFastFieldSerializer,
-            LinearInterpolFastFieldReader,
-        >(&data);
-        results.push(res);
-        let res = serialize_with_codec::<
-            MultiLinearInterpolFastFieldSerializer,
-            MultiLinearInterpolFastFieldReader,
-        >(&data);
-        results.push(res);
-        let res = serialize_with_codec::<
             PiecewiseLinearFastFieldSerializer,
             PiecewiseLinearFastFieldReader,
         >(&data);
         results.push(res);
-        let res = serialize_with_codec::<FORFastFieldSerializer, FORFastFieldReader>(&data);
-        results.push(res);
+        #[cfg(feature = "unstable")]
+        {
+            let res = serialize_with_codec::<FORFastFieldSerializer, FORFastFieldReader>(&data);
+            results.push(res);
+        }
         let res = serialize_with_codec::<
             fastfield_codecs::bitpacked::BitpackedFastFieldSerializer,
             BitpackedFastFieldReader,
@@ -168,9 +157,7 @@ pub fn load_float_dataset(file_path: &str) -> Vec<u64> {
     for line in lines {
         let line_string = line.unwrap();
         let value = line_string.parse::<f64>().unwrap();
-        let bytes = value.to_le_bytes();
-        let u64_value = u64::from_le_bytes(bytes);
-        data.push(u64_value);
+        data.push(f64_to_u64(value));
     }
     data
 }
@@ -202,7 +189,6 @@ pub fn serialize_with_codec<S: FastFieldCodecSerializer, R: FastFieldCodecReader
     .unwrap();
     let elasped_time_compression = start_time_compression.elapsed();
     let actual_compression = out.len() as f32 / (data.len() * 8) as f32;
-
     let reader = R::open_from_bytes(&out).unwrap();
     let start_time_read = Instant::now();
     for doc in 0..data.len() {

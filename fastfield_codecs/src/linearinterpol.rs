@@ -88,6 +88,10 @@ impl FastFieldCodecReader for LinearInterpolFastFieldReader {
 
 /// Fastfield serializer, which tries to guess values by linear interpolation
 /// and stores the difference bitpacked.
+///
+#[deprecated(
+    note = "Linear interpolation works best only on very rare cases and piecewise linear codec already works great on them."
+)]
 pub struct LinearInterpolFastFieldSerializer {}
 
 #[inline]
@@ -105,6 +109,7 @@ fn get_calculated_value(first_val: u64, pos: u64, slope: f32) -> u64 {
     first_val + (pos as f32 * slope) as u64
 }
 
+#[allow(deprecated)]
 impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
     const NAME: &'static str = "LinearInterpol";
     const ID: u8 = 2;
@@ -235,6 +240,7 @@ fn distance<T: Sub<Output = T> + Ord>(x: T, y: T) -> T {
     }
 }
 
+#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::*;

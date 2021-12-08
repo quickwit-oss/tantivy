@@ -5,9 +5,6 @@ use common::BinarySerializable;
 use common::CountingWriter;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
-use fastfield_codecs::frame_of_reference::FORFastFieldSerializer;
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
 use fastfield_codecs::piecewise_linear::PiecewiseLinearFastFieldSerializer;
 pub use fastfield_codecs::FastFieldCodecSerializer;
 pub use fastfield_codecs::FastFieldDataAccess;
@@ -114,11 +111,6 @@ impl CompositeFastFieldSerializer {
             stats.clone(),
             &fastfield_accessor,
         ));
-        estimations.push(codec_estimation::<FORFastFieldSerializer, _>(
-            stats.clone(),
-            &fastfield_accessor,
-        ));
-        println!("{:?}", estimations);
         let best_codec_result = estimations
             .iter()
             .sorted_by(|result_a, result_b| {
@@ -144,35 +136,8 @@ impl CompositeFastFieldSerializer {
                     data_iter_2,
                 )?;
             }
-            LinearInterpolFastFieldSerializer::NAME => {
-                LinearInterpolFastFieldSerializer::serialize(
-                    field_write,
-                    &fastfield_accessor,
-                    stats,
-                    data_iter_1,
-                    data_iter_2,
-                )?;
-            }
-            MultiLinearInterpolFastFieldSerializer::NAME => {
-                MultiLinearInterpolFastFieldSerializer::serialize(
-                    field_write,
-                    &fastfield_accessor,
-                    stats,
-                    data_iter_1,
-                    data_iter_2,
-                )?;
-            }
             PiecewiseLinearFastFieldSerializer::NAME => {
                 PiecewiseLinearFastFieldSerializer::serialize(
-                    field_write,
-                    &fastfield_accessor,
-                    stats,
-                    data_iter_1,
-                    data_iter_2,
-                )?;
-            }
-            FORFastFieldSerializer::NAME => {
-                FORFastFieldSerializer::serialize(
                     field_write,
                     &fastfield_accessor,
                     stats,
@@ -285,10 +250,8 @@ mod tests {
         // get the codecs id
         let mut bytes = directory.open_read(path)?.read_bytes()?;
         let codec_id = u8::deserialize(&mut bytes)?;
-        // Codec id = 1 is bitpacking
-        assert_eq!(codec_id, 5);
-        //let reader = FastFieldReaderCodecWrapper::<u64, BitpackedFastFieldReader>::open(file_slice)?;
-        //assert_eq!(reader.get_u64(0), 0);
+        // Codec id = 4 is piecewise linear.
+        assert_eq!(codec_id, 4);
         Ok(())
     }
 }
