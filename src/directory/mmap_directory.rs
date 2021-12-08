@@ -192,14 +192,14 @@ impl MmapDirectory {
     /// exist or if it is not a directory.
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_path: &Path = directory_path.as_ref();
-        let canonical_path: PathBuf = directory_path.canonicalize().map_err(|io_err| {
-            OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
-        })?;
-        if !canonical_path.exists() {
+        if !directory_path.exists() {
             return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
             )));
         }
+        let canonical_path: PathBuf = directory_path.canonicalize().map_err(|io_err| {
+            OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
+        })?;
         if !canonical_path.is_dir() {
             return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
                 directory_path,
