@@ -63,6 +63,24 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
+    pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+        let max_doc = new_doc_id_to_old.len();
+        let old_max_doc = new_doc_id_to_old
+            .iter()
+            .cloned()
+            .max()
+            .map(|n| n + 1)
+            .unwrap_or(0);
+        let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
+        for i in 0..max_doc {
+            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
+        }
+        DocIdMapping {
+            new_doc_id_to_old,
+            old_doc_id_to_new,
+        }
+    }
+
     /// returns the new doc_id for the old doc_id
     pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
@@ -74,6 +92,13 @@ impl DocIdMapping {
     /// iterate over old doc_ids in order of the new doc_ids
     pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().cloned()
+    }
+    /// Remaps a given array to the new doc ids.
+    pub fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+        self.new_doc_id_to_old
+            .iter()
+            .map(|old_doc| els[*old_doc as usize])
+            .collect()
     }
 }
 
@@ -122,23 +147,13 @@ pub(crate) fn get_doc_id_mapping_from_field(
         .into_iter()
         .map(|el| el.0)
         .collect::<Vec<_>>();
-
-    // create old doc_id to new doc_id index (used in posting recorder)
-    let max_doc = new_doc_id_to_old.len();
-    let mut old_doc_id_to_new = vec![0; max_doc];
-    for i in 0..max_doc {
-        old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
-    }
-    let doc_id_map = DocIdMapping {
-        new_doc_id_to_old,
-        old_doc_id_to_new,
-    };
-    Ok(doc_id_map)
+    Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
 }
 
 #[cfg(test)]
 mod tests_indexsorting {
     use crate::fastfield::FastFieldReader;
+    use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::{collector::TopDocs, query::QueryParser, schema::*};
     use crate::{schema::Schema, DocAddress};
     use crate::{Index, IndexSettings, IndexSortByField, Order};
@@ -474,5 +489,28 @@ mod tests_indexsorting {
         multifield.get_vals(2u32, &mut vals);
         assert_eq!(vals, &[3]);
         Ok(())
+    }
+
+    #[test]
+    fn test_doc_mapping() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 5]);
+        assert_eq!(doc_mapping.get_old_doc_id(0), 3);
+        assert_eq!(doc_mapping.get_old_doc_id(1), 2);
+        assert_eq!(doc_mapping.get_old_doc_id(2), 5);
+        assert_eq!(doc_mapping.get_new_doc_id(0), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(1), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(2), 1);
+        assert_eq!(doc_mapping.get_new_doc_id(3), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(4), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_remap() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![2, 8, 3]);
+        assert_eq!(
+            &doc_mapping.remap(&[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]),
+            &[2000, 8000, 3000]
+        );
     }
 }

@@ -88,9 +88,4 @@ mod tests {
         }
         Ok(())
     }
-
-    #[test]
-    pub fn test_retrieve_fields_with_norms() {
-        //TODO
-    }
 }

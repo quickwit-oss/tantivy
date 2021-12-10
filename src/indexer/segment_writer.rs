@@ -234,10 +234,7 @@ impl SegmentWriter {
                             term_buffer,
                         )
                     };
-
-                    if field_entry.has_fieldnorms() {
-                        self.fieldnorms_writer.record(doc_id, field, num_tokens);
-                    }
+                    self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(_) => {
                     for field_value in field_values {

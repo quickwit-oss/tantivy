@@ -41,43 +41,54 @@ use tantivy_bitpacker::minmax;
 /// We do not allow segments with more than
 pub const MAX_DOC_LIMIT: u32 = 1 << 31;
 
-fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
-    let mut total_tokens = 0u64;
-    let mut count: [usize; 256] = [0; 256];
-    for reader in readers {
-        // When there are deletes, we use an approximation either
-        // - by using the fieldnorm
-        // - or by using a multiplying the total number of tokens by a ratio (1 - deleted docs / num docs).
-        if reader.has_deletes() {
-            if reader
-                .schema()
-                .get_field_entry(field)
-                .field_type()
-                .has_fieldnorms()
-            {
-                let fieldnorms_reader = reader.get_fieldnorms_reader(field)?;
-                for doc in reader.doc_ids_alive() {
-                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
-                    count[fieldnorm_id as usize] += 1;
-                }
-            } else {
-                let segment_num_tokens = reader.inverted_index(field)?.total_num_tokens();
-                let ratio = 1f64 - reader.num_deleted_docs() as f64 / reader.num_docs() as f64;
-                total_tokens += (segment_num_tokens as f64 * ratio) as u64;
-            }
-        } else {
-            total_tokens += reader.inverted_index(field)?.total_num_tokens();
-        }
+fn estimate_total_num_tokens_in_single_segment(
+    reader: &SegmentReader,
+    field: Field,
+) -> crate::Result<u64> {
+    // There are no deletes. We can simply use the exact value saved into the posting list.
+    // Note that this value is not necessarily exact as it could have been the result of a merge between
+    // segments themselves containing deletes.
+    if !reader.has_deletes() {
+        return Ok(reader.inverted_index(field)?.total_num_tokens());
     }
-    Ok(total_tokens
-        + count
+
+    // When there are deletes, we use an approximation either
+    // by using the fieldnorm.
+    if let Some(fieldnorm_reader) = reader.fieldnorms_readers().get_field(field)? {
+        let mut count: [usize; 256] = [0; 256];
+        for doc in reader.doc_ids_alive() {
+            let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+            count[fieldnorm_id as usize] += 1;
+        }
+        let total_num_tokens = count
             .iter()
             .cloned()
             .enumerate()
             .map(|(fieldnorm_ord, count)| {
                 count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
             })
-            .sum::<u64>())
+            .sum::<u64>();
+        return Ok(total_num_tokens);
+    }
+
+    // There are no fieldnorms available.
+    // Here we just do a pro-rata with the overall number of tokens an the ratio of
+    // documents alive.
+    let segment_num_tokens = reader.inverted_index(field)?.total_num_tokens();
+    if reader.max_doc() == 0 {
+        // That supposedly never happens, but let's be a bit defensive here.
+        return Ok(0u64);
+    }
+    let ratio = reader.num_docs() as f64 / reader.max_doc() as f64;
+    Ok((segment_num_tokens as f64 * ratio) as u64)
+}
+
+fn estimate_total_num_tokens(readers: &[SegmentReader], field: Field) -> crate::Result<u64> {
+    let mut total_num_tokens: u64 = 0;
+    for reader in readers {
+        total_num_tokens += estimate_total_num_tokens_in_single_segment(reader, field)?;
+    }
+    Ok(total_num_tokens)
 }
 
 pub struct IndexMerger {
@@ -863,10 +874,8 @@ impl IndexMerger {
             segment_map[*old_doc_id as usize] = Some(new_doc_id as DocId);
         }
 
-        // The total number of tokens will only be exact when there has been no deletes
-        // and if the field has a norm.
-        //
-        // Otherwise, we approximate by removing deleted documents proportionally.
+        // Note that the total number of tokens is not exact.
+        // It is only used as a parameter in the BM25 formula.
         let total_num_tokens: u64 = estimate_total_num_tokens(&self.readers, indexed_field)?;
 
         // Create the total list of doc ids
