@@ -148,7 +148,7 @@ impl FieldEntry {
 mod tests {
     use super::*;
     use crate::{
-        schema::{Schema, STRING, TEXT},
+        schema::{Schema, TextFieldIndexing, TEXT},
         Index,
     };
     use serde_json;
@@ -211,9 +211,11 @@ mod tests {
     }
 
     #[test]
-    fn test_fieldnorms() -> crate::Result<()> {
+    fn test_missing_fieldnorms() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let text = schema_builder.add_text_field("text", STRING);
+        let no_field_norm = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_fieldnorms(false));
+        let text = schema_builder.add_text_field("text", no_field_norm);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;

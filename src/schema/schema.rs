@@ -435,7 +435,14 @@ mod tests {
             .set_fieldnorm()
             .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
-        schema_builder.add_text_field("author", STRING);
+        schema_builder.add_text_field(
+            "author",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("raw")
+                    .set_fieldnorms(false),
+            ),
+        );
         schema_builder.add_u64_field("count", count_options);
         schema_builder.add_i64_field("popularity", popularity_options);
         schema_builder.add_f64_field("score", score_options);

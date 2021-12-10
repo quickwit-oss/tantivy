@@ -30,13 +30,19 @@ use self::code::{fieldnorm_to_id, id_to_fieldnorm};
 #[cfg(test)]
 mod tests {
     use crate::directory::CompositeFile;
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fieldnorm::FieldNormReader;
     use crate::fieldnorm::FieldNormsSerializer;
     use crate::fieldnorm::FieldNormsWriter;
-    use crate::{
-        directory::{Directory, RamDirectory, WritePtr},
-        schema::{STRING, TEXT},
-    };
+    use crate::query::Query;
+    use crate::query::TermQuery;
+    use crate::schema::IndexRecordOption;
+    use crate::schema::TextFieldIndexing;
+    use crate::schema::TextOptions;
+    use crate::schema::TEXT;
+    use crate::Index;
+    use crate::Term;
+    use crate::TERMINATED;
     use once_cell::sync::Lazy;
     use std::path::Path;
 
@@ -46,7 +52,14 @@ mod tests {
         let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("field", STORED);
         schema_builder.add_text_field("txt_field", TEXT);
-        schema_builder.add_text_field("str_field", STRING);
+        schema_builder.add_text_field(
+            "str_field",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_index_option(IndexRecordOption::Basic)
+                    .set_fieldnorms(false),
+            ),
+        );
         schema_builder.build()
     });
 
@@ -86,6 +99,64 @@ mod tests {
             assert_eq!(fieldnorm_reader.fieldnorm(2u32), 5u32);
             assert_eq!(fieldnorm_reader.fieldnorm(3u32), 3u32);
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_fieldnorm_disabled() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_fieldnorms(false));
+        let text = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(text=>"hello"))?;
+        writer.add_document(doc!(text=>"hello hello hello"))?;
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query = TermQuery::new(
+            Term::from_field_text(text, "hello"),
+            IndexRecordOption::WithFreqs,
+        );
+        let weight = query.weight(&*searcher, true)?;
+        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        assert_eq!(scorer.doc(), 0);
+        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_eq!(scorer.advance(), 1);
+        assert_eq!(scorer.doc(), 1);
+        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_eq!(scorer.advance(), TERMINATED);
+        Ok(())
+    }
+
+    #[test]
+    fn test_fieldnorm_enabled() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_fieldnorms(true));
+        let text = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut writer = index.writer_for_tests()?;
+        writer.add_document(doc!(text=>"hello"))?;
+        writer.add_document(doc!(text=>"hello hello hello"))?;
+        writer.commit()?;
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query = TermQuery::new(
+            Term::from_field_text(text, "hello"),
+            IndexRecordOption::WithFreqs,
+        );
+        let weight = query.weight(&*searcher, true)?;
+        let mut scorer = weight.scorer(searcher.segment_reader(0), 1.0f32)?;
+        assert_eq!(scorer.doc(), 0);
+        assert!((scorer.score() - 0.22920431).abs() < 0.001f32);
+        assert_eq!(scorer.advance(), 1);
+        assert_eq!(scorer.doc(), 1);
+        assert!((scorer.score() - 0.15136132).abs() < 0.001f32);
+        assert_eq!(scorer.advance(), TERMINATED);
         Ok(())
     }
 }

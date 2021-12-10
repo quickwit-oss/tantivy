@@ -102,7 +102,7 @@ impl TextFieldIndexing {
 pub const STRING: TextOptions = TextOptions {
     indexing: Some(TextFieldIndexing {
         tokenizer: Cow::Borrowed("raw"),
-        fieldnorms: false,
+        fieldnorms: true,
         record: IndexRecordOption::Basic,
     }),
     stored: false,
