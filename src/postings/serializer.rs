@@ -337,20 +337,17 @@ impl<W: Write> PostingsSerializer<W> {
         }
     }
 
-    /// Returns the number of documents in the segment currently being serialized.
-    /// This function may return `None` if there are no fieldnorm for that field.
-    fn num_docs_in_segment(&self) -> Option<u32> {
-        self.fieldnorm_reader
-            .as_ref()
-            .map(|reader| reader.num_docs())
-    }
-
     pub fn new_term(&mut self, term_doc_freq: u32) {
         if !self.mode.has_freq() {
             return;
         }
-        self.bm25_weight = self.num_docs_in_segment().map(|num_docs| {
-            Bm25Weight::for_one_term(term_doc_freq as u64, num_docs as u64, self.avg_fieldnorm)
+        let num_docs_in_segment = self
+            .fieldnorm_reader
+            .as_ref()
+            .map(|reader| reader.num_docs() as u64);
+
+        self.bm25_weight = num_docs_in_segment.map(|num_docs| {
+            Bm25Weight::for_one_term(term_doc_freq as u64, num_docs, self.avg_fieldnorm)
         });
     }
 

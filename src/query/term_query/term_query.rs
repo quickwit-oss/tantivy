@@ -92,18 +92,13 @@ impl TermQuery {
         searcher: &Searcher,
         scoring_enabled: bool,
     ) -> crate::Result<TermWeight> {
-        let term = self.term.clone();
         let field_entry = searcher.schema().get_field_entry(self.term.field());
         if !field_entry.is_indexed() {
             let error_msg = format!("Field {:?} is not indexed.", field_entry.name());
             return Err(crate::TantivyError::SchemaError(error_msg));
         }
-        let has_fieldnorms = searcher
-            .schema()
-            .get_field_entry(self.term.field())
-            .has_fieldnorms();
         let bm25_weight = if scoring_enabled {
-            Bm25Weight::for_terms(searcher, &[term])?
+            Bm25Weight::for_terms(searcher, &[self.term.clone()])?
         } else {
             Bm25Weight::new(Explanation::new("<no score>".to_string(), 1.0f32), 1.0f32)
         };
@@ -116,7 +111,6 @@ impl TermQuery {
             self.term.clone(),
             index_record_option,
             bm25_weight,
-            has_fieldnorms,
             scoring_enabled,
         ))
     }
