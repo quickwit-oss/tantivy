@@ -114,6 +114,11 @@ impl FieldEntry {
         self.field_type.is_indexed()
     }
 
+    /// Returns true iff the field is normed
+    pub fn has_fieldnorms(&self) -> bool {
+        self.field_type.has_fieldnorms()
+    }
+
     /// Returns true iff the field is a int (signed or unsigned) fast field
     pub fn is_fast(&self) -> bool {
         match self.field_type {
@@ -142,7 +147,10 @@ impl FieldEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::TEXT;
+    use crate::{
+        schema::{Schema, TextFieldIndexing, TEXT},
+        Index,
+    };
     use serde_json;
 
     #[test]
@@ -161,6 +169,7 @@ mod tests {
   "options": {
     "indexing": {
       "record": "position",
+      "fieldnorms": true,
       "tokenizer": "default"
     },
     "stored": false
@@ -187,6 +196,7 @@ mod tests {
   "options": {
     "indexing": {
       "record": "position",
+      "fieldnorms": true,
       "tokenizer": "default"
     },
     "stored": false
@@ -198,5 +208,22 @@ mod tests {
             FieldType::Str(_) => {}
             _ => panic!("expected FieldType::Str"),
         }
+    }
+
+    #[test]
+    fn test_missing_fieldnorms() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let no_field_norm = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default().set_fieldnorms(false));
+        let text = schema_builder.add_text_field("text", no_field_norm);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(text=>"abc"))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
+        let err = searcher.segment_reader(0u32).get_fieldnorms_reader(text);
+        assert!(matches!(err, Err(crate::TantivyError::SchemaError(_))));
+        Ok(())
     }
 }

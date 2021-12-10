@@ -4,6 +4,7 @@ Tantivy 0.17
 - Facets are necessarily indexed. Existing index with indexed facets should work out of the box. Index without facets that are marked with index: false should be broken (but they were already broken in a sense). (@fulmicoton) #1195 .
 - Bugfix that could in theory impact durability in theory on some filesystems [#1224](https://github.com/quickwit-inc/tantivy/issues/1224)
 - Reduce the number of fsync calls [#1225](https://github.com/quickwit-inc/tantivy/issues/1225)
+- Schema now offers not indexing fieldnorms (@lpouget) [#922](https://github.com/quickwit-inc/tantivy/issues/922)
 
 Tantivy 0.16.2
 ================================

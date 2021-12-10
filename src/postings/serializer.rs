@@ -308,10 +308,8 @@ pub struct PostingsSerializer<W: Write> {
     fieldnorm_reader: Option<FieldNormReader>,
 
     bm25_weight: Option<Bm25Weight>,
-
-    num_docs: u32, // Number of docs in the segment
     avg_fieldnorm: Score, // Average number of term in the field for that segment.
-                   // this value is used to compute the block wand information.
+                          // this value is used to compute the block wand information.
 }
 
 impl<W: Write> PostingsSerializer<W> {
@@ -321,10 +319,6 @@ impl<W: Write> PostingsSerializer<W> {
         mode: IndexRecordOption,
         fieldnorm_reader: Option<FieldNormReader>,
     ) -> PostingsSerializer<W> {
-        let num_docs = fieldnorm_reader
-            .as_ref()
-            .map(|fieldnorm_reader| fieldnorm_reader.num_docs())
-            .unwrap_or(0u32);
         PostingsSerializer {
             output_write: CountingWriter::wrap(write),
 
@@ -339,21 +333,33 @@ impl<W: Write> PostingsSerializer<W> {
 
             fieldnorm_reader,
             bm25_weight: None,
-
-            num_docs,
             avg_fieldnorm,
         }
     }
 
     pub fn new_term(&mut self, term_doc_freq: u32) {
-        if self.mode.has_freq() && self.num_docs > 0 {
-            let bm25_weight = Bm25Weight::for_one_term(
-                term_doc_freq as u64,
-                self.num_docs as u64,
-                self.avg_fieldnorm,
-            );
-            self.bm25_weight = Some(bm25_weight);
+        self.bm25_weight = None;
+
+        if !self.mode.has_freq() {
+            return;
         }
+
+        let num_docs_in_segment: u64 =
+            if let Some(fieldnorm_reader) = self.fieldnorm_reader.as_ref() {
+                fieldnorm_reader.num_docs() as u64
+            } else {
+                return;
+            };
+
+        if num_docs_in_segment == 0 {
+            return;
+        }
+
+        self.bm25_weight = Some(Bm25Weight::for_one_term(
+            term_doc_freq as u64,
+            num_docs_in_segment,
+            self.avg_fieldnorm,
+        ));
     }
 
     fn write_block(&mut self) {

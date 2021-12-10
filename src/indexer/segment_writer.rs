@@ -234,7 +234,6 @@ impl SegmentWriter {
                             term_buffer,
                         )
                     };
-
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(_) => {

@@ -68,6 +68,7 @@ mod tests {
             IntOptions::default()
                 .set_fast(Cardinality::MultiValues)
                 .set_indexed()
+                .set_fieldnorm()
                 .set_stored(),
         );
         let time_i =

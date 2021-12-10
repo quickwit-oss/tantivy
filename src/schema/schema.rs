@@ -240,6 +240,11 @@ impl Schema {
         self.get_field_entry(field).name()
     }
 
+    /// Returns the number of fields in the schema.
+    pub fn num_fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
     /// Return the list of all the `Field`s.
     pub fn fields(&self) -> impl Iterator<Item = (Field, &FieldEntry)> {
         self.0
@@ -427,9 +432,17 @@ mod tests {
             .set_fast(Cardinality::SingleValue);
         let score_options = IntOptions::default()
             .set_indexed()
+            .set_fieldnorm()
             .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
-        schema_builder.add_text_field("author", STRING);
+        schema_builder.add_text_field(
+            "author",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("raw")
+                    .set_fieldnorms(false),
+            ),
+        );
         schema_builder.add_u64_field("count", count_options);
         schema_builder.add_i64_field("popularity", popularity_options);
         schema_builder.add_f64_field("score", score_options);
@@ -442,6 +455,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -453,6 +467,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
+        "fieldnorms": false,
         "tokenizer": "raw"
       },
       "stored": false
@@ -463,6 +478,7 @@ mod tests {
     "type": "u64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -472,6 +488,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -481,6 +498,7 @@ mod tests {
     "type": "f64",
     "options": {
       "indexed": true,
+      "fieldnorms": true,
       "fast": "single",
       "stored": false
     }
@@ -743,6 +761,7 @@ mod tests {
         let timestamp_options = IntOptions::default()
             .set_stored()
             .set_indexed()
+            .set_fieldnorm()
             .set_fast(SingleValue);
         schema_builder.add_text_field("_id", id_options);
         schema_builder.add_date_field("_timestamp", timestamp_options);
@@ -754,6 +773,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -764,6 +784,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -784,6 +805,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
+        "fieldnorms": true,
         "tokenizer": "raw"
       },
       "stored": true
@@ -794,6 +816,7 @@ mod tests {
     "type": "date",
     "options": {
       "indexed": true,
+      "fieldnorms": true,
       "fast": "single",
       "stored": true
     }
@@ -804,6 +827,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -814,6 +838,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
