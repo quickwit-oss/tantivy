@@ -91,7 +91,6 @@ snappy-compression = ["snap"]
 
 failpoints = ["fail/failpoints"]
 unstable = [] # useful for benches.
-wasm-bindgen = ["uuid/wasm-bindgen"]
 
 [workspace]
 members = ["query-grammar", "bitpacker", "common", "fastfield_codecs", "ownedbytes"]
