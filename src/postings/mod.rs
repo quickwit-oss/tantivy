@@ -617,7 +617,7 @@ mod bench {
                     doc.add_text(text_field, "c");
                 }
                 doc.add_text(text_field, "d");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.commit().is_ok());
         }

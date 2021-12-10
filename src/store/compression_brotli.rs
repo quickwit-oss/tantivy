@@ -2,8 +2,10 @@ use std::io;
 
 #[inline]
 pub fn compress(mut uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
-    let mut params = brotli::enc::BrotliEncoderParams::default();
-    params.quality = 5;
+    let params = brotli::enc::BrotliEncoderParams {
+        quality: 5,
+        ..Default::default()
+    };
     compressed.clear();
     brotli::BrotliCompress(&mut uncompressed, compressed, &params)?;
     Ok(())

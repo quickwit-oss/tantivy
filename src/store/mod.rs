@@ -259,11 +259,11 @@ pub mod tests {
             let mut index_writer = index.writer_for_tests().unwrap();
             // put enough data create enough blocks in the doc store to be considered for stacking
             for _ in 0..200 {
-                index_writer.add_document(doc!(text_field=> LOREM));
+                index_writer.add_document(doc!(text_field=> LOREM))?;
             }
             assert!(index_writer.commit().is_ok());
             for _ in 0..200 {
-                index_writer.add_document(doc!(text_field=> LOREM));
+                index_writer.add_document(doc!(text_field=> LOREM))?;
             }
             assert!(index_writer.commit().is_ok());
         }

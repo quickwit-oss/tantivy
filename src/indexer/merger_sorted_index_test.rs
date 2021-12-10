@@ -516,7 +516,7 @@ mod bench_sorted_index_merge {
             let index_doc = |index_writer: &mut IndexWriter, val: u64| {
                 let mut doc = Document::default();
                 doc.add_u64(int_field, val);
-                index_writer.add_document(doc);
+                index_writer.add_document(doc).unwrap();
             };
             // 3 segments with 10_000 values in the fast fields
             for _ in 0..3 {

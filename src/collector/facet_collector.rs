@@ -727,7 +727,7 @@ mod bench {
 
         let mut index_writer = index.writer_for_tests().unwrap();
         for doc in docs {
-            index_writer.add_document(doc);
+            index_writer.add_document(doc).unwrap();
         }
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();
