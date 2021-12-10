@@ -71,13 +71,13 @@ impl TextFieldIndexing {
         &self.tokenizer
     }
 
-    /// Sets fieldnorms TODO
+    /// Sets fieldnorms
     pub fn set_fieldnorms(mut self, fieldnorms: bool) -> TextFieldIndexing {
         self.fieldnorms = fieldnorms;
         self
     }
 
-    /// Sets fieldnorms TODO
+    /// Returns true iff fieldnorms are stored.
     pub fn fieldnorms(&self) -> bool {
         self.fieldnorms
     }

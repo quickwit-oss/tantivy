@@ -3,12 +3,38 @@ use std::ops::BitOr;
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Define how an a bytes field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "BytesOptionsDeser")]
 pub struct BytesOptions {
     indexed: bool,
     fieldnorms: bool,
     fast: bool,
     stored: bool,
+}
+
+/// For backward compability we add an intermediary to interpret the
+/// lack of fieldnorms attribute as "true" iff indexed.
+///
+/// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
+/// Note that: newly serialized IntOptions will include the new attribute.
+#[derive(Deserialize)]
+struct BytesOptionsDeser {
+    indexed: bool,
+    #[serde(default)]
+    fieldnorms: Option<bool>,
+    fast: bool,
+    stored: bool,
+}
+
+impl From<BytesOptionsDeser> for BytesOptions {
+    fn from(deser: BytesOptionsDeser) -> Self {
+        BytesOptions {
+            indexed: deser.indexed,
+            fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
+            fast: deser.fast,
+            stored: deser.stored,
+        }
+    }
 }
 
 impl BytesOptions {
@@ -68,17 +94,6 @@ impl BytesOptions {
     pub fn set_stored(mut self) -> BytesOptions {
         self.stored = true;
         self
-    }
-}
-
-impl Default for BytesOptions {
-    fn default() -> BytesOptions {
-        BytesOptions {
-            indexed: false,
-            fieldnorms: false,
-            fast: false,
-            stored: false,
-        }
     }
 }
 
@@ -191,5 +206,84 @@ mod tests {
         assert!(BytesOptions::default().set_fast().is_fast());
         assert!(BytesOptions::default().set_indexed().is_indexed());
         assert!(BytesOptions::default().set_fieldnorms().fieldnorms());
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_missing_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: true,
+                fieldnorms: true,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_missing_indexed_false() {
+        let json = r#"{
+            "indexed": false,
+            "stored": false,
+            "fast": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: false,
+                fieldnorms: false,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_false_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "fieldnorms": false,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: true,
+                fieldnorms: false,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_true_indexed_false() {
+        // this one is kind of useless, at least at the moment
+        let json = r#"{
+            "indexed": false,
+            "fieldnorms": true,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: false,
+                fieldnorms: true,
+                fast: false,
+                stored: false
+            }
+        );
     }
 }

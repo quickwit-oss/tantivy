@@ -240,6 +240,11 @@ impl Schema {
         self.get_field_entry(field).name()
     }
 
+    /// Returns the number of fields in the schema.
+    pub fn num_fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
     /// Return the list of all the `Field`s.
     pub fn fields(&self) -> impl Iterator<Item = (Field, &FieldEntry)> {
         self.0

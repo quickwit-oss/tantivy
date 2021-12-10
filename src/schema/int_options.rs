@@ -16,12 +16,40 @@ pub enum Cardinality {
 
 /// Define how an u64, i64, of f64 field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "IntOptionsDeser")]
 pub struct IntOptions {
     indexed: bool,
-    fieldnorms: bool,
+    // This boolean has no effect if the field is not marked as indexed too.
+    fieldnorms: bool, // This attribute only has an effect if indexed is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     fast: Option<Cardinality>,
     stored: bool,
+}
+
+/// For backward compability we add an intermediary to interpret the
+/// lack of fieldnorms attribute as "true" iff indexed.
+///
+/// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
+/// Note that: newly serialized IntOptions will include the new attribute.
+#[derive(Deserialize)]
+struct IntOptionsDeser {
+    indexed: bool,
+    #[serde(default)]
+    fieldnorms: Option<bool>, // This attribute only has an effect if indexed is true.
+    #[serde(default)]
+    fast: Option<Cardinality>,
+    stored: bool,
+}
+
+impl From<IntOptionsDeser> for IntOptions {
+    fn from(deser: IntOptionsDeser) -> Self {
+        IntOptions {
+            indexed: deser.indexed,
+            fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
+            fast: deser.fast,
+            stored: deser.stored,
+        }
+    }
 }
 
 impl IntOptions {
@@ -37,7 +65,7 @@ impl IntOptions {
 
     /// Returns true iff the field has fieldnorm.
     pub fn fieldnorms(&self) -> bool {
-        self.fieldnorms
+        self.fieldnorms && self.indexed
     }
 
     /// Returns true iff the value is a fast field.
@@ -166,5 +194,85 @@ where
 {
     fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
         Self::from(head_tail.head) | Self::from(head_tail.tail)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_int_options_deser_if_fieldnorm_missing_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "stored": false
+        }"#;
+        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &int_options,
+            &IntOptions {
+                indexed: true,
+                fieldnorms: true,
+                fast: None,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_int_options_deser_if_fieldnorm_missing_indexed_false() {
+        let json = r#"{
+            "indexed": false,
+            "stored": false
+        }"#;
+        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &int_options,
+            &IntOptions {
+                indexed: false,
+                fieldnorms: false,
+                fast: None,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_int_options_deser_if_fieldnorm_false_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "fieldnorms": false,
+            "stored": false
+        }"#;
+        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &int_options,
+            &IntOptions {
+                indexed: true,
+                fieldnorms: false,
+                fast: None,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_int_options_deser_if_fieldnorm_true_indexed_false() {
+        // this one is kind of useless, at least at the moment
+        let json = r#"{
+            "indexed": false,
+            "fieldnorms": true,
+            "stored": false
+        }"#;
+        let int_options: IntOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &int_options,
+            &IntOptions {
+                indexed: false,
+                fieldnorms: true,
+                fast: None,
+                stored: false
+            }
+        );
     }
 }

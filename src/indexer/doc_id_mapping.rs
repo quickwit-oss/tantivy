@@ -75,6 +75,9 @@ impl DocIdMapping {
     pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().cloned()
     }
+    pub fn num_new_doc_ids(&self) -> usize {
+        self.new_doc_id_to_old.len()
+    }
 }
 
 pub(crate) fn expect_field_id_for_sort_field(
