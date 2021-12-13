@@ -237,6 +237,7 @@ pub fn version_string() -> &'static str {
 pub mod merge_policy {
     pub use crate::indexer::DefaultMergePolicy;
     pub use crate::indexer::LogMergePolicy;
+    pub use crate::indexer::MergeCandidate;
     pub use crate::indexer::MergePolicy;
     pub use crate::indexer::NoMergePolicy;
 }
