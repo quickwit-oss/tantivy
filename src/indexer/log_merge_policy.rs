@@ -8,6 +8,7 @@ const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
 const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
+const DEFAULT_MAX_DEL_DOCS_PCT: u8 = 100;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
@@ -17,6 +18,7 @@ pub struct LogMergePolicy {
     max_docs_before_merge: usize,
     min_layer_size: u32,
     level_log_size: f64,
+    max_del_docs_pct: u8,
 }
 
 impl LogMergePolicy {
@@ -52,19 +54,34 @@ impl LogMergePolicy {
     pub fn set_level_log_size(&mut self, level_log_size: f64) {
         self.level_log_size = level_log_size;
     }
+
+    /// Set the maximum percentage of deleted documents in a segment to
+    /// tolerate, if it is exceeded by any segment at a log level, a merge
+    /// will be triggered for it.
+    ///
+    /// If there is a single segment at a level, we effectively end up expunging
+    /// deleted documents from it.
+    pub fn set_max_del_docs_pct(&mut self, max_del_docs_pct: u8) {
+        assert!(max_del_docs_pct <= 100);
+        self.max_del_docs_pct = max_del_docs_pct;
+    }
+}
+
+fn deletes_pct(segment: &SegmentMeta) -> u8 {
+    (segment.num_deleted_docs() as u64 * 100 / segment.max_doc() as u64) as u8
 }
 
 impl MergePolicy for LogMergePolicy {
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
-        let mut size_sorted_segments = segments
+        let size_sorted_segments = segments
             .iter()
-            .filter(|segment_meta| segment_meta.num_docs() <= (self.max_docs_before_merge as u32))
+            .filter(|seg| seg.num_docs() <= (self.max_docs_before_merge as u32))
+            .sorted_by_key(|seg| std::cmp::Reverse(seg.max_doc()))
             .collect::<Vec<&SegmentMeta>>();
 
-        if size_sorted_segments.len() <= 1 {
+        if size_sorted_segments.is_empty() {
             return vec![];
         }
-        size_sorted_segments.sort_by_key(|seg| std::cmp::Reverse(seg.num_docs()));
 
         let mut current_max_log_size = f64::MAX;
         let mut levels = vec![];
@@ -82,7 +99,12 @@ impl MergePolicy for LogMergePolicy {
 
         levels
             .iter()
-            .filter(|level| level.len() >= self.min_num_segments)
+            .filter(|level| {
+                level.len() >= self.min_num_segments
+                    || level
+                        .iter()
+                        .any(|segment| deletes_pct(segment) > self.max_del_docs_pct)
+            })
             .map(|segments| MergeCandidate(segments.iter().map(|&seg| seg.id()).collect()))
             .collect()
     }
@@ -95,6 +117,7 @@ impl Default for LogMergePolicy {
             max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
+            max_del_docs_pct: DEFAULT_MAX_DEL_DOCS_PCT,
         }
     }
 }
