@@ -7,7 +7,7 @@ const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
 const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
-const DEFAULT_MAX_DEL_DOCS_PCT: u8 = 100;
+const DEFAULT_DEL_DOCS_PERCENTAGE_BEFORE_MERGE: u8 = 100;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
@@ -17,7 +17,7 @@ pub struct LogMergePolicy {
     max_docs_before_merge: usize,
     min_layer_size: u32,
     level_log_size: f64,
-    max_del_docs_pct: u8,
+    del_docs_percentage_before_merge: u8,
 }
 
 impl LogMergePolicy {
@@ -54,19 +54,25 @@ impl LogMergePolicy {
         self.level_log_size = level_log_size;
     }
 
-    /// Set the maximum percentage of deleted documents in a segment to
+    /// Set the percentage of deleted documents in a segment to
     /// tolerate, if it is exceeded by any segment at a log level, a merge
     /// will be triggered for it.
     ///
     /// If there is a single segment at a level, we effectively end up expunging
     /// deleted documents from it.
-    pub fn set_max_del_docs_pct(&mut self, max_del_docs_pct: u8) {
-        assert!(max_del_docs_pct <= 100);
-        self.max_del_docs_pct = max_del_docs_pct;
+    pub fn set_del_docs_percentage_before_merge(&mut self, del_docs_percentage_before_merge: u8) {
+        assert!(del_docs_percentage_before_merge <= 100);
+        self.del_docs_percentage_before_merge = del_docs_percentage_before_merge;
+    }
+
+    fn has_segment_above_deletes_threshold(&self, level: &[&SegmentMeta]) -> bool {
+        level
+            .iter()
+            .any(|segment| deletes_percentage(segment) > self.del_docs_percentage_before_merge)
     }
 }
 
-fn deletes_pct(segment: &SegmentMeta) -> u8 {
+fn deletes_percentage(segment: &SegmentMeta) -> u8 {
     (segment.num_deleted_docs() as u64 * 100 / segment.max_doc() as u64) as u8
 }
 
@@ -100,9 +106,7 @@ impl MergePolicy for LogMergePolicy {
             .iter()
             .filter(|level| {
                 level.len() >= self.min_num_segments
-                    || level
-                        .iter()
-                        .any(|segment| deletes_pct(segment) > self.max_del_docs_pct)
+                    || self.has_segment_above_deletes_threshold(level)
             })
             .map(|segments| MergeCandidate(segments.iter().map(|&seg| seg.id()).collect()))
             .collect()
@@ -116,7 +120,7 @@ impl Default for LogMergePolicy {
             max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
-            max_del_docs_pct: DEFAULT_MAX_DEL_DOCS_PCT,
+            del_docs_percentage_before_merge: DEFAULT_DEL_DOCS_PERCENTAGE_BEFORE_MERGE,
         }
     }
 }
