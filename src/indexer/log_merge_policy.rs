@@ -2,7 +2,6 @@ use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::core::SegmentMeta;
 use itertools::Itertools;
 use std::cmp;
-use std::f64;
 
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
