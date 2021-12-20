@@ -7,10 +7,10 @@ const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
 const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
-// The default value of 100% means that deletes are not taken in account when
+// The default value of 1 means that deletes are not taken in account when
 // identifying merge candidates. This is not a very sensible default: it was
 // set like that for backward compatibility and might change in the near future.
-const DEFAULT_DEL_DOCS_PERCENTAGE_BEFORE_MERGE: u8 = 100;
+const DEFAULT_DEL_DOCS_RATIO_BEFORE_MERGE: f32 = 1.0f32;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
 /// documents.
@@ -20,7 +20,7 @@ pub struct LogMergePolicy {
     max_docs_before_merge: usize,
     min_layer_size: u32,
     level_log_size: f64,
-    del_docs_percentage_before_merge: u8,
+    del_docs_ratio_before_merge: f32,
 }
 
 impl LogMergePolicy {
@@ -57,26 +57,35 @@ impl LogMergePolicy {
         self.level_log_size = level_log_size;
     }
 
-    /// Set the percentage of deleted documents in a segment to tolerate.
+    /// Set the ratio of deleted documents in a segment to tolerate.
+    ///
     /// If it is exceeded by any segment at a log level, a merge
     /// will be triggered for that level.
     ///
     /// If there is a single segment at a level, we effectively end up expunging
     /// deleted documents from it.
-    pub fn set_del_docs_percentage_before_merge(&mut self, del_docs_percentage_before_merge: u8) {
-        assert!(del_docs_percentage_before_merge <= 100);
-        self.del_docs_percentage_before_merge = del_docs_percentage_before_merge;
+    ///
+    /// # Panics
+    ///
+    /// Panics if del_docs_percentage_before_merge is not within (0..1].
+    pub fn set_del_docs_ratio_before_merge(&mut self, del_docs_percentage_before_merge: f32) {
+        assert!(del_docs_percentage_before_merge <= 1.0f32);
+        assert!(del_docs_percentage_before_merge > 0f32);
+        self.del_docs_ratio_before_merge = del_docs_percentage_before_merge;
     }
 
     fn has_segment_above_deletes_threshold(&self, level: &[&SegmentMeta]) -> bool {
         level
             .iter()
-            .any(|segment| deletes_percentage(segment) > self.del_docs_percentage_before_merge)
+            .any(|segment| deletes_ratio(segment) > self.del_docs_ratio_before_merge)
     }
 }
 
-fn deletes_percentage(segment: &SegmentMeta) -> u8 {
-    (segment.num_deleted_docs() as u64 * 100 / segment.max_doc() as u64) as u8
+fn deletes_ratio(segment: &SegmentMeta) -> f32 {
+    if segment.max_doc() == 0 {
+        return 0f32;
+    }
+    segment.num_deleted_docs() as f32 / segment.max_doc() as f32
 }
 
 impl MergePolicy for LogMergePolicy {
@@ -123,7 +132,7 @@ impl Default for LogMergePolicy {
             max_docs_before_merge: DEFAULT_MAX_DOCS_BEFORE_MERGE,
             min_layer_size: DEFAULT_MIN_LAYER_SIZE,
             level_log_size: DEFAULT_LEVEL_LOG_SIZE,
-            del_docs_percentage_before_merge: DEFAULT_DEL_DOCS_PERCENTAGE_BEFORE_MERGE,
+            del_docs_ratio_before_merge: DEFAULT_DEL_DOCS_RATIO_BEFORE_MERGE,
         }
     }
 }
@@ -316,5 +325,56 @@ mod tests {
         assert_eq!(result_list[0].0[0], test_input[2].id());
         assert_eq!(result_list[0].0[1], test_input[4].id());
         assert_eq!(result_list[0].0[2], test_input[5].id());
+    }
+
+    #[test]
+    fn test_merge_single_segment_with_deletes_below_threshold() {
+        let mut test_merge_policy = test_merge_policy();
+        test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
+        let test_input =
+            vec![create_random_segment_meta(40_000).with_delete_meta(10_000, 1)];
+        let merge_candidates =
+            test_merge_policy.compute_merge_candidates(&test_input);
+        assert!(merge_candidates.is_empty());
+    }
+
+    #[test]
+    fn test_merge_single_segment_with_deletes_above_threshold() {
+        let mut test_merge_policy = test_merge_policy();
+        test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
+        let test_input =
+            vec![create_random_segment_meta(40_000).with_delete_meta(10_001, 1)];
+        let merge_candidates =
+            test_merge_policy.compute_merge_candidates(&test_input);
+        assert_eq!(merge_candidates.len(), 1);
+    }
+
+    #[test]
+    fn test_merge_segments_with_deletes_above_threshold_all_in_level() {
+        let mut test_merge_policy = test_merge_policy();
+        test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
+        let test_input = vec![
+            create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
+            create_random_segment_meta(40_000),
+        ];
+        let merge_candidates =
+            test_merge_policy.compute_merge_candidates(&test_input);
+        assert_eq!(merge_candidates.len(), 1);
+        assert_eq!(merge_candidates[0].0.len(), 2);
+    }
+
+    #[test]
+    fn test_merge_segments_with_deletes_above_threshold_different_level_not_involved() {
+        let mut test_merge_policy = test_merge_policy();
+        test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
+        let test_input= vec![
+            create_random_segment_meta(100),
+            create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
+        ];
+        let merge_candidates =
+            test_merge_policy.compute_merge_candidates(&test_input);
+        assert_eq!(merge_candidates.len(), 1);
+        assert_eq!(merge_candidates[0].0.len(), 1);
+        assert_eq!(merge_candidates[0].0[0], test_input[1].id());
     }
 }
