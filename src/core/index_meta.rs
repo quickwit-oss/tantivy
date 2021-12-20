@@ -189,6 +189,10 @@ impl SegmentMeta {
 
     #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
+        assert!(
+            num_deleted_docs <= self.max_doc(),
+            "There cannot be more deleted docs than there are docs."
+        );
         let delete_meta = DeleteMeta {
             num_deleted_docs,
             opstamp,
