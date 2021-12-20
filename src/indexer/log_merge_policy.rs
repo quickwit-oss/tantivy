@@ -54,9 +54,9 @@ impl LogMergePolicy {
         self.level_log_size = level_log_size;
     }
 
-    /// Set the percentage of deleted documents in a segment to
-    /// tolerate, if it is exceeded by any segment at a log level, a merge
-    /// will be triggered for it.
+    /// Set the percentage of deleted documents in a segment to tolerate.
+    /// If it is exceeded by any segment at a log level, a merge
+    /// will be triggered for that level.
     ///
     /// If there is a single segment at a level, we effectively end up expunging
     /// deleted documents from it.
