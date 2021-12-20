@@ -67,11 +67,11 @@ impl LogMergePolicy {
     ///
     /// # Panics
     ///
-    /// Panics if del_docs_percentage_before_merge is not within (0..1].
-    pub fn set_del_docs_ratio_before_merge(&mut self, del_docs_percentage_before_merge: f32) {
-        assert!(del_docs_percentage_before_merge <= 1.0f32);
-        assert!(del_docs_percentage_before_merge > 0f32);
-        self.del_docs_ratio_before_merge = del_docs_percentage_before_merge;
+    /// Panics if del_docs_ratio_before_merge is not within (0..1].
+    pub fn set_del_docs_ratio_before_merge(&mut self, del_docs_ratio_before_merge: f32) {
+        assert!(del_docs_ratio_before_merge <= 1.0f32);
+        assert!(del_docs_ratio_before_merge > 0f32);
+        self.del_docs_ratio_before_merge = del_docs_ratio_before_merge;
     }
 
     fn has_segment_above_deletes_threshold(&self, level: &[&SegmentMeta]) -> bool {
@@ -331,10 +331,8 @@ mod tests {
     fn test_merge_single_segment_with_deletes_below_threshold() {
         let mut test_merge_policy = test_merge_policy();
         test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
-        let test_input =
-            vec![create_random_segment_meta(40_000).with_delete_meta(10_000, 1)];
-        let merge_candidates =
-            test_merge_policy.compute_merge_candidates(&test_input);
+        let test_input = vec![create_random_segment_meta(40_000).with_delete_meta(10_000, 1)];
+        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
         assert!(merge_candidates.is_empty());
     }
 
@@ -342,10 +340,8 @@ mod tests {
     fn test_merge_single_segment_with_deletes_above_threshold() {
         let mut test_merge_policy = test_merge_policy();
         test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
-        let test_input =
-            vec![create_random_segment_meta(40_000).with_delete_meta(10_001, 1)];
-        let merge_candidates =
-            test_merge_policy.compute_merge_candidates(&test_input);
+        let test_input = vec![create_random_segment_meta(40_000).with_delete_meta(10_001, 1)];
+        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
         assert_eq!(merge_candidates.len(), 1);
     }
 
@@ -357,8 +353,7 @@ mod tests {
             create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
             create_random_segment_meta(40_000),
         ];
-        let merge_candidates =
-            test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
         assert_eq!(merge_candidates.len(), 1);
         assert_eq!(merge_candidates[0].0.len(), 2);
     }
@@ -367,12 +362,11 @@ mod tests {
     fn test_merge_segments_with_deletes_above_threshold_different_level_not_involved() {
         let mut test_merge_policy = test_merge_policy();
         test_merge_policy.set_del_docs_ratio_before_merge(0.25f32);
-        let test_input= vec![
+        let test_input = vec![
             create_random_segment_meta(100),
             create_random_segment_meta(40_000).with_delete_meta(10_001, 1),
         ];
-        let merge_candidates =
-            test_merge_policy.compute_merge_candidates(&test_input);
+        let merge_candidates = test_merge_policy.compute_merge_candidates(&test_input);
         assert_eq!(merge_candidates.len(), 1);
         assert_eq!(merge_candidates[0].0.len(), 1);
         assert_eq!(merge_candidates[0].0[0], test_input[1].id());
