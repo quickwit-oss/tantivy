@@ -7,6 +7,9 @@ const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
 const DEFAULT_MIN_NUM_SEGMENTS_IN_MERGE: usize = 8;
 const DEFAULT_MAX_DOCS_BEFORE_MERGE: usize = 10_000_000;
+// The default value of 100% means that deletes are not taken in account when
+// identifying merge candidates. This is not a very sensible default: it was
+// set like that for backward compatibility and might change in the near future.
 const DEFAULT_DEL_DOCS_PERCENTAGE_BEFORE_MERGE: u8 = 100;
 
 /// `LogMergePolicy` tries to merge segments that have a similar number of
