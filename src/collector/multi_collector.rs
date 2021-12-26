@@ -112,19 +112,19 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{doc, Index};
 ///
+/// # fn main() -> tantivy::Result<()> {
 /// let mut schema_builder = Schema::builder();
 /// let title = schema_builder.add_text_field("title", TEXT);
 /// let schema = schema_builder.build();
 /// let index = Index::create_in_ram(schema);
+/// let mut index_writer = index.writer(3_000_000)?;
+/// index_writer.add_document(doc!(title => "The Name of the Wind"))?;
+/// index_writer.add_document(doc!(title => "The Diary of Muadib"))?;
+/// index_writer.add_document(doc!(title => "A Dairy Cow"))?;
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"))?;
+/// index_writer.commit()?;
 ///
-/// let mut index_writer = index.writer(3_000_000).unwrap();
-/// index_writer.add_document(doc!(title => "The Name of the Wind"));
-/// index_writer.add_document(doc!(title => "The Diary of Muadib"));
-/// index_writer.add_document(doc!(title => "A Dairy Cow"));
-/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
-/// assert!(index_writer.commit().is_ok());
-///
-/// let reader = index.reader().unwrap();
+/// let reader = index.reader()?;
 /// let searcher = reader.searcher();
 ///
 /// let mut collectors = MultiCollector::new();
@@ -139,6 +139,8 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///
 /// assert_eq!(count, 2);
 /// assert_eq!(top_docs.len(), 2);
+/// # Ok(())
+/// # }
 /// ```
 #[allow(clippy::type_complexity)]
 #[derive(Default)]
@@ -252,24 +254,24 @@ mod tests {
     use crate::Term;
 
     #[test]
-    fn test_multi_collector() {
+    fn test_multi_collector() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text=>"abc"));
-            index_writer.add_document(doc!(text=>"abc abc abc"));
-            index_writer.add_document(doc!(text=>"abc abc"));
-            index_writer.commit().unwrap();
-            index_writer.add_document(doc!(text=>""));
-            index_writer.add_document(doc!(text=>"abc abc abc abc"));
-            index_writer.add_document(doc!(text=>"abc"));
-            index_writer.commit().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text=>"abc"))?;
+            index_writer.add_document(doc!(text=>"abc abc abc"))?;
+            index_writer.add_document(doc!(text=>"abc abc"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text=>""))?;
+            index_writer.add_document(doc!(text=>"abc abc abc abc"))?;
+            index_writer.add_document(doc!(text=>"abc"))?;
+            index_writer.commit()?;
         }
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let term = Term::from_field_text(text, "abc");
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 
@@ -280,5 +282,6 @@ mod tests {
 
         assert_eq!(count_handler.extract(&mut multifruits), 5);
         assert_eq!(topdocs_handler.extract(&mut multifruits).len(), 2);
+        Ok(())
     }
 }

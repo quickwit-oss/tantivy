@@ -1,12 +1,12 @@
 use super::multivalued::MultiValuedFastFieldWriter;
 use super::serializer::FastFieldStats;
 use super::FastFieldDataAccess;
-use crate::common;
 use crate::fastfield::{BytesFastFieldWriter, CompositeFastFieldSerializer};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Cardinality, Document, Field, FieldEntry, FieldType, Schema};
 use crate::termdict::TermOrdinal;
+use common;
 use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;

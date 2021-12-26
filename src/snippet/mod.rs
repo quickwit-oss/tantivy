@@ -16,7 +16,6 @@ pub struct FragmentCandidate {
     score: Score,
     start_offset: usize,
     stop_offset: usize,
-    num_chars: usize,
     highlighted: Vec<Range<usize>>,
 }
 
@@ -31,7 +30,6 @@ impl FragmentCandidate {
             score: 0.0,
             start_offset,
             stop_offset: start_offset,
-            num_chars: 0,
             highlighted: vec![],
         }
     }
@@ -209,7 +207,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// #  Quand avec mes haleurs ont fini ces tapages,
 /// #  Les Fleuves m'ont laissé descendre où je voulais.
 /// #  "#);
-/// #    index_writer.add_document(doc.clone());
+/// #    index_writer.add_document(doc.clone())?;
 /// #    index_writer.commit()?;
 /// #    let query_parser = QueryParser::for_index(&index, vec![text_field]);
 /// // ...
@@ -472,58 +470,55 @@ Survey in 2016, 2017, and 2018."#;
     }
 
     #[test]
-    fn test_snippet_generator_term_score() {
+    fn test_snippet_generator_term_score() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field => "a"));
-            index_writer.add_document(doc!(text_field => "a"));
-            index_writer.add_document(doc!(text_field => "a b"));
-            index_writer.commit().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "a"))?;
+            index_writer.add_document(doc!(text_field => "a"))?;
+            index_writer.add_document(doc!(text_field => "a b"))?;
+            index_writer.commit()?;
         }
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         {
-            let query = query_parser.parse_query("e").unwrap();
-            let snippet_generator =
-                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
+            let query = query_parser.parse_query("e")?;
+            let snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
             assert!(snippet_generator.terms_text().is_empty());
         }
         {
-            let query = query_parser.parse_query("a").unwrap();
-            let snippet_generator =
-                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
+            let query = query_parser.parse_query("a")?;
+            let snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25),
                 snippet_generator.terms_text()
             );
         }
         {
-            let query = query_parser.parse_query("a b").unwrap();
-            let snippet_generator =
-                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
+            let query = query_parser.parse_query("a b")?;
+            let snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
             );
         }
         {
-            let query = query_parser.parse_query("a b c").unwrap();
-            let snippet_generator =
-                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
+            let query = query_parser.parse_query("a b c")?;
+            let snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn test_snippet_generator() {
+    fn test_snippet_generator() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
@@ -535,12 +530,10 @@ Survey in 2016, 2017, and 2018."#;
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_for_tests().unwrap();
-            {
-                let doc = doc ! (text_field => TEST_TEXT);
-                index_writer.add_document(doc);
-            }
-            index_writer.commit().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
+            let doc = doc!(text_field => TEST_TEXT);
+            index_writer.add_document(doc)?;
+            index_writer.commit()?;
         }
         let searcher = index.reader().unwrap().searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
@@ -556,5 +549,6 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = snippet_generator.snippet(TEST_TEXT);
             assert_eq!(snippet.to_html(), "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to");
         }
+        Ok(())
     }
 }

@@ -1,8 +1,5 @@
-use crate::{
-    common::{BinarySerializable, FixedSize, HasLen},
-    directory::FileSlice,
-    store::Compressor,
-};
+use crate::{directory::FileSlice, store::Compressor};
+use common::{BinarySerializable, FixedSize, HasLen};
 use std::io;
 
 #[derive(Debug, Clone, PartialEq)]

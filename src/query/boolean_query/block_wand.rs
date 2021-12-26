@@ -42,27 +42,39 @@ fn find_pivot_doc(
     Some((before_pivot_len, pivot_len, pivot_doc))
 }
 
-// Before and after calling this method, scorers need to be sorted by their `.doc()`.
+/// Advance the scorer with best score among the scorers[..pivot_len] to
+/// the next doc candidate defined by the min of `last_doc_in_block + 1` for
+/// scorer in scorers[..pivot_len] and `scorer.doc()` for scorer in scorers[pivot_len..].
+/// Note: before and after calling this method, scorers need to be sorted by their `.doc()`.
 fn block_max_was_too_low_advance_one_scorer(
     scorers: &mut Vec<TermScorerWithMaxScore>,
     pivot_len: usize,
 ) {
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
     let mut scorer_to_seek = pivot_len - 1;
-    let mut doc_to_seek_after = scorers[scorer_to_seek].doc();
+    let mut global_max_score = scorers[scorer_to_seek].max_score;
+    let mut doc_to_seek_after = scorers[scorer_to_seek].last_doc_in_block();
     for scorer_ord in (0..pivot_len - 1).rev() {
         let scorer = &scorers[scorer_ord];
         if scorer.last_doc_in_block() <= doc_to_seek_after {
             doc_to_seek_after = scorer.last_doc_in_block();
+        }
+        if scorers[scorer_ord].max_score > global_max_score {
+            global_max_score = scorers[scorer_ord].max_score;
             scorer_to_seek = scorer_ord;
         }
+    }
+    // Add +1 to go to the next block unless we are already at the end.
+    if doc_to_seek_after != TERMINATED {
+        doc_to_seek_after += 1;
     }
     for scorer in &scorers[pivot_len..] {
         if scorer.doc() <= doc_to_seek_after {
             doc_to_seek_after = scorer.doc();
         }
     }
-    scorers[scorer_to_seek].seek(doc_to_seek_after + 1);
+    scorers[scorer_to_seek].seek(doc_to_seek_after);
+
     restore_ordering(scorers, scorer_to_seek);
     debug_assert!(is_sorted(scorers.iter().map(|scorer| scorer.doc())));
 }
@@ -130,6 +142,9 @@ fn advance_all_scorers_on_pivot(term_scorers: &mut Vec<TermScorerWithMaxScore>, 
     term_scorers.sort_by_key(|scorer| scorer.doc());
 }
 
+/// Implements the WAND (Weak AND) algorithm for dynamic pruning
+/// described in the paper "Faster Top-k Document Retrieval Using Block-Max Indexes".
+/// Link: http://engineering.nyu.edu/~suel/papers/bmw.pdf
 pub fn block_wand(
     mut scorers: Vec<TermScorer>,
     mut threshold: Score,
@@ -187,11 +202,62 @@ pub fn block_wand(
             .iter_mut()
             .map(|scorer| scorer.score())
             .sum();
+
         if score > threshold {
             threshold = callback(pivot_doc, score);
         }
         // let's advance all of the scorers that are currently positioned on the pivot.
         advance_all_scorers_on_pivot(&mut scorers, pivot_len);
+    }
+}
+
+/// Specialized version of [`block_wand`] for a single scorer.
+/// In this case, the algorithm is simple and readable and faster (~ x3)
+/// than the generic algorithm.
+/// The algorithm behaves as follows:
+/// - While we don't hit the end of the docset:
+///   - While the block max score is under the `threshold`, go to the
+///     next block.
+///   - On a block, advance until the end and execute `callback``
+///     when the doc score is greater or equal to the `threshold`.
+pub fn block_wand_single_scorer(
+    mut scorer: TermScorer,
+    mut threshold: Score,
+    callback: &mut dyn FnMut(u32, Score) -> Score,
+) {
+    let mut doc = scorer.doc();
+    loop {
+        // We position the scorer on a block that can reach
+        // the threshold.
+        while scorer.block_max_score() < threshold {
+            let last_doc_in_block = scorer.last_doc_in_block();
+            if last_doc_in_block == TERMINATED {
+                return;
+            }
+            doc = last_doc_in_block + 1;
+            scorer.shallow_seek(doc);
+        }
+        // Seek will effectively load that block.
+        doc = scorer.seek(doc);
+        if doc == TERMINATED {
+            break;
+        }
+        loop {
+            let score = scorer.score();
+            if score > threshold {
+                threshold = callback(doc, score);
+            }
+            debug_assert!(doc <= scorer.last_doc_in_block());
+            if doc == scorer.last_doc_in_block() {
+                break;
+            }
+            doc = scorer.advance();
+            if doc == TERMINATED {
+                return;
+            }
+        }
+        doc += 1;
+        scorer.shallow_seek(doc);
     }
 }
 
@@ -272,13 +338,14 @@ mod tests {
     }
 
     fn compute_checkpoints_for_each_pruning(
-        term_scorers: Vec<TermScorer>,
+        mut term_scorers: Vec<TermScorer>,
         n: usize,
     ) -> Vec<(DocId, Score)> {
         let mut heap: BinaryHeap<Float> = BinaryHeap::with_capacity(n);
         let mut checkpoints: Vec<(DocId, Score)> = Vec::new();
         let mut limit: Score = 0.0;
-        super::block_wand(term_scorers, Score::MIN, &mut |doc, score| {
+
+        let callback = &mut |doc, score| {
             heap.push(Float(score));
             if heap.len() > n {
                 heap.pop().unwrap();
@@ -290,7 +357,14 @@ mod tests {
                 checkpoints.push((doc, score));
             }
             limit
-        });
+        };
+
+        if term_scorers.len() == 1 {
+            let scorer = term_scorers.pop().unwrap();
+            super::block_wand_single_scorer(scorer, Score::MIN, callback);
+        } else {
+            super::block_wand(term_scorers, Score::MIN, callback);
+        }
         checkpoints
     }
 
@@ -420,6 +494,14 @@ mod tests {
         #![proptest_config(ProptestConfig::with_cases(500))]
         #[test]
         fn test_block_wand_two_term_scorers((posting_lists, fieldnorms) in gen_term_scorers(2)) {
+            test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(500))]
+        #[test]
+        fn test_block_wand_single_term_scorer((posting_lists, fieldnorms) in gen_term_scorers(1)) {
             test_block_wand_aux(&posting_lists[..], &fieldnorms[..]);
         }
     }

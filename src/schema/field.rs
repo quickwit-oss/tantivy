@@ -1,4 +1,4 @@
-use crate::common::BinarySerializable;
+use common::BinarySerializable;
 use std::io;
 use std::io::Read;
 use std::io::Write;

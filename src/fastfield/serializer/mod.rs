@@ -1,8 +1,8 @@
-use crate::common::BinarySerializable;
-use crate::common::CompositeWrite;
-use crate::common::CountingWriter;
+use crate::directory::CompositeWrite;
 use crate::directory::WritePtr;
 use crate::schema::Field;
+use common::BinarySerializable;
+use common::CountingWriter;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
@@ -105,9 +105,7 @@ impl CompositeFastFieldSerializer {
             &fastfield_accessor,
             &mut estimations,
         );
-        if let Some(broken_estimation) = estimations
-            .iter()
-            .find(|estimation| estimation.0 == f32::NAN)
+        if let Some(broken_estimation) = estimations.iter().find(|estimation| estimation.0.is_nan())
         {
             warn!(
                 "broken estimation for fast field codec {}",

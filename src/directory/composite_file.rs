@@ -1,17 +1,16 @@
-use crate::common::BinarySerializable;
-use crate::common::CountingWriter;
-use crate::common::VInt;
 use crate::directory::FileSlice;
 use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Field;
 use crate::space_usage::FieldUsage;
 use crate::space_usage::PerFieldSpaceUsage;
+use common::BinarySerializable;
+use common::CountingWriter;
+use common::HasLen;
+use common::VInt;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::iter::ExactSizeIterator;
 use std::ops::Range;
-
-use super::HasLen;
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
@@ -188,10 +187,10 @@ impl CompositeFile {
 mod test {
 
     use super::{CompositeFile, CompositeWrite};
-    use crate::common::BinarySerializable;
-    use crate::common::VInt;
     use crate::directory::{Directory, RamDirectory};
     use crate::schema::Field;
+    use common::BinarySerializable;
+    use common::VInt;
     use std::io::Write;
     use std::path::Path;
 

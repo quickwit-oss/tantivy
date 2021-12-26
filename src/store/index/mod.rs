@@ -47,7 +47,7 @@ mod tests {
 
     use crate::directory::OwnedBytes;
     use crate::indexer::NoMergePolicy;
-    use crate::schema::{SchemaBuilder, STORED, STRING};
+    use crate::schema::{SchemaBuilder, STORED, TEXT};
     use crate::store::index::Checkpoint;
     use crate::{DocAddress, DocId, Index, Term};
 
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn test_merge_store_with_stacking_reproducing_issue969() -> crate::Result<()> {
         let mut schema_builder = SchemaBuilder::default();
-        let text = schema_builder.add_text_field("text", STORED | STRING);
+        let text = schema_builder.add_text_field("text", STORED | TEXT);
         let body = schema_builder.add_text_field("body", STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -136,12 +136,12 @@ mod tests {
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         let long_text: String = "abcdefghijklmnopqrstuvwxyz".repeat(1_000);
         for _ in 0..20 {
-            index_writer.add_document(doc!(body=>long_text.clone()));
+            index_writer.add_document(doc!(body=>long_text.clone()))?;
         }
         index_writer.commit()?;
-        index_writer.add_document(doc!(text=>"testb"));
+        index_writer.add_document(doc!(text=>"testb"))?;
         for _ in 0..10 {
-            index_writer.add_document(doc!(text=>"testd", body=>long_text.clone()));
+            index_writer.add_document(doc!(text=>"testd", body=>long_text.clone()))?;
         }
         index_writer.commit()?;
         index_writer.delete_term(Term::from_field_text(text, "testb"));

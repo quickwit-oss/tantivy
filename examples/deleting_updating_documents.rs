@@ -76,15 +76,15 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(
         isbn => "978-0099908401",
         title => "The old Man and the see"
-    ));
+    ))?;
     index_writer.add_document(doc!(
         isbn => "978-0140177398",
         title => "Of Mice and Men",
-    ));
+    ))?;
     index_writer.add_document(doc!(
        title => "Frankentein", //< Oops there is a typo here.
        isbn => "978-9176370711",
-    ));
+    ))?;
     index_writer.commit()?;
     let reader = index.reader()?;
 
@@ -122,7 +122,7 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(
        title => "Frankenstein",
        isbn => "978-9176370711",
-    ));
+    ))?;
 
     // You are guaranteed that your clients will only observe your index in
     // the state it was in after a commit.

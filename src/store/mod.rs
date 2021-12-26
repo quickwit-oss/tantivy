@@ -57,7 +57,7 @@ pub mod tests {
     use futures::executor::block_on;
 
     use super::*;
-    use crate::fastfield::DeleteBitSet;
+    use crate::fastfield::AliveBitSet;
     use crate::schema::{self, FieldValue, TextFieldIndexing, STORED, TEXT};
     use crate::schema::{Document, TextOptions};
     use crate::{
@@ -112,8 +112,9 @@ pub mod tests {
     #[test]
     fn test_doc_store_iter_with_delete_bug_1077() -> crate::Result<()> {
         // this will cover deletion of the first element in a checkpoint
-        let deleted_docids = (200..300).collect::<Vec<_>>();
-        let delete_bitset = DeleteBitSet::for_test(&deleted_docids, NUM_DOCS as u32);
+        let deleted_doc_ids = (200..300).collect::<Vec<_>>();
+        let alive_bitset =
+            AliveBitSet::for_test_from_deleted_docs(&deleted_doc_ids, NUM_DOCS as u32);
 
         let path = Path::new("store");
         let directory = RamDirectory::create();
@@ -134,7 +135,7 @@ pub mod tests {
             );
         }
 
-        for (_, doc) in store.iter(Some(&delete_bitset)).enumerate() {
+        for (_, doc) in store.iter(Some(&alive_bitset)).enumerate() {
             let doc = doc?;
             let title_content = doc.get_first(field_title).unwrap().text().unwrap();
             if !title_content.starts_with("Doc ") {
@@ -146,7 +147,7 @@ pub mod tests {
                 .unwrap()
                 .parse::<u32>()
                 .unwrap();
-            if delete_bitset.is_deleted(id) {
+            if alive_bitset.is_deleted(id) {
                 panic!("unexpected deleted document {}", id);
             }
         }
@@ -182,6 +183,10 @@ pub mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_store_noop() -> crate::Result<()> {
+        test_store(Compressor::None)
+    }
     #[cfg(feature = "lz4-compression")]
     #[test]
     fn test_store_lz4_block() -> crate::Result<()> {
@@ -212,25 +217,24 @@ pub mod tests {
         let schema = schema_builder.build();
         let index_builder = Index::builder().schema(schema);
 
-        let index = index_builder.create_in_ram().unwrap();
+        let index = index_builder.create_in_ram()?;
 
         {
             let mut index_writer = index.writer_for_tests().unwrap();
-
-            index_writer.add_document(doc!(text_field=> "deleteme"));
-            index_writer.add_document(doc!(text_field=> "deletemenot"));
-            index_writer.add_document(doc!(text_field=> "deleteme"));
-            index_writer.add_document(doc!(text_field=> "deletemenot"));
-            index_writer.add_document(doc!(text_field=> "deleteme"));
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
+            index_writer.add_document(doc!(text_field=> "deletemenot"))?;
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
+            index_writer.add_document(doc!(text_field=> "deletemenot"))?;
+            index_writer.add_document(doc!(text_field=> "deleteme"))?;
 
             index_writer.delete_term(Term::from_field_text(text_field, "deleteme"));
-            assert!(index_writer.commit().is_ok());
+            index_writer.commit()?;
         }
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let reader = searcher.segment_reader(0);
-        let store = reader.get_store_reader().unwrap();
-        for doc in store.iter(reader.delete_bitset()) {
+        let store = reader.get_store_reader()?;
+        for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().text().unwrap(),
                 "deletemenot".to_string()
@@ -255,11 +259,11 @@ pub mod tests {
             let mut index_writer = index.writer_for_tests().unwrap();
             // put enough data create enough blocks in the doc store to be considered for stacking
             for _ in 0..200 {
-                index_writer.add_document(doc!(text_field=> LOREM));
+                index_writer.add_document(doc!(text_field=> LOREM))?;
             }
             assert!(index_writer.commit().is_ok());
             for _ in 0..200 {
-                index_writer.add_document(doc!(text_field=> LOREM));
+                index_writer.add_document(doc!(text_field=> LOREM))?;
             }
             assert!(index_writer.commit().is_ok());
         }
@@ -288,7 +292,7 @@ pub mod tests {
         let reader = searcher.segment_readers().iter().last().unwrap();
         let store = reader.get_store_reader().unwrap();
 
-        for doc in store.iter(reader.delete_bitset()).take(50) {
+        for doc in store.iter(reader.alive_bitset()).take(50) {
             assert_eq!(
                 *doc?.get_first(text_field).unwrap().text().unwrap(),
                 LOREM.to_string()
@@ -310,33 +314,30 @@ pub mod tests {
         let index = index_builder.create_in_ram().unwrap();
 
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-
-            index_writer.add_document(doc!(text_field=> "1"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "2"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "3"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "4"));
-            assert!(index_writer.commit().is_ok());
-            index_writer.add_document(doc!(text_field=> "5"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field=> "1"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "2"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "3"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "4"))?;
+            index_writer.commit()?;
+            index_writer.add_document(doc!(text_field=> "5"))?;
+            index_writer.commit()?;
         }
         // Merging the segments
         {
-            let segment_ids = index
-                .searchable_segment_ids()
-                .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_for_tests().unwrap();
-            assert!(block_on(index_writer.merge(&segment_ids)).is_ok());
-            assert!(index_writer.wait_merging_threads().is_ok());
+            let segment_ids = index.searchable_segment_ids()?;
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
         }
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let reader = searcher.segment_readers().iter().last().unwrap();
-        let store = reader.get_store_reader().unwrap();
+        let store = reader.get_store_reader()?;
         assert_eq!(store.block_checkpoints().count(), 1);
         Ok(())
     }

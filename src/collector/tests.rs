@@ -25,7 +25,7 @@ pub const TEST_COLLECTOR_WITHOUT_SCORE: TestCollector = TestCollector {
 };
 
 #[test]
-pub fn test_filter_collector() {
+pub fn test_filter_collector() -> crate::Result<()> {
     let mut schema_builder = Schema::builder();
     let title = schema_builder.add_text_field("title", TEXT);
     let price = schema_builder.add_u64_field("price", FAST);
@@ -33,25 +33,25 @@ pub fn test_filter_collector() {
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
 
-    let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
-    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_str("1898-04-09T00:00:00+00:00").unwrap()));
-    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_str("2020-04-09T00:00:00+00:00").unwrap()));
-    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_str("2019-04-20T00:00:00+00:00").unwrap()));
-    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()));
-    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_str("2018-04-09T00:00:00+00:00").unwrap()));
-    assert!(index_writer.commit().is_ok());
+    let mut index_writer = index.writer_with_num_threads(1, 10_000_000)?;
+    index_writer.add_document(doc!(title => "The Name of the Wind", price => 30_200u64, date => DateTime::from_str("1898-04-09T00:00:00+00:00").unwrap()))?;
+    index_writer.add_document(doc!(title => "The Diary of Muadib", price => 29_240u64, date => DateTime::from_str("2020-04-09T00:00:00+00:00").unwrap()))?;
+    index_writer.add_document(doc!(title => "The Diary of Anne Frank", price => 18_240u64, date => DateTime::from_str("2019-04-20T00:00:00+00:00").unwrap()))?;
+    index_writer.add_document(doc!(title => "A Dairy Cow", price => 21_240u64, date => DateTime::from_str("2019-04-09T00:00:00+00:00").unwrap()))?;
+    index_writer.add_document(doc!(title => "The Diary of a Young Girl", price => 20_120u64, date => DateTime::from_str("2018-04-09T00:00:00+00:00").unwrap()))?;
+    index_writer.commit()?;
 
-    let reader = index.reader().unwrap();
+    let reader = index.reader()?;
     let searcher = reader.searcher();
 
     let query_parser = QueryParser::for_index(&index, vec![title]);
-    let query = query_parser.parse_query("diary").unwrap();
+    let query = query_parser.parse_query("diary")?;
     let filter_some_collector = FilterCollector::new(
         price,
         &|value: u64| value > 20_120u64,
         TopDocs::with_limit(2),
     );
-    let top_docs = searcher.search(&query, &filter_some_collector).unwrap();
+    let top_docs = searcher.search(&query, &filter_some_collector)?;
 
     assert_eq!(top_docs.len(), 1);
     assert_eq!(top_docs[0].1, DocAddress::new(0, 1));
@@ -67,9 +67,10 @@ pub fn test_filter_collector() {
     }
 
     let filter_dates_collector = FilterCollector::new(date, &date_filter, TopDocs::with_limit(5));
-    let filtered_date_docs = searcher.search(&query, &filter_dates_collector).unwrap();
+    let filtered_date_docs = searcher.search(&query, &filter_dates_collector)?;
 
     assert_eq!(filtered_date_docs.len(), 2);
+    Ok(())
 }
 
 /// Stores all of the doc ids.
@@ -274,8 +275,8 @@ fn make_test_searcher() -> crate::Result<crate::LeasedItem<Searcher>> {
     let schema = Schema::builder().build();
     let index = Index::create_in_ram(schema);
     let mut index_writer = index.writer_for_tests()?;
-    index_writer.add_document(Document::default());
-    index_writer.add_document(Document::default());
+    index_writer.add_document(Document::default())?;
+    index_writer.add_document(Document::default())?;
     index_writer.commit()?;
     Ok(index.reader()?.searcher())
 }

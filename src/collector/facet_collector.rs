@@ -83,7 +83,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// ```rust
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
-/// use tantivy::schema::{Facet, Schema, INDEXED, TEXT};
+/// use tantivy::schema::{Facet, Schema, FacetOptions, TEXT};
 /// use tantivy::{doc, Index};
 ///
 /// fn example() -> tantivy::Result<()> {
@@ -92,7 +92,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     // Facet have their own specific type.
 ///     // It is not a bad practise to put all of your
 ///     // facet information in the same field.
-///     let facet = schema_builder.add_facet_field("facet", INDEXED);
+///     let facet = schema_builder.add_facet_field("facet", FacetOptions::default());
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -103,23 +103,23 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///             title => "The Name of the Wind",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/fiction/fantasy")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "Dune",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/fiction/sci-fi")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "La Vénus d'Ille",
 ///             facet => Facet::from("/lang/fr"),
 ///             facet => Facet::from("/category/fiction/fantasy"),
 ///             facet => Facet::from("/category/fiction/horror")
-///         ));
+///         ))?;
 ///         index_writer.add_document(doc!(
 ///             title => "The Diary of a Young Girl",
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/biography")
-///         ));
+///         ))?;
 ///         index_writer.commit()?;
 ///     }
 ///     let reader = index.reader()?;
@@ -462,7 +462,7 @@ mod tests {
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
-    use crate::schema::{Document, Facet, Field, IndexRecordOption, Schema, INDEXED};
+    use crate::schema::{Document, Facet, FacetOptions, Field, IndexRecordOption, Schema};
     use crate::Term;
     use rand::distributions::Uniform;
     use rand::prelude::SliceRandom;
@@ -470,13 +470,13 @@ mod tests {
     use std::iter;
 
     #[test]
-    fn test_facet_collector_drilldown() {
+    fn test_facet_collector_drilldown() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -491,14 +491,14 @@ mod tests {
         for i in 0..num_facets * 10 {
             let mut doc = Document::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet(Facet::from("/top1"));
-        let counts = searcher.search(&AllQuery, &facet_collector).unwrap();
+        let counts = searcher.search(&AllQuery, &facet_collector)?;
 
         {
             let facets: Vec<(String, u64)> = counts
@@ -518,6 +518,7 @@ mod tests {
                 .collect::<Vec<_>>()
             );
         }
+        Ok(())
     }
 
     #[test]
@@ -530,48 +531,49 @@ mod tests {
     }
 
     #[test]
-    fn test_doc_unsorted_multifacet() {
+    fn test_doc_unsorted_multifacet() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facets", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(
             facet_field => Facet::from_text(&"/subjects/A/a").unwrap(),
             facet_field => Facet::from_text(&"/subjects/B/a").unwrap(),
             facet_field => Facet::from_text(&"/subjects/A/b").unwrap(),
             facet_field => Facet::from_text(&"/subjects/B/b").unwrap(),
-        ));
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 1);
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/subjects");
-        let counts = searcher.search(&AllQuery, &facet_collector).unwrap();
+        let counts = searcher.search(&AllQuery, &facet_collector)?;
         let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
         assert_eq!(facets[0].1, 1);
+        Ok(())
     }
 
     #[test]
     fn test_doc_search_by_facet() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(
             facet_field => Facet::from_text(&"/A/A").unwrap(),
-        ));
+        ))?;
         index_writer.add_document(doc!(
             facet_field => Facet::from_text(&"/A/B").unwrap(),
-        ));
+        ))?;
         index_writer.add_document(doc!(
             facet_field => Facet::from_text(&"/A/C/A").unwrap(),
-        ));
+        ))?;
         index_writer.add_document(doc!(
             facet_field => Facet::from_text(&"/D/C/A").unwrap(),
-        ));
+        ))?;
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -613,7 +615,7 @@ mod tests {
     #[test]
     fn test_facet_collector_topk() {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -637,7 +639,7 @@ mod tests {
 
         let mut index_writer = index.writer_for_tests().unwrap();
         for doc in docs {
-            index_writer.add_document(doc);
+            index_writer.add_document(doc).unwrap();
         }
         index_writer.commit().unwrap();
         let searcher = index.reader().unwrap().searcher();
@@ -662,7 +664,7 @@ mod tests {
     #[test]
     fn test_facet_collector_topk_tie_break() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facet", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facet", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
@@ -677,7 +679,7 @@ mod tests {
 
         let mut index_writer = index.writer_for_tests()?;
         for doc in docs {
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
         index_writer.commit()?;
 
@@ -725,7 +727,7 @@ mod bench {
 
         let mut index_writer = index.writer_for_tests().unwrap();
         for doc in docs {
-            index_writer.add_document(doc);
+            index_writer.add_document(doc).unwrap();
         }
         index_writer.commit().unwrap();
         let reader = index.reader().unwrap();

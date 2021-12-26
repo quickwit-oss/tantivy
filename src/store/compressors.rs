@@ -13,6 +13,9 @@ pub trait StoreCompressor {
 /// The default is Lz4Block, but also depends on the enabled feature flags.
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Compressor {
+    #[serde(rename = "none")]
+    /// No compression
+    None,
     #[serde(rename = "lz4")]
     /// Use the lz4 compressor (block format)
     Lz4,
@@ -33,9 +36,7 @@ impl Default for Compressor {
         } else if cfg!(feature = "snappy-compression") {
             Compressor::Snappy
         } else {
-            panic!(
-                "all compressor feature flags like are disabled (e.g. lz4-compression), can't choose default compressor"
-            );
+            Compressor::None
         }
     }
 }
@@ -43,6 +44,7 @@ impl Default for Compressor {
 impl Compressor {
     pub(crate) fn from_id(id: u8) -> Compressor {
         match id {
+            0 => Compressor::None,
             1 => Compressor::Lz4,
             2 => Compressor::Brotli,
             3 => Compressor::Snappy,
@@ -51,6 +53,7 @@ impl Compressor {
     }
     pub(crate) fn get_id(&self) -> u8 {
         match self {
+            Self::None => 0,
             Self::Lz4 => 1,
             Self::Brotli => 2,
             Self::Snappy => 3,
@@ -59,6 +62,11 @@ impl Compressor {
     #[inline]
     pub(crate) fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
         match self {
+            Self::None => {
+                compressed.clear();
+                compressed.extend_from_slice(uncompressed);
+                Ok(())
+            }
             Self::Lz4 => {
                 #[cfg(feature = "lz4-compression")]
                 {
@@ -99,6 +107,11 @@ impl Compressor {
         decompressed: &mut Vec<u8>,
     ) -> io::Result<()> {
         match self {
+            Self::None => {
+                decompressed.clear();
+                decompressed.extend_from_slice(compressed);
+                Ok(())
+            }
             Self::Lz4 => {
                 #[cfg(feature = "lz4-compression")]
                 {

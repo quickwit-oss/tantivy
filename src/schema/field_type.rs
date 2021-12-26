@@ -7,6 +7,7 @@ use crate::schema::Value;
 use crate::schema::{IntOptions, TextOptions};
 use crate::tokenizer::PreTokenizedString;
 use chrono::{FixedOffset, Utc};
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
@@ -48,9 +49,12 @@ pub enum Type {
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
 /// how it should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "options")]
+#[serde(rename_all = "snake_case")]
 pub enum FieldType {
     /// String field type configuration
+    #[serde(rename = "text")]
     Str(TextOptions),
     /// Unsigned 64-bits integers field type configuration
     U64(IntOptions),
@@ -88,8 +92,24 @@ impl FieldType {
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::HierarchicalFacet(ref facet_options) => facet_options.is_indexed(),
+            FieldType::HierarchicalFacet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
+        }
+    }
+
+    /// returns true iff the field is normed.
+    pub fn has_fieldnorms(&self) -> bool {
+        match *self {
+            FieldType::Str(ref text_options) => text_options
+                .get_indexing_options()
+                .map(|options| options.fieldnorms())
+                .unwrap_or(false),
+            FieldType::U64(ref int_options)
+            | FieldType::I64(ref int_options)
+            | FieldType::F64(ref int_options)
+            | FieldType::Date(ref int_options) => int_options.fieldnorms(),
+            FieldType::HierarchicalFacet(_) => false,
+            FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
         }
     }
 
@@ -112,13 +132,7 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::HierarchicalFacet(ref facet_options) => {
-                if facet_options.is_indexed() {
-                    Some(IndexRecordOption::Basic)
-                } else {
-                    None
-                }
-            }
+            FieldType::HierarchicalFacet(ref _facet_options) => Some(IndexRecordOption::Basic),
             FieldType::Bytes(ref bytes_options) => {
                 if bytes_options.is_indexed() {
                     Some(IndexRecordOption::Basic)

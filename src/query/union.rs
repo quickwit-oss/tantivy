@@ -1,9 +1,9 @@
-use crate::common::TinySet;
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::Scorer;
 use crate::DocId;
 use crate::Score;
+use common::TinySet;
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;

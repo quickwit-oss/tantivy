@@ -1,12 +1,12 @@
-use crate::common::HasLen;
 use crate::docset::DocSet;
-use crate::fastfield::DeleteBitSet;
+use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
+use crate::postings::branchless_binary_search;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::BlockSearcher;
 use crate::postings::BlockSegmentPostings;
 use crate::postings::Postings;
 use crate::{DocId, TERMINATED};
+use common::HasLen;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
@@ -18,7 +18,6 @@ pub struct SegmentPostings {
     pub(crate) block_cursor: BlockSegmentPostings,
     cur: usize,
     position_reader: Option<PositionReader>,
-    block_searcher: BlockSearcher,
 }
 
 impl SegmentPostings {
@@ -28,7 +27,6 @@ impl SegmentPostings {
             block_cursor: BlockSegmentPostings::empty(),
             cur: 0,
             position_reader: None,
-            block_searcher: BlockSearcher::default(),
         }
     }
 
@@ -36,7 +34,7 @@ impl SegmentPostings {
     ///
     /// This method will clone and scan through the posting lists.
     /// (this is a rather expensive operation).
-    pub fn doc_freq_given_deletes(&self, delete_bitset: &DeleteBitSet) -> u32 {
+    pub fn doc_freq_given_deletes(&self, alive_bitset: &AliveBitSet) -> u32 {
         let mut docset = self.clone();
         let mut doc_freq = 0;
         loop {
@@ -44,7 +42,7 @@ impl SegmentPostings {
             if doc == TERMINATED {
                 return doc_freq;
             }
-            if delete_bitset.is_alive(doc) {
+            if alive_bitset.is_alive(doc) {
                 doc_freq += 1u32;
             }
             docset.advance();
@@ -154,7 +152,6 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: 0, // cursor within the block
             position_reader,
-            block_searcher: BlockSearcher::default(),
         }
     }
 }
@@ -183,8 +180,8 @@ impl DocSet for SegmentPostings {
         self.block_cursor.seek(target);
 
         // At this point we are on the block, that might contain our document.
-        let output = self.block_cursor.docs_aligned();
-        self.cur = self.block_searcher.search_in_block(output, target);
+        let output = self.block_cursor.full_block();
+        self.cur = branchless_binary_search(output, target);
 
         // The last block is not full and padded with the value TERMINATED,
         // so that we are guaranteed to have at least doc in the block (a real one or the padding)
@@ -197,7 +194,7 @@ impl DocSet for SegmentPostings {
         // with the value `TERMINATED`.
         //
         // After the search, the cursor should point to the first value of TERMINATED.
-        let doc = output.0[self.cur];
+        let doc = output[self.cur];
         debug_assert!(doc >= target);
         debug_assert_eq!(doc, self.doc());
         doc
@@ -268,10 +265,10 @@ impl Postings for SegmentPostings {
 mod tests {
 
     use super::SegmentPostings;
-    use crate::common::HasLen;
+    use common::HasLen;
 
     use crate::docset::{DocSet, TERMINATED};
-    use crate::fastfield::DeleteBitSet;
+    use crate::fastfield::AliveBitSet;
     use crate::postings::postings::Postings;
 
     #[test]
@@ -299,9 +296,10 @@ mod tests {
     fn test_doc_freq() {
         let docs = SegmentPostings::create_from_docs(&[0, 2, 10]);
         assert_eq!(docs.doc_freq(), 3);
-        let delete_bitset = DeleteBitSet::for_test(&[2], 12);
-        assert_eq!(docs.doc_freq_given_deletes(&delete_bitset), 2);
-        let all_deleted = DeleteBitSet::for_test(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
+        let alive_bitset = AliveBitSet::for_test_from_deleted_docs(&[2], 12);
+        assert_eq!(docs.doc_freq_given_deletes(&alive_bitset), 2);
+        let all_deleted =
+            AliveBitSet::for_test_from_deleted_docs(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12);
         assert_eq!(docs.doc_freq_given_deletes(&all_deleted), 0);
     }
 }

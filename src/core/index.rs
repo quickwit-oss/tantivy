@@ -120,11 +120,11 @@ impl IndexBuilder {
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
     ///
-    /// If a previous index was in this directory, then its meta file will be destroyed.
+    /// If a previous index was in this directory, it returns an `IndexAlreadyExists` error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(self, directory_path: P) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::open(directory_path)?;
-        if Index::exists(&mmap_directory)? {
+        let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::open(directory_path)?);
+        if Index::exists(&*mmap_directory)? {
             return Err(TantivyError::IndexAlreadyExists);
         }
         self.create(mmap_directory)
@@ -139,7 +139,7 @@ impl IndexBuilder {
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(self) -> crate::Result<Index> {
-        let mmap_directory = MmapDirectory::create_from_tempdir()?;
+        let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
         self.create(mmap_directory)
     }
     fn get_expect_schema(&self) -> crate::Result<Schema> {
@@ -149,8 +149,9 @@ impl IndexBuilder {
             .ok_or(TantivyError::IndexBuilderMissingArgument("schema"))
     }
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
-        if !Index::exists(&dir)? {
+    pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        let dir = dir.into();
+        if !Index::exists(&*dir)? {
             return self.create(dir);
         }
         let index = Index::open(dir)?;
@@ -165,7 +166,8 @@ impl IndexBuilder {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    fn create<Dir: Directory>(self, dir: Dir) -> crate::Result<Index> {
+    fn create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
+        let dir = dir.into();
         let directory = ManagedDirectory::wrap(dir)?;
         save_new_metas(
             self.get_expect_schema()?,
@@ -198,7 +200,7 @@ impl Index {
     /// Examines the directory to see if it contains an index.
     ///
     /// Effectively, it only checks for the presence of the `meta.json` file.
-    pub fn exists<Dir: Directory>(dir: &Dir) -> Result<bool, OpenReadError> {
+    pub fn exists(dir: &dyn Directory) -> Result<bool, OpenReadError> {
         dir.exists(&META_FILEPATH)
     }
 
@@ -229,7 +231,8 @@ impl Index {
     /// Creates a new index using the `RamDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
-    /// This should only be used for unit tests.
+    /// This is useful for indexing small set of documents
+    /// for instances like unit test or temporary in memory index.
     pub fn create_in_ram(schema: Schema) -> Index {
         IndexBuilder::new().schema(schema).create_in_ram().unwrap()
     }
@@ -237,7 +240,7 @@ impl Index {
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
     ///
-    /// If a previous index was in this directory, then its meta file will be destroyed.
+    /// If a previous index was in this directory, then it returns  an `IndexAlreadyExists` error.
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(
         directory_path: P,
@@ -249,7 +252,11 @@ impl Index {
     }
 
     /// Opens or creates a new index in the provided directory
-    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> crate::Result<Index> {
+    pub fn open_or_create<T: Into<Box<dyn Directory>>>(
+        dir: T,
+        schema: Schema,
+    ) -> crate::Result<Index> {
+        let dir = dir.into();
         IndexBuilder::new().schema(schema).open_or_create(dir)
     }
 
@@ -269,11 +276,12 @@ impl Index {
     /// Creates a new index given an implementation of the trait `Directory`.
     ///
     /// If a directory previously existed, it will be erased.
-    pub fn create<Dir: Directory>(
-        dir: Dir,
+    pub fn create<T: Into<Box<dyn Directory>>>(
+        dir: T,
         schema: Schema,
         settings: IndexSettings,
     ) -> crate::Result<Index> {
+        let dir: Box<dyn Directory> = dir.into();
         let mut builder = IndexBuilder::new().schema(schema);
         builder = builder.settings(settings);
         builder.create(dir)
@@ -364,7 +372,8 @@ impl Index {
     }
 
     /// Open the index using the provided directory
-    pub fn open<D: Directory>(directory: D) -> crate::Result<Index> {
+    pub fn open<T: Into<Box<dyn Directory>>>(directory: T) -> crate::Result<Index> {
+        let directory = directory.into();
         let directory = ManagedDirectory::wrap(directory)?;
         let inventory = SegmentMetaInventory::default();
         let metas = load_metas(&directory, &inventory)?;
@@ -394,9 +403,7 @@ impl Index {
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
-    ///
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
+    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
@@ -438,14 +445,13 @@ impl Index {
     /// Creates a multithreaded writer
     ///
     /// Tantivy will automatically define the number of threads to use, but
-    /// no more than [`MAX_NUM_THREAD`] threads.
+    /// no more than 8 threads.
     /// `overall_heap_size_in_bytes` is the total target memory usage that will be split
     /// between a given number of threads.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// # Panics
-    /// If the heap size per thread is too small, panics.
+    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
     pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
@@ -523,7 +529,22 @@ impl Index {
 
     /// Returns the set of corrupted files
     pub fn validate_checksum(&self) -> crate::Result<HashSet<PathBuf>> {
-        self.directory.list_damaged().map_err(Into::into)
+        let managed_files = self.directory.list_managed_files();
+        let active_segments_files: HashSet<PathBuf> = self
+            .searchable_segment_metas()?
+            .iter()
+            .flat_map(|segment_meta| segment_meta.list_files())
+            .collect();
+        let active_existing_files: HashSet<&PathBuf> =
+            active_segments_files.intersection(&managed_files).collect();
+
+        let mut damaged_files = HashSet::new();
+        for path in active_existing_files {
+            if !self.directory.validate_checksum(path)? {
+                damaged_files.insert((*path).clone());
+            }
+        }
+        Ok(damaged_files)
     }
 }
 
@@ -561,15 +582,15 @@ mod tests {
 
     #[test]
     fn test_index_exists() {
-        let directory = RamDirectory::create();
-        assert!(!Index::exists(&directory).unwrap());
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
+        assert!(!Index::exists(directory.as_ref()).unwrap());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
     }
 
     #[test]
@@ -582,27 +603,27 @@ mod tests {
 
     #[test]
     fn open_or_create_should_open() {
-        let directory = RamDirectory::create();
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
         assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
     }
 
     #[test]
     fn create_should_wipeoff_existing() {
-        let directory = RamDirectory::create();
+        let directory: Box<dyn Directory> = Box::new(RamDirectory::create());
         assert!(Index::create(
             directory.clone(),
             throw_away_schema(),
             IndexSettings::default()
         )
         .is_ok());
-        assert!(Index::exists(&directory).unwrap());
+        assert!(Index::exists(directory.as_ref()).unwrap());
         assert!(Index::create(
             directory,
             Schema::builder().build(),
@@ -636,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_index_on_commit_reload_policy() {
+    fn test_index_on_commit_reload_policy() -> crate::Result<()> {
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
         let index = Index::create_in_ram(schema);
@@ -646,7 +667,7 @@ mod tests {
             .try_into()
             .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
-        test_index_on_commit_reload_policy_aux(field, &index, &reader);
+        test_index_on_commit_reload_policy_aux(field, &index, &reader)
     }
 
     #[cfg(feature = "mmap")]
@@ -658,7 +679,7 @@ mod tests {
         use tempfile::TempDir;
 
         #[test]
-        fn test_index_on_commit_reload_policy_mmap() {
+        fn test_index_on_commit_reload_policy_mmap() -> crate::Result<()> {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
             let tempdir = TempDir::new().unwrap();
@@ -670,7 +691,7 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &index, &reader);
+            test_index_on_commit_reload_policy_aux(field, &index, &reader)
         }
 
         #[test]
@@ -685,7 +706,7 @@ mod tests {
                 .reload_policy(ReloadPolicy::Manual)
                 .try_into()?;
             assert_eq!(reader.searcher().num_docs(), 0);
-            writer.add_document(doc!(field=>1u64));
+            writer.add_document(doc!(field=>1u64))?;
             let (sender, receiver) = crossbeam::channel::unbounded();
             let _handle = index.directory_mut().watch(WatchCallback::new(move || {
                 let _ = sender.send(());
@@ -699,7 +720,7 @@ mod tests {
         }
 
         #[test]
-        fn test_index_on_commit_reload_policy_different_directories() {
+        fn test_index_on_commit_reload_policy_different_directories() -> crate::Result<()> {
             let schema = throw_away_schema();
             let field = schema.get_field("num_likes").unwrap();
             let tempdir = TempDir::new().unwrap();
@@ -712,10 +733,14 @@ mod tests {
                 .try_into()
                 .unwrap();
             assert_eq!(reader.searcher().num_docs(), 0);
-            test_index_on_commit_reload_policy_aux(field, &write_index, &reader);
+            test_index_on_commit_reload_policy_aux(field, &write_index, &reader)
         }
     }
-    fn test_index_on_commit_reload_policy_aux(field: Field, index: &Index, reader: &IndexReader) {
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        index: &Index,
+        reader: &IndexReader,
+    ) -> crate::Result<()> {
         let mut reader_index = reader.index();
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _watch_handle = reader_index
@@ -723,9 +748,9 @@ mod tests {
             .watch(WatchCallback::new(move || {
                 let _ = sender.send(());
             }));
-        let mut writer = index.writer_for_tests().unwrap();
+        let mut writer = index.writer_for_tests()?;
         assert_eq!(reader.searcher().num_docs(), 0);
-        writer.add_document(doc!(field=>1u64));
+        writer.add_document(doc!(field=>1u64))?;
         writer.commit().unwrap();
         // We need a loop here because it is possible for notify to send more than
         // one modify event. It was observed on CI on MacOS.
@@ -735,7 +760,7 @@ mod tests {
                 break;
             }
         }
-        writer.add_document(doc!(field=>2u64));
+        writer.add_document(doc!(field=>2u64))?;
         writer.commit().unwrap();
         // ... Same as above
         loop {
@@ -744,37 +769,37 @@ mod tests {
                 break;
             }
         }
+        Ok(())
     }
 
     // This test will not pass on windows, because windows
     // prevent deleting files that are MMapped.
     #[cfg(not(target_os = "windows"))]
     #[test]
-    fn garbage_collect_works_as_intended() {
+    fn garbage_collect_works_as_intended() -> crate::Result<()> {
         let directory = RamDirectory::create();
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
-        let index = Index::create(directory.clone(), schema, IndexSettings::default()).unwrap();
+        let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
 
         let mut writer = index.writer_with_num_threads(8, 24_000_000).unwrap();
         for i in 0u64..8_000u64 {
-            writer.add_document(doc!(field => i));
+            writer.add_document(doc!(field => i))?;
         }
         let (sender, receiver) = crossbeam::channel::unbounded();
         let _handle = directory.watch(WatchCallback::new(move || {
             let _ = sender.send(());
         }));
-        writer.commit().unwrap();
+        writer.commit()?;
         let mem_right_after_commit = directory.total_mem_usage();
         assert!(receiver.recv().is_ok());
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .unwrap();
+            .try_into()?;
 
         assert_eq!(reader.searcher().num_docs(), 8_000);
-        writer.wait_merging_threads().unwrap();
+        writer.wait_merging_threads()?;
         let mem_right_after_merge_finished = directory.total_mem_usage();
 
         reader.reload().unwrap();
@@ -786,5 +811,6 @@ mod tests {
             mem_right_after_merge_finished,
             mem_right_after_commit
         );
+        Ok(())
     }
 }

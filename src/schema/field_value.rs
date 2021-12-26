@@ -1,6 +1,6 @@
-use crate::common::BinarySerializable;
 use crate::schema::Field;
 use crate::schema::Value;
+use common::BinarySerializable;
 use std::io::{self, Read, Write};
 
 /// `FieldValue` holds together a `Field` and its `Value`.

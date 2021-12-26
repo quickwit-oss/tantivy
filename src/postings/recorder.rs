@@ -1,10 +1,8 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::FieldSerializer;
 use crate::DocId;
-use crate::{
-    common::{read_u32_vint, write_u32_vint},
-    indexer::doc_id_mapping::DocIdMapping,
-};
+use common::{read_u32_vint, write_u32_vint};
 
 const POSITION_END: u32 = 0;
 

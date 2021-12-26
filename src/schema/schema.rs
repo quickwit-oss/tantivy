@@ -240,6 +240,11 @@ impl Schema {
         self.get_field_entry(field).name()
     }
 
+    /// Returns the number of fields in the schema.
+    pub fn num_fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
     /// Return the list of all the `Field`s.
     pub fn fields(&self) -> impl Iterator<Item = (Field, &FieldEntry)> {
         self.0
@@ -271,8 +276,6 @@ impl Schema {
                     let field_value = FieldValue::new(field, value);
                     document.add(field_value);
                 }
-            } else {
-                return Err(DocParsingError::NoSuchFieldInSchema(field_name));
             }
         }
         Ok(document)
@@ -314,25 +317,24 @@ impl Schema {
 
         let mut doc = Document::default();
         for (field_name, json_value) in json_obj.iter() {
-            let field = self
-                .get_field(field_name)
-                .ok_or_else(|| DocParsingError::NoSuchFieldInSchema(field_name.clone()))?;
-            let field_entry = self.get_field_entry(field);
-            let field_type = field_entry.field_type();
-            match *json_value {
-                JsonValue::Array(ref json_items) => {
-                    for json_item in json_items {
+            if let Some(field) = self.get_field(field_name) {
+                let field_entry = self.get_field_entry(field);
+                let field_type = field_entry.field_type();
+                match *json_value {
+                    JsonValue::Array(ref json_items) => {
+                        for json_item in json_items {
+                            let value = field_type
+                                .value_from_json(json_item)
+                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
+                            doc.add(FieldValue::new(field, value));
+                        }
+                    }
+                    _ => {
                         let value = field_type
-                            .value_from_json(json_item)
+                            .value_from_json(json_value)
                             .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
                         doc.add(FieldValue::new(field, value));
                     }
-                }
-                _ => {
-                    let value = field_type
-                        .value_from_json(json_value)
-                        .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                    doc.add(FieldValue::new(field, value));
                 }
             }
         }
@@ -398,9 +400,6 @@ pub enum DocParsingError {
     /// One of the value node could not be parsed.
     #[error("The field '{0:?}' could not be parsed: {1:?}")]
     ValueError(String, ValueParsingError),
-    /// The json-document contains a field that is not declared in the schema.
-    #[error("The document contains a field that is not declared in the schema: {0:?}")]
-    NoSuchFieldInSchema(String),
 }
 
 #[cfg(test)]
@@ -433,9 +432,17 @@ mod tests {
             .set_fast(Cardinality::SingleValue);
         let score_options = IntOptions::default()
             .set_indexed()
+            .set_fieldnorm()
             .set_fast(Cardinality::SingleValue);
         schema_builder.add_text_field("title", TEXT);
-        schema_builder.add_text_field("author", STRING);
+        schema_builder.add_text_field(
+            "author",
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("raw")
+                    .set_fieldnorms(false),
+            ),
+        );
         schema_builder.add_u64_field("count", count_options);
         schema_builder.add_i64_field("popularity", popularity_options);
         schema_builder.add_f64_field("score", score_options);
@@ -448,6 +455,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -459,6 +467,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
+        "fieldnorms": false,
         "tokenizer": "raw"
       },
       "stored": false
@@ -469,6 +478,7 @@ mod tests {
     "type": "u64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -478,6 +488,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -487,6 +498,7 @@ mod tests {
     "type": "f64",
     "options": {
       "indexed": true,
+      "fieldnorms": true,
       "fast": "single",
       "stored": false
     }
@@ -578,20 +590,16 @@ mod tests {
     }
 
     #[test]
-    pub fn test_document_from_nameddoc_error() {
+    pub fn test_document_missing_field_no_error() {
         let schema = Schema::builder().build();
         let mut named_doc_map = BTreeMap::default();
         named_doc_map.insert(
             "title".to_string(),
             vec![Value::from("title1"), Value::from("title2")],
         );
-        let err = schema
+        schema
             .convert_named_doc(NamedFieldDocument(named_doc_map))
-            .unwrap_err();
-        assert_eq!(
-            err,
-            DocParsingError::NoSuchFieldInSchema("title".to_string())
-        );
+            .unwrap();
     }
 
     #[test]
@@ -644,8 +652,9 @@ mod tests {
             );
         }
         {
-            let json_err = schema.parse_document(
+            let res = schema.parse_document(
                 r#"{
+                "thisfieldisnotdefinedintheschema": "my title",
                 "title": "my title",
                 "author": "fulmicoton",
                 "count": 4,
@@ -654,7 +663,7 @@ mod tests {
                 "jambon": "bayonne"
             }"#,
             );
-            assert_matches!(json_err, Err(DocParsingError::NoSuchFieldInSchema(_)));
+            assert!(res.is_ok());
         }
         {
             let json_err = schema.parse_document(
@@ -752,6 +761,7 @@ mod tests {
         let timestamp_options = IntOptions::default()
             .set_stored()
             .set_indexed()
+            .set_fieldnorm()
             .set_fast(SingleValue);
         schema_builder.add_text_field("_id", id_options);
         schema_builder.add_date_field("_timestamp", timestamp_options);
@@ -763,6 +773,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -773,6 +784,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }
@@ -793,6 +805,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "basic",
+        "fieldnorms": true,
         "tokenizer": "raw"
       },
       "stored": true
@@ -803,6 +816,7 @@ mod tests {
     "type": "date",
     "options": {
       "indexed": true,
+      "fieldnorms": true,
       "fast": "single",
       "stored": true
     }
@@ -813,6 +827,7 @@ mod tests {
     "options": {
       "indexing": {
         "record": "position",
+        "fieldnorms": true,
         "tokenizer": "default"
       },
       "stored": false
@@ -823,6 +838,7 @@ mod tests {
     "type": "i64",
     "options": {
       "indexed": false,
+      "fieldnorms": false,
       "fast": "single",
       "stored": true
     }

@@ -1,0 +1,24 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  NUM_FUNCTIONAL_TEST_ITERATIONS: 20000
+
+jobs:
+  functional_test_unsorted:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run indexing_unsorted
+      run: cargo test indexing_unsorted -- --ignored
+  functional_test_sorted:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run indexing_sorted
+      run: cargo test indexing_sorted -- --ignored
+

@@ -29,7 +29,7 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tantivy::schema::{Schema, STORED, TEXT};
-use tantivy::{doc, Index, IndexWriter, Opstamp};
+use tantivy::{doc, Index, IndexWriter, Opstamp, TantivyError};
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -59,10 +59,11 @@ fn main() -> tantivy::Result<()> {
                         fresh and green with every spring, carrying in their lower leaf junctures the \
                         debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
                         limbs and branches that arch over the pool"
-                    ));
+                    ))?;
             println!("add doc {} from thread 1 - opstamp {}", i, opstamp);
             thread::sleep(Duration::from_millis(20));
         }
+        Result::<(), TantivyError>::Ok(())
     });
 
     // # Second indexing thread.
@@ -78,11 +79,12 @@ fn main() -> tantivy::Result<()> {
                 index_writer_rlock.add_document(doc!(
                     title => "Manufacturing consent",
                     body => "Some great book description..."
-                ))
+                ))?
             };
             println!("add doc {} from thread 2 - opstamp {}", i, opstamp);
             thread::sleep(Duration::from_millis(10));
         }
+        Result::<(), TantivyError>::Ok(())
     });
 
     // # In the main thread, we commit 10 times, once every 500ms.
@@ -90,7 +92,7 @@ fn main() -> tantivy::Result<()> {
         let opstamp: Opstamp = {
             // Committing or rollbacking on the other hand requires write lock. This will block other threads.
             let mut index_writer_wlock = index_writer.write().unwrap();
-            index_writer_wlock.commit().unwrap()
+            index_writer_wlock.commit()?
         };
         println!("committed with opstamp {}", opstamp);
         thread::sleep(Duration::from_millis(500));

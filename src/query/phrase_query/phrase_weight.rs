@@ -124,19 +124,18 @@ mod tests {
     use crate::{DocSet, Term};
 
     #[test]
-    pub fn test_phrase_count() {
-        let index = create_index(&["a c", "a a b d a b c", " a b"]);
+    pub fn test_phrase_count() -> crate::Result<()> {
+        let index = create_index(&["a c", "a a b d a b c", " a b"])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let phrase_query = PhraseQuery::new(vec![
             Term::from_field_text(text_field, "a"),
             Term::from_field_text(text_field, "b"),
         ]);
         let phrase_weight = phrase_query.phrase_weight(&searcher, true).unwrap();
         let mut phrase_scorer = phrase_weight
-            .phrase_scorer(searcher.segment_reader(0u32), 1.0)
-            .unwrap()
+            .phrase_scorer(searcher.segment_reader(0u32), 1.0)?
             .unwrap();
         assert_eq!(phrase_scorer.doc(), 1);
         assert_eq!(phrase_scorer.phrase_count(), 2);
@@ -144,5 +143,6 @@ mod tests {
         assert_eq!(phrase_scorer.doc(), 2);
         assert_eq!(phrase_scorer.phrase_count(), 1);
         assert_eq!(phrase_scorer.advance(), TERMINATED);
+        Ok(())
     }
 }

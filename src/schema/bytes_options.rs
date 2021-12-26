@@ -3,17 +3,49 @@ use std::ops::BitOr;
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Define how an a bytes field should be handled by tantivy.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "BytesOptionsDeser")]
 pub struct BytesOptions {
     indexed: bool,
+    fieldnorms: bool,
     fast: bool,
     stored: bool,
+}
+
+/// For backward compability we add an intermediary to interpret the
+/// lack of fieldnorms attribute as "true" iff indexed.
+///
+/// (Downstream, for the moment, this attribute is not used anyway if not indexed...)
+/// Note that: newly serialized IntOptions will include the new attribute.
+#[derive(Deserialize)]
+struct BytesOptionsDeser {
+    indexed: bool,
+    #[serde(default)]
+    fieldnorms: Option<bool>,
+    fast: bool,
+    stored: bool,
+}
+
+impl From<BytesOptionsDeser> for BytesOptions {
+    fn from(deser: BytesOptionsDeser) -> Self {
+        BytesOptions {
+            indexed: deser.indexed,
+            fieldnorms: deser.fieldnorms.unwrap_or(deser.indexed),
+            fast: deser.fast,
+            stored: deser.stored,
+        }
+    }
 }
 
 impl BytesOptions {
     /// Returns true iff the value is indexed.
     pub fn is_indexed(&self) -> bool {
         self.indexed
+    }
+
+    /// Returns true iff the value is normed.
+    pub fn fieldnorms(&self) -> bool {
+        self.fieldnorms
     }
 
     /// Returns true iff the value is a fast field.
@@ -32,6 +64,15 @@ impl BytesOptions {
     /// a posting list for each value taken by the integer.
     pub fn set_indexed(mut self) -> BytesOptions {
         self.indexed = true;
+        self
+    }
+
+    /// Set the field as normed.
+    ///
+    /// Setting an integer as normed will generate
+    /// the fieldnorm data for it.
+    pub fn set_fieldnorms(mut self) -> BytesOptions {
+        self.fieldnorms = true;
         self
     }
 
@@ -56,16 +97,6 @@ impl BytesOptions {
     }
 }
 
-impl Default for BytesOptions {
-    fn default() -> BytesOptions {
-        BytesOptions {
-            indexed: false,
-            fast: false,
-            stored: false,
-        }
-    }
-}
-
 impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
     type Output = BytesOptions;
 
@@ -73,6 +104,7 @@ impl<T: Into<BytesOptions>> BitOr<T> for BytesOptions {
         let other = other.into();
         BytesOptions {
             indexed: self.indexed | other.indexed,
+            fieldnorms: self.fieldnorms | other.fieldnorms,
             stored: self.stored | other.stored,
             fast: self.fast | other.fast,
         }
@@ -89,6 +121,7 @@ impl From<FastFlag> for BytesOptions {
     fn from(_: FastFlag) -> Self {
         BytesOptions {
             indexed: false,
+            fieldnorms: false,
             stored: false,
             fast: true,
         }
@@ -99,6 +132,7 @@ impl From<StoredFlag> for BytesOptions {
     fn from(_: StoredFlag) -> Self {
         BytesOptions {
             indexed: false,
+            fieldnorms: false,
             stored: true,
             fast: false,
         }
@@ -109,6 +143,7 @@ impl From<IndexedFlag> for BytesOptions {
     fn from(_: IndexedFlag) -> Self {
         BytesOptions {
             indexed: true,
+            fieldnorms: true,
             stored: false,
             fast: false,
         }
@@ -133,7 +168,10 @@ mod tests {
     #[test]
     fn test_bytes_option_fast_flag() {
         assert_eq!(BytesOptions::default().set_fast(), FAST.into());
-        assert_eq!(BytesOptions::default().set_indexed(), INDEXED.into());
+        assert_eq!(
+            BytesOptions::default().set_indexed().set_fieldnorms(),
+            INDEXED.into()
+        );
         assert_eq!(BytesOptions::default().set_stored(), STORED.into());
     }
     #[test]
@@ -143,11 +181,17 @@ mod tests {
             (FAST | STORED).into()
         );
         assert_eq!(
-            BytesOptions::default().set_indexed().set_fast(),
+            BytesOptions::default()
+                .set_indexed()
+                .set_fieldnorms()
+                .set_fast(),
             (INDEXED | FAST).into()
         );
         assert_eq!(
-            BytesOptions::default().set_stored().set_indexed(),
+            BytesOptions::default()
+                .set_stored()
+                .set_fieldnorms()
+                .set_indexed(),
             (STORED | INDEXED).into()
         );
     }
@@ -157,8 +201,89 @@ mod tests {
         assert!(!BytesOptions::default().is_stored());
         assert!(!BytesOptions::default().is_fast());
         assert!(!BytesOptions::default().is_indexed());
+        assert!(!BytesOptions::default().fieldnorms());
         assert!(BytesOptions::default().set_stored().is_stored());
         assert!(BytesOptions::default().set_fast().is_fast());
         assert!(BytesOptions::default().set_indexed().is_indexed());
+        assert!(BytesOptions::default().set_fieldnorms().fieldnorms());
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_missing_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: true,
+                fieldnorms: true,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_missing_indexed_false() {
+        let json = r#"{
+            "indexed": false,
+            "stored": false,
+            "fast": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: false,
+                fieldnorms: false,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_false_indexed_true() {
+        let json = r#"{
+            "indexed": true,
+            "fieldnorms": false,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: true,
+                fieldnorms: false,
+                fast: false,
+                stored: false
+            }
+        );
+    }
+
+    #[test]
+    fn test_bytes_options_deser_if_fieldnorm_true_indexed_false() {
+        // this one is kind of useless, at least at the moment
+        let json = r#"{
+            "indexed": false,
+            "fieldnorms": true,
+            "fast": false,
+            "stored": false
+        }"#;
+        let bytes_options: BytesOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            &bytes_options,
+            &BytesOptions {
+                indexed: false,
+                fieldnorms: true,
+                fast: false,
+                stored: false
+            }
+        );
     }
 }

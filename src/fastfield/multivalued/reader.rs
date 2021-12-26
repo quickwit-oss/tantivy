@@ -91,27 +91,25 @@ impl<Item: FastValue> MultiValueLength for MultiValuedFastFieldReader<Item> {
 mod tests {
 
     use crate::core::Index;
-    use crate::schema::{Cardinality, Facet, IntOptions, Schema, INDEXED};
+    use crate::schema::{Cardinality, Facet, FacetOptions, IntOptions, Schema};
 
     #[test]
-    fn test_multifastfield_reader() {
+    fn test_multifastfield_reader() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
-        let facet_field = schema_builder.add_facet_field("facets", INDEXED);
+        let facet_field = schema_builder.add_facet_field("facets", FacetOptions::default());
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index
-            .writer_for_tests()
-            .expect("Failed to create index writer.");
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.add_document(doc!(
             facet_field => Facet::from("/category/cat2"),
             facet_field => Facet::from("/category/cat1"),
-        ));
-        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat2")));
-        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat3")));
-        index_writer.commit().expect("Commit failed");
-        let searcher = index.reader().unwrap().searcher();
+        ))?;
+        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat2")))?;
+        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat3")))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
+        let mut facet_reader = segment_reader.facet_reader(facet_field)?;
 
         let mut facet = Facet::root();
         {
@@ -145,10 +143,11 @@ mod tests {
             facet_reader.facet_ords(2, &mut vals);
             assert_eq!(&vals[..], &[4]);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_multifastfield_reader_min_max() {
+    fn test_multifastfield_reader_min_max() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field_options = IntOptions::default()
             .set_indexed()
@@ -163,15 +162,16 @@ mod tests {
             item_field => 2i64,
             item_field => 3i64,
             item_field => -2i64,
-        ));
-        index_writer.add_document(doc!(item_field => 6i64, item_field => 3i64));
-        index_writer.add_document(doc!(item_field => 4i64));
-        index_writer.commit().expect("Commit failed");
-        let searcher = index.reader().unwrap().searcher();
+        ))?;
+        index_writer.add_document(doc!(item_field => 6i64, item_field => 3i64))?;
+        index_writer.add_document(doc!(item_field => 4i64))?;
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
-        let field_reader = segment_reader.fast_fields().i64s(item_field).unwrap();
+        let field_reader = segment_reader.fast_fields().i64s(item_field)?;
 
         assert_eq!(field_reader.min_value(), -2);
         assert_eq!(field_reader.max_value(), 6);
+        Ok(())
     }
 }

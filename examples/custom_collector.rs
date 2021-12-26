@@ -86,12 +86,10 @@ impl Collector for StatsCollector {
 
     fn merge_fruits(&self, segment_stats: Vec<Option<Stats>>) -> tantivy::Result<Option<Stats>> {
         let mut stats = Stats::default();
-        for segment_stats_opt in segment_stats {
-            if let Some(segment_stats) = segment_stats_opt {
-                stats.count += segment_stats.count;
-                stats.sum += segment_stats.sum;
-                stats.squared_sum += segment_stats.squared_sum;
-            }
+        for segment_stats in segment_stats.into_iter().flatten() {
+            stats.count += segment_stats.count;
+            stats.sum += segment_stats.sum;
+            stats.squared_sum += segment_stats.squared_sum;
         }
         Ok(stats.non_zero_count())
     }
@@ -147,23 +145,23 @@ fn main() -> tantivy::Result<()> {
         product_description => "While it is ok for short distance travel, this broom \
         was designed quiditch. It will up your game.",
         price => 30_200u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Turbulobroom",
         product_description => "You might have heard of this broom before : it is the sponsor of the Wales team.\
             You'll enjoy its sharp turns, and rapid acceleration",
         price => 29_240u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Broomio",
         product_description => "Great value for the price. This broom is a market favorite",
         price => 21_240u64
-    ));
+    ))?;
     index_writer.add_document(doc!(
         product_name => "Whack a Mole",
         product_description => "Prime quality bat.",
         price => 5_200u64
-    ));
+    ))?;
     index_writer.commit()?;
 
     let reader = index.reader()?;

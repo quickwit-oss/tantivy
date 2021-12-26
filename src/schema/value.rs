@@ -137,19 +137,18 @@ impl Value {
         }
     }
 
-    /// Returns the path value, provided the value is of the `Facet` type.
+    /// Returns the facet value, provided the value is of the `Facet` type.
     /// (Returns None if the value is not of the `Facet` type).
-    pub fn path(&self) -> Option<String> {
+    pub fn facet(&self) -> Option<&Facet> {
         if let Value::Facet(facet) = self {
-            Some(facet.to_path_string())
+            Some(facet)
         } else {
             None
         }
     }
 
     /// Returns the tokenized text, provided the value is of the `PreTokStr` type.
-    ///
-    /// Returns None if the value is not of the `PreTokStr` type.
+    /// (Returns None if the value is not of the `PreTokStr` type.)
     pub fn tokenized_text(&self) -> Option<&PreTokenizedString> {
         if let Value::PreTokStr(tokenized_text) = self {
             Some(tokenized_text)
@@ -159,8 +158,7 @@ impl Value {
     }
 
     /// Returns the u64-value, provided the value is of the `U64` type.
-    ///
-    /// Returns None if the value is not of the `U64` type.
+    /// (Returns None if the value is not of the `U64` type)
     pub fn u64_value(&self) -> Option<u64> {
         if let Value::U64(val) = self {
             Some(*val)
@@ -276,10 +274,10 @@ impl From<PreTokenizedString> for Value {
 
 mod binary_serialize {
     use super::Value;
-    use crate::common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use crate::schema::Facet;
     use crate::tokenizer::PreTokenizedString;
     use chrono::{TimeZone, Utc};
+    use common::{f64_to_u64, u64_to_f64, BinarySerializable};
     use std::io::{self, Read, Write};
 
     const TEXT_CODE: u8 = 0;

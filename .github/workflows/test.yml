@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
 
@@ -21,10 +21,10 @@ jobs:
     - name: Install latest nightly to test also against unstable feature flag
       uses: actions-rs/toolchain@v1
       with:
-            toolchain: nightly
+            toolchain: stable
             override: true
             components: rustfmt
     - name: Run tests
-      run: cargo test --all-features --verbose --workspace
+      run: cargo test --features mmap,brotli-compression,lz4-compression,snappy-compression,failpoints --verbose --workspace
     - name: Check Formatting
       run: cargo fmt --all -- --check

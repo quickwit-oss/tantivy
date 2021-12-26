@@ -1,9 +1,9 @@
 
-[![Build Status](https://travis-ci.org/tantivy-search/tantivy.svg?branch=main)](https://travis-ci.org/tantivy-search/tantivy)
-[![codecov](https://codecov.io/gh/tantivy-search/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/tantivy-search/tantivy)
-[![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Docs](https://docs.rs/tantivy/badge.svg)](https://docs.rs/crate/tantivy/)
+[![Build Status](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/quickwit-inc/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/quickwit-inc/tantivy)
+[![Join the chat at https://discord.gg/MT27AG5EVE](https://shields.io/discord/908281611840282624?label=chat%20on%20discord)](https://discord.gg/MT27AG5EVE)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build status](https://ci.appveyor.com/api/projects/status/r7nb13kj23u8m9pj/branch/main?svg=true)](https://ci.appveyor.com/project/fulmicoton/tantivy/branch/main)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
@@ -16,9 +16,6 @@
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/5)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/5)
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/6)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/6)
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/7)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/7)
-
-[![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
-
 
 **Tantivy** is a **full text search engine library** written in Rust.
 
@@ -78,13 +75,12 @@ It walks you through getting a wikipedia search engine up and running in a few m
 
 There are many ways to support this project. 
 
-- Use Tantivy and tell us about your experience on [Gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
+- Use Tantivy and tell us about your experience on [Discord](https://discord.gg/MT27AG5EVE) or by email (paul.masurel@gmail.com)
 - Report bugs
 - Write a blog post
 - Help with documentation by asking questions or submitting PRs
-- Contribute code (you can join [our Gitter](https://gitter.im/tantivy-search/tantivy))
+- Contribute code (you can join [our Discord server](https://discord.gg/MT27AG5EVE))
 - Talk about Tantivy around you
-- [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
 
 # Contributing code
 
@@ -96,7 +92,7 @@ Tantivy compiles on stable Rust but requires `Rust >= 1.27`.
 To check out and run tests, you can simply run:
 
 ```bash
-    git clone https://github.com/tantivy-search/tantivy.git
+    git clone https://github.com/quickwit-inc/tantivy.git
     cd tantivy
     cargo build
 ```

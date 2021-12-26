@@ -1,6 +1,5 @@
 use super::FastValue;
-use crate::common::BinarySerializable;
-use crate::common::CompositeFile;
+use crate::directory::CompositeFile;
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::directory::{Directory, RamDirectory, WritePtr};
@@ -8,6 +7,7 @@ use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
 use crate::schema::Schema;
 use crate::schema::FAST;
 use crate::DocId;
+use common::BinarySerializable;
 use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
 use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;

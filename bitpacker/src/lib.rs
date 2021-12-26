@@ -50,3 +50,32 @@ where
     }
     None
 }
+
+#[test]
+fn test_compute_num_bits() {
+    assert_eq!(compute_num_bits(1), 1u8);
+    assert_eq!(compute_num_bits(0), 0u8);
+    assert_eq!(compute_num_bits(2), 2u8);
+    assert_eq!(compute_num_bits(3), 2u8);
+    assert_eq!(compute_num_bits(4), 3u8);
+    assert_eq!(compute_num_bits(255), 8u8);
+    assert_eq!(compute_num_bits(256), 9u8);
+    assert_eq!(compute_num_bits(5_000_000_000), 33u8);
+}
+
+#[test]
+fn test_minmax_empty() {
+    let vals: Vec<u32> = vec![];
+    assert_eq!(minmax(vals.into_iter()), None);
+}
+
+#[test]
+fn test_minmax_one() {
+    assert_eq!(minmax(vec![1].into_iter()), Some((1, 1)));
+}
+
+#[test]
+fn test_minmax_two() {
+    assert_eq!(minmax(vec![1, 2].into_iter()), Some((1, 2)));
+    assert_eq!(minmax(vec![2, 1].into_iter()), Some((1, 2)));
+}

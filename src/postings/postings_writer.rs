@@ -33,7 +33,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
                     SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
                 }
             })
-            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
+            .unwrap_or_else(SpecializedPostingsWriter::<NothingRecorder>::new_boxed),
         FieldType::U64(_)
         | FieldType::I64(_)
         | FieldType::F64(_)
@@ -133,7 +133,8 @@ impl MultiFieldPostingsWriter {
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
-            self.term_index.iter().collect();
+            Vec::with_capacity(self.term_index.len());
+        term_offsets.extend(self.term_index.iter());
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
 
         let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =

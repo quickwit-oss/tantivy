@@ -7,7 +7,7 @@ use tantivy::query::RangeQuery;
 use tantivy::schema::{Schema, INDEXED};
 use tantivy::{doc, Index, Result};
 
-fn run() -> Result<()> {
+fn main() -> Result<()> {
     // For the sake of simplicity, this schema will only have 1 field
     let mut schema_builder = Schema::builder();
 
@@ -19,7 +19,7 @@ fn run() -> Result<()> {
     {
         let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
         for year in 1950u64..2019u64 {
-            index_writer.add_document(doc!(year_field => year));
+            index_writer.add_document(doc!(year_field => year))?;
         }
         index_writer.commit()?;
         // The index will be a range of years
@@ -32,8 +32,4 @@ fn run() -> Result<()> {
     let num_60s_books = searcher.search(&docs_in_the_sixties, &Count)?;
     assert_eq!(num_60s_books, 10);
     Ok(())
-}
-
-fn main() {
-    run().unwrap()
 }

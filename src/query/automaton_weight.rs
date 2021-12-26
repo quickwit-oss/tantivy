@@ -1,4 +1,3 @@
-use crate::common::BitSet;
 use crate::core::SegmentReader;
 use crate::query::ConstScorer;
 use crate::query::{BitSetDocSet, Explanation};
@@ -7,6 +6,7 @@ use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::TantivyError;
 use crate::{DocId, Score};
+use common::BitSet;
 use std::io;
 use std::sync::Arc;
 use tantivy_fst::Automaton;
@@ -92,16 +92,16 @@ mod tests {
     use crate::Index;
     use tantivy_fst::Automaton;
 
-    fn create_index() -> Index {
+    fn create_index() -> crate::Result<Index> {
         let mut schema = Schema::builder();
         let title = schema.add_text_field("title", STRING);
         let index = Index::create_in_ram(schema.build());
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(title=>"abc"));
-        index_writer.add_document(doc!(title=>"bcd"));
-        index_writer.add_document(doc!(title=>"abcd"));
-        assert!(index_writer.commit().is_ok());
-        index
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(title=>"abc"))?;
+        index_writer.add_document(doc!(title=>"bcd"))?;
+        index_writer.add_document(doc!(title=>"abcd"))?;
+        index_writer.commit()?;
+        Ok(index)
     }
 
     #[derive(Clone, Copy)]
@@ -121,10 +121,7 @@ mod tests {
         }
 
         fn is_match(&self, state: &Self::State) -> bool {
-            match *state {
-                State::AfterA => true,
-                _ => false,
-            }
+            matches!(*state, State::AfterA)
         }
 
         fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
@@ -143,34 +140,32 @@ mod tests {
     }
 
     #[test]
-    fn test_automaton_weight() {
-        let index = create_index();
+    fn test_automaton_weight() -> crate::Result<()> {
+        let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
         let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut scorer = automaton_weight
-            .scorer(searcher.segment_reader(0u32), 1.0)
-            .unwrap();
+        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.0);
         assert_eq!(scorer.advance(), 2u32);
         assert_eq!(scorer.doc(), 2u32);
         assert_eq!(scorer.score(), 1.0);
         assert_eq!(scorer.advance(), TERMINATED);
+        Ok(())
     }
 
     #[test]
-    fn test_automaton_weight_boost() {
-        let index = create_index();
+    fn test_automaton_weight_boost() -> crate::Result<()> {
+        let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
         let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
-        let mut scorer = automaton_weight
-            .scorer(searcher.segment_reader(0u32), 1.32)
-            .unwrap();
+        let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.32)?;
         assert_eq!(scorer.doc(), 0u32);
         assert_eq!(scorer.score(), 1.32);
+        Ok(())
     }
 }

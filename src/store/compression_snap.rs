@@ -4,7 +4,7 @@ use std::io::{self, Read, Write};
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();
     let mut encoder = snap::write::FrameEncoder::new(compressed);
-    encoder.write_all(&uncompressed)?;
+    encoder.write_all(uncompressed)?;
     encoder.flush()?;
     Ok(())
 }

@@ -1,4 +1,3 @@
-use crate::common::BitSet;
 use crate::core::Searcher;
 use crate::core::SegmentReader;
 use crate::error::TantivyError;
@@ -10,6 +9,7 @@ use crate::schema::Type;
 use crate::schema::{Field, IndexRecordOption, Term};
 use crate::termdict::{TermDictionary, TermStreamer};
 use crate::{DocId, Score};
+use common::BitSet;
 use std::io;
 use std::ops::{Bound, Range};
 
@@ -51,7 +51,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// for year in 1950u64..2017u64 {
 ///     let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
 ///     for _ in 0..num_docs_within_year {
-///       index_writer.add_document(doc!(year_field => year));
+///       index_writer.add_document(doc!(year_field => year))?;
 ///     }
 /// }
 /// index_writer.commit()?;
@@ -338,34 +338,35 @@ mod tests {
     use std::ops::Bound;
 
     #[test]
-    fn test_range_query_simple() {
+    fn test_range_query_simple() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let year_field = schema_builder.add_u64_field("year", INDEXED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             for year in 1950u64..2017u64 {
                 let num_docs_within_year = 10 + (year - 1950) * (year - 1950);
                 for _ in 0..num_docs_within_year {
-                    index_writer.add_document(doc!(year_field => year));
+                    index_writer.add_document(doc!(year_field => year))?;
                 }
             }
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
 
         let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
 
         // ... or `1960..=1969` if inclusive range is enabled.
-        let count = searcher.search(&docs_in_the_sixties, &Count).unwrap();
+        let count = searcher.search(&docs_in_the_sixties, &Count)?;
         assert_eq!(count, 2285);
+        Ok(())
     }
 
     #[test]
-    fn test_range_query() {
+    fn test_range_query() -> crate::Result<()> {
         let int_field: Field;
         let schema = {
             let mut schema_builder = Schema::builder();
@@ -375,7 +376,7 @@ mod tests {
 
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(2, 6_000_000)?;
 
             for i in 1..100 {
                 let mut doc = Document::new();
@@ -384,10 +385,10 @@ mod tests {
                         doc.add_i64(int_field, j as i64);
                     }
                 }
-                index_writer.add_document(doc);
+                index_writer.add_document(doc)?;
             }
 
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
@@ -419,10 +420,11 @@ mod tests {
             )),
             91
         );
+        Ok(())
     }
 
     #[test]
-    fn test_range_float() {
+    fn test_range_float() -> crate::Result<()> {
         let float_field: Field;
         let schema = {
             let mut schema_builder = Schema::builder();
@@ -441,12 +443,12 @@ mod tests {
                         doc.add_f64(float_field, j as f64);
                     }
                 }
-                index_writer.add_document(doc);
+                index_writer.add_document(doc)?;
             }
 
-            index_writer.commit().unwrap();
+            index_writer.commit()?;
         }
-        let reader = index.reader().unwrap();
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
@@ -479,6 +481,7 @@ mod tests {
             )),
             91
         );
+        Ok(())
     }
 
     #[test]
@@ -494,7 +497,7 @@ mod tests {
         index_writer.add_document(doc!(
           title => "hemoglobin blood",
           year => 1990_i64
-        ));
+        ))?;
         index_writer.commit()?;
         let reader = index.reader()?;
         let searcher = reader.searcher();

@@ -1,9 +1,9 @@
 use std::fmt;
 
 use super::Field;
-use crate::common;
 use crate::schema::Facet;
 use crate::DateTime;
+use common;
 use std::str;
 
 /// Size (in bytes) of the buffer of a int field.

@@ -1,16 +1,14 @@
 use std::io;
 
-use crate::common::{BinarySerializable, VInt};
 use crate::directory::FileSlice;
 use crate::directory::OwnedBytes;
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::compression::{
-    AlignedBuffer, BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE,
-};
+use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
+use common::{BinarySerializable, VInt};
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     it.next().map(|first| it.fold(first, Score::max))
@@ -209,9 +207,9 @@ impl BlockSegmentPostings {
     ///
     /// This method is useful to run SSE2 linear search.
     #[inline]
-    pub(crate) fn docs_aligned(&self) -> &AlignedBuffer {
+    pub(crate) fn full_block(&self) -> &[DocId; COMPRESSION_BLOCK_SIZE] {
         debug_assert!(self.block_is_loaded());
-        self.doc_decoder.output_aligned()
+        self.doc_decoder.full_output()
     }
 
     /// Return the document at index `idx` of the block.
@@ -349,7 +347,6 @@ impl BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
     use super::BlockSegmentPostings;
-    use crate::common::HasLen;
     use crate::core::Index;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
@@ -360,6 +357,7 @@ mod tests {
     use crate::schema::Term;
     use crate::schema::INDEXED;
     use crate::DocId;
+    use common::HasLen;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -395,8 +393,8 @@ mod tests {
     }
 
     #[test]
-    fn test_block_segment_postings() {
-        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>());
+    fn test_block_segment_postings() -> crate::Result<()> {
+        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>())?;
         let mut offset: u32 = 0u32;
         // checking that the `doc_freq` is correct
         assert_eq!(block_segments.doc_freq(), 100_000);
@@ -411,16 +409,17 @@ mod tests {
             offset += block.len() as u32;
             block_segments.advance();
         }
+        Ok(())
     }
 
     #[test]
-    fn test_skip_right_at_new_block() {
+    fn test_skip_right_at_new_block() -> crate::Result<()> {
         let mut doc_ids = (0..128).collect::<Vec<u32>>();
         // 128 is missing
         doc_ids.push(129);
         doc_ids.push(130);
         {
-            let block_segments = build_block_postings(&doc_ids);
+            let block_segments = build_block_postings(&doc_ids)?;
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(128), 129);
             assert_eq!(docset.doc(), 129);
@@ -429,7 +428,7 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids);
+            let block_segments = build_block_postings(&doc_ids).unwrap();
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.seek(129), 129);
             assert_eq!(docset.doc(), 129);
@@ -438,46 +437,47 @@ mod tests {
             assert_eq!(docset.advance(), TERMINATED);
         }
         {
-            let block_segments = build_block_postings(&doc_ids);
+            let block_segments = build_block_postings(&doc_ids)?;
             let mut docset = SegmentPostings::from_block_postings(block_segments, None);
             assert_eq!(docset.doc(), 0);
             assert_eq!(docset.seek(131), TERMINATED);
             assert_eq!(docset.doc(), TERMINATED);
         }
+        Ok(())
     }
 
-    fn build_block_postings(docs: &[DocId]) -> BlockSegmentPostings {
+    fn build_block_postings(docs: &[DocId]) -> crate::Result<BlockSegmentPostings> {
         let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         let mut last_doc = 0u32;
         for &doc in docs {
             for _ in last_doc..doc {
-                index_writer.add_document(doc!(int_field=>1u64));
+                index_writer.add_document(doc!(int_field=>1u64))?;
             }
-            index_writer.add_document(doc!(int_field=>0u64));
+            index_writer.add_document(doc!(int_field=>0u64))?;
             last_doc = doc + 1;
         }
-        index_writer.commit().unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        index_writer.commit()?;
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(int_field).unwrap();
         let term = Term::from_field_u64(int_field, 0u64);
-        let term_info = inverted_index.get_term_info(&term).unwrap().unwrap();
-        inverted_index
-            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)
-            .unwrap()
+        let term_info = inverted_index.get_term_info(&term)?.unwrap();
+        let block_postings = inverted_index
+            .read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)?;
+        Ok(block_postings)
     }
 
     #[test]
-    fn test_block_segment_postings_seek() {
+    fn test_block_segment_postings_seek() -> crate::Result<()> {
         let mut docs = vec![0];
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
-        let mut block_postings = build_block_postings(&docs[..]);
+        let mut block_postings = build_block_postings(&docs[..])?;
         for i in &[0, 424, 10000] {
             block_postings.seek(*i);
             let docs = block_postings.docs();
@@ -486,6 +486,7 @@ mod tests {
         }
         block_postings.seek(100_000);
         assert_eq!(block_postings.doc(COMPRESSION_BLOCK_SIZE - 1), TERMINATED);
+        Ok(())
     }
 
     #[test]
@@ -499,7 +500,7 @@ mod tests {
         // the other containing odd numbers.
         for i in 0..6 {
             let doc = doc!(int_field=> (i % 2) as u64);
-            index_writer.add_document(doc);
+            index_writer.add_document(doc)?;
         }
         index_writer.commit()?;
         let searcher = index.reader()?.searcher();

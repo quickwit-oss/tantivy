@@ -101,6 +101,7 @@ impl SegmentMeta {
 
     /// Returns the list of files that
     /// are required for the segment meta.
+    /// Note: Some of the returned files may not exist depending on the state of the segment.
     ///
     /// This is useful as the way tantivy removes files
     /// is by removing all files that have been created by tantivy
@@ -188,6 +189,10 @@ impl SegmentMeta {
 
     #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
+        assert!(
+            num_deleted_docs <= self.max_doc(),
+            "There cannot be more deleted docs than there are docs."
+        );
         let delete_meta = DeleteMeta {
             num_deleted_docs,
             opstamp,
@@ -393,7 +398,7 @@ mod tests {
         let json = serde_json::ser::to_string(&index_metas).expect("serialization failed");
         assert_eq!(
             json,
-            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","tokenizer":"default"},"stored":false}}],"opstamp":0}"#
+            r#"{"index_settings":{"sort_by_field":{"field":"text","order":"Asc"},"docstore_compression":"lz4"},"segments":[],"schema":[{"name":"text","type":"text","options":{"indexing":{"record":"position","fieldnorms":true,"tokenizer":"default"},"stored":false}}],"opstamp":0}"#
         );
     }
 }

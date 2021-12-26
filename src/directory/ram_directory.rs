@@ -1,9 +1,10 @@
+use crate::core::META_FILEPATH;
 use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use crate::directory::AntiCallToken;
 use crate::directory::WatchCallbackList;
 use crate::directory::{Directory, FileSlice, WatchCallback, WatchHandle};
 use crate::directory::{TerminatingWrite, WritePtr};
-use crate::{common::HasLen, core::META_FILEPATH};
+use common::HasLen;
 use fail::fail_point;
 use std::collections::HashMap;
 use std::fmt;
@@ -17,13 +18,6 @@ use super::FileHandle;
 /// Writer associated with the `RamDirectory`
 ///
 /// The Writer just writes a buffer.
-///
-/// # Panics
-///
-/// On drop, if the writer was left in a *dirty* state.
-/// That is, if flush was not called after the last call
-/// to write.
-///
 struct VecWriter {
     path: PathBuf,
     shared_directory: RamDirectory,
@@ -45,7 +39,7 @@ impl VecWriter {
 impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_flushed {
-            panic!(
+            warn!(
                 "You forgot to flush {:?} before its writter got Drop. Do not rely on drop. This also occurs when the indexer crashed, so you may want to check the logs for the root cause.",
                 self.path
             )
@@ -220,14 +214,8 @@ impl Directory for RamDirectory {
     }
 
     fn atomic_write(&self, path: &Path, data: &[u8]) -> io::Result<()> {
-        fail_point!("RamDirectory::atomic_write", |msg| Err(io::Error::new(
-            io::ErrorKind::Other,
-            msg.unwrap_or_else(|| "Undefined".to_string())
-        )));
         let path_buf = PathBuf::from(path);
-
         self.fs.write().unwrap().write(path_buf, data);
-
         if path == *META_FILEPATH {
             let _ = self.fs.write().unwrap().watch_router.broadcast();
         }
@@ -236,6 +224,10 @@ impl Directory for RamDirectory {
 
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.fs.write().unwrap().watch(watch_callback))
+    }
+
+    fn sync_directory(&self) -> io::Result<()> {
+        Ok(())
     }
 }
 

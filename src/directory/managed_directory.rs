@@ -1,4 +1,4 @@
-use crate::core::{MANAGED_FILEPATH, META_FILEPATH};
+use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
 use crate::directory::GarbageCollectionResult;
@@ -64,7 +64,7 @@ fn save_managed_paths(
 
 impl ManagedDirectory {
     /// Wraps a directory as managed directory.
-    pub fn wrap<Dir: Directory>(directory: Dir) -> crate::Result<ManagedDirectory> {
+    pub fn wrap(directory: Box<dyn Directory>) -> crate::Result<ManagedDirectory> {
         match directory.atomic_read(&MANAGED_FILEPATH) {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
@@ -76,14 +76,14 @@ impl ManagedDirectory {
                         )
                     })?;
                 Ok(ManagedDirectory {
-                    directory: Box::new(directory),
+                    directory,
                     meta_informations: Arc::new(RwLock::new(MetaInformation {
                         managed_paths: managed_files,
                     })),
                 })
             }
             Err(OpenReadError::FileDoesNotExist(_)) => Ok(ManagedDirectory {
-                directory: Box::new(directory),
+                directory,
                 meta_informations: Arc::default(),
             }),
             io_err @ Err(OpenReadError::IoError { .. }) => Err(io_err.err().unwrap().into()),
@@ -192,6 +192,7 @@ impl ManagedDirectory {
             for delete_file in &deleted_files {
                 managed_paths_write.remove(delete_file);
             }
+            self.directory.sync_directory()?;
             save_managed_paths(self.directory.as_mut(), &meta_informations_wlock)?;
         }
 
@@ -222,9 +223,22 @@ impl ManagedDirectory {
             .write()
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
-        if has_changed {
-            save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
+        if !has_changed {
+            return Ok(());
         }
+        save_managed_paths(self.directory.as_ref(), &meta_wlock)?;
+        // This is not the first file we add.
+        // Therefore, we are sure that `.managed.json` has been already
+        // properly created and we do not need to sync its parent directory.
+        //
+        // (It might seem like a nicer solution to create the managed_json on the
+        // creation of the ManagedDirectory instance but it would actually
+        // prevent the use of read-only directories..)
+        let managed_file_definitely_already_exists = meta_wlock.managed_paths.len() > 1;
+        if managed_file_definitely_already_exists {
+            return Ok(());
+        }
+        self.directory.sync_directory()?;
         Ok(())
     }
 
@@ -248,24 +262,15 @@ impl ManagedDirectory {
         Ok(footer.crc() == crc)
     }
 
-    /// List files for which checksum does not match content
-    pub fn list_damaged(&self) -> result::Result<HashSet<PathBuf>, OpenReadError> {
-        let mut managed_paths = self
+    /// List all managed files
+    pub fn list_managed_files(&self) -> HashSet<PathBuf> {
+        let managed_paths = self
             .meta_informations
             .read()
             .expect("Managed directory rlock poisoned in list damaged.")
             .managed_paths
             .clone();
-
-        managed_paths.remove(*META_FILEPATH);
-
-        let mut damaged_files = HashSet::new();
-        for path in managed_paths {
-            if !self.validate_checksum(&path)? {
-                damaged_files.insert(path);
-            }
-        }
-        Ok(damaged_files)
+        managed_paths
     }
 }
 
@@ -319,6 +324,11 @@ impl Directory for ManagedDirectory {
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         self.directory.watch(watch_callback)
     }
+
+    fn sync_directory(&self) -> io::Result<()> {
+        self.directory.sync_directory()?;
+        Ok(())
+    }
 }
 
 impl Clone for ManagedDirectory {
@@ -336,7 +346,6 @@ mod tests_mmap_specific {
 
     use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
     use std::collections::HashSet;
-    use std::fs::OpenOptions;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use tempfile::TempDir;
@@ -350,7 +359,7 @@ mod tests_mmap_specific {
         let test_path2: &'static Path = Path::new("some_path_for_test_2");
         {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-            let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+            let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
             let write_file = managed_directory.open_write(test_path1).unwrap();
             write_file.terminate().unwrap();
             managed_directory
@@ -365,7 +374,7 @@ mod tests_mmap_specific {
         }
         {
             let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-            let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+            let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
             assert!(managed_directory.exists(test_path1).unwrap());
             assert!(!managed_directory.exists(test_path2).unwrap());
             let living_files: HashSet<PathBuf> = HashSet::new();
@@ -384,7 +393,7 @@ mod tests_mmap_specific {
         let living_files = HashSet::new();
 
         let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-        let mut managed_directory = ManagedDirectory::wrap(mmap_directory).unwrap();
+        let mut managed_directory = ManagedDirectory::wrap(Box::new(mmap_directory)).unwrap();
         let mut write = managed_directory.open_write(test_path1).unwrap();
         write.write_all(&[0u8, 1u8]).unwrap();
         write.terminate().unwrap();
@@ -404,40 +413,5 @@ mod tests_mmap_specific {
             assert!(managed_directory.garbage_collect(|| living_files).is_ok());
         }
         assert!(!managed_directory.exists(test_path1).unwrap());
-    }
-
-    #[test]
-    fn test_checksum() -> crate::Result<()> {
-        let test_path1: &'static Path = Path::new("some_path_for_test");
-        let test_path2: &'static Path = Path::new("other_test_path");
-
-        let tempdir = TempDir::new().unwrap();
-        let tempdir_path = PathBuf::from(tempdir.path());
-
-        let mmap_directory = MmapDirectory::open(&tempdir_path)?;
-        let managed_directory = ManagedDirectory::wrap(mmap_directory)?;
-        let mut write = managed_directory.open_write(test_path1)?;
-        write.write_all(&[0u8, 1u8])?;
-        write.terminate()?;
-
-        let mut write = managed_directory.open_write(test_path2)?;
-        write.write_all(&[3u8, 4u8, 5u8])?;
-        write.terminate()?;
-
-        let read_file = managed_directory.open_read(test_path2)?.read_bytes()?;
-        assert_eq!(read_file.as_slice(), &[3u8, 4u8, 5u8]);
-        assert!(managed_directory.list_damaged().unwrap().is_empty());
-
-        let mut corrupted_path = tempdir_path;
-        corrupted_path.push(test_path2);
-        let mut file = OpenOptions::new().write(true).open(&corrupted_path)?;
-        file.write_all(&[255u8])?;
-        file.flush()?;
-        drop(file);
-
-        let damaged = managed_directory.list_damaged()?;
-        assert_eq!(damaged.len(), 1);
-        assert!(damaged.contains(test_path2));
-        Ok(())
     }
 }

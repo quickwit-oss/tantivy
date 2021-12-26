@@ -94,7 +94,7 @@ impl IndexReaderBuilder {
         }
         Ok(IndexReader {
             inner: inner_reader_arc,
-            watch_handle_opt,
+            _watch_handle_opt: watch_handle_opt,
         })
     }
 
@@ -167,7 +167,7 @@ impl InnerIndexReader {
 #[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
-    watch_handle_opt: Option<WatchHandle>,
+    _watch_handle_opt: Option<WatchHandle>,
 }
 
 impl IndexReader {

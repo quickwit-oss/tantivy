@@ -3,6 +3,9 @@ Postings module (also called inverted index)
 */
 
 mod block_search;
+
+pub(crate) use self::block_search::branchless_binary_search;
+
 mod block_segment_postings;
 pub(crate) mod compression;
 mod postings;
@@ -14,7 +17,6 @@ mod skip;
 mod stacker;
 mod term_info;
 
-pub(crate) use self::block_search::BlockSearcher;
 pub use self::block_segment_postings::BlockSegmentPostings;
 pub use self::postings::Postings;
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
@@ -45,7 +47,6 @@ pub mod tests {
     use crate::fieldnorm::FieldNormReader;
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
-    use crate::merge_policy::NoMergePolicy;
     use crate::query::Scorer;
     use crate::schema::{Field, TextOptions};
     use crate::schema::{IndexRecordOption, TextFieldIndexing};
@@ -85,12 +86,12 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests()?;
-        index_writer.add_document(doc!(title => r#"abc abc abc"#));
-        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        index_writer.add_document(doc!(title => r#"abc abc abc"#))?;
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#))?;
         for _ in 0..1_000 {
-            index_writer.add_document(doc!(title => r#"abc abc abc"#));
+            index_writer.add_document(doc!(title => r#"abc abc abc"#))?;
         }
-        index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
+        index_writer.add_document(doc!(title => r#"abc be be be be abc"#))?;
         index_writer.commit()?;
 
         let searcher = index.reader()?.searcher();
@@ -152,10 +153,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_drop_token_that_are_too_long() -> crate::Result<()> {
-        let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
-        let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
-        exceeding_token_text.push_str(" hello");
+    pub fn test_index_max_length_token() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
@@ -168,33 +166,54 @@ pub mod tests {
         index
             .tokenizers()
             .register("simple_no_truncation", SimpleTokenizer);
-        let reader = index.reader().unwrap();
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        {
-            index_writer.add_document(doc!(text_field=>exceeding_token_text));
-            index_writer.commit().unwrap();
-            reader.reload().unwrap();
-            let searcher = reader.searcher();
-            let segment_reader = searcher.segment_reader(0u32);
-            let inverted_index = segment_reader.inverted_index(text_field)?;
-            assert_eq!(inverted_index.terms().num_terms(), 1);
-            let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
-            assert_eq!(&bytes, b"hello");
-        }
-        {
-            index_writer.add_document(doc!(text_field=>ok_token_text.clone()));
-            index_writer.commit().unwrap();
-            reader.reload().unwrap();
-            let searcher = reader.searcher();
-            let segment_reader = searcher.segment_reader(1u32);
-            let inverted_index = segment_reader.inverted_index(text_field)?;
-            assert_eq!(inverted_index.terms().num_terms(), 1);
-            let mut bytes = vec![];
-            assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
-            assert_eq!(&bytes[..], ok_token_text.as_bytes());
-        }
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
+
+        let ok_token_text: String = "A".repeat(MAX_TOKEN_LEN);
+        index_writer.add_document(doc!(text_field=>ok_token_text.clone()))?;
+        index_writer.commit()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+        let inverted_index = segment_reader.inverted_index(text_field)?;
+        assert_eq!(inverted_index.terms().num_terms(), 1);
+        let mut bytes = vec![];
+        assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+        assert_eq!(&bytes[..], ok_token_text.as_bytes());
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn test_drop_token_that_are_too_long() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                .set_tokenizer("simple_no_truncation"),
+        );
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        index
+            .tokenizers()
+            .register("simple_no_truncation", SimpleTokenizer);
+        let reader = index.reader()?;
+        let mut index_writer = index.writer_for_tests()?;
+
+        let mut exceeding_token_text: String = "A".repeat(MAX_TOKEN_LEN + 1);
+        exceeding_token_text.push_str(" hello");
+        index_writer.add_document(doc!(text_field=>exceeding_token_text))?;
+        index_writer.commit()?;
+        reader.reload()?;
+        let searcher = reader.searcher();
+        let segment_reader = searcher.segment_reader(0u32);
+        let inverted_index = segment_reader.inverted_index(text_field)?;
+        assert_eq!(inverted_index.terms().num_terms(), 1);
+        let mut bytes = vec![];
+        assert!(inverted_index.terms().ord_to_term(0, &mut bytes)?);
+        assert_eq!(&bytes, b"hello");
+
         Ok(())
     }
 
@@ -313,13 +332,13 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field => "g b b d c g c"));
-            index_writer.add_document(doc!(text_field => "g a b b a d c g c"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field => "g b b d c g c"))?;
+            index_writer.add_document(doc!(text_field => "g a b b a d c g c"))?;
+            index_writer.commit()?;
         }
         let term_a = Term::from_field_text(text_field, "a");
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut postings = segment_reader
             .inverted_index(text_field)?
@@ -348,7 +367,7 @@ pub mod tests {
                 let mut index_writer = index.writer_for_tests()?;
                 for i in 0u64..num_docs as u64 {
                     let doc = doc!(value_field => 2u64, value_field => i % 2u64);
-                    index_writer.add_document(doc);
+                    index_writer.add_document(doc)?;
                 }
                 assert!(index_writer.commit().is_ok());
             }
@@ -598,7 +617,7 @@ mod bench {
                     doc.add_text(text_field, "c");
                 }
                 doc.add_text(text_field, "d");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc).unwrap();
             }
             assert!(index_writer.commit().is_ok());
         }

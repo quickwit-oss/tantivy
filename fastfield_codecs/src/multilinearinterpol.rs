@@ -1,3 +1,17 @@
+/*!
+
+MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the offset, but in blocks of 512.
+
+With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 / 512 = 0,45 bits per element.
+The additional space required per element in a block is the the maximum deviation of the linear interpolation estimation function.
+
+E.g. if the maximum deviation of an element is 12, all elements cost 4bits.
+
+Size per block:
+Num Elements * Maximum Deviation from Interpolation + 29 Byte Metadata
+
+*/
+
 use crate::FastFieldCodecReader;
 use crate::FastFieldCodecSerializer;
 use crate::FastFieldDataAccess;
@@ -43,7 +57,7 @@ struct Function {
 impl Function {
     fn calc_slope(&mut self) {
         let num_vals = self.end_pos - self.start_pos;
-        get_slope(self.value_start_pos, self.value_end_pos, num_vals);
+        self.slope = get_slope(self.value_start_pos, self.value_end_pos, num_vals);
     }
     // split the interpolation into two function, change self and return the second split
     fn split(&mut self, split_pos: u64, split_pos_value: u64) -> Function {
@@ -364,11 +378,22 @@ mod tests {
     use super::*;
     use crate::tests::get_codec_test_data_sets;
 
-    fn create_and_validate(data: &[u64], name: &str) {
+    fn create_and_validate(data: &[u64], name: &str) -> (f32, f32) {
         crate::tests::create_and_validate::<
             MultiLinearInterpolFastFieldSerializer,
             MultiLinearInterpolFastFieldReader,
-        >(data, name);
+        >(data, name)
+    }
+
+    #[test]
+    fn test_compression() {
+        let data = (10..=6_000_u64).collect::<Vec<_>>();
+        let (estimate, actual_compression) =
+            create_and_validate(&data, "simple monotonically large");
+        assert!(actual_compression < 0.2);
+        assert!(estimate < 0.20);
+        assert!(estimate > 0.15);
+        assert!(actual_compression > 0.01);
     }
 
     #[test]
@@ -400,9 +425,11 @@ mod tests {
     fn rand() {
         for _ in 0..10 {
             let mut data = (5_000..20_000)
-                .map(|_| rand::random::<u64>() as u64)
+                .map(|_| rand::random::<u32>() as u64)
                 .collect::<Vec<_>>();
-            create_and_validate(&data, "random");
+            let (estimate, actual_compression) = create_and_validate(&data, "random");
+            dbg!(estimate);
+            dbg!(actual_compression);
 
             data.reverse();
             create_and_validate(&data, "random");

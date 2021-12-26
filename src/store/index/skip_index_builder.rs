@@ -1,6 +1,6 @@
-use crate::common::{BinarySerializable, VInt};
 use crate::store::index::block::CheckpointBlock;
 use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
+use common::{BinarySerializable, VInt};
 use std::io;
 use std::io::Write;
 

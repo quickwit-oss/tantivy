@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-use crate::common::HasLen;
 use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
+use common::HasLen;
 
 /// Simulate a `Postings` objects from a `VecPostings`.
 /// `VecPostings` only exist for testing purposes.

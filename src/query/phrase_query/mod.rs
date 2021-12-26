@@ -18,34 +18,34 @@ pub mod tests {
     use crate::DocId;
     use crate::{DocAddress, TERMINATED};
 
-    pub fn create_index(texts: &[&'static str]) -> Index {
+    pub fn create_index(texts: &[&'static str]) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             for &text in texts {
                 let doc = doc!(text_field=>text);
-                index_writer.add_document(doc);
+                index_writer.add_document(doc)?;
             }
-            assert!(index_writer.commit().is_ok());
+            index_writer.commit()?;
         }
-        index
+        Ok(index)
     }
 
     #[test]
-    pub fn test_phrase_query() {
+    pub fn test_phrase_query() -> crate::Result<()> {
         let index = create_index(&[
             "b b b d c g c",
             "a b b d c g c",
             "a b a b c",
             "c a b a d ga a",
             "a b c",
-        ]);
+        ])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let test_query = |texts: Vec<&str>| {
             let terms: Vec<Term> = texts
                 .iter()
@@ -54,7 +54,7 @@ pub mod tests {
             let phrase_query = PhraseQuery::new(terms);
             let test_fruits = searcher
                 .search(&phrase_query, &TEST_COLLECTOR_WITH_SCORE)
-                .expect("search should succeed");
+                .unwrap();
             test_fruits
                 .docs()
                 .iter()
@@ -66,11 +66,12 @@ pub mod tests {
         assert_eq!(test_query(vec!["b", "b"]), vec![0, 1]);
         assert!(test_query(vec!["g", "ewrwer"]).is_empty());
         assert!(test_query(vec!["g", "a"]).is_empty());
+        Ok(())
     }
 
     #[test]
     pub fn test_phrase_query_simple() -> crate::Result<()> {
-        let index = create_index(&["a b b d c g c", "a b a b c"]);
+        let index = create_index(&["a b b d c g c", "a b a b c"])?;
         let text_field = index.schema().get_field("text").unwrap();
         let searcher = index.reader()?.searcher();
         let terms: Vec<Term> = vec!["a", "b", "c"]
@@ -86,17 +87,17 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_phrase_query_no_score() {
+    pub fn test_phrase_query_no_score() -> crate::Result<()> {
         let index = create_index(&[
             "b b b d c g c",
             "a b b d c g c",
             "a b a b c",
             "c a b a d ga a",
             "a b c",
-        ]);
+        ])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let test_query = |texts: Vec<&str>| {
             let terms: Vec<Term> = texts
                 .iter()
@@ -105,7 +106,7 @@ pub mod tests {
             let phrase_query = PhraseQuery::new(terms);
             let test_fruits = searcher
                 .search(&phrase_query, &TEST_COLLECTOR_WITHOUT_SCORE)
-                .expect("search should succeed");
+                .unwrap();
             test_fruits
                 .docs()
                 .iter()
@@ -117,10 +118,11 @@ pub mod tests {
         assert_eq!(test_query(vec!["b", "b"]), vec![0, 1]);
         assert!(test_query(vec!["g", "ewrwer"]).is_empty());
         assert!(test_query(vec!["g", "a"]).is_empty());
+        Ok(())
     }
 
     #[test]
-    pub fn test_phrase_query_no_positions() {
+    pub fn test_phrase_query_no_positions() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         use crate::schema::IndexRecordOption;
         use crate::schema::TextFieldIndexing;
@@ -135,33 +137,34 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field=>"a b c"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field=>"a b c"))?;
+            index_writer.commit()?;
         }
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let phrase_query = PhraseQuery::new(vec![
             Term::from_field_text(text_field, "a"),
             Term::from_field_text(text_field, "b"),
         ]);
 
-        let search_result = searcher
+        let search_error = searcher
             .search(&phrase_query, &TEST_COLLECTOR_WITH_SCORE)
-            .map(|_| ());
+            .err();
         assert!(matches!(
-            search_result,
-            Err(crate::TantivyError::SchemaError(msg))
+            search_error,
+            Some(crate::TantivyError::SchemaError(msg))
             if msg == "Applied phrase query on field \"text\", which does not have positions \
             indexed"
         ));
+        Ok(())
     }
 
     #[test]
-    pub fn test_phrase_score() {
-        let index = create_index(&["a b c", "a b c a b"]);
+    pub fn test_phrase_score() -> crate::Result<()> {
+        let index = create_index(&["a b c", "a b c a b"])?;
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let test_query = |texts: Vec<&str>| {
             let terms: Vec<Term> = texts
                 .iter()
@@ -177,6 +180,7 @@ pub mod tests {
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals!(scores[0], 0.40618482);
         assert_nearly_equals!(scores[1], 0.46844664);
+        Ok(())
     }
 
     #[ignore]
@@ -261,20 +265,20 @@ pub mod tests {
     }
 
     #[test] // motivated by #234
-    pub fn test_phrase_query_docfreq_order() {
+    pub fn test_phrase_query_docfreq_order() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field=>"b"));
-            index_writer.add_document(doc!(text_field=>"a b"));
-            index_writer.add_document(doc!(text_field=>"b a"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field=>"b"))?;
+            index_writer.add_document(doc!(text_field=>"a b"))?;
+            index_writer.add_document(doc!(text_field=>"b a"))?;
+            index_writer.commit()?;
         }
 
-        let searcher = index.reader().unwrap().searcher();
+        let searcher = index.reader()?.searcher();
         let test_query = |texts: Vec<&str>| {
             let terms: Vec<Term> = texts
                 .iter()
@@ -289,18 +293,19 @@ pub mod tests {
         };
         assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress::new(0, 1)]);
         assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress::new(0, 2)]);
+        Ok(())
     }
 
     #[test] // motivated by #234
-    pub fn test_phrase_query_non_trivial_offsets() {
+    pub fn test_phrase_query_non_trivial_offsets() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_for_tests().unwrap();
-            index_writer.add_document(doc!(text_field=>"a b c d e f g h"));
-            assert!(index_writer.commit().is_ok());
+            let mut index_writer = index.writer_for_tests()?;
+            index_writer.add_document(doc!(text_field=>"a b c d e f g h"))?;
+            index_writer.commit()?;
         }
         let searcher = index.reader().unwrap().searcher();
         let test_query = |texts: Vec<(usize, &str)>| {
@@ -326,5 +331,6 @@ pub mod tests {
         assert_eq!(test_query(vec![(4, "e"), (0, "a"), (2, "c")]), vec![0]);
         assert!(test_query(vec![(0, "a"), (2, "d")]).is_empty());
         assert_eq!(test_query(vec![(1, "a"), (3, "c")]), vec![0]);
+        Ok(())
     }
 }

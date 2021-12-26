@@ -118,15 +118,6 @@ mod ram_directory_tests {
     }
 }
 
-#[test]
-#[should_panic]
-fn ram_directory_panics_if_flush_forgotten() {
-    let test_path: &'static Path = Path::new("some_path_for_test");
-    let ram_directory = RamDirectory::create();
-    let mut write_file = ram_directory.open_write(test_path).unwrap();
-    assert!(write_file.write_all(&[4]).is_ok());
-}
-
 fn test_simple(directory: &dyn Directory) -> crate::Result<()> {
     let test_path: &'static Path = Path::new("some_path_for_test");
     let mut write_file = directory.open_write(test_path)?;

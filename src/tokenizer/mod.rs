@@ -131,6 +131,7 @@ mod token_stream_chain;
 mod tokenized_string;
 mod tokenizer;
 mod tokenizer_manager;
+mod whitespace_tokenizer;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::ascii_folding_filter::AsciiFoldingFilter;
@@ -143,6 +144,7 @@ pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
+pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
@@ -276,5 +278,26 @@ pub mod tests {
             }
             assert!(tokens.is_empty());
         }
+    }
+
+    #[test]
+    fn test_whitespace_tokenizer() {
+        let tokenizer_manager = TokenizerManager::default();
+        let ws_tokenizer = tokenizer_manager.get("whitespace").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            ws_tokenizer
+                .token_stream("Hello, happy tax payer!")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 4);
+        assert_token(&tokens[0], 0, "Hello,", 0, 6);
+        assert_token(&tokens[1], 1, "happy", 7, 12);
+        assert_token(&tokens[2], 2, "tax", 13, 16);
+        assert_token(&tokens[3], 3, "payer!", 17, 23);
     }
 }

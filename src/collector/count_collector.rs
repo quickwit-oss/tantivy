@@ -20,10 +20,10 @@ use crate::SegmentReader;
 /// let index = Index::create_in_ram(schema);
 ///
 /// let mut index_writer = index.writer(3_000_000).unwrap();
-/// index_writer.add_document(doc!(title => "The Name of the Wind"));
-/// index_writer.add_document(doc!(title => "The Diary of Muadib"));
-/// index_writer.add_document(doc!(title => "A Dairy Cow"));
-/// index_writer.add_document(doc!(title => "The Diary of a Young Girl"));
+/// index_writer.add_document(doc!(title => "The Name of the Wind")).unwrap();
+/// index_writer.add_document(doc!(title => "The Diary of Muadib")).unwrap();
+/// index_writer.add_document(doc!(title => "A Dairy Cow")).unwrap();
+/// index_writer.add_document(doc!(title => "The Diary of a Young Girl")).unwrap();
 /// assert!(index_writer.commit().is_ok());
 ///
 /// let reader = index.reader().unwrap();

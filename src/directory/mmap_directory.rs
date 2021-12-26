@@ -11,7 +11,7 @@ use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
 use crate::directory::{ArcBytes, WeakArcBytes};
 use crate::directory::{TerminatingWrite, WritePtr};
 use fs2::FileExt;
-use memmap::Mmap;
+use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use stable_deref_trait::StableDeref;
 use std::convert::From;
@@ -53,7 +53,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
         return Ok(None);
     }
     unsafe {
-        memmap::Mmap::map(&file)
+        memmap2::Mmap::map(&file)
             .map(Some)
             .map_err(|io_err| OpenReadError::wrap_io_error(io_err, full_path.to_path_buf()))
     }
@@ -74,18 +74,10 @@ pub struct CacheInfo {
     pub mmapped: Vec<PathBuf>,
 }
 
+#[derive(Default)]
 struct MmapCache {
     counters: CacheCounters,
     cache: HashMap<PathBuf, WeakArcBytes>,
-}
-
-impl Default for MmapCache {
-    fn default() -> MmapCache {
-        MmapCache {
-            counters: CacheCounters::default(),
-            cache: HashMap::new(),
-        }
-    }
 }
 
 impl MmapCache {
@@ -201,49 +193,25 @@ impl MmapDirectory {
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<MmapDirectory, OpenDirectoryError> {
         let directory_path: &Path = directory_path.as_ref();
         if !directory_path.exists() {
-            Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
+            return Err(OpenDirectoryError::DoesNotExist(PathBuf::from(
                 directory_path,
-            )))
-        } else if !directory_path.is_dir() {
-            Err(OpenDirectoryError::NotADirectory(PathBuf::from(
-                directory_path,
-            )))
-        } else {
-            Ok(MmapDirectory::new(PathBuf::from(directory_path), None))
+            )));
         }
+        let canonical_path: PathBuf = directory_path.canonicalize().map_err(|io_err| {
+            OpenDirectoryError::wrap_io_error(io_err, PathBuf::from(directory_path))
+        })?;
+        if !canonical_path.is_dir() {
+            return Err(OpenDirectoryError::NotADirectory(PathBuf::from(
+                directory_path,
+            )));
+        }
+        Ok(MmapDirectory::new(canonical_path, None))
     }
 
     /// Joins a relative_path to the directory `root_path`
     /// to create a proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
         self.inner.root_path.join(relative_path)
-    }
-
-    /// Sync the root directory.
-    /// In certain FS, this is required to persistently create
-    /// a file.
-    fn sync_directory(&self) -> Result<(), io::Error> {
-        let mut open_opts = OpenOptions::new();
-
-        // Linux needs read to be set, otherwise returns EINVAL
-        // write must not be set, or it fails with EISDIR
-        open_opts.read(true);
-
-        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
-        // and calling sync_all() only works if write access is requested.
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-            use winapi::um::winbase;
-
-            open_opts
-                .write(true)
-                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
-        }
-
-        let fd = open_opts.open(&self.inner.root_path)?;
-        fd.sync_all()?;
-        Ok(())
     }
 
     /// Returns some statistical information
@@ -296,8 +264,7 @@ impl Write for SafeFileWriter {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()?;
-        self.0.sync_all()
+        Ok(())
     }
 }
 
@@ -309,7 +276,9 @@ impl Seek for SafeFileWriter {
 
 impl TerminatingWrite for SafeFileWriter {
     fn terminate_ref(&mut self, _: AntiCallToken) -> io::Result<()> {
-        self.flush()
+        self.0.flush()?;
+        self.0.sync_data()?;
+        Ok(())
     }
 }
 
@@ -339,6 +308,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
     let mut tempfile = tempfile::Builder::new().tempfile_in(&parent_path)?;
     tempfile.write_all(content)?;
     tempfile.flush()?;
+    tempfile.as_file_mut().sync_data()?;
     tempfile.into_temp_path().persist(path)?;
     Ok(())
 }
@@ -373,22 +343,17 @@ impl Directory for MmapDirectory {
     /// removed before the file is deleted.
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         let full_path = self.resolve_path(path);
-        match fs::remove_file(&full_path) {
-            Ok(_) => self.sync_directory().map_err(|e| DeleteError::IoError {
-                io_error: e,
-                filepath: path.to_path_buf(),
-            }),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::NotFound {
-                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
-                } else {
-                    Err(DeleteError::IoError {
-                        io_error: e,
-                        filepath: path.to_path_buf(),
-                    })
+        fs::remove_file(&full_path).map_err(|e| {
+            if e.kind() == io::ErrorKind::NotFound {
+                DeleteError::FileDoesNotExist(path.to_owned())
+            } else {
+                DeleteError::IoError {
+                    io_error: e,
+                    filepath: path.to_path_buf(),
                 }
             }
-        }
+        })?;
+        Ok(())
     }
 
     fn exists(&self, path: &Path) -> Result<bool, OpenReadError> {
@@ -417,10 +382,13 @@ impl Directory for MmapDirectory {
         file.flush()
             .map_err(|io_error| OpenWriteError::wrap_io_error(io_error, path.to_path_buf()))?;
 
-        // Apparetntly, on some filesystem syncing the parent
-        // directory is required.
-        self.sync_directory()
-            .map_err(|io_err| OpenWriteError::wrap_io_error(io_err, path.to_path_buf()))?;
+        // Note we actually do not sync the parent directory here.
+        //
+        // A newly created file, may, in some case, be created and even flushed to disk.
+        // and then lost...
+        //
+        // The file will only be durably written after we terminate AND
+        // sync_directory() is called.
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
@@ -450,7 +418,7 @@ impl Directory for MmapDirectory {
         debug!("Atomic Write {:?}", path);
         let full_path = self.resolve_path(path);
         atomic_write(&full_path, content)?;
-        self.sync_directory()
+        Ok(())
     }
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
@@ -476,6 +444,30 @@ impl Directory for MmapDirectory {
     fn watch(&self, watch_callback: WatchCallback) -> crate::Result<WatchHandle> {
         Ok(self.inner.watch(watch_callback))
     }
+
+    fn sync_directory(&self) -> Result<(), io::Error> {
+        let mut open_opts = OpenOptions::new();
+
+        // Linux needs read to be set, otherwise returns EINVAL
+        // write must not be set, or it fails with EISDIR
+        open_opts.read(true);
+
+        // On Windows, opening a directory requires FILE_FLAG_BACKUP_SEMANTICS
+        // and calling sync_all() only works if write access is requested.
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            use winapi::um::winbase;
+
+            open_opts
+                .write(true)
+                .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
+        }
+
+        let fd = open_opts.open(&self.inner.root_path)?;
+        fd.sync_data()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -485,13 +477,14 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+    use crate::indexer::LogMergePolicy;
     use crate::Index;
     use crate::ReloadPolicy;
-    use crate::{common::HasLen, indexer::LogMergePolicy};
     use crate::{
         schema::{Schema, SchemaBuilder, TEXT},
         IndexSettings,
     };
+    use common::HasLen;
 
     #[test]
     fn test_open_non_existent_path() {
@@ -581,8 +574,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mmap_released() {
-        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+    fn test_mmap_released() -> crate::Result<()> {
+        let mmap_directory = MmapDirectory::create_from_tempdir()?;
         let mut schema_builder: SchemaBuilder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -591,31 +584,30 @@ mod tests {
             let index =
                 Index::create(mmap_directory.clone(), schema, IndexSettings::default()).unwrap();
 
-            let mut index_writer = index.writer_for_tests().unwrap();
+            let mut index_writer = index.writer_for_tests()?;
             let mut log_merge_policy = LogMergePolicy::default();
             log_merge_policy.set_min_num_segments(3);
             index_writer.set_merge_policy(Box::new(log_merge_policy));
             for _num_commits in 0..10 {
                 for _ in 0..10 {
-                    index_writer.add_document(doc!(text_field=>"abc"));
+                    index_writer.add_document(doc!(text_field=>"abc"))?;
                 }
-                index_writer.commit().unwrap();
+                index_writer.commit()?;
             }
 
             let reader = index
                 .reader_builder()
                 .reload_policy(ReloadPolicy::Manual)
-                .try_into()
-                .unwrap();
+                .try_into()?;
 
             for _ in 0..4 {
-                index_writer.add_document(doc!(text_field=>"abc"));
-                index_writer.commit().unwrap();
-                reader.reload().unwrap();
+                index_writer.add_document(doc!(text_field=>"abc"))?;
+                index_writer.commit()?;
+                reader.reload()?;
             }
-            index_writer.wait_merging_threads().unwrap();
+            index_writer.wait_merging_threads()?;
 
-            reader.reload().unwrap();
+            reader.reload()?;
             let num_segments = reader.searcher().segment_readers().len();
             assert!(num_segments <= 4);
             let num_components_except_deletes_and_tempstore =
@@ -626,5 +618,6 @@ mod tests {
             );
         }
         assert!(mmap_directory.get_cache_info().mmapped.is_empty());
+        Ok(())
     }
 }

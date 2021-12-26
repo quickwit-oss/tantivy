@@ -1,5 +1,5 @@
-use crate::common::FixedSize;
 use bitpacking::{BitPacker, BitPacker4x};
+use common::FixedSize;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * u32::SIZE_IN_BYTES;
@@ -49,16 +49,10 @@ impl BlockEncoder {
     }
 }
 
-/// We ensure that the OutputBuffer is align on 128 bits
-/// in order to run SSE2 linear search on it.
-#[repr(align(128))]
-#[derive(Clone)]
-pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
-
 #[derive(Clone)]
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
-    output: AlignedBuffer,
+    output: [u32; COMPRESSION_BLOCK_SIZE],
     pub output_len: usize,
 }
 
@@ -72,7 +66,7 @@ impl BlockDecoder {
     pub fn with_val(val: u32) -> BlockDecoder {
         BlockDecoder {
             bitpacker: BitPacker4x::new(),
-            output: AlignedBuffer([val; COMPRESSION_BLOCK_SIZE]),
+            output: [val; COMPRESSION_BLOCK_SIZE],
             output_len: 0,
         }
     }
@@ -85,28 +79,28 @@ impl BlockDecoder {
     ) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress_sorted(offset, compressed_data, &mut self.output.0, num_bits)
+            .decompress_sorted(offset, compressed_data, &mut self.output, num_bits)
     }
 
     pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress(compressed_data, &mut self.output.0, num_bits)
+            .decompress(compressed_data, &mut self.output, num_bits)
     }
 
     #[inline]
     pub fn output_array(&self) -> &[u32] {
-        &self.output.0[..self.output_len]
+        &self.output[..self.output_len]
     }
 
     #[inline]
-    pub(crate) fn output_aligned(&self) -> &AlignedBuffer {
+    pub(crate) fn full_output(&self) -> &[u32; COMPRESSION_BLOCK_SIZE] {
         &self.output
     }
 
     #[inline]
     pub fn output(&self, idx: usize) -> u32 {
-        self.output.0[idx]
+        self.output[idx]
     }
 }
 
@@ -190,8 +184,8 @@ impl VIntDecoder for BlockDecoder {
         padding: u32,
     ) -> usize {
         self.output_len = num_els;
-        self.output.0.iter_mut().for_each(|el| *el = padding);
-        vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset)
+        self.output.iter_mut().for_each(|el| *el = padding);
+        vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
     }
 
     fn uncompress_vint_unsorted(
@@ -201,12 +195,12 @@ impl VIntDecoder for BlockDecoder {
         padding: u32,
     ) -> usize {
         self.output_len = num_els;
-        self.output.0.iter_mut().for_each(|el| *el = padding);
-        vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
+        self.output.iter_mut().for_each(|el| *el = padding);
+        vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
     }
 
     fn uncompress_vint_unsorted_until_end(&mut self, compressed_data: &[u8]) {
-        let num_els = vint::uncompress_unsorted_until_end(compressed_data, &mut self.output.0);
+        let num_els = vint::uncompress_unsorted_until_end(compressed_data, &mut self.output);
         self.output_len = num_els;
     }
 }

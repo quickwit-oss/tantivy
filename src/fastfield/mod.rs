@@ -23,9 +23,10 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
+pub use self::alive_bitset::intersect_alive_bitsets;
+pub use self::alive_bitset::write_alive_bitset;
+pub use self::alive_bitset::AliveBitSet;
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
-pub use self::delete::write_delete_bitset;
-pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
@@ -40,14 +41,14 @@ pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use crate::schema::Cardinality;
 use crate::schema::FieldType;
 use crate::schema::Value;
+use crate::DocId;
 use crate::{
     chrono::{NaiveDateTime, Utc},
     schema::Type,
 };
-use crate::{common, DocId};
 
+mod alive_bitset;
 mod bytes;
-mod delete;
 mod error;
 mod facet_reader;
 mod multivalued;
@@ -213,8 +214,7 @@ fn value_to_u64(value: &Value) -> u64 {
 mod tests {
 
     use super::*;
-    use crate::common::CompositeFile;
-    use crate::common::HasLen;
+    use crate::directory::CompositeFile;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::merge_policy::NoMergePolicy;
     use crate::schema::Field;
@@ -222,6 +222,7 @@ mod tests {
     use crate::schema::FAST;
     use crate::schema::{Document, IntOptions};
     use crate::{Index, SegmentId, SegmentReader};
+    use common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
@@ -496,18 +497,18 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_missing_date_fast_field() {
+    fn test_merge_missing_date_fast_field() -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", FAST);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_for_tests().unwrap();
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
-        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()));
-        index_writer.commit().unwrap();
-        index_writer.add_document(doc!());
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        index_writer.add_document(doc!(date_field =>crate::chrono::prelude::Utc::now()))?;
+        index_writer.commit()?;
+        index_writer.add_document(doc!())?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let segment_ids: Vec<SegmentId> = reader
             .searcher()
             .segment_readers()
@@ -516,10 +517,10 @@ mod tests {
             .collect();
         assert_eq!(segment_ids.len(), 2);
         let merge_future = index_writer.merge(&segment_ids[..]);
-        let merge_res = futures::executor::block_on(merge_future);
-        assert!(merge_res.is_ok());
-        assert!(reader.reload().is_ok());
+        futures::executor::block_on(merge_future)?;
+        reader.reload()?;
         assert_eq!(reader.searcher().segment_readers().len(), 1);
+        Ok(())
     }
 
     #[test]
@@ -528,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn test_datefastfield() {
+    fn test_datefastfield() -> crate::Result<()> {
         use crate::fastfield::FastValue;
         let mut schema_builder = Schema::builder();
         let date_field = schema_builder.add_date_field("date", FAST);
@@ -538,22 +539,22 @@ mod tests {
         );
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_for_tests().unwrap();
+        let mut index_writer = index.writer_for_tests()?;
         index_writer.set_merge_policy(Box::new(NoMergePolicy));
         index_writer.add_document(doc!(
             date_field => crate::DateTime::from_u64(1i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(2i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(3i64.to_u64())
-        ));
+        ))?;
         index_writer.add_document(doc!(
             date_field => crate::DateTime::from_u64(4i64.to_u64())
-        ));
+        ))?;
         index_writer.add_document(doc!(
             multi_date_field => crate::DateTime::from_u64(5i64.to_u64()),
             multi_date_field => crate::DateTime::from_u64(6i64.to_u64())
-        ));
-        index_writer.commit().unwrap();
-        let reader = index.reader().unwrap();
+        ))?;
+        index_writer.commit()?;
+        let reader = index.reader()?;
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         let segment_reader = searcher.segment_reader(0);
@@ -580,6 +581,7 @@ mod tests {
             assert_eq!(dates[0].timestamp(), 5i64);
             assert_eq!(dates[1].timestamp(), 6i64);
         }
+        Ok(())
     }
 }
 
@@ -588,7 +590,7 @@ mod bench {
     use super::tests::FIELD;
     use super::tests::{generate_permutation, SCHEMA};
     use super::*;
-    use crate::common::CompositeFile;
+    use crate::directory::CompositeFile;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::FastFieldReader;
     use std::collections::HashMap;

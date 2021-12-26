@@ -2,23 +2,23 @@
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
 //!
 
-use super::{merger::SegmentReaderWithOrdinal, SegmentWriter};
+use super::SegmentWriter;
 use crate::{
     schema::{Field, Schema},
-    DocId, IndexSortByField, Order, TantivyError,
+    DocId, IndexSortByField, Order, SegmentOrdinal, TantivyError,
 };
 use std::{cmp::Reverse, ops::Index};
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
-pub(crate) struct SegmentDocidMapping<'a> {
-    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+pub(crate) struct SegmentDocIdMapping {
+    new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
     is_trivial: bool,
 }
 
-impl<'a> SegmentDocidMapping<'a> {
+impl SegmentDocIdMapping {
     pub(crate) fn new(
-        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentReaderWithOrdinal<'a>)>,
+        new_doc_id_to_old_and_segment: Vec<(DocId, SegmentOrdinal)>,
         is_trivial: bool,
     ) -> Self {
         Self {
@@ -26,7 +26,7 @@ impl<'a> SegmentDocidMapping<'a> {
             is_trivial,
         }
     }
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentReaderWithOrdinal)> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &(DocId, SegmentOrdinal)> {
         self.new_doc_id_to_old_and_segment.iter()
     }
     pub(crate) fn len(&self) -> usize {
@@ -40,15 +40,15 @@ impl<'a> SegmentDocidMapping<'a> {
         self.is_trivial
     }
 }
-impl<'a> Index<usize> for SegmentDocidMapping<'a> {
-    type Output = (DocId, SegmentReaderWithOrdinal<'a>);
+impl Index<usize> for SegmentDocIdMapping {
+    type Output = (DocId, SegmentOrdinal);
 
     fn index(&self, idx: usize) -> &Self::Output {
         &self.new_doc_id_to_old_and_segment[idx]
     }
 }
-impl<'a> IntoIterator for SegmentDocidMapping<'a> {
-    type Item = (DocId, SegmentReaderWithOrdinal<'a>);
+impl IntoIterator for SegmentDocIdMapping {
+    type Item = (DocId, SegmentOrdinal);
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -63,6 +63,24 @@ pub struct DocIdMapping {
 }
 
 impl DocIdMapping {
+    pub fn from_new_id_to_old_id(new_doc_id_to_old: Vec<DocId>) -> Self {
+        let max_doc = new_doc_id_to_old.len();
+        let old_max_doc = new_doc_id_to_old
+            .iter()
+            .cloned()
+            .max()
+            .map(|n| n + 1)
+            .unwrap_or(0);
+        let mut old_doc_id_to_new = vec![0; old_max_doc as usize];
+        for i in 0..max_doc {
+            old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
+        }
+        DocIdMapping {
+            new_doc_id_to_old,
+            old_doc_id_to_new,
+        }
+    }
+
     /// returns the new doc_id for the old doc_id
     pub fn get_new_doc_id(&self, doc_id: DocId) -> DocId {
         self.old_doc_id_to_new[doc_id as usize]
@@ -74,6 +92,13 @@ impl DocIdMapping {
     /// iterate over old doc_ids in order of the new doc_ids
     pub fn iter_old_doc_ids(&self) -> impl Iterator<Item = DocId> + Clone + '_ {
         self.new_doc_id_to_old.iter().cloned()
+    }
+    /// Remaps a given array to the new doc ids.
+    pub fn remap<T: Copy>(&self, els: &[T]) -> Vec<T> {
+        self.new_doc_id_to_old
+            .iter()
+            .map(|old_doc| els[*old_doc as usize])
+            .collect()
     }
 }
 
@@ -122,23 +147,13 @@ pub(crate) fn get_doc_id_mapping_from_field(
         .into_iter()
         .map(|el| el.0)
         .collect::<Vec<_>>();
-
-    // create old doc_id to new doc_id index (used in posting recorder)
-    let max_doc = new_doc_id_to_old.len();
-    let mut old_doc_id_to_new = vec![0; max_doc];
-    for i in 0..max_doc {
-        old_doc_id_to_new[new_doc_id_to_old[i] as usize] = i as DocId;
-    }
-    let doc_id_map = DocIdMapping {
-        new_doc_id_to_old,
-        old_doc_id_to_new,
-    };
-    Ok(doc_id_map)
+    Ok(DocIdMapping::from_new_id_to_old_id(new_doc_id_to_old))
 }
 
 #[cfg(test)]
 mod tests_indexsorting {
     use crate::fastfield::FastFieldReader;
+    use crate::indexer::doc_id_mapping::DocIdMapping;
     use crate::{collector::TopDocs, query::QueryParser, schema::*};
     use crate::{schema::Schema, DocAddress};
     use crate::{Index, IndexSettings, IndexSortByField, Order};
@@ -146,7 +161,7 @@ mod tests_indexsorting {
     fn create_test_index(
         index_settings: Option<IndexSettings>,
         text_field_options: TextOptions,
-    ) -> Index {
+    ) -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();
 
         let my_text_field = schema_builder.add_text_field("text_field", text_field_options);
@@ -166,19 +181,20 @@ mod tests_indexsorting {
         if let Some(settings) = index_settings {
             index_builder = index_builder.settings(settings);
         }
-        let index = index_builder.create_in_ram().unwrap();
+        let index = index_builder.create_in_ram()?;
 
-        let mut index_writer = index.writer_for_tests().unwrap();
-        index_writer.add_document(doc!(my_number=>40_u64));
-        index_writer
-            .add_document(doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64));
-        index_writer.add_document(doc!(my_number=>100_u64));
+        let mut index_writer = index.writer_for_tests()?;
+        index_writer.add_document(doc!(my_number=>40_u64))?;
+        index_writer.add_document(
+            doc!(my_number=>20_u64, multi_numbers => 5_u64, multi_numbers => 6_u64),
+        )?;
+        index_writer.add_document(doc!(my_number=>100_u64))?;
         index_writer.add_document(
             doc!(my_number=>10_u64, my_string_field=> "blublub", my_text_field => "some text"),
-        );
-        index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ));
-        index_writer.commit().unwrap();
-        index
+        )?;
+        index_writer.add_document(doc!(my_number=>30_u64, multi_numbers => 3_u64 ))?;
+        index_writer.commit()?;
+        Ok(index)
     }
     fn get_text_options() -> TextOptions {
         TextOptions::default().set_indexing_options(
@@ -203,7 +219,7 @@ mod tests_indexsorting {
         for option in options {
             //let options = get_text_options();
             // no index_sort
-            let index = create_test_index(None, option.clone());
+            let index = create_test_index(None, option.clone())?;
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let searcher = index.reader()?.searcher();
 
@@ -225,7 +241,7 @@ mod tests_indexsorting {
                     ..Default::default()
                 }),
                 option.clone(),
-            );
+            )?;
             let my_text_field = index.schema().get_field("text_field").unwrap();
             let reader = index.reader()?;
             let searcher = reader.searcher();
@@ -257,7 +273,7 @@ mod tests_indexsorting {
                     ..Default::default()
                 }),
                 option.clone(),
-            );
+            )?;
             let my_string_field = index.schema().get_field("text_field").unwrap();
             let searcher = index.reader()?.searcher();
 
@@ -287,7 +303,7 @@ mod tests_indexsorting {
     #[test]
     fn test_sort_index_get_documents() -> crate::Result<()> {
         // default baseline
-        let index = create_test_index(None, get_text_options());
+        let index = create_test_index(None, get_text_options())?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -316,7 +332,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -341,7 +357,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
         {
@@ -356,7 +372,7 @@ mod tests_indexsorting {
 
     #[test]
     fn test_sort_index_test_string_field() -> crate::Result<()> {
-        let index = create_test_index(None, get_text_options());
+        let index = create_test_index(None, get_text_options())?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
 
@@ -376,7 +392,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let reader = index.reader()?;
         let searcher = reader.searcher();
@@ -407,7 +423,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         let my_string_field = index.schema().get_field("string_field").unwrap();
         let searcher = index.reader()?.searcher();
 
@@ -443,7 +459,7 @@ mod tests_indexsorting {
                 ..Default::default()
             }),
             get_text_options(),
-        );
+        )?;
         assert_eq!(
             index.settings().sort_by_field.as_ref().unwrap().field,
             "my_number".to_string()
@@ -473,5 +489,28 @@ mod tests_indexsorting {
         multifield.get_vals(2u32, &mut vals);
         assert_eq!(vals, &[3]);
         Ok(())
+    }
+
+    #[test]
+    fn test_doc_mapping() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![3, 2, 5]);
+        assert_eq!(doc_mapping.get_old_doc_id(0), 3);
+        assert_eq!(doc_mapping.get_old_doc_id(1), 2);
+        assert_eq!(doc_mapping.get_old_doc_id(2), 5);
+        assert_eq!(doc_mapping.get_new_doc_id(0), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(1), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(2), 1);
+        assert_eq!(doc_mapping.get_new_doc_id(3), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(4), 0);
+        assert_eq!(doc_mapping.get_new_doc_id(5), 2);
+    }
+
+    #[test]
+    fn test_doc_mapping_remap() {
+        let doc_mapping = DocIdMapping::from_new_id_to_old_id(vec![2, 8, 3]);
+        assert_eq!(
+            &doc_mapping.remap(&[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000]),
+            &[2000, 8000, 3000]
+        );
     }
 }

@@ -40,8 +40,8 @@ impl Weight for TermWeight {
     }
 
     fn count(&self, reader: &SegmentReader) -> crate::Result<u32> {
-        if let Some(delete_bitset) = reader.delete_bitset() {
-            Ok(self.scorer(reader, 1.0)?.count(delete_bitset))
+        if let Some(alive_bitset) = reader.alive_bitset() {
+            Ok(self.scorer(reader, 1.0)?.count(alive_bitset))
         } else {
             let field = self.term.field();
             let inv_index = reader.inverted_index(field)?;
@@ -79,7 +79,7 @@ impl Weight for TermWeight {
         callback: &mut dyn FnMut(DocId, Score) -> Score,
     ) -> crate::Result<()> {
         let scorer = self.specialized_scorer(reader, 1.0)?;
-        crate::query::boolean_query::block_wand(vec![scorer], threshold, callback);
+        crate::query::boolean_query::block_wand_single_scorer(scorer, threshold, callback);
         Ok(())
     }
 }
@@ -106,11 +106,13 @@ impl TermWeight {
     ) -> crate::Result<TermScorer> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field)?;
-        let fieldnorm_reader = if self.scoring_enabled {
-            reader.get_fieldnorms_reader(field)?
+        let fieldnorm_reader_opt = if self.scoring_enabled {
+            reader.fieldnorms_readers().get_field(field)?
         } else {
-            FieldNormReader::constant(reader.max_doc(), 1)
+            None
         };
+        let fieldnorm_reader =
+            fieldnorm_reader_opt.unwrap_or_else(|| FieldNormReader::constant(reader.max_doc(), 1));
         let similarity_weight = self.similarity_weight.boost_by(boost);
         let postings_opt: Option<SegmentPostings> =
             inverted_index.read_postings(&self.term, self.index_record_option)?;

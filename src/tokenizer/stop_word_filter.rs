@@ -93,3 +93,37 @@ impl Default for StopWordFilter {
         StopWordFilter::english()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::tokenizer::tests::assert_token;
+    use crate::tokenizer::{SimpleTokenizer, StopWordFilter, TextAnalyzer, Token};
+
+    #[test]
+    fn test_stop_word() {
+        let tokens = token_stream_helper("i am a cat. as yet i have no name.");
+        assert_eq!(tokens.len(), 5);
+        assert_token(&tokens[0], 3, "cat", 7, 10);
+        assert_token(&tokens[1], 5, "yet", 15, 18);
+        assert_token(&tokens[2], 7, "have", 21, 25);
+        assert_token(&tokens[3], 8, "no", 26, 28);
+        assert_token(&tokens[4], 9, "name", 29, 33);
+    }
+
+    fn token_stream_helper(text: &str) -> Vec<Token> {
+        let stops = vec![
+            "a".to_string(),
+            "as".to_string(),
+            "am".to_string(),
+            "i".to_string(),
+        ];
+        let a = TextAnalyzer::from(SimpleTokenizer).filter(StopWordFilter::remove(stops));
+        let mut token_stream = a.token_stream(text);
+        let mut tokens: Vec<Token> = vec![];
+        let mut add_token = |token: &Token| {
+            tokens.push(token.clone());
+        };
+        token_stream.process(&mut add_token);
+        tokens
+    }
+}

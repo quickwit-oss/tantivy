@@ -2,27 +2,30 @@ use std::io::{self};
 
 use core::convert::TryInto;
 use lz4_flex::{compress_into, decompress_into};
+use std::mem;
 
 #[inline]
+#[allow(clippy::uninit_vec)]
 pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()> {
     compressed.clear();
-    let maximum_ouput_size = lz4_flex::block::get_maximum_output_size(uncompressed.len());
+    let maximum_ouput_size =
+        mem::size_of::<u32>() + lz4_flex::block::get_maximum_output_size(uncompressed.len());
     compressed.reserve(maximum_ouput_size);
-
     unsafe {
-        compressed.set_len(maximum_ouput_size + 4);
+        compressed.set_len(maximum_ouput_size);
     }
-    let bytes_written = compress_into(uncompressed, compressed, 4)
+    let bytes_written = compress_into(uncompressed, &mut compressed[4..])
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     let num_bytes = uncompressed.len() as u32;
     compressed[0..4].copy_from_slice(&num_bytes.to_le_bytes());
     unsafe {
-        compressed.set_len(bytes_written + 4);
+        compressed.set_len(bytes_written + mem::size_of::<u32>());
     }
     Ok(())
 }
 
 #[inline]
+#[allow(clippy::uninit_vec)]
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
     decompressed.clear();
     let uncompressed_size_bytes: &[u8; 4] = compressed
@@ -35,7 +38,7 @@ pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<(
     unsafe {
         decompressed.set_len(uncompressed_size);
     }
-    let bytes_written = decompress_into(&compressed[4..], decompressed, 0)
+    let bytes_written = decompress_into(&compressed[4..], decompressed)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))?;
     if bytes_written != uncompressed_size {
         return Err(io::Error::new(

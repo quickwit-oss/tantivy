@@ -1,3 +1,26 @@
+Tantivy 0.17
+================================
+- Change to non-strict schema. Ignore fields in data which are not defined in schema. Previously this returned an error. #1211
+- Facets are necessarily indexed. Existing index with indexed facets should work out of the box. Index without facets that are marked with index: false should be broken (but they were already broken in a sense). (@fulmicoton) #1195 .
+- Bugfix that could in theory impact durability in theory on some filesystems [#1224](https://github.com/quickwit-inc/tantivy/issues/1224)
+- Reduce the number of fsync calls [#1225](https://github.com/quickwit-inc/tantivy/issues/1225)
+- Schema now offers not indexing fieldnorms (@lpouget) [#922](https://github.com/quickwit-inc/tantivy/issues/922)
+- LogMergePolicy now triggers merges if the ratio of deleted documents reaches a threshold (@shikhar) [#115](https://github.com/quickwit-inc/tantivy/issues/115)
+
+Tantivy 0.16.2
+================================
+- Bugfix in FuzzyTermQuery. (tranposition_cost_one was not doing anything)
+
+Tantivy 0.16.1
+========================
+- Major Bugfix on multivalued fastfield.  #1151
+- Demux operation (@PSeitz)
+
+Tantivy 0.16.0
+=========================
+- Bugfix in the filesum check. (@evanxg852000) #1127
+- Bugfix in positions when the index is sorted by a field. (@appaquet) #1125
+
 Tantivy 0.15.3
 =========================
 - Major bugfix. Deleting documents was broken when the index was sorted by a field. (@appaquet, @fulmicoton) #1101
@@ -104,7 +127,7 @@ Tantivy 0.12.0
 ## How to update?
 
 Crates relying on custom tokenizer, or registering tokenizer in the manager will require some
-minor changes. Check https://github.com/tantivy-search/tantivy/blob/main/examples/custom_tokenizer.rs
+minor changes. Check https://github.com/quickwit-inc/tantivy/blob/main/examples/custom_tokenizer.rs
 to check for some code sample.
 
 Tantivy 0.11.3
