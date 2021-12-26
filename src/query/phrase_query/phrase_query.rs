@@ -62,7 +62,7 @@ impl PhraseQuery {
     }
 
     /// Slop allowed for the phrase.
-    pub fn slop(&mut self, value: u32) {
+    pub fn set_slop(&mut self, value: u32) {
         self.slop = value;
     }
 
