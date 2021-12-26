@@ -134,8 +134,8 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 /// Intersect twos sorted arrays `left` and `right` and outputs the
 /// resulting array in left.
 ///
-/// Condition for match is that the value stored in left is less than the value in right,
-/// and that the difference between the value in left_begin is within
+/// Condition for match is that the value stored in left is less than
+/// the value in right and that the distance to the previous token is lte to the slop.
 ///
 /// Returns the length of the intersection
 fn intersection_with_distance(
