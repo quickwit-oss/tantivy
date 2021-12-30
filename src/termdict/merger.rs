@@ -52,7 +52,7 @@ impl<'a> TermMerger<'a> {
 
     /// Advance the term iterator to the next term.
     /// Returns `true` if there is indeed another term
-    /// [false] if there is none.
+    /// `false` if there is none.
     pub fn advance(&mut self) -> bool {
         if let Some((k, values)) = self.union.next() {
             self.current_key.clear();
