@@ -43,7 +43,6 @@ impl RetryPolicy {
 }
 
 /// The `DirectoryLock` is an object that represents a file lock.
-/// See  [`LockType`](struct.LockType.html)
 ///
 /// It is transparently associated to a lock file, that gets deleted
 /// on `Drop.` The lock is released automatically on `Drop`.

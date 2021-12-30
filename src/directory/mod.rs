@@ -1,6 +1,6 @@
 /*!
 
-WORM directory abstraction.
+WORM (Write Once Read Many) directory abstraction.
 
 */
 

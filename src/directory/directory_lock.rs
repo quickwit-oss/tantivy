@@ -7,8 +7,8 @@ use std::path::PathBuf;
 /// [`LockParams`](./enum.LockParams.html).
 /// Tantivy itself uses only two locks but client application
 /// can use the directory facility to define their own locks.
-/// - [INDEX_WRITER_LOCK](./struct.INDEX_WRITER_LOCK.html)
-/// - [META_LOCK](./struct.META_LOCK.html)
+/// - [INDEX_WRITER_LOCK]
+/// - [META_LOCK]
 ///
 /// Check out these locks documentation for more information.
 ///
