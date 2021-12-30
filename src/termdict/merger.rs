@@ -43,7 +43,7 @@ impl<'a> TermMerger<'a> {
     ///
     /// This method may be called
     /// if [Self::advance] has been called before
-    /// and [true] was returned.
+    /// and `true` was returned.
     pub fn matching_segments<'b: 'a>(&'b self) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
         self.current_segment_and_term_ordinals
             .iter()
@@ -72,7 +72,7 @@ impl<'a> TermMerger<'a> {
     ///
     /// This method may be called
     /// if [Self::advance] has been called before
-    /// and [true] was returned.
+    /// and `true` was returned.
     pub fn key(&self) -> &[u8] {
         &self.current_key
     }
@@ -81,7 +81,7 @@ impl<'a> TermMerger<'a> {
     ///
     /// This method may be called
     /// if [Self::advance] has been called before
-    /// and [true] was returned.
+    /// and `true` was returned.
     pub fn current_segment_ords_and_term_infos<'b: 'a>(
         &'b self,
     ) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
