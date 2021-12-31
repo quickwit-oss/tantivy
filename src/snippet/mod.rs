@@ -53,7 +53,7 @@ impl FragmentCandidate {
 /// Contains a fragment of a document, and some highlighed parts inside it.
 #[derive(Debug)]
 pub struct Snippet {
-    fragments: String,
+    fragment: String,
     highlighted: Vec<Range<usize>>,
 }
 
@@ -64,7 +64,7 @@ impl Snippet {
     /// Create a new, empty, `Snippet`
     pub fn empty() -> Snippet {
         Snippet {
-            fragments: String::new(),
+            fragment: String::new(),
             highlighted: Vec::new(),
         }
     }
@@ -75,21 +75,21 @@ impl Snippet {
         let mut start_from: usize = 0;
 
         for item in self.highlighted.iter() {
-            html.push_str(&encode_minimal(&self.fragments[start_from..item.start]));
+            html.push_str(&encode_minimal(&self.fragment[start_from..item.start]));
             html.push_str(HIGHLIGHTEN_PREFIX);
-            html.push_str(&encode_minimal(&self.fragments[item.clone()]));
+            html.push_str(&encode_minimal(&self.fragment[item.clone()]));
             html.push_str(HIGHLIGHTEN_POSTFIX);
             start_from = item.end;
         }
         html.push_str(&encode_minimal(
-            &self.fragments[start_from..self.fragments.len()],
+            &self.fragment[start_from..self.fragment.len()],
         ));
         html
     }
 
     /// Returns a fragment from the `Snippet`.
-    pub fn fragments(&self) -> &str {
-        &self.fragments
+    pub fn fragment(&self) -> &str {
+        &self.fragment
     }
 
     /// Returns a list of higlighted positions from the `Snippet`.
@@ -168,14 +168,14 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
             .map(|item| item.start - fragment.start_offset..item.end - fragment.start_offset)
             .collect();
         Snippet {
-            fragments: fragment_text.to_string(),
+            fragment: fragment_text.to_string(),
             highlighted,
         }
     } else {
         // when there no fragments to chose from,
         // for now create a empty snippet
         Snippet {
-            fragments: String::new(),
+            fragment: String::new(),
             highlighted: vec![],
         }
     }
@@ -329,7 +329,7 @@ Survey in 2016, 2017, and 2018."#;
         }
         let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
-            snippet.fragments,
+            snippet.fragment,
             "Rust is a systems programming language sponsored by\n\
              Mozilla which describes it as a \"safe"
         );
@@ -391,7 +391,7 @@ Survey in 2016, 2017, and 2018."#;
         }
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragments, "c d");
+        assert_eq!(snippet.fragment, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
 
@@ -413,7 +413,7 @@ Survey in 2016, 2017, and 2018."#;
         }
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragments, "e f");
+        assert_eq!(snippet.fragment, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
 
@@ -436,7 +436,7 @@ Survey in 2016, 2017, and 2018."#;
         }
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragments, "e f g");
+        assert_eq!(snippet.fragment, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
 
@@ -452,7 +452,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragments, "");
+        assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
     }
 
@@ -465,7 +465,7 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(&fragments[..], text);
-        assert_eq!(snippet.fragments, "");
+        assert_eq!(snippet.fragment, "");
         assert_eq!(snippet.to_html(), "");
     }
 
