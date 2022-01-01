@@ -5,6 +5,7 @@ use crate::TantivyError::InvalidArgument;
 use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::ops::Range;
 use tantivy_fst::Automaton;
 
@@ -94,8 +95,8 @@ static LEV_BUILDER: Lazy<HashMap<(u8, bool), LevenshteinAutomatonBuilder>> = Laz
 /// }
 /// # assert!(example().is_ok());
 /// ```
-#[derive(Debug, Clone)]
-pub struct FuzzyTermQuery {
+#[derive(Clone)]
+pub struct FuzzyTermQuery<F> {
     /// What term are we searching
     term: Term,
     /// How many changes are we going to allow
@@ -104,30 +105,70 @@ pub struct FuzzyTermQuery {
     transposition_cost_one: bool,
     ///
     prefix: bool,
+    /// The function to score the term by (taking the distance and returning the score).
+    score_fn: F,
 }
 
-impl FuzzyTermQuery {
+impl<F> Debug for FuzzyTermQuery<F> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FuzzyTermQuery")
+            .field("term", &self.term)
+            .field("distance", &self.distance)
+            .field("transposition_cost_one", &self.transposition_cost_one)
+            .field("prefix", &self.prefix)
+            .finish()
+    }
+}
+
+pub(crate) fn default_score(distance: u8) -> f32 {
+    // This uses the constant's end to ensure that this code will be updated if the range is too
+    const WEIGHTS: [f32; VALID_LEVENSHTEIN_DISTANCE_RANGE.end as usize] = [1.0, 0.5, 1.0 / 3.0];
+    WEIGHTS[distance as usize]
+}
+
+impl FuzzyTermQuery<fn(u8) -> f32> {
     /// Creates a new Fuzzy Query
-    pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
+    pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> Self<> {
         FuzzyTermQuery {
             term,
             distance,
             transposition_cost_one,
             prefix: false,
+            score_fn: default_score,
         }
     }
 
     /// Creates a new Fuzzy Query of the Term prefix
-    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
+    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> Self<> {
         FuzzyTermQuery {
             term,
             distance,
             transposition_cost_one,
             prefix: true,
+            score_fn: default_score,
+        }
+    }
+}
+
+impl<F: Fn(u8) -> f32 + Clone> FuzzyTermQuery<F> {
+    /// Creates a new Fuzzy Query with a custom score function
+    pub fn new_score_fn(
+        term: Term,
+        distance: u8,
+        transposition_cost_one: bool,
+        prefix: bool,
+        score_fn: F
+    ) -> Self {
+        FuzzyTermQuery {
+            term,
+            distance,
+            transposition_cost_one,
+            prefix,
+            score_fn,
         }
     }
 
-    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper>> {
+    fn specialized_weight(&self) -> crate::Result<AutomatonWeight<DfaWrapper, F>> {
         // LEV_BUILDER is a HashMap, whose `get` method returns an Option
         match LEV_BUILDER.get(&(self.distance, self.transposition_cost_one)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
@@ -140,6 +181,7 @@ impl FuzzyTermQuery {
                 Ok(AutomatonWeight::new(
                     self.term.field(),
                     DfaWrapper(automaton),
+                    self.score_fn.clone(),
                 ))
             }
             None => Err(InvalidArgument(format!(
@@ -150,7 +192,9 @@ impl FuzzyTermQuery {
     }
 }
 
-impl Query for FuzzyTermQuery {
+impl<F> Query for FuzzyTermQuery<F>
+    where F: Fn(u8) -> f32 + Send + Sync + 'static + Clone,
+{
     fn weight(
         &self,
         _searcher: &Searcher,
@@ -197,7 +241,7 @@ mod test {
             let top_docs = searcher.search(&fuzzy_query, &TopDocs::with_limit(2))?;
             assert_eq!(top_docs.len(), 1, "Expected only 1 document");
             let (score, _) = top_docs[0];
-            assert_nearly_equals!(1.0, score);
+            assert_nearly_equals!(0.5, score);
         }
 
         // fails because non-prefix Levenshtein distance is more than 1 (add 'a' and 'n')
