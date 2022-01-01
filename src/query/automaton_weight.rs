@@ -1,5 +1,5 @@
 use crate::core::SegmentReader;
-use crate::query::fuzzy_query::DFAWrapper;
+use crate::query::fuzzy_query::DfaWrapper;
 use crate::query::score_combiner::SumCombiner;
 use crate::query::Explanation;
 use crate::query::{ConstScorer, Union};
@@ -8,7 +8,6 @@ use crate::schema::{Field, IndexRecordOption};
 use crate::termdict::{TermDictionary, TermWithStateStreamer};
 use crate::TantivyError;
 use crate::{DocId, Score};
-use common::BitSet;
 use std::any::{Any, TypeId};
 use std::io;
 use std::sync::Arc;
@@ -88,8 +87,8 @@ where
     A::State: Clone,
     F: Fn(u8) -> f32,
 {
-    if TypeId::of::<DFAWrapper>() == automaton.type_id() && TypeId::of::<u32>() == state.type_id() {
-        let dfa = automaton as *const A as *const DFAWrapper;
+    if TypeId::of::<DfaWrapper>() == automaton.type_id() && TypeId::of::<u32>() == state.type_id() {
+        let dfa = automaton as *const A as *const DfaWrapper;
         let dfa = unsafe { &*dfa };
 
         let id = &state as *const A::State as *const u32;
@@ -162,7 +161,7 @@ mod tests {
     fn test_automaton_weight() -> crate::Result<()> {
         let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
-        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA, |_| 1.0);
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.0)?;
@@ -179,7 +178,7 @@ mod tests {
     fn test_automaton_weight_boost() -> crate::Result<()> {
         let index = create_index()?;
         let field = index.schema().get_field("title").unwrap();
-        let automaton_weight = AutomatonWeight::new(field, PrefixedByA);
+        let automaton_weight = AutomatonWeight::new(field, PrefixedByA, |_| 1.0);
         let reader = index.reader()?;
         let searcher = reader.searcher();
         let mut scorer = automaton_weight.scorer(searcher.segment_reader(0u32), 1.32)?;

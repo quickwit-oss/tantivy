@@ -1,6 +1,5 @@
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder, TermWithStateStreamerBuilder};
-use crate::common::{BinarySerializable, CountingWriter};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::error::DataCorruption;
 use crate::postings::TermInfo;
