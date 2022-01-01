@@ -14,21 +14,24 @@ use std::sync::Arc;
 use tantivy_fst::Automaton;
 
 /// A weight struct for Fuzzy Term and Regex Queries
-pub struct AutomatonWeight<A> {
+pub struct AutomatonWeight<A, F> {
     field: Field,
     automaton: Arc<A>,
+    score_fn: F,
 }
 
-impl<A> AutomatonWeight<A>
+impl<A, F> AutomatonWeight<A, F>
 where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
+    F: Fn(u8) -> f32,
 {
     /// Create a new AutomationWeight
-    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA) -> AutomatonWeight<A> {
+    pub fn new<IntoArcA: Into<Arc<A>>>(field: Field, automaton: IntoArcA, score_fn: F) -> AutomatonWeight<A, F> {
         AutomatonWeight {
             field,
             automaton: automaton.into(),
+            score_fn,
         }
     }
 
@@ -42,10 +45,11 @@ where
     }
 }
 
-impl<A> Weight for AutomatonWeight<A>
+impl<A, F> Weight for AutomatonWeight<A, F>
 where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
+    F: Fn(u8) -> f32 + Send + Sync + 'static,
 {
     fn scorer(&self, reader: &SegmentReader, boost: Score) -> crate::Result<Box<dyn Scorer>> {
         let inverted_index = reader.inverted_index(self.field)?;
@@ -54,7 +58,7 @@ where
 
         let mut scorers = vec![];
         while let Some((_term, term_info, state)) = term_stream.next() {
-            let score = automaton_score(self.automaton.as_ref(), state);
+            let score = automaton_score(self.automaton.as_ref(), state, &self.score_fn);
             let segment_postings =
                 inverted_index.read_postings_from_terminfo(term_info, IndexRecordOption::Basic)?;
             let scorer = ConstScorer::new(segment_postings, boost * score);
@@ -77,10 +81,11 @@ where
     }
 }
 
-fn automaton_score<A>(automaton: &A, state: A::State) -> f32
+fn automaton_score<A, F>(automaton: &A, state: A::State, score_fn: F) -> f32
 where
     A: Automaton + Send + Sync + 'static,
     A::State: Clone,
+    F: Fn(u8) -> f32,
 {
     if TypeId::of::<DFAWrapper>() == automaton.type_id() && TypeId::of::<u32>() == state.type_id() {
         let dfa = automaton as *const A as *const DFAWrapper;
@@ -89,8 +94,8 @@ where
         let id = &state as *const A::State as *const u32;
         let id = unsafe { *id };
 
-        let dist = dfa.0.distance(id).to_u8() as f32;
-        1.0 / (1.0 + dist)
+        let dist = dfa.0.distance(id).to_u8();
+        score_fn(dist)
     } else {
         1.0
     }
