@@ -1,5 +1,5 @@
 use crate::error::TantivyError;
-use crate::query::{AutomatonWeight, Query, Weight};
+use crate::query::{AutomatonWeight, fuzzy_query, Query, Weight};
 use crate::schema::Field;
 use crate::Searcher;
 use std::clone::Clone;
@@ -74,8 +74,9 @@ impl RegexQuery {
         }
     }
 
-    fn specialized_weight(&self) -> AutomatonWeight<Regex> {
-        AutomatonWeight::new(self.field, self.regex.clone())
+    fn specialized_weight(&self) -> AutomatonWeight<Regex, impl Fn(u8) -> f32> {
+        // TODO(lev weight): should this use the old behaviour of |_| 1.0 or should it use new?
+        AutomatonWeight::new(self.field, self.regex.clone(), fuzzy_query::default_score)
     }
 }
 
