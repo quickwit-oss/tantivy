@@ -54,7 +54,7 @@ impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
     }
 }
 
-/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite#method.terminate_ref) directly
+/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite.html#tymethod.terminate_ref) directly
 ///
 /// The point is that while the type is public, it cannot be built by anyone
 /// outside of this module.
