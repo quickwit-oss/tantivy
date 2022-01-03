@@ -1,7 +1,9 @@
 mod pool;
+mod warming;
 
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
+use self::warming::WarmingState;
 use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
@@ -10,7 +12,9 @@ use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::{convert::TryInto, io};
+pub use warming::Warmer;
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -29,22 +33,20 @@ pub enum ReloadPolicy {
     OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
-/// `IndexReader` builder
+/// [IndexReader] builder
 ///
-/// It makes it possible to set the following values.
-///
-/// - `num_searchers` (by default, the number of detected CPU threads):
-///
-///   When `num_searchers` queries are requested at the same time, the `num_searchers` will block
-///   until the one of the searcher in-use gets released.
-/// - `reload_policy` (by default `ReloadPolicy::OnCommit`):
-///
-///   See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
+/// It makes it possible to configure:
+/// - [Searcher] pool size
+/// - [ReloadPolicy] defining when new index versions are detected
+/// - [Warmer] implementations
+/// - number of warming threads, for parallelizing warming work
 #[derive(Clone)]
 pub struct IndexReaderBuilder {
     num_searchers: usize,
     reload_policy: ReloadPolicy,
     index: Index,
+    warmers: Vec<Weak<dyn Warmer>>,
+    num_warming_threads: usize,
 }
 
 impl IndexReaderBuilder {
@@ -53,6 +55,8 @@ impl IndexReaderBuilder {
             num_searchers: num_cpus::get(),
             reload_policy: ReloadPolicy::OnCommit,
             index,
+            warmers: Vec::new(),
+            num_warming_threads: 1,
         }
     }
 
@@ -67,6 +71,7 @@ impl IndexReaderBuilder {
             index: self.index,
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
+            warming_state: WarmingState::new(self.num_warming_threads, self.warmers)?,
         };
         inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
@@ -107,9 +112,25 @@ impl IndexReaderBuilder {
         self
     }
 
-    /// Sets the number of `Searcher` in the searcher pool.
+    /// Sets the number of [Searcher] to pool.
+    ///
+    /// When more than `num_searchers` are requested, the caller will block.
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
+        self
+    }
+
+    /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
+        self.warmers = warmers;
+        self
+    }
+
+    /// Sets the number of warming threads.
+    ///
+    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the [IndexReader].
+    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
+        self.num_warming_threads = num_warming_threads;
         self
     }
 }
@@ -126,10 +147,12 @@ struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
     index: Index,
+    warming_state: WarmingState,
 }
 
 impl InnerIndexReader {
     fn reload(&self) -> crate::Result<()> {
+        let liveness_token = Arc::new(());
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
             let searchable_segments = self.searchable_segments()?;
@@ -140,10 +163,17 @@ impl InnerIndexReader {
         };
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
-            Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone())
+            Searcher::new(
+                schema.clone(),
+                self.index.clone(),
+                segment_readers.clone(),
+                liveness_token.clone(),
+            )
         })
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
+        self.warming_state
+            .new_searcher_generation(Arc::downgrade(&liveness_token), &searchers[0])?;
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }
