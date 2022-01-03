@@ -2,14 +2,14 @@ mod pool;
 
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
-use crate::Executor;
-use crate::SegmentId;
 use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
 use crate::directory::{Directory, WatchCallback};
+use crate::Executor;
 use crate::Index;
 use crate::Searcher;
+use crate::SegmentId;
 use crate::SegmentReader;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -169,7 +169,8 @@ struct InnerIndexReader {
 
 impl InnerIndexReader {
     fn list_warmers(&self) -> Vec<Arc<dyn Warmer>> {
-        self.warmers.iter()
+        self.warmers
+            .iter()
             .flat_map(|weak_warmer| weak_warmer.upgrade())
             .collect()
     }
@@ -190,9 +191,8 @@ impl InnerIndexReader {
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
         let warmers = self.list_warmers();
-        self.warming_executor.map(|warmer| {
-            warmer.warm(&searchers[0])
-        }, warmers.iter().cloned())?;
+        self.warming_executor
+            .map(|warmer| warmer.warm(&searchers[0]), warmers.iter().cloned())?;
         self.searcher_pool.publish_new_generation(searchers);
         // No searcher with previous set of segments will be returned by the pool at this point,
         // so we can inform the warmers to garbgage collect their caches.
