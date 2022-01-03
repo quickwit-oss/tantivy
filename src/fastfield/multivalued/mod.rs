@@ -23,7 +23,7 @@ mod tests {
     use proptest::prop_oneof;
     use proptest::proptest;
     use proptest::strategy::Strategy;
-    use test_env_log::test;
+    use test_log::test;
 
     #[test]
     fn test_multivalued_u64() -> crate::Result<()> {
