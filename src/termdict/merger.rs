@@ -10,7 +10,7 @@ use tantivy_fst::Streamer;
 /// Given a list of sorted term streams,
 /// returns an iterator over sorted unique terms.
 ///
-/// The item yield is actually a pair with
+/// The item yielded is actually a pair with
 /// - the term
 /// - a slice with the ordinal of the segments containing
 /// the term.
@@ -39,6 +39,11 @@ impl<'a> TermMerger<'a> {
         }
     }
 
+    /// Iterator over (segment ordinal, [TermOrdinal]) sorted by segment ordinal
+    ///
+    /// This method may be called
+    /// if [Self::advance] has been called before
+    /// and `true` was returned.
     pub fn matching_segments<'b: 'a>(&'b self) -> impl 'b + Iterator<Item = (usize, TermOrdinal)> {
         self.current_segment_and_term_ordinals
             .iter()
@@ -46,8 +51,8 @@ impl<'a> TermMerger<'a> {
     }
 
     /// Advance the term iterator to the next term.
-    /// Returns true if there is indeed another term
-    /// False if there is none.
+    /// Returns `true` if there is indeed another term
+    /// `false` if there is none.
     pub fn advance(&mut self) -> bool {
         if let Some((k, values)) = self.union.next() {
             self.current_key.clear();
@@ -66,17 +71,17 @@ impl<'a> TermMerger<'a> {
     /// Returns the current term.
     ///
     /// This method may be called
-    /// iff advance() has been called before
-    /// and "true" was returned.
+    /// if [Self::advance] has been called before
+    /// and `true` was returned.
     pub fn key(&self) -> &[u8] {
         &self.current_key
     }
 
-    /// Iterator over (segment ordinal, TermInfo) pairs iterator sorted by the ordinal.
+    /// Iterator over (segment ordinal, [TermInfo]) pairs iterator sorted by the ordinal.
     ///
     /// This method may be called
-    /// iff advance() has been called before
-    /// and "true" was returned.
+    /// if [Self::advance] has been called before
+    /// and `true` was returned.
     pub fn current_segment_ords_and_term_infos<'b: 'a>(
         &'b self,
     ) -> impl 'b + Iterator<Item = (usize, TermInfo)> {
