@@ -87,7 +87,7 @@ impl Snippet {
         html
     }
 
-    /// Returns a fragment from the `Snippet`.
+    /// Returns the fragment of text used in the  snippet.
     pub fn fragment(&self) -> &str {
         &self.fragment
     }
