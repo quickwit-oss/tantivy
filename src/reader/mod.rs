@@ -2,6 +2,8 @@ mod pool;
 
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
+use crate::Executor;
+use crate::SegmentId;
 use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
@@ -9,7 +11,9 @@ use crate::directory::{Directory, WatchCallback};
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
+use std::collections::HashSet;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::{convert::TryInto, io};
 
 /// Defines when a new version of the index should be reloaded.
@@ -45,6 +49,8 @@ pub struct IndexReaderBuilder {
     num_searchers: usize,
     reload_policy: ReloadPolicy,
     index: Index,
+    warmers: Vec<Weak<dyn Warmer>>,
+    num_warming_threads: usize,
 }
 
 impl IndexReaderBuilder {
@@ -53,6 +59,8 @@ impl IndexReaderBuilder {
             num_searchers: num_cpus::get(),
             reload_policy: ReloadPolicy::OnCommit,
             index,
+            warmers: Vec::new(),
+            num_warming_threads: 1,
         }
     }
 
@@ -62,10 +70,17 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     pub fn try_into(self) -> crate::Result<IndexReader> {
+        let warming_executor = if self.num_warming_threads <= 1 {
+            Executor::single_thread()
+        } else {
+            Executor::multi_thread(self.num_warming_threads, "tantivy-warm-")?
+        };
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
+            warmers: self.warmers,
+            warming_executor,
         };
         inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
@@ -111,6 +126,18 @@ impl IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
     }
+
+    /// Sets the number of warming threads.
+    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
+        self.num_warming_threads = num_warming_threads;
+        self
+    }
+
+    /// Register a [Warmer] for active [SegmentReader]s before they can be used by [Searcher]s.
+    pub fn register_warmer(mut self, warmer: Weak<dyn Warmer>) -> IndexReaderBuilder {
+        self.warmers.push(warmer);
+        self
+    }
 }
 
 impl TryInto<IndexReader> for IndexReaderBuilder {
@@ -121,13 +148,32 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     }
 }
 
+/// `Warmer` can be used to maintain any segment-level caches.
+pub trait Warmer: Sync + Send {
+    /// Perform any warming work using the provided [Searcher].
+    fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
+
+    /// Discard internal state for any [SegmentId] not provided.
+    ///
+    /// This is a garbage collection mechanism.
+    fn retain(&self, segment_ids: &HashSet<SegmentId>);
+}
+
 struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
     index: Index,
+    warmers: Vec<Weak<dyn Warmer>>,
+    warming_executor: Executor,
 }
 
 impl InnerIndexReader {
+    fn list_warmers(&self) -> Vec<Arc<dyn Warmer>> {
+        self.warmers.iter()
+            .flat_map(|weak_warmer| weak_warmer.upgrade())
+            .collect()
+    }
+
     fn reload(&self) -> crate::Result<()> {
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
@@ -143,7 +189,20 @@ impl InnerIndexReader {
         })
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
+        let warmers = self.list_warmers();
+        self.warming_executor.map(|warmer| {
+            warmer.warm(&searchers[0])
+        }, warmers.iter().cloned())?;
         self.searcher_pool.publish_new_generation(searchers);
+        // No searcher with previous set of segments will be returned by the pool at this point,
+        // so we can inform the warmers to garbgage collect their caches.
+        let segment_ids = segment_readers
+            .iter()
+            .map(|segment_reader| segment_reader.segment_id())
+            .collect();
+        for warmer in &warmers {
+            warmer.retain(&segment_ids);
+        }
         Ok(())
     }
 
