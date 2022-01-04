@@ -168,7 +168,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     }
 }
 
-/// Warming-related [IndexReader] state with interior mutability.
+/// Warming-related state with interior mutability.
 struct WarmingState {
     warmers: RwLock<Vec<Weak<dyn Warmer>>>,
     executor: Executor,
@@ -187,7 +187,7 @@ impl WarmingState {
         strong_warmers
     }
 
-    fn pruned_live_searcher_generations(&self) -> RwLockWriteGuard<Vec<Weak<()>>> {
+    fn pruned_searcher_generation_tokens(&self) -> RwLockWriteGuard<Vec<Weak<()>>> {
         let mut tokens = self.searcher_generation_tokens.write().unwrap();
         *tokens = tokens
             .iter()
@@ -202,13 +202,15 @@ impl WarmingState {
         tokens
     }
 
-    fn live_searcher_generations(&self) -> usize {
+    fn can_gc(&self) -> bool {
         self.searcher_generation_tokens
             .read()
             .unwrap()
             .iter()
             .filter(|token| token.strong_count() > 0)
+            .take(2)
             .count()
+            <= 1
     }
 
     fn warm(&self, searcher: &Searcher, token: Weak<()>) -> crate::Result<()> {
@@ -216,7 +218,7 @@ impl WarmingState {
             |warmer| warmer.warm(searcher),
             self.pruned_warmers().into_iter(),
         )?;
-        self.pruned_live_searcher_generations().push(token);
+        self.pruned_searcher_generation_tokens().push(token);
         self.pending_gc.store(true, Ordering::Release);
         Ok(())
     }
@@ -226,10 +228,7 @@ impl WarmingState {
     /// Otherwise, we check if there are still older searcher generations around,
     /// and if there are not, trigger [Warmer::garbage_collect()] inline.
     fn maybe_gc(&self, live_segment_readers: &[SegmentReader]) {
-        if !self.pending_gc.load(Ordering::Acquire) {
-            return;
-        }
-        if self.live_searcher_generations() > 1 {
+        if !self.pending_gc.load(Ordering::Acquire) || !self.can_gc() {
             return;
         }
         let live_segment_ids = live_segment_readers
