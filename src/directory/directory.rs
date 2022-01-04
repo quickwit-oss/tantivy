@@ -43,10 +43,8 @@ impl RetryPolicy {
 }
 
 /// The `DirectoryLock` is an object that represents a file lock.
-/// See  [`LockType`](struct.LockType.html)
 ///
-/// It is transparently associated to a lock file, that gets deleted
-/// on `Drop.` The lock is released automatically on `Drop`.
+/// It is associated to a lock file, that gets deleted on `Drop.`
 pub struct DirectoryLock(Box<dyn Send + Sync + 'static>);
 
 struct DirectoryLockGuard {

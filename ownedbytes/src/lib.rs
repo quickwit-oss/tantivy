@@ -97,7 +97,6 @@ impl OwnedBytes {
 
     /// Drops the left most `advance_len` bytes.
     ///
-    /// See also [.clip(clip_len: usize))](#method.clip).
     #[inline]
     pub fn advance(&mut self, advance_len: usize) {
         self.data = &self.data[advance_len..]
