@@ -12,7 +12,11 @@ use crate::Searcher;
 use crate::SegmentId;
 use crate::SegmentReader;
 use std::collections::HashSet;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::RwLock;
+use std::sync::RwLockWriteGuard;
 use std::sync::Weak;
 use std::{convert::TryInto, io};
 
@@ -41,8 +45,9 @@ pub trait Warmer: Sync + Send {
 
     /// Discard internal state for any [SegmentId] not provided.
     ///
-    /// This is a garbage collection mechanism.
-    fn retain(&self, segment_ids: &HashSet<SegmentId>);
+    /// This should be implemented as cheaply as possible,
+    /// it can be invoked inline when requesting [IndexReader::searcher()].
+    fn garbage_collect(&self, live_segment_ids: &HashSet<SegmentId>);
 }
 
 /// [IndexReader] builder
@@ -78,17 +83,20 @@ impl IndexReaderBuilder {
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
     pub fn try_into(self) -> crate::Result<IndexReader> {
-        let warming_executor = if self.num_warming_threads <= 1 {
-            Executor::single_thread()
-        } else {
-            Executor::multi_thread(self.num_warming_threads, "tantivy-warm-")?
-        };
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
-            warmers: self.warmers,
-            warming_executor,
+            warming_state: WarmingState {
+                warmers: RwLock::new(self.warmers),
+                executor: if self.num_warming_threads <= 1 {
+                    Executor::single_thread()
+                } else {
+                    Executor::multi_thread(self.num_warming_threads, "tantivy-warm-")?
+                },
+                searcher_generation_tokens: Default::default(),
+                pending_gc: AtomicBool::new(false),
+            },
         };
         inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
@@ -145,7 +153,7 @@ impl IndexReaderBuilder {
 
     /// Sets the number of warming threads.
     ///
-    /// This allows parallelizing warming work when there are multiple [Warmer]s registered.
+    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the [IndexReader].
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
         self
@@ -160,23 +168,91 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     }
 }
 
+/// Warming-related [IndexReader] state with interior mutability.
+struct WarmingState {
+    warmers: RwLock<Vec<Weak<dyn Warmer>>>,
+    executor: Executor,
+    searcher_generation_tokens: RwLock<Vec<Weak<()>>>,
+    pending_gc: AtomicBool,
+}
+
+impl WarmingState {
+    fn pruned_warmers(&self) -> Vec<Arc<dyn Warmer>> {
+        let mut weak_warmers = self.warmers.write().unwrap();
+        let strong_warmers = weak_warmers
+            .iter()
+            .flat_map(|weak_warmer| weak_warmer.upgrade())
+            .collect::<Vec<_>>();
+        *weak_warmers = strong_warmers.iter().map(|w| Arc::downgrade(w)).collect();
+        strong_warmers
+    }
+
+    fn pruned_live_searcher_generations(&self) -> RwLockWriteGuard<Vec<Weak<()>>> {
+        let mut tokens = self.searcher_generation_tokens.write().unwrap();
+        *tokens = tokens
+            .iter()
+            .flat_map(|token| {
+                if token.strong_count() > 0 {
+                    Some(token.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        tokens
+    }
+
+    fn live_searcher_generations(&self) -> usize {
+        self.searcher_generation_tokens
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|token| token.strong_count() > 0)
+            .count()
+    }
+
+    fn warm(&self, searcher: &Searcher, token: Weak<()>) -> crate::Result<()> {
+        self.executor.map(
+            |warmer| warmer.warm(searcher),
+            self.pruned_warmers().into_iter(),
+        )?;
+        self.pruned_live_searcher_generations().push(token);
+        self.pending_gc.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    /// Cheap when there is no pending GC.
+    ///
+    /// Otherwise, we check if there are still older searcher generations around,
+    /// and if there are not, trigger [Warmer::garbage_collect()] inline.
+    fn maybe_gc(&self, live_segment_readers: &[SegmentReader]) {
+        if !self.pending_gc.load(Ordering::Acquire) {
+            return;
+        }
+        if self.live_searcher_generations() > 1 {
+            return;
+        }
+        let live_segment_ids = live_segment_readers
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        for warmer in self.pruned_warmers() {
+            warmer.garbage_collect(&live_segment_ids);
+        }
+        self.pending_gc.store(false, Ordering::Release);
+    }
+}
+
 struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
     index: Index,
-    warmers: Vec<Weak<dyn Warmer>>,
-    warming_executor: Executor,
+    warming_state: WarmingState,
 }
 
 impl InnerIndexReader {
-    fn list_warmers(&self) -> Vec<Arc<dyn Warmer>> {
-        self.warmers
-            .iter()
-            .flat_map(|weak_warmer| weak_warmer.upgrade())
-            .collect()
-    }
-
     fn reload(&self) -> crate::Result<()> {
+        let generation_token = Arc::new(());
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
             let searchable_segments = self.searchable_segments()?;
@@ -187,23 +263,19 @@ impl InnerIndexReader {
         };
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
-            Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone())
+            Searcher::new(
+                schema.clone(),
+                self.index.clone(),
+                segment_readers.clone(),
+                generation_token.clone(),
+            )
         })
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
-        let warmers = self.list_warmers();
-        self.warming_executor
-            .map(|warmer| warmer.warm(&searchers[0]), warmers.iter().cloned())?;
+        self.warming_state
+            .warm(&searchers[0], Arc::downgrade(&generation_token))?;
         self.searcher_pool.publish_new_generation(searchers);
-        // No searcher with previous set of segments will be returned by the pool at this point,
-        // so we can inform the warmers to garbgage collect their caches.
-        let segment_ids = segment_readers
-            .iter()
-            .map(|segment_reader| segment_reader.segment_id())
-            .collect();
-        for warmer in &warmers {
-            warmer.retain(&segment_ids);
-        }
+        self.warming_state.maybe_gc(&segment_readers);
         Ok(())
     }
 
@@ -213,7 +285,9 @@ impl InnerIndexReader {
     }
 
     fn searcher(&self) -> LeasedItem<Searcher> {
-        self.searcher_pool.acquire()
+        let searcher = self.searcher_pool.acquire();
+        self.warming_state.maybe_gc(searcher.segment_readers());
+        searcher
     }
 }
 
@@ -286,7 +360,7 @@ mod tests {
     struct TestWarmer {
         active_segment_ids: RwLock<HashSet<SegmentId>>,
         warm_calls: AtomicUsize,
-        retain_calls: AtomicUsize,
+        gc_calls: AtomicUsize,
     }
 
     impl TestWarmer {
@@ -298,25 +372,25 @@ mod tests {
             self.warm_calls.load(atomic::Ordering::Acquire)
         }
 
-        fn retain_calls(&self) -> usize {
-            self.retain_calls.load(atomic::Ordering::Acquire)
+        fn gc_calls(&self) -> usize {
+            self.gc_calls.load(atomic::Ordering::Acquire)
         }
 
         fn verify(
             &self,
             expected_segment_ids: HashSet<SegmentId>,
             expected_warm_calls: usize,
-            expected_retain_calls: usize,
+            expected_gc_calls: usize,
         ) {
-            assert_eq!(self.active_segment_ids(), expected_segment_ids);
             assert_eq!(self.warm_calls(), expected_warm_calls);
-            assert_eq!(self.retain_calls(), expected_retain_calls);
+            assert_eq!(self.gc_calls(), expected_gc_calls);
+            assert_eq!(self.active_segment_ids(), expected_segment_ids);
         }
     }
 
     impl Warmer for TestWarmer {
         fn warm(&self, searcher: &crate::Searcher) -> crate::Result<()> {
-            self.warm_calls.fetch_add(1, atomic::Ordering::Release);
+            self.warm_calls.fetch_add(1, atomic::Ordering::SeqCst);
             for reader in searcher.segment_readers() {
                 self.active_segment_ids
                     .write()
@@ -326,9 +400,9 @@ mod tests {
             Ok(())
         }
 
-        fn retain(&self, segment_ids: &HashSet<SegmentId>) {
-            self.retain_calls
-                .fetch_add(1, std::sync::atomic::Ordering::Release);
+        fn garbage_collect(&self, segment_ids: &HashSet<SegmentId>) {
+            self.gc_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             self.active_segment_ids
                 .write()
                 .unwrap()
@@ -367,27 +441,29 @@ mod tests {
         warmer1.verify(HashSet::new(), 0, 0);
         warmer2.verify(HashSet::new(), 0, 0);
 
+        let num_searchers = 4;
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .num_warming_threads(num_warming_threads)
+            .num_searchers(num_searchers)
             .warmers(vec![
                 Arc::downgrade(&warmer1) as Weak<dyn Warmer>,
                 Arc::downgrade(&warmer2) as Weak<dyn Warmer>,
             ])
             .try_into()?;
 
-        let searcher = reader.searcher();
-
-        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
-        warmer1.verify(segment_ids(&searcher), 1, 1);
-        warmer2.verify(segment_ids(&searcher), 1, 1);
-        assert_eq!(searcher.num_docs(), 1000);
+        {
+            let searcher = reader.searcher();
+            assert_eq!(searcher.segment_readers().len(), num_writer_threads);
+            warmer1.verify(segment_ids(&searcher), 1, 1);
+            warmer2.verify(segment_ids(&searcher), 1, 1);
+            assert_eq!(searcher.num_docs(), 1000);
+        }
 
         reader.reload()?;
 
         let searcher = reader.searcher();
-
         assert_eq!(searcher.segment_readers().len(), num_writer_threads);
         assert_eq!(searcher.num_docs(), 1000);
         warmer1.verify(segment_ids(&searcher), 2, 2);
@@ -401,11 +477,29 @@ mod tests {
 
         drop(warmer1);
 
+        let old_searcher = searcher;
+
         reader.reload()?;
 
         let searcher = reader.searcher();
         assert_eq!(searcher.segment_readers().len(), 1);
         assert_eq!(searcher.num_docs(), 2000);
+
+        let union_segment_ids = segment_ids(&old_searcher)
+            .union(&segment_ids(&searcher))
+            .copied()
+            .collect::<HashSet<_>>();
+
+        warmer2.verify(union_segment_ids.clone(), 3, 2);
+
+        drop(old_searcher);
+
+        warmer2.verify(union_segment_ids.clone(), 3, 2);
+
+        for _ in 0..num_searchers {
+            // GC triggered when all old searchers are dropped by the pool
+            let _ = reader.searcher();
+        }
         warmer2.verify(segment_ids(&searcher), 3, 3);
 
         Ok(())

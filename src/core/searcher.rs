@@ -11,6 +11,7 @@ use crate::store::StoreReader;
 use crate::DocAddress;
 use crate::Index;
 
+use std::sync::Arc;
 use std::{fmt, io};
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -23,6 +24,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
+    _generation_token: Arc<()>,
 }
 
 impl Searcher {
@@ -31,6 +33,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
+        generation_token: Arc<()>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -41,6 +44,7 @@ impl Searcher {
             index,
             segment_readers,
             store_readers,
+            _generation_token: generation_token,
         })
     }
 
