@@ -202,17 +202,6 @@ impl WarmingState {
         tokens
     }
 
-    fn can_gc(&self) -> bool {
-        self.searcher_generation_tokens
-            .read()
-            .unwrap()
-            .iter()
-            .filter(|token| token.strong_count() > 0)
-            .take(2)
-            .count()
-            <= 1
-    }
-
     fn warm(&self, searcher: &Searcher, token: Weak<()>) -> crate::Result<()> {
         self.executor.map(
             |warmer| warmer.warm(searcher),
@@ -223,12 +212,23 @@ impl WarmingState {
         Ok(())
     }
 
+    fn unique_searcher_generation(&self) -> bool {
+        self.searcher_generation_tokens
+            .read()
+            .unwrap()
+            .iter()
+            .filter(|token| token.strong_count() > 0)
+            .take(2)
+            .count()
+            <= 1
+    }
+
     /// Cheap when there is no pending GC.
     ///
     /// Otherwise, we check if there are still older searcher generations around,
     /// and if there are not, trigger [Warmer::garbage_collect()] inline.
     fn maybe_gc(&self, live_segment_readers: &[SegmentReader]) {
-        if !self.pending_gc.load(Ordering::Acquire) || !self.can_gc() {
+        if !self.pending_gc.load(Ordering::Acquire) || !self.unique_searcher_generation() {
             return;
         }
         let live_segment_ids = live_segment_readers
