@@ -130,7 +130,7 @@ impl IndexReaderBuilder {
     }
 
     /// Sets the number of [Searcher] to pool.
-    /// 
+    ///
     /// When more than `num_searchers` are requested, the caller will block.
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
@@ -144,7 +144,7 @@ impl IndexReaderBuilder {
     }
 
     /// Sets the number of warming threads.
-    /// 
+    ///
     /// This allows parallelizing warming work when there are multiple [Warmer]s registered.
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
@@ -353,7 +353,9 @@ mod tests {
         let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
 
         let num_writer_threads = 4;
-        let mut writer = index.writer_with_num_threads(num_writer_threads, 25_000_000).unwrap();
+        let mut writer = index
+            .writer_with_num_threads(num_writer_threads, 25_000_000)
+            .unwrap();
 
         for i in 0u64..1000u64 {
             writer.add_document(doc!(field => i))?;
@@ -369,20 +371,27 @@ mod tests {
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
             .num_warming_threads(num_warming_threads)
-            .register_warmer(Arc::downgrade(&warmer1) as Weak<dyn Warmer>)
-            .register_warmer(Arc::downgrade(&warmer2) as Weak<dyn Warmer>)
+            .warmers(vec![
+                Arc::downgrade(&warmer1) as Weak<dyn Warmer>,
+                Arc::downgrade(&warmer2) as Weak<dyn Warmer>,
+            ])
             .try_into()?;
 
-        assert_eq!(reader.searcher().segment_readers().len(), num_writer_threads);
-        warmer1.verify(segment_ids(&reader.searcher()), 1, 1);
-        warmer2.verify(segment_ids(&reader.searcher()), 1, 1);
-        assert_eq!(reader.searcher().num_docs(), 1000);
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
+        warmer1.verify(segment_ids(&searcher), 1, 1);
+        warmer2.verify(segment_ids(&searcher), 1, 1);
+        assert_eq!(searcher.num_docs(), 1000);
 
         reader.reload()?;
 
-        warmer1.verify(segment_ids(&reader.searcher()), 2, 2);
-        warmer2.verify(segment_ids(&reader.searcher()), 2, 2);
-        assert_eq!(reader.searcher().num_docs(), 1000);
+        let searcher = reader.searcher();
+
+        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
+        assert_eq!(searcher.num_docs(), 1000);
+        warmer1.verify(segment_ids(&searcher), 2, 2);
+        warmer2.verify(segment_ids(&searcher), 2, 2);
 
         for i in 1000u64..2000u64 {
             writer.add_document(doc!(field => i))?;
@@ -394,9 +403,10 @@ mod tests {
 
         reader.reload()?;
 
-        assert_eq!(reader.searcher().segment_readers().len(), 1);
-        assert_eq!(reader.searcher().num_docs(), 2000);
-        warmer2.verify(segment_ids(&reader.searcher()), 3, 3);
+        let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), 1);
+        assert_eq!(searcher.num_docs(), 2000);
+        warmer2.verify(segment_ids(&searcher), 3, 3);
 
         Ok(())
     }
