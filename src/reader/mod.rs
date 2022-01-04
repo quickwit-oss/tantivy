@@ -485,16 +485,16 @@ mod tests {
         assert_eq!(searcher.segment_readers().len(), 1);
         assert_eq!(searcher.num_docs(), 2000);
 
-        let union_segment_ids = segment_ids(&old_searcher)
-            .union(&segment_ids(&searcher))
-            .copied()
-            .collect::<HashSet<_>>();
-
-        warmer2.verify(union_segment_ids.clone(), 3, 2);
+        warmer2.verify(
+            segment_ids(&old_searcher)
+                .union(&segment_ids(&searcher))
+                .copied()
+                .collect(),
+            3,
+            2,
+        );
 
         drop(old_searcher);
-
-        warmer2.verify(union_segment_ids.clone(), 3, 2);
 
         for _ in 0..num_searchers {
             // GC triggered when all old searchers are dropped by the pool
