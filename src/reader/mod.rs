@@ -340,8 +340,7 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn warming() -> crate::Result<()> {
+    fn test_warming(num_threads: usize) -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("pk", INDEXED);
         let schema = schema_builder.build();
@@ -364,6 +363,7 @@ mod tests {
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
+            .num_warming_threads(num_threads)
             .register_warmer(Arc::downgrade(&warmer1) as Weak<dyn Warmer>)
             .register_warmer(Arc::downgrade(&warmer2) as Weak<dyn Warmer>)
             .try_into()?;
@@ -391,5 +391,15 @@ mod tests {
         warmer2.verify(segment_ids(&reader.searcher()), 3, 3);
 
         Ok(())
+    }
+
+    #[test]
+    fn warming_single_thread() -> crate::Result<()> {
+        test_warming(1)
+    }
+
+    #[test]
+    fn warming_four_threads() -> crate::Result<()> {
+        test_warming(4)
     }
 }
