@@ -262,3 +262,134 @@ impl IndexReader {
         self.inner.searcher()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashSet,
+        sync::{
+            atomic::{self, AtomicUsize},
+            Arc, RwLock, Weak,
+        },
+    };
+
+    use crate::{
+        directory::RamDirectory,
+        schema::{Schema, INDEXED},
+        Index, IndexSettings, ReloadPolicy, Searcher, SegmentId,
+    };
+
+    use super::Warmer;
+
+    #[derive(Default)]
+    struct TestWarmer {
+        active_segment_ids: RwLock<HashSet<SegmentId>>,
+        warm_calls: AtomicUsize,
+        retain_calls: AtomicUsize,
+    }
+
+    impl TestWarmer {
+        fn active_segment_ids(&self) -> HashSet<SegmentId> {
+            self.active_segment_ids.read().unwrap().clone()
+        }
+        fn warm_calls(&self) -> usize {
+            self.warm_calls.load(atomic::Ordering::Acquire)
+        }
+        fn retain_calls(&self) -> usize {
+            self.retain_calls.load(atomic::Ordering::Acquire)
+        }
+
+        fn verify(
+            &self,
+            expected_segment_ids: HashSet<SegmentId>,
+            expected_warm_calls: usize,
+            expected_retain_calls: usize,
+        ) {
+            assert_eq!(self.active_segment_ids(), expected_segment_ids);
+            assert_eq!(self.warm_calls(), expected_warm_calls);
+            assert_eq!(self.retain_calls(), expected_retain_calls);
+        }
+    }
+
+    impl Warmer for TestWarmer {
+        fn warm(&self, searcher: &crate::Searcher) -> crate::Result<()> {
+            self.warm_calls.fetch_add(1, atomic::Ordering::Release);
+            for reader in searcher.segment_readers() {
+                self.active_segment_ids
+                    .write()
+                    .unwrap()
+                    .insert(reader.segment_id());
+            }
+            Ok(())
+        }
+        fn retain(&self, segment_ids: &HashSet<SegmentId>) {
+            self.retain_calls
+                .fetch_add(1, std::sync::atomic::Ordering::Release);
+            self.active_segment_ids
+                .write()
+                .unwrap()
+                .retain(|id| segment_ids.contains(id));
+        }
+    }
+
+    fn segment_ids(searcher: &Searcher) -> HashSet<SegmentId> {
+        searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect()
+    }
+
+    #[test]
+    fn warming() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_u64_field("pk", INDEXED);
+        let schema = schema_builder.build();
+
+        let directory = RamDirectory::create();
+        let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
+
+        let mut writer = index.writer_with_num_threads(4, 25_000_000).unwrap();
+
+        for i in 0u64..100u64 {
+            writer.add_document(doc!(field => i))?;
+        }
+        writer.commit()?;
+
+        let warmer1 = Arc::new(TestWarmer::default());
+        let warmer2 = Arc::new(TestWarmer::default());
+        warmer1.verify(HashSet::new(), 0, 0);
+        warmer2.verify(HashSet::new(), 0, 0);
+
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .register_warmer(Arc::downgrade(&warmer1) as Weak<dyn Warmer>)
+            .register_warmer(Arc::downgrade(&warmer2) as Weak<dyn Warmer>)
+            .try_into()?;
+
+        warmer1.verify(segment_ids(&reader.searcher()), 1, 1);
+        warmer2.verify(segment_ids(&reader.searcher()), 1, 1);
+        assert_eq!(reader.searcher().num_docs(), 100);
+
+        reader.reload()?;
+
+        warmer1.verify(segment_ids(&reader.searcher()), 2, 2);
+        warmer2.verify(segment_ids(&reader.searcher()), 2, 2);
+        assert_eq!(reader.searcher().num_docs(), 100);
+
+        for i in 100u64..200u64 {
+            writer.add_document(doc!(field => i))?;
+        }
+        writer.commit()?;
+
+        drop(warmer1);
+
+        reader.reload()?;
+
+        assert_eq!(reader.searcher().num_docs(), 200);
+        warmer2.verify(segment_ids(&reader.searcher()), 3, 3);
+
+        Ok(())
+    }
+}
