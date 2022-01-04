@@ -33,17 +33,25 @@ pub enum ReloadPolicy {
     OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
-/// `IndexReader` builder
+/// `Warmer` implementations can be used to maintain segment-level caches,
+/// by registering them with the [IndexReaderBuilder].
+pub trait Warmer: Sync + Send {
+    /// Perform any warming work using the provided [Searcher].
+    fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
+
+    /// Discard internal state for any [SegmentId] not provided.
+    ///
+    /// This is a garbage collection mechanism.
+    fn retain(&self, segment_ids: &HashSet<SegmentId>);
+}
+
+/// [IndexReader] builder
 ///
-/// It makes it possible to set the following values.
-///
-/// - `num_searchers` (by default, the number of detected CPU threads):
-///
-///   When `num_searchers` queries are requested at the same time, the `num_searchers` will block
-///   until the one of the searcher in-use gets released.
-/// - `reload_policy` (by default `ReloadPolicy::OnCommit`):
-///
-///   See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
+/// It makes it possible to configure:
+/// - [Searcher] pool size
+/// - [ReloadPolicy] defining when new index versions are detected
+/// - [Warmer] implementations to be called when reloading
+/// - number of warming threads, for parallelizing warming work
 #[derive(Clone)]
 pub struct IndexReaderBuilder {
     num_searchers: usize,
@@ -121,21 +129,25 @@ impl IndexReaderBuilder {
         self
     }
 
-    /// Sets the number of `Searcher` in the searcher pool.
+    /// Sets the number of [Searcher] to pool.
+    /// 
+    /// When more than `num_searchers` are requested, the caller will block.
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
     }
 
-    /// Sets the number of warming threads.
-    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
-        self.num_warming_threads = num_warming_threads;
+    /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
+        self.warmers = warmers;
         self
     }
 
-    /// Register a [Warmer] for active [SegmentReader]s before they can be used by [Searcher]s.
-    pub fn register_warmer(mut self, warmer: Weak<dyn Warmer>) -> IndexReaderBuilder {
-        self.warmers.push(warmer);
+    /// Sets the number of warming threads.
+    /// 
+    /// This allows parallelizing warming work when there are multiple [Warmer]s registered.
+    pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
+        self.num_warming_threads = num_warming_threads;
         self
     }
 }
@@ -146,17 +158,6 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     fn try_into(self) -> crate::Result<IndexReader> {
         IndexReaderBuilder::try_into(self)
     }
-}
-
-/// `Warmer` can be used to maintain any segment-level caches.
-pub trait Warmer: Sync + Send {
-    /// Perform any warming work using the provided [Searcher].
-    fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
-
-    /// Discard internal state for any [SegmentId] not provided.
-    ///
-    /// This is a garbage collection mechanism.
-    fn retain(&self, segment_ids: &HashSet<SegmentId>);
 }
 
 struct InnerIndexReader {
@@ -292,9 +293,11 @@ mod tests {
         fn active_segment_ids(&self) -> HashSet<SegmentId> {
             self.active_segment_ids.read().unwrap().clone()
         }
+
         fn warm_calls(&self) -> usize {
             self.warm_calls.load(atomic::Ordering::Acquire)
         }
+
         fn retain_calls(&self) -> usize {
             self.retain_calls.load(atomic::Ordering::Acquire)
         }
@@ -322,6 +325,7 @@ mod tests {
             }
             Ok(())
         }
+
         fn retain(&self, segment_ids: &HashSet<SegmentId>) {
             self.retain_calls
                 .fetch_add(1, std::sync::atomic::Ordering::Release);
@@ -340,7 +344,7 @@ mod tests {
             .collect()
     }
 
-    fn test_warming(num_threads: usize) -> crate::Result<()> {
+    fn test_warming(num_warming_threads: usize) -> crate::Result<()> {
         let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("pk", INDEXED);
         let schema = schema_builder.build();
@@ -348,9 +352,10 @@ mod tests {
         let directory = RamDirectory::create();
         let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
 
-        let mut writer = index.writer_with_num_threads(4, 25_000_000).unwrap();
+        let num_writer_threads = 4;
+        let mut writer = index.writer_with_num_threads(num_writer_threads, 25_000_000).unwrap();
 
-        for i in 0u64..100u64 {
+        for i in 0u64..1000u64 {
             writer.add_document(doc!(field => i))?;
         }
         writer.commit()?;
@@ -363,31 +368,34 @@ mod tests {
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .num_warming_threads(num_threads)
+            .num_warming_threads(num_warming_threads)
             .register_warmer(Arc::downgrade(&warmer1) as Weak<dyn Warmer>)
             .register_warmer(Arc::downgrade(&warmer2) as Weak<dyn Warmer>)
             .try_into()?;
 
+        assert_eq!(reader.searcher().segment_readers().len(), num_writer_threads);
         warmer1.verify(segment_ids(&reader.searcher()), 1, 1);
         warmer2.verify(segment_ids(&reader.searcher()), 1, 1);
-        assert_eq!(reader.searcher().num_docs(), 100);
+        assert_eq!(reader.searcher().num_docs(), 1000);
 
         reader.reload()?;
 
         warmer1.verify(segment_ids(&reader.searcher()), 2, 2);
         warmer2.verify(segment_ids(&reader.searcher()), 2, 2);
-        assert_eq!(reader.searcher().num_docs(), 100);
+        assert_eq!(reader.searcher().num_docs(), 1000);
 
-        for i in 100u64..200u64 {
+        for i in 1000u64..2000u64 {
             writer.add_document(doc!(field => i))?;
         }
         writer.commit()?;
+        writer.wait_merging_threads()?;
 
         drop(warmer1);
 
         reader.reload()?;
 
-        assert_eq!(reader.searcher().num_docs(), 200);
+        assert_eq!(reader.searcher().segment_readers().len(), 1);
+        assert_eq!(reader.searcher().num_docs(), 2000);
         warmer2.verify(segment_ids(&reader.searcher()), 3, 3);
 
         Ok(())
