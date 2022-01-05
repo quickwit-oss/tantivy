@@ -463,7 +463,6 @@ mod tests {
         reader.reload()?;
 
         let searcher = reader.searcher();
-        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
         assert_eq!(searcher.num_docs(), 1000);
         warmer1.verify(segment_ids(&searcher), 2, 2);
         warmer2.verify(segment_ids(&searcher), 2, 2);
@@ -481,7 +480,6 @@ mod tests {
         reader.reload()?;
 
         let searcher = reader.searcher();
-        assert_eq!(searcher.segment_readers().len(), 1);
         assert_eq!(searcher.num_docs(), 2000);
 
         warmer2.verify(
