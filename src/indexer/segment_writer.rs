@@ -291,6 +291,9 @@ impl SegmentWriter {
                         self.multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
+                FieldType::JsonObject(_) => {
+                    unimplemented!()
+                }
             }
         }
         doc.filter_fields(|field| schema.get_field_entry(field).is_stored());

@@ -330,6 +330,9 @@ impl fmt::Debug for Term {
             Type::Bytes => {
                 write_opt(f, self.as_bytes())?;
             }
+            Type::JsonObject => {
+                write!(f, "JsonObject terms are not supported.")?;
+            }
         }
         write!(f, ")",)?;
         Ok(())

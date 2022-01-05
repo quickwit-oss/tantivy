@@ -40,6 +40,9 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter>
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
+        | FieldType::JsonObject(_) => {
+            unimplemented!()
+        },
     }
 }
 
@@ -160,6 +163,7 @@ impl MultiFieldPostingsWriter {
                 }
                 FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
                 FieldType::Bytes(_) => {}
+                FieldType::JsonObject(_) => {}
             }
 
             let postings_writer =

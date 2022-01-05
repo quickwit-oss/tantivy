@@ -119,6 +119,7 @@ mod int_options;
 mod named_field_document;
 mod text_options;
 mod value;
+mod json_object_options;
 
 mod flags;
 
@@ -150,6 +151,8 @@ pub use self::bytes_options::BytesOptions;
 pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;
+
+pub use self::json_object_options::JsonObjectOptions;
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

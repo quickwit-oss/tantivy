@@ -376,6 +376,9 @@ impl QueryParser {
                 let term = Term::from_field_bytes(field, &bytes);
                 Ok(vec![(0, term)])
             }
+            FieldType::JsonObject(_) => {
+                unimplemented!()
+            }
         }
     }
 
