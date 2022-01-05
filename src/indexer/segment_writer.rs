@@ -276,6 +276,9 @@ impl SegmentWriter {
                         postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
+                FieldType::JsonObject(_) => {
+                    unimplemented!()
+                }
             }
         }
         Ok(())

@@ -104,7 +104,7 @@ mod document;
 mod facet;
 mod facet_options;
 mod schema;
-mod term;
+pub(crate) mod term;
 
 mod field_entry;
 mod field_type;
@@ -114,11 +114,14 @@ mod bytes_options;
 mod field;
 mod index_record_option;
 mod int_options;
+mod json_object_options;
 mod named_field_document;
 mod text_options;
 mod value;
 
 mod flags;
+mod json_object_utils;
+mod term_writer;
 
 pub use self::bytes_options::BytesOptions;
 pub use self::document::Document;
@@ -137,6 +140,8 @@ pub use self::schema::{DocParsingError, Schema, SchemaBuilder};
 pub use self::term::Term;
 pub use self::text_options::{TextFieldIndexing, TextOptions, STRING, TEXT};
 pub use self::value::Value;
+
+pub use self::json_object_options::JsonObjectOptions;
 
 /// Validator for a potential `field_name`.
 /// Returns true if the name can be use for a field name.

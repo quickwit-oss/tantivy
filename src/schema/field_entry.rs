@@ -137,6 +137,7 @@ impl FieldEntry {
             FieldType::Str(ref options) => options.is_stored(),
             FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
+            FieldType::JsonObject(ref options) => options.is_stored(),
         }
     }
 }

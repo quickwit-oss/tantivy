@@ -1,3 +1,4 @@
+use crate::postings::json_postings_writer::JsonPostingsWriter;
 use crate::postings::postings_writer::SpecializedPostingsWriter;
 use crate::postings::recorder::{NothingRecorder, TermFrequencyRecorder, TfAndPositionRecorder};
 use crate::postings::PostingsWriter;
@@ -49,5 +50,20 @@ fn posting_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Postings
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
+        FieldType::JsonObject(ref json_object_options) => {
+            Box::new(if let Some(text_indexing_option) = json_object_options.get_text_indexing_option() {
+                match text_indexing_option.index_option() {
+                    IndexRecordOption::Basic => JsonPostingsWriter::new::<NothingRecorder>(),
+                    IndexRecordOption::WithFreqs => {
+                        JsonPostingsWriter::new::<TermFrequencyRecorder>()
+                    }
+                    IndexRecordOption::WithFreqsAndPositions => {
+                        JsonPostingsWriter::new::<TfAndPositionRecorder>()
+                    }
+                }
+            } else {
+                JsonPostingsWriter::new::<NothingRecorder>()
+            })
+        },
     }
 }

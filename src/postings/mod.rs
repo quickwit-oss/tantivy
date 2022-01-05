@@ -15,6 +15,7 @@ mod segment_postings;
 mod serializer;
 mod skip;
 mod stacker;
+mod json_postings_writer;
 mod term_info;
 
 pub use self::block_segment_postings::BlockSegmentPostings;

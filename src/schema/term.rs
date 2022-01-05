@@ -8,7 +8,26 @@ use crate::DateTime;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
+///
+/// - <field> is a big endian encoded u32 field id
+/// - <type_byte>'s most significant bit expresses whether the term is a json term or not
+/// The remaining 7 bits are used to encode the type of the value.
+/// If this is a JSON term, the type is the type of the leaf of the json.
+///
+/// - <value> is,  if this is not the json term, a binary representation specific to the type.
+/// If it is a JSON Term, then it is preprended with the path that leads to this leaf value.
 const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+
+/// The first bit of the `type_byte`
+/// is used to encode whether a Term is for
+/// json or not.
+pub const JSON_MARKER_BIT: u8 = 128u8;
+/// Separates the different segments of
+/// the json path.
+pub const JSON_PATH_SEGMENT_SEP: u8 = 0u8;
+/// Separates the json path and the value in
+/// a JSON term binary representation.
+pub const JSON_END_OF_PATH: u8 = 30u8;
 
 /// Term represents the value that the token can take.
 ///
@@ -164,13 +183,23 @@ where B: AsRef<[u8]>
         Term(data)
     }
 
-    /// Return the type of the term.
-    pub fn typ(&self) -> Type {
+    /// Returns true iff the term is a JSON term.
+    pub fn is_json(&self) -> bool {
+        self.typ_code() & JSON_MARKER_BIT == JSON_MARKER_BIT
+    }
+
+    fn typ_code(&self) -> u8 {
         assert!(
             self.as_slice().len() >= 5,
-            "the type does byte representation is too short"
+            "the byte representation is too short"
         );
-        Type::from_code(self.as_slice()[4]).expect("The term has an invalid type code")
+        self.as_slice()[4]
+    }
+
+    /// Return the type of the term.
+    pub fn typ(&self) -> Type {
+        Type::from_code(self.typ_code() & (JSON_MARKER_BIT - 1))
+            .expect("The term has an invalid type code")
     }
 
     /// Returns the field.
@@ -189,11 +218,15 @@ where B: AsRef<[u8]>
     }
 
     fn get_fast_type<T: FastValue>(&self) -> Option<T> {
-        if self.typ() != T::to_type() || self.as_slice().len() != FAST_VALUE_TERM_LEN {
+        if self.typ() != T::to_type() {
             return None;
         }
         let mut value_bytes = [0u8; 8];
-        value_bytes.copy_from_slice(self.value_bytes());
+        let bytes = self.value_bytes_without_path();
+        if bytes.len() != 8 {
+            return None;
+        }
+        value_bytes.copy_from_slice(self.value_bytes_without_path());
         let value_u64 = u64::from_be_bytes(value_bytes);
         Some(FastValue::from_u64(value_u64))
     }
@@ -204,6 +237,35 @@ where B: AsRef<[u8]>
     /// is invalid.
     pub fn as_i64(&self) -> Option<i64> {
         self.get_fast_type::<i64>()
+    }
+
+    fn json_path_value(&self) -> Option<&str> {
+        if !self.is_json() {
+            return None;
+        }
+        let value_bytes = self.value_bytes();
+        let pos = value_bytes
+            .iter()
+            .cloned()
+            .position(|b| b == JSON_END_OF_PATH)
+            .expect("Could not find end of path");
+        let json_path =
+            str::from_utf8(&value_bytes[..pos]).expect("JSON value path is Invalid utf-8");
+        Some(json_path)
+    }
+
+    fn value_bytes_without_path(&self) -> &[u8] {
+        let value_bytes = self.value_bytes();
+        if self.is_json() {
+            let pos = value_bytes
+                .iter()
+                .cloned()
+                .position(|b| b == JSON_END_OF_PATH)
+                .expect("Could not find end of path");
+            &value_bytes[pos + 1..]
+        } else {
+            value_bytes
+        }
     }
 
     /// Returns the `f64` value stored in a term.
@@ -233,7 +295,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Str {
             return None;
         }
-        str::from_utf8(self.value_bytes()).ok()
+        str::from_utf8(self.value_bytes_without_path()).ok()
     }
 
     /// Returns the facet associated with the term.
@@ -247,7 +309,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Facet {
             return None;
         }
-        let facet_encode_str = str::from_utf8(self.value_bytes()).ok()?;
+        let facet_encode_str = str::from_utf8(self.value_bytes_without_path()).ok()?;
         Some(Facet::from_encoded_string(facet_encode_str.to_string()))
     }
 
@@ -261,7 +323,7 @@ where B: AsRef<[u8]>
         if self.typ() != Type::Bytes {
             return None;
         }
-        Some(self.value_bytes())
+        Some(self.value_bytes_without_path())
     }
 
     /// Returns the serialized value of the term.
@@ -290,14 +352,24 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
     Ok(())
 }
 
-impl fmt::Debug for Term {
+impl<B> fmt::Debug for Term<B>
+where
+    B: AsRef<[u8]>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let field_id = self.field().field_id();
         let typ = self.typ();
-        write!(f, "Term(type={:?}, field={}, val=", typ, field_id,)?;
+        write!(f, "Term(type={:?}, field={}, ", typ, field_id)?;
+        if let Some(path) = self.json_path_value() {
+            write!(
+                f,
+                "path={}, ",
+                path.replace(std::str::from_utf8(&[JSON_PATH_SEGMENT_SEP]).unwrap(), ".")
+            )?;
+        }
         match typ {
             Type::Str => {
-                let s = str::from_utf8(self.value_bytes()).ok();
+                let s = self.as_str();
                 write_opt(f, s)?;
             }
             Type::U64 => {
