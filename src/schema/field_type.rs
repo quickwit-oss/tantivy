@@ -183,6 +183,10 @@ impl FieldType {
     /// Given a field configuration, return the maximal possible
     /// `IndexRecordOption` available.
     ///
+    /// For the Json object, this does not necessarily mean it is the index record
+    /// option level is available for all terms.
+    /// (Non string terms have the Basic indexing option at most.)
+    ///
     /// If the field is not indexed, then returns `None`.
     pub fn get_index_record_option(&self) -> Option<IndexRecordOption> {
         match *self {
@@ -208,7 +212,10 @@ impl FieldType {
                 }
             }
             FieldType::JsonObject(ref json_obj_options) => {
-                unimplemented!()
+                json_obj_options
+                    .indexing
+                    .as_ref()
+                    .map(TextFieldIndexing::index_option)
             }
         }
     }
