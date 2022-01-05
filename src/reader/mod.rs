@@ -94,7 +94,7 @@ impl IndexReaderBuilder {
                 } else {
                     Executor::multi_thread(self.num_warming_threads, "tantivy-warm-")?
                 },
-                searcher_generation_tokens: Default::default(),
+                searcher_generations: Default::default(),
                 pending_gc: AtomicBool::new(false),
             },
         };
@@ -172,7 +172,7 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 struct WarmingState {
     warmers: RwLock<Vec<Weak<dyn Warmer>>>,
     executor: Executor,
-    searcher_generation_tokens: RwLock<Vec<Weak<()>>>,
+    searcher_generations: RwLock<Vec<(Weak<()>, Vec<SegmentId>)>>,
     pending_gc: AtomicBool,
 }
 
@@ -187,19 +187,14 @@ impl WarmingState {
         strong_warmers
     }
 
-    fn pruned_searcher_generation_tokens(&self) -> RwLockWriteGuard<Vec<Weak<()>>> {
-        let mut tokens = self.searcher_generation_tokens.write().unwrap();
-        *tokens = tokens
+    fn live_searcher_generations(&self) -> RwLockWriteGuard<Vec<(Weak<()>, Vec<SegmentId>)>> {
+        let mut searcher_generations = self.searcher_generations.write().unwrap();
+        *searcher_generations = searcher_generations
             .iter()
-            .flat_map(|token| {
-                if token.strong_count() > 0 {
-                    Some(token.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        tokens
+            .filter(|(token, _segment_ids)| token.strong_count() > 0)
+            .cloned()
+            .collect();
+        searcher_generations
     }
 
     fn warm(&self, searcher: &Searcher, token: Weak<()>) -> crate::Result<()> {
@@ -207,38 +202,50 @@ impl WarmingState {
             |warmer| warmer.warm(searcher),
             self.pruned_warmers().into_iter(),
         )?;
-        self.pruned_searcher_generation_tokens().push(token);
+        let segment_ids = searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect();
+        self.live_searcher_generations().push((token, segment_ids));
         self.pending_gc.store(true, Ordering::Release);
         Ok(())
     }
 
-    fn unique_searcher_generation(&self) -> bool {
-        self.searcher_generation_tokens
-            .read()
-            .unwrap()
+    fn live_segment_ids(&self) -> HashSet<SegmentId> {
+        self.live_searcher_generations()
             .iter()
-            .filter(|token| token.strong_count() > 0)
-            .take(2)
-            .count()
-            <= 1
+            .flat_map(|(_token, segment_ids)| segment_ids.iter().copied())
+            .collect()
+    }
+
+    fn eligible_gc(&self) -> bool {
+        let searcher_generations = self.searcher_generations.read().unwrap();
+        // unique live generation
+        (searcher_generations.len() == 1)
+            // some generation got dropped
+            || (searcher_generations
+                .iter()
+                .any(|(token, _segment_ids)| token.strong_count() == 0))
     }
 
     /// Cheap when there is no pending GC.
     ///
-    /// Otherwise, we check if there are still older searcher generations around,
-    /// and if there are not, trigger [Warmer::garbage_collect()] inline.
-    fn maybe_gc(&self, live_segment_readers: &[SegmentReader]) {
-        if !self.pending_gc.load(Ordering::Acquire) || !self.unique_searcher_generation() {
+    /// Otherwise, we may acquire a read lock to scan searcher generations for GC worthiness,
+    /// and trigger [Warmer::garbage_collect()] inline.
+    fn maybe_gc(&self) {
+        if self.pending_gc.swap(false, Ordering::AcqRel) {
             return;
         }
-        let live_segment_ids = live_segment_readers
-            .iter()
-            .map(|reader| reader.segment_id())
-            .collect();
+        if !self.eligible_gc() {
+            // try again later
+            self.pending_gc.store(true, Ordering::Release);
+            return;
+        }
+        let live_segment_ids = self.live_segment_ids();
         for warmer in self.pruned_warmers() {
             warmer.garbage_collect(&live_segment_ids);
         }
-        self.pending_gc.store(false, Ordering::Release);
     }
 }
 
@@ -274,7 +281,7 @@ impl InnerIndexReader {
         self.warming_state
             .warm(&searchers[0], Arc::downgrade(&generation_token))?;
         self.searcher_pool.publish_new_generation(searchers);
-        self.warming_state.maybe_gc(&segment_readers);
+        self.warming_state.maybe_gc();
         Ok(())
     }
 
@@ -285,7 +292,7 @@ impl InnerIndexReader {
 
     fn searcher(&self) -> LeasedItem<Searcher> {
         let searcher = self.searcher_pool.acquire();
-        self.warming_state.maybe_gc(searcher.segment_readers());
+        self.warming_state.maybe_gc();
         searcher
     }
 }
