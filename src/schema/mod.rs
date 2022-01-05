@@ -122,6 +122,7 @@ mod value;
 mod json_object_options;
 
 mod flags;
+mod json_object_utils;
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::DocParsingError;
