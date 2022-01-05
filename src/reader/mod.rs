@@ -168,11 +168,23 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SearcherGeneration {
+    liveness_token: Weak<()>,
+    segment_ids: Vec<SegmentId>,
+}
+
+impl SearcherGeneration {
+    fn is_live(&self) -> bool {
+        self.liveness_token.strong_count() > 0
+    }
+}
+
 /// Warming-related state with interior mutability.
 struct WarmingState {
     warmers: RwLock<Vec<Weak<dyn Warmer>>>,
     executor: Executor,
-    searcher_generations: RwLock<Vec<(Weak<()>, Vec<SegmentId>)>>,
+    searcher_generations: RwLock<Vec<SearcherGeneration>>,
     pending_gc: AtomicBool,
 }
 
@@ -187,17 +199,17 @@ impl WarmingState {
         strong_warmers
     }
 
-    fn live_searcher_generations(&self) -> RwLockWriteGuard<Vec<(Weak<()>, Vec<SegmentId>)>> {
+    fn pruned_searcher_generations(&self) -> RwLockWriteGuard<Vec<SearcherGeneration>> {
         let mut searcher_generations = self.searcher_generations.write().unwrap();
         *searcher_generations = searcher_generations
             .iter()
-            .filter(|(token, _segment_ids)| token.strong_count() > 0)
+            .filter(|gen| gen.is_live())
             .cloned()
             .collect();
         searcher_generations
     }
 
-    fn warm(&self, searcher: &Searcher, token: Weak<()>) -> crate::Result<()> {
+    fn warm(&self, searcher: &Searcher, liveness_token: Weak<()>) -> crate::Result<()> {
         self.executor.map(
             |warmer| warmer.warm(searcher),
             self.pruned_warmers().into_iter(),
@@ -207,15 +219,19 @@ impl WarmingState {
             .iter()
             .map(|reader| reader.segment_id())
             .collect();
-        self.live_searcher_generations().push((token, segment_ids));
+        self.pruned_searcher_generations().push(SearcherGeneration {
+            liveness_token,
+            segment_ids,
+        });
         self.pending_gc.store(true, Ordering::Release);
         Ok(())
     }
 
     fn live_segment_ids(&self) -> HashSet<SegmentId> {
-        self.live_searcher_generations()
+        self.searcher_generations.read().unwrap()
             .iter()
-            .flat_map(|(_token, segment_ids)| segment_ids.iter().copied())
+            .filter(|gen| gen.is_live())
+            .flat_map(|gen| gen.segment_ids.iter().copied())
             .collect()
     }
 
@@ -226,7 +242,7 @@ impl WarmingState {
             // some generation got dropped
             || (searcher_generations
                 .iter()
-                .any(|(token, _segment_ids)| token.strong_count() == 0))
+                .any(|gen| !gen.is_live()))
     }
 
     /// Cheap when there is no pending GC.
