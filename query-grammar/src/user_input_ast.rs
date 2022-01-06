@@ -91,6 +91,7 @@ pub enum UserInputAst {
 }
 
 impl UserInputAst {
+    #[must_use]
     pub fn unary(self, occur: Occur) -> UserInputAst {
         UserInputAst::Clause(vec![(Some(occur), self)])
     }

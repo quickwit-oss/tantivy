@@ -61,6 +61,7 @@ impl IndexReaderBuilder {
     /// Building the reader is a non-trivial operation that requires
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
+    #[allow(clippy::needless_late_init)]
     pub fn try_into(self) -> crate::Result<IndexReader> {
         let inner_reader = InnerIndexReader {
             index: self.index,

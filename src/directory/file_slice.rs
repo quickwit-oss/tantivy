@@ -66,6 +66,7 @@ impl FileSlice {
 
     /// Wraps a FileHandle.
     #[doc(hidden)]
+    #[must_use]
     pub fn new_with_num_bytes(file_handle: Box<dyn FileHandle>, num_bytes: usize) -> Self {
         FileSlice {
             data: Arc::from(file_handle),

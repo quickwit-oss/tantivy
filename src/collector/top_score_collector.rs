@@ -210,6 +210,7 @@ impl TopDocs {
     /// Ok(())
     /// # }
     /// ```
+    #[must_use]
     pub fn and_offset(self, offset: usize) -> TopDocs {
         TopDocs(self.0.and_offset(offset))
     }
