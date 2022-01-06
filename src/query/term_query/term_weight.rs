@@ -31,11 +31,7 @@ impl Weight for TermWeight {
             return Err(does_not_match(doc));
         }
         let mut explanation = scorer.explain();
-        explanation.add_context(format!(
-            "Term ={:?}:{:?}",
-            self.term.field(),
-            self.term.value_bytes()
-        ));
+        explanation.add_context(format!("Term={:?}", self.term,));
         Ok(explanation)
     }
 

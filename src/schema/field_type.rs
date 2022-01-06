@@ -30,21 +30,60 @@ pub enum ValueParsingError {
 /// Contrary to FieldType, this does
 /// not include the way the field must be indexed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u8)]
 pub enum Type {
     /// `&str`
-    Str,
+    Str = b's',
     /// `u64`
-    U64,
+    U64 = b'u',
     /// `i64`
-    I64,
+    I64 = b'i',
     /// `f64`
-    F64,
+    F64 = b'f',
     /// `date(i64) timestamp`
-    Date,
+    Date = b'd',
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
-    HierarchicalFacet,
+    Facet = b'h',
     /// `Vec<u8>`
-    Bytes,
+    Bytes = b'b',
+}
+
+const ALL_TYPES: [Type; 7] = [
+    Type::Str,
+    Type::U64,
+    Type::I64,
+    Type::F64,
+    Type::Date,
+    Type::Facet,
+    Type::Bytes,
+];
+
+impl Type {
+    /// Returns an iterator over the different values
+    /// the Type enum can tape.
+    pub fn iter_values() -> impl Iterator<Item = Type> {
+        ALL_TYPES.iter().cloned()
+    }
+
+    /// Returns a 1 byte code used to identify the type.
+    pub fn to_code(&self) -> u8 {
+        *self as u8
+    }
+
+    /// Interprets a 1byte code as a type.
+    /// Returns None if the code is invalid.
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            b's' => Some(Type::Str),
+            b'u' => Some(Type::U64),
+            b'i' => Some(Type::I64),
+            b'f' => Some(Type::F64),
+            b'd' => Some(Type::Date),
+            b'h' => Some(Type::Facet),
+            b'b' => Some(Type::Bytes),
+            _ => None,
+        }
+    }
 }
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
@@ -79,7 +118,7 @@ impl FieldType {
             FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
             FieldType::Date(_) => Type::Date,
-            FieldType::HierarchicalFacet(_) => Type::HierarchicalFacet,
+            FieldType::HierarchicalFacet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
         }
     }
@@ -241,6 +280,7 @@ mod tests {
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::TextOptions;
+    use crate::schema::Type;
     use crate::schema::Value;
     use crate::schema::{Schema, INDEXED};
     use crate::tokenizer::{PreTokenizedString, Token};
@@ -357,5 +397,14 @@ mod tests {
         let serialized_value_json = serde_json::to_string_pretty(&expected_value).unwrap();
 
         assert_eq!(serialized_value_json, pre_tokenized_string_json);
+    }
+
+    #[test]
+    fn test_type_codes() {
+        for type_val in Type::iter_values() {
+            let code = type_val.to_code();
+            assert_eq!(Type::from_code(code), Some(type_val));
+        }
+        assert_eq!(Type::from_code(b'z'), None);
     }
 }

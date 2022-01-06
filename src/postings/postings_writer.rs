@@ -5,8 +5,8 @@ use crate::postings::recorder::{
 };
 use crate::postings::UnorderedTermId;
 use crate::postings::{FieldSerializer, InvertedIndexSerializer};
-use crate::schema::IndexRecordOption;
 use crate::schema::{Field, FieldEntry, FieldType, Schema, Term};
+use crate::schema::{IndexRecordOption, Type};
 use crate::termdict::TermOrdinal;
 use crate::tokenizer::TokenStream;
 use crate::tokenizer::{Token, MAX_TOKEN_LEN};
@@ -53,11 +53,11 @@ pub struct MultiFieldPostingsWriter {
 }
 
 fn make_field_partition(
-    term_offsets: &[(&[u8], Addr, UnorderedTermId)],
+    term_offsets: &[(Term<&[u8]>, Addr, UnorderedTermId)],
 ) -> Vec<(Field, Range<usize>)> {
     let term_offsets_it = term_offsets
         .iter()
-        .map(|(key, _, _)| Term::wrap(key).field())
+        .map(|(term, _, _)| term.field())
         .enumerate();
     let mut prev_field_opt = None;
     let mut fields = vec![];
@@ -132,10 +132,10 @@ impl MultiFieldPostingsWriter {
         fieldnorm_readers: FieldNormReaders,
         doc_id_map: Option<&DocIdMapping>,
     ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
+        let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
             Vec::with_capacity(self.term_index.len());
         term_offsets.extend(self.term_index.iter());
-        term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
+        term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
 
         let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
             HashMap::new();
@@ -210,7 +210,7 @@ pub trait PostingsWriter {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(&[u8], Addr, UnorderedTermId)],
+        term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer<'_>,
         term_heap: &MemoryArena,
         heap: &MemoryArena,
@@ -227,7 +227,7 @@ pub trait PostingsWriter {
         heap: &mut MemoryArena,
         term_buffer: &mut Term,
     ) -> u32 {
-        term_buffer.set_field(field);
+        term_buffer.set_field(Type::Str, field);
         let mut sink = |token: &Token| {
             // We skip all tokens with a len greater than u16.
             if token.text.len() <= MAX_TOKEN_LEN {
@@ -281,7 +281,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
-        term_index.mutate_or_create(term, |opt_recorder: Option<Rec>| {
+        term_index.mutate_or_create(term.as_slice(), |opt_recorder: Option<Rec>| {
             if let Some(mut recorder) = opt_recorder {
                 let current_doc = recorder.current_doc();
                 if current_doc != doc {
@@ -301,17 +301,17 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
 
     fn serialize(
         &self,
-        term_addrs: &[(&[u8], Addr, UnorderedTermId)],
+        term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer<'_>,
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
-        for &(term_bytes, addr, _) in term_addrs {
-            let recorder: Rec = termdict_heap.read(addr);
+        for (term, addr, _) in term_addrs {
+            let recorder: Rec = termdict_heap.read(*addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-            serializer.new_term(&term_bytes[4..], term_doc_freq)?;
+            serializer.new_term(term.value_bytes(), term_doc_freq)?;
             recorder.serialize(&mut buffer_lender, serializer, heap, doc_id_map);
             serializer.close_term()?;
         }

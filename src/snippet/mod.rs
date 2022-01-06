@@ -243,10 +243,15 @@ impl SnippetGenerator {
             if term.field() != field {
                 continue;
             }
+            let term_str = if let Some(term_str) = term.as_str() {
+                term_str
+            } else {
+                continue;
+            };
             let doc_freq = searcher.doc_freq(&term)?;
             if doc_freq > 0 {
                 let score = 1.0 / (1.0 + doc_freq as Score);
-                terms_text.insert(term.text().to_string(), score);
+                terms_text.insert(term_str.to_string(), score);
             }
         }
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
