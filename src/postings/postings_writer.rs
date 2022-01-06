@@ -18,7 +18,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::ops::{DerefMut, Range};
 
-fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
+fn postings_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
@@ -85,7 +85,7 @@ impl MultiFieldPostingsWriter {
         let term_index = TermHashMap::new(table_bits);
         let per_field_postings_writers: Vec<_> = schema
             .fields()
-            .map(|(_, field_entry)| posting_from_field_entry(field_entry))
+            .map(|(_, field_entry)| postings_writer_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
             heap: MemoryArena::new(),
