@@ -1,3 +1,5 @@
+#![allow(clippy::return_self_not_must_use)]
+
 use stable_deref_trait::StableDeref;
 use std::convert::TryInto;
 use std::mem;
@@ -35,6 +37,8 @@ impl OwnedBytes {
     }
 
     /// creates a fileslice that is just a view over a slice of the data.
+    #[must_use]
+    #[inline]
     pub fn slice(&self, range: Range<usize>) -> Self {
         OwnedBytes {
             data: &self.data[range],
@@ -63,6 +67,8 @@ impl OwnedBytes {
     /// On the other hand, both `left` and `right` retain a handle over
     /// the entire slice of memory. In other words, the memory will only
     /// be released when both left and right are dropped.
+    #[inline]
+    #[must_use]
     pub fn split(self, split_len: usize) -> (OwnedBytes, OwnedBytes) {
         let right_box_stable_deref = self.box_stable_deref.clone();
         let left = OwnedBytes {

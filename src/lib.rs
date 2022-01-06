@@ -11,6 +11,7 @@
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 #![allow(clippy::len_without_is_empty)]
+#![allow(clippy::return_self_not_must_use)]
 
 //! # `tantivy`
 //!

@@ -76,8 +76,7 @@ impl FieldNormsWriter {
         if let Some(fieldnorm_buffer) = self
             .fieldnorms_buffers
             .get_mut(field.field_id() as usize)
-            .map(Option::as_mut)
-            .flatten()
+            .and_then(Option::as_mut)
         {
             match fieldnorm_buffer.len().cmp(&(doc as usize)) {
                 Ordering::Less => {
@@ -99,17 +98,13 @@ impl FieldNormsWriter {
         mut fieldnorms_serializer: FieldNormsSerializer,
         doc_id_map: Option<&DocIdMapping>,
     ) -> io::Result<()> {
-        for (field, fieldnorms_buffer) in self
-            .fieldnorms_buffers
-            .iter()
-            .enumerate()
-            .map(|(field_id, fieldnorms_buffer_opt)| {
+        for (field, fieldnorms_buffer) in self.fieldnorms_buffers.iter().enumerate().filter_map(
+            |(field_id, fieldnorms_buffer_opt)| {
                 fieldnorms_buffer_opt.as_ref().map(|fieldnorms_buffer| {
                     (Field::from_field_id(field_id as u32), fieldnorms_buffer)
                 })
-            })
-            .flatten()
-        {
+            },
+        ) {
             if let Some(doc_id_map) = doc_id_map {
                 let remapped_fieldnorm_buffer = doc_id_map.remap(fieldnorms_buffer);
                 fieldnorms_serializer.serialize_field(field, &remapped_fieldnorm_buffer)?;

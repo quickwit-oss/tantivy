@@ -234,12 +234,12 @@ impl TermInfoStoreWriter {
         };
 
         term_info_block_meta.serialize(&mut self.buffer_block_metas)?;
-        for term_info in self.term_infos[1..].iter().cloned() {
+        for term_info in &self.term_infos[1..] {
             bitpack_serialize(
                 &mut self.buffer_term_infos,
                 &mut bit_packer,
                 &term_info_block_meta,
-                &term_info,
+                term_info,
             )?;
         }
 

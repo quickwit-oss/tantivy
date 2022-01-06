@@ -62,29 +62,30 @@ impl TinySet {
         self.0 = 0u64;
     }
 
-    #[inline]
     /// Returns the complement of the set in `[0, 64[`.
     ///
     /// Careful on making this function public, as it will break the padding handling in the last
     /// bucket.
+    #[inline]
     fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
-    #[inline]
     /// Returns true iff the `TinySet` contains the element `el`.
+    #[inline]
     pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
-    #[inline]
     /// Returns the number of elements in the TinySet.
+    #[inline]
     pub fn len(self) -> u32 {
         self.0.count_ones()
     }
 
-    #[inline]
     /// Returns the intersection of `self` and `other`
+    #[inline]
+    #[must_use]
     pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)
     }
@@ -98,12 +99,14 @@ impl TinySet {
 
     /// Insert a new element within [0..64)
     #[inline]
+    #[must_use]
     pub fn insert(self, el: u32) -> TinySet {
         self.union(TinySet::singleton(el))
     }
 
     /// Removes an element within [0..64)
     #[inline]
+    #[must_use]
     pub fn remove(self, el: u32) -> TinySet {
         self.intersect(TinySet::singleton(el).complement())
     }
@@ -130,6 +133,7 @@ impl TinySet {
 
     /// Returns the union of two tinysets
     #[inline]
+    #[must_use]
     pub fn union(self, other: TinySet) -> TinySet {
         TinySet(self.0 | other.0)
     }

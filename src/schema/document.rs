@@ -131,18 +131,17 @@ impl Document {
         let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
         field_values.sort_by_key(|field_value| field_value.field());
 
-        let mut grouped_field_values = vec![];
-
-        let mut current_field;
-        let mut current_group;
-
         let mut field_values_it = field_values.into_iter();
-        if let Some(field_value) = field_values_it.next() {
-            current_field = field_value.field();
-            current_group = vec![field_value]
+
+        let first_field_value = if let Some(first_field_value) = field_values_it.next() {
+            first_field_value
         } else {
-            return grouped_field_values;
-        }
+            return Vec::new();
+        };
+
+        let mut grouped_field_values = vec![];
+        let mut current_field = first_field_value.field();
+        let mut current_group = vec![first_field_value];
 
         for field_value in field_values_it {
             if field_value.field() == current_field {

@@ -340,14 +340,13 @@ impl IndexMerger {
         fast_field_serializer: &mut CompositeFastFieldSerializer,
         doc_id_mapping: &SegmentDocIdMapping,
     ) -> crate::Result<()> {
-        let (min_value, max_value) = self.readers.iter().map(|reader|{
+        let (min_value, max_value) = self.readers.iter().filter_map(|reader|{
                 let u64_reader: DynamicFastFieldReader<u64> = reader
                 .fast_fields()
                 .typed_fast_field_reader(field)
                 .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
                 compute_min_max_val(&u64_reader, reader)
             })
-            .flatten()
             .reduce(|a, b| {
                 (a.0.min(b.0), a.1.max(b.1))
             }).expect("Unexpected error, empty readers in IndexMerger");
@@ -657,12 +656,11 @@ impl IndexMerger {
             self.readers
                 .iter()
                 .enumerate()
-                .map(|(reader_ordinal, reader)| {
+                .flat_map(|(reader_ordinal, reader)| {
                     reader
                         .doc_ids_alive()
                         .map(move |doc_id| (doc_id, reader_ordinal as SegmentOrdinal))
-                })
-                .flatten(),
+                }),
         );
         Ok(SegmentDocIdMapping::new(mapping, true))
     }
@@ -760,24 +758,18 @@ impl IndexMerger {
             fast_field_readers: &ff_readers,
             offsets,
         };
-        let iter1 = doc_id_mapping
-            .iter()
-            .map(|(doc_id, reader_ordinal)| {
-                let ff_reader = &ff_readers[*reader_ordinal as usize];
-                let mut vals = vec![];
-                ff_reader.get_vals(*doc_id, &mut vals);
-                vals.into_iter()
-            })
-            .flatten();
-        let iter2 = doc_id_mapping
-            .iter()
-            .map(|(doc_id, reader_ordinal)| {
-                let ff_reader = &ff_readers[*reader_ordinal as usize];
-                let mut vals = vec![];
-                ff_reader.get_vals(*doc_id, &mut vals);
-                vals.into_iter()
-            })
-            .flatten();
+        let iter1 = doc_id_mapping.iter().flat_map(|(doc_id, reader_ordinal)| {
+            let ff_reader = &ff_readers[*reader_ordinal as usize];
+            let mut vals = vec![];
+            ff_reader.get_vals(*doc_id, &mut vals);
+            vals.into_iter()
+        });
+        let iter2 = doc_id_mapping.iter().flat_map(|(doc_id, reader_ordinal)| {
+            let ff_reader = &ff_readers[*reader_ordinal as usize];
+            let mut vals = vec![];
+            ff_reader.get_vals(*doc_id, &mut vals);
+            vals.into_iter()
+        });
         fast_field_serializer.create_auto_detect_u64_fast_field_with_idx(
             field,
             stats,

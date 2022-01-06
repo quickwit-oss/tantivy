@@ -187,7 +187,6 @@ mod tests {
     use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 
     #[test]
-    #[test]
     fn test_stack() {
         let mut heap = MemoryArena::new();
         let mut stack = ExpUnrolledLinkedList::new();

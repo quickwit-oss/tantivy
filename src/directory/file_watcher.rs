@@ -43,14 +43,16 @@ impl FileWatcher {
         thread::Builder::new()
             .name("thread-tantivy-meta-file-watcher".to_string())
             .spawn(move || {
-                let mut current_checksum = None;
+                let mut current_checksum_opt = None;
 
                 while state.load(Ordering::SeqCst) == 1 {
                     if let Ok(checksum) = FileWatcher::compute_checksum(&path) {
-                        // `None.unwrap_or_else(|| !checksum) != checksum` evaluates to `true`
-                        if current_checksum.unwrap_or_else(|| !checksum) != checksum {
+                        let metafile_has_changed = current_checksum_opt
+                            .map(|current_checksum| current_checksum != checksum)
+                            .unwrap_or(true);
+                        if metafile_has_changed {
                             info!("Meta file {:?} was modified", path);
-                            current_checksum = Some(checksum);
+                            current_checksum_opt = Some(checksum);
                             futures::executor::block_on(callbacks.broadcast());
                         }
                     }
