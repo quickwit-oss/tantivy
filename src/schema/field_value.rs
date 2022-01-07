@@ -4,7 +4,7 @@ use common::BinarySerializable;
 use std::io::{self, Read, Write};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
-#[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FieldValue {
     field: Field,
     value: Value,

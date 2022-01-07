@@ -3,7 +3,7 @@ use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{cmp::Ordering, fmt};
+use std::fmt;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -28,46 +28,6 @@ pub enum Value {
 }
 
 impl Eq for Value {}
-impl PartialOrd for Value {
-    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for Value {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Value::Str(l), Value::Str(r)) => l.cmp(r),
-            (Value::PreTokStr(l), Value::PreTokStr(r)) => l.cmp(r),
-            (Value::U64(l), Value::U64(r)) => l.cmp(r),
-            (Value::I64(l), Value::I64(r)) => l.cmp(r),
-            (Value::Date(l), Value::Date(r)) => l.cmp(r),
-            (Value::Facet(l), Value::Facet(r)) => l.cmp(r),
-            (Value::Bytes(l), Value::Bytes(r)) => l.cmp(r),
-            (Value::F64(l), Value::F64(r)) => {
-                match (l.is_nan(), r.is_nan()) {
-                    (false, false) => l.partial_cmp(r).unwrap(), // only fail on NaN
-                    (true, true) => Ordering::Equal,
-                    (true, false) => Ordering::Less, // we define NaN as less than -∞
-                    (false, true) => Ordering::Greater,
-                }
-            }
-            (Value::Str(_), _) => Ordering::Less,
-            (_, Value::Str(_)) => Ordering::Greater,
-            (Value::PreTokStr(_), _) => Ordering::Less,
-            (_, Value::PreTokStr(_)) => Ordering::Greater,
-            (Value::U64(_), _) => Ordering::Less,
-            (_, Value::U64(_)) => Ordering::Greater,
-            (Value::I64(_), _) => Ordering::Less,
-            (_, Value::I64(_)) => Ordering::Greater,
-            (Value::F64(_), _) => Ordering::Less,
-            (_, Value::F64(_)) => Ordering::Greater,
-            (Value::Date(_), _) => Ordering::Less,
-            (_, Value::Date(_)) => Ordering::Greater,
-            (Value::Facet(_), _) => Ordering::Less,
-            (_, Value::Facet(_)) => Ordering::Greater,
-        }
-    }
-}
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

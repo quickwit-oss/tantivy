@@ -3,6 +3,8 @@ use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
 use common::BinarySerializable;
 use common::VInt;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::{self, Read, Write};
 use std::mem;
 
@@ -30,10 +32,21 @@ impl From<Vec<FieldValue>> for Document {
 impl PartialEq for Document {
     fn eq(&self, other: &Document) -> bool {
         // super slow, but only here for tests
-        let mut self_field_values: Vec<&_> = self.field_values.iter().collect();
-        let mut other_field_values: Vec<&_> = other.field_values.iter().collect();
-        self_field_values.sort();
-        other_field_values.sort();
+        let convert_to_comparable_map = |field_values: &[FieldValue]| {
+            let mut field_value_set: HashMap<Field, HashSet<String>> = Default::default();
+            for field_value in field_values.iter() {
+                let json_val = serde_json::to_string(field_value.value()).unwrap();
+                field_value_set
+                    .entry(field_value.field())
+                    .or_default()
+                    .insert(json_val);
+            }
+            field_value_set
+        };
+        let self_field_values: HashMap<Field, HashSet<String>> =
+            convert_to_comparable_map(&self.field_values);
+        let other_field_values: HashMap<Field, HashSet<String>> =
+            convert_to_comparable_map(&other.field_values);
         self_field_values.eq(&other_field_values)
     }
 }
