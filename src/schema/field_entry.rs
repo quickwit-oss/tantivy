@@ -85,7 +85,7 @@ impl FieldEntry {
         assert!(is_valid_field_name(&field_name));
         FieldEntry {
             name: field_name,
-            field_type: FieldType::HierarchicalFacet(field_type),
+            field_type: FieldType::Facet(field_type),
         }
     }
 
@@ -138,7 +138,7 @@ impl FieldEntry {
             | FieldType::F64(ref options)
             | FieldType::Date(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
-            FieldType::HierarchicalFacet(ref options) => options.is_stored(),
+            FieldType::Facet(ref options) => options.is_stored(),
             FieldType::Bytes(ref options) => options.is_stored(),
         }
     }

@@ -367,7 +367,7 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet(_) => match Facet::from_text(phrase) {
+            FieldType::Facet(_) => match Facet::from_text(phrase) {
                 Ok(facet) => Ok(vec![(0, Term::from_facet(field, &facet))]),
                 Err(e) => Err(QueryParserError::from(e)),
             },

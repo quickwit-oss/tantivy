@@ -104,7 +104,7 @@ pub enum FieldType {
     /// Signed 64-bits Date 64 field type configuration,
     Date(IntOptions),
     /// Hierachical Facet
-    HierarchicalFacet(FacetOptions),
+    Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
 }
@@ -118,7 +118,7 @@ impl FieldType {
             FieldType::I64(_) => Type::I64,
             FieldType::F64(_) => Type::F64,
             FieldType::Date(_) => Type::Date,
-            FieldType::HierarchicalFacet(_) => Type::Facet,
+            FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
         }
     }
@@ -131,7 +131,7 @@ impl FieldType {
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options) => int_options.is_indexed(),
             FieldType::Date(ref date_options) => date_options.is_indexed(),
-            FieldType::HierarchicalFacet(ref _facet_options) => true,
+            FieldType::Facet(ref _facet_options) => true,
             FieldType::Bytes(ref bytes_options) => bytes_options.is_indexed(),
         }
     }
@@ -147,7 +147,7 @@ impl FieldType {
             | FieldType::I64(ref int_options)
             | FieldType::F64(ref int_options)
             | FieldType::Date(ref int_options) => int_options.fieldnorms(),
-            FieldType::HierarchicalFacet(_) => false,
+            FieldType::Facet(_) => false,
             FieldType::Bytes(ref bytes_options) => bytes_options.fieldnorms(),
         }
     }
@@ -171,7 +171,7 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::HierarchicalFacet(ref _facet_options) => Some(IndexRecordOption::Basic),
+            FieldType::Facet(ref _facet_options) => Some(IndexRecordOption::Basic),
             FieldType::Bytes(ref bytes_options) => {
                 if bytes_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
@@ -204,7 +204,7 @@ impl FieldType {
                 FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => Err(
                     ValueParsingError::TypeError(format!("Expected an integer, got {:?}", json)),
                 ),
-                FieldType::HierarchicalFacet(_) => Ok(Value::Facet(Facet::from(field_text))),
+                FieldType::Facet(_) => Ok(Value::Facet(Facet::from(field_text))),
                 FieldType::Bytes(_) => base64::decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64(format!(
                         "Expected base64 string, got {:?}",
@@ -237,7 +237,7 @@ impl FieldType {
                         Err(ValueParsingError::OverflowError(msg))
                     }
                 }
-                FieldType::Str(_) | FieldType::HierarchicalFacet(_) | FieldType::Bytes(_) => {
+                FieldType::Str(_) | FieldType::Facet(_) | FieldType::Bytes(_) => {
                     let msg = format!("Expected a string, got {:?}", json);
                     Err(ValueParsingError::TypeError(msg))
                 }

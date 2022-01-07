@@ -173,7 +173,7 @@ impl SegmentWriter {
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
             match *field_entry.field_type() {
-                FieldType::HierarchicalFacet(_) => {
+                FieldType::Facet(_) => {
                     term_buffer.set_field(Type::Facet, field);
                     for field_value in field_values {
                         let facet = field_value.value().facet().ok_or_else(make_schema_error)?;

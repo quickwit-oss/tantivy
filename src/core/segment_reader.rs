@@ -100,7 +100,7 @@ impl SegmentReader {
         let field_entry = self.schema.get_field_entry(field);
 
         match field_entry.field_type() {
-            FieldType::HierarchicalFacet(_) => {
+            FieldType::Facet(_) => {
                 let term_ords_reader = self.fast_fields().u64s(field)?;
                 let termdict = self
                     .termdict_composite
