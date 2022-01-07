@@ -40,7 +40,7 @@ fn type_and_cardinality(field_type: &FieldType) -> Option<(FastType, Cardinality
         FieldType::Date(options) => options
             .get_fastfield_cardinality()
             .map(|cardinality| (FastType::Date, cardinality)),
-        FieldType::HierarchicalFacet(_) => Some((FastType::U64, Cardinality::MultiValues)),
+        FieldType::Facet(_) => Some((FastType::U64, Cardinality::MultiValues)),
         _ => None,
     }
 }

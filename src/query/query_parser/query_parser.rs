@@ -367,8 +367,8 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet(_) => match Facet::from_text(phrase) {
-                Ok(facet) => Ok(vec![(0, Term::from_field_text(field, facet.encoded_str()))]),
+            FieldType::Facet(_) => match Facet::from_text(phrase) {
+                Ok(facet) => Ok(vec![(0, Term::from_facet(field, &facet))]),
                 Err(e) => Err(QueryParserError::from(e)),
             },
             FieldType::Bytes(_) => {
@@ -665,7 +665,7 @@ mod test {
         let query = query_parser.parse_query("facet:/root/branch/leaf").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "TermQuery(Term(field=11,bytes=[114, 111, 111, 116, 0, 98, 114, 97, 110, 99, 104, 0, 108, 101, 97, 102]))"
+            r#"TermQuery(Term(type=Facet, field=11, val="/root/branch/leaf"))"#
         );
     }
 
@@ -678,7 +678,7 @@ mod test {
         let query = query_parser.parse_query("text:hello").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "Boost(query=TermQuery(Term(field=1,bytes=[104, 101, 108, 108, 111])), boost=2)"
+            r#"Boost(query=TermQuery(Term(type=Str, field=1, val="hello")), boost=2)"#
         );
     }
 
@@ -704,7 +704,7 @@ mod test {
         let query = query_parser.parse_query("text:hello^2").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "Boost(query=Boost(query=TermQuery(Term(field=1,bytes=[104, 101, 108, 108, 111])), boost=2), boost=2)"
+            r#"Boost(query=Boost(query=TermQuery(Term(type=Str, field=1, val="hello")), boost=2), boost=2)"#
         );
     }
 
@@ -739,8 +739,7 @@ mod test {
     pub fn test_parse_query_untokenized() {
         test_parse_query_to_logical_ast_helper(
             "nottokenized:\"wordone wordtwo\"",
-            "Term(field=7,bytes=[119, 111, 114, 100, 111, 110, \
-             101, 32, 119, 111, 114, 100, 116, 119, 111])",
+            r#"Term(type=Str, field=7, val="wordone wordtwo")"#,
             false,
         );
     }
@@ -783,7 +782,7 @@ mod test {
             .is_ok());
         test_parse_query_to_logical_ast_helper(
             "unsigned:2324",
-            "Term(field=3,bytes=[0, 0, 0, 0, 0, 0, 9, 20])",
+            "Term(type=U64, field=3, val=2324)",
             false,
         );
 
@@ -810,7 +809,7 @@ mod test {
     fn test_parse_bytes() {
         test_parse_query_to_logical_ast_helper(
             "bytes:YnVidQ==",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(type=Bytes, field=12, val=[98, 117, 98, 117])",
             false,
         );
     }
@@ -825,7 +824,7 @@ mod test {
     fn test_parse_bytes_phrase() {
         test_parse_query_to_logical_ast_helper(
             "bytes:\"YnVidQ==\"",
-            "Term(field=12,bytes=[98, 117, 98, 117])",
+            "Term(type=Bytes, field=12, val=[98, 117, 98, 117])",
             false,
         );
     }
@@ -841,12 +840,12 @@ mod test {
     fn test_parse_query_to_ast_ab_c() {
         test_parse_query_to_logical_ast_helper(
             "(+title:a +title:b) title:c",
-            "((+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98])) Term(field=0,bytes=[99]))",
+            r#"((+Term(type=Str, field=0, val="a") +Term(type=Str, field=0, val="b")) Term(type=Str, field=0, val="c"))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "(+title:a +title:b) title:c",
-            "(+(+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98])) +Term(field=0,bytes=[99]))",
+            r#"(+(+Term(type=Str, field=0, val="a") +Term(type=Str, field=0, val="b")) +Term(type=Str, field=0, val="c"))"#,
             true,
         );
     }
@@ -855,19 +854,17 @@ mod test {
     pub fn test_parse_query_to_ast_single_term() {
         test_parse_query_to_logical_ast_helper(
             "title:toto",
-            "Term(field=0,bytes=[116, 111, 116, 111])",
+            r#"Term(type=Str, field=0, val="toto")"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "+title:toto",
-            "Term(field=0,bytes=[116, 111, 116, 111])",
+            r#"Term(type=Str, field=0, val="toto")"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "+title:toto -titi",
-            "(+Term(field=0,bytes=[116, 111, 116, 111]) \
-             -(Term(field=0,bytes=[116, 105, 116, 105]) \
-             Term(field=1,bytes=[116, 105, 116, 105])))",
+            r#"(+Term(type=Str, field=0, val="toto") -(Term(type=Str, field=0, val="titi") Term(type=Str, field=1, val="titi")))"#,
             false,
         );
     }
@@ -884,13 +881,12 @@ mod test {
     pub fn test_parse_query_to_ast_two_terms() {
         test_parse_query_to_logical_ast_helper(
             "title:a b",
-            "(Term(field=0,bytes=[97]) (Term(field=0,bytes=[98]) Term(field=1,bytes=[98])))",
+            r#"(Term(type=Str, field=0, val="a") (Term(type=Str, field=0, val="b") Term(type=Str, field=1, val="b")))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
-            "title:\"a b\"",
-            "\"[(0, Term(field=0,bytes=[97])), \
-             (1, Term(field=0,bytes=[98]))]\"",
+            r#"title:"a b""#,
+            r#""[(0, Term(type=Str, field=0, val="a")), (1, Term(type=Str, field=0, val="b"))]""#,
             false,
         );
     }
@@ -899,46 +895,39 @@ mod test {
     pub fn test_parse_query_to_ast_ranges() {
         test_parse_query_to_logical_ast_helper(
             "title:[a TO b]",
-            "(Included(Term(field=0,bytes=[97])) TO Included(Term(field=0,bytes=[98])))",
+            r#"(Included(Term(type=Str, field=0, val="a")) TO Included(Term(type=Str, field=0, val="b")))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "[a TO b]",
-            "((Included(Term(field=0,bytes=[97])) TO \
-             Included(Term(field=0,bytes=[98]))) \
-             (Included(Term(field=1,bytes=[97])) TO \
-             Included(Term(field=1,bytes=[98]))))",
+            r#"((Included(Term(type=Str, field=0, val="a")) TO Included(Term(type=Str, field=0, val="b"))) (Included(Term(type=Str, field=1, val="a")) TO Included(Term(type=Str, field=1, val="b"))))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "title:{titi TO toto}",
-            "(Excluded(Term(field=0,bytes=[116, 105, 116, 105])) TO \
-             Excluded(Term(field=0,bytes=[116, 111, 116, 111])))",
+            r#"(Excluded(Term(type=Str, field=0, val="titi")) TO Excluded(Term(type=Str, field=0, val="toto")))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "title:{* TO toto}",
-            "(Unbounded TO Excluded(Term(field=0,bytes=[116, 111, 116, 111])))",
+            r#"(Unbounded TO Excluded(Term(type=Str, field=0, val="toto")))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "title:{titi TO *}",
-            "(Excluded(Term(field=0,bytes=[116, 105, 116, 105])) TO Unbounded)",
+            r#"(Excluded(Term(type=Str, field=0, val="titi")) TO Unbounded)"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "signed:{-5 TO 3}",
-            "(Excluded(Term(field=2,bytes=[127, 255, 255, 255, 255, 255, 255, 251])) TO \
-             Excluded(Term(field=2,bytes=[128, 0, 0, 0, 0, 0, 0, 3])))",
+            r#"(Excluded(Term(type=I64, field=2, val=-5)) TO Excluded(Term(type=I64, field=2, val=3)))"#,
             false,
         );
         test_parse_query_to_logical_ast_helper(
             "float:{-1.5 TO 1.5}",
-            "(Excluded(Term(field=10,bytes=[64, 7, 255, 255, 255, 255, 255, 255])) TO \
-             Excluded(Term(field=10,bytes=[191, 248, 0, 0, 0, 0, 0, 0])))",
+            r#"(Excluded(Term(type=F64, field=10, val=-1.5)) TO Excluded(Term(type=F64, field=10, val=1.5)))"#,
             false,
         );
-
         test_parse_query_to_logical_ast_helper("*", "*", false);
     }
 
@@ -1065,32 +1054,27 @@ mod test {
     pub fn test_parse_query_to_ast_conjunction() {
         test_parse_query_to_logical_ast_helper(
             "title:toto",
-            "Term(field=0,bytes=[116, 111, 116, 111])",
+            r#"Term(type=Str, field=0, val="toto")"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "+title:toto",
-            "Term(field=0,bytes=[116, 111, 116, 111])",
+            r#"Term(type=Str, field=0, val="toto")"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "+title:toto -titi",
-            "(+Term(field=0,bytes=[116, 111, 116, 111]) \
-             -(Term(field=0,bytes=[116, 105, 116, 105]) \
-             Term(field=1,bytes=[116, 105, 116, 105])))",
+            r#"(+Term(type=Str, field=0, val="toto") -(Term(type=Str, field=0, val="titi") Term(type=Str, field=1, val="titi")))"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "title:a b",
-            "(+Term(field=0,bytes=[97]) \
-             +(Term(field=0,bytes=[98]) \
-             Term(field=1,bytes=[98])))",
+            r#"(+Term(type=Str, field=0, val="a") +(Term(type=Str, field=0, val="b") Term(type=Str, field=1, val="b")))"#,
             true,
         );
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
-            "\"[(0, Term(field=0,bytes=[97])), \
-             (1, Term(field=0,bytes=[98]))]\"",
+            r#""[(0, Term(type=Str, field=0, val="a")), (1, Term(type=Str, field=0, val="b"))]""#,
             true,
         );
     }
@@ -1099,8 +1083,8 @@ mod test {
     pub fn test_query_parser_hyphen() {
         test_parse_query_to_logical_ast_helper(
             "title:www-form-encoded",
-            "\"[(0, Term(field=0,bytes=[119, 119, 119])), (1, Term(field=0,bytes=[102, 111, 114, 109])), (2, Term(field=0,bytes=[101, 110, 99, 111, 100, 101, 100]))]\"",
-            false
+            r#""[(0, Term(type=Str, field=0, val="www")), (1, Term(type=Str, field=0, val="form")), (2, Term(type=Str, field=0, val="encoded"))]""#,
+            false,
         );
     }
 
@@ -1109,7 +1093,7 @@ mod test {
         for &default_conjunction in &[false, true] {
             test_parse_query_to_logical_ast_helper(
                 "title:a AND title:b",
-                "(+Term(field=0,bytes=[97]) +Term(field=0,bytes=[98]))",
+                r#"(+Term(type=Str, field=0, val="a") +Term(type=Str, field=0, val="b"))"#,
                 default_conjunction,
             );
         }
@@ -1120,7 +1104,7 @@ mod test {
         for &default_conjunction in &[false, true] {
             test_parse_query_to_logical_ast_helper(
                 "title:a OR title:b",
-                "(Term(field=0,bytes=[97]) Term(field=0,bytes=[98]))",
+                r#"(Term(type=Str, field=0, val="a") Term(type=Str, field=0, val="b"))"#,
                 default_conjunction,
             );
         }

@@ -180,7 +180,7 @@ impl MoreLikeThis {
 
         // extract the raw value, possibly tokenizing & filtering to update the term frequency map
         match field_entry.field_type() {
-            FieldType::HierarchicalFacet(_) => {
+            FieldType::Facet(_) => {
                 let facets: Vec<&str> = field_values
                     .iter()
                     .map(|field_value| match *field_value.value() {

@@ -132,10 +132,15 @@ impl FuzzyTermQuery {
         match LEV_BUILDER.get(&(self.distance, self.transposition_cost_one)) {
             // Unwrap the option and build the Ok(AutomatonWeight)
             Some(automaton_builder) => {
+                let term_text = self.term.as_str().ok_or_else(|| {
+                    crate::TantivyError::InvalidArgument(
+                        "The fuzzy term query requires a string term.".to_string(),
+                    )
+                })?;
                 let automaton = if self.prefix {
-                    automaton_builder.build_prefix_dfa(self.term.text())
+                    automaton_builder.build_prefix_dfa(term_text)
                 } else {
-                    automaton_builder.build_dfa(self.term.text())
+                    automaton_builder.build_dfa(term_text)
                 };
                 Ok(AutomatonWeight::new(
                     self.term.field(),

@@ -3,6 +3,7 @@ use murmurhash32::murmurhash2;
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::store;
 use crate::postings::UnorderedTermId;
+use crate::Term;
 use byteorder::{ByteOrder, NativeEndian};
 use std::iter;
 use std::mem;
@@ -81,13 +82,13 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = (&'a [u8], Addr, UnorderedTermId);
+    type Item = (Term<&'a [u8]>, Addr, UnorderedTermId);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
             let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
-            (key, offset, kv.unordered_term_id)
+            (Term::wrap(key), offset, kv.unordered_term_id)
         })
     }
 }
@@ -189,21 +190,19 @@ impl TermHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
-    pub fn mutate_or_create<S, V, TMutator>(
+    pub fn mutate_or_create<V, TMutator>(
         &mut self,
-        key: S,
+        key: &[u8],
         mut updater: TMutator,
     ) -> UnorderedTermId
     where
-        S: AsRef<[u8]>,
         V: Copy + 'static,
         TMutator: FnMut(Option<V>) -> V,
     {
         if self.is_saturated() {
             self.resize();
         }
-        let key_bytes: &[u8] = key.as_ref();
-        let hash = murmurhash2(key.as_ref());
+        let hash = murmurhash2(key);
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
@@ -211,21 +210,18 @@ impl TermHashMap {
             if kv.is_empty() {
                 // The key does not exists yet.
                 let val = updater(None);
-                let num_bytes =
-                    std::mem::size_of::<u16>() + key_bytes.len() + std::mem::size_of::<V>();
+                let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
                 let key_addr = self.heap.allocate_space(num_bytes);
                 {
                     let data = self.heap.slice_mut(key_addr, num_bytes);
-                    NativeEndian::write_u16(data, key_bytes.len() as u16);
-                    let stop = 2 + key_bytes.len();
-                    data[2..stop].copy_from_slice(key_bytes);
+                    NativeEndian::write_u16(data, key.len() as u16);
+                    let stop = 2 + key.len();
+                    data[2..stop].copy_from_slice(key);
                     store(&mut data[stop..], val);
                 }
                 return self.set_bucket(hash, key_addr, bucket);
             } else if kv.hash == hash {
-                if let Some(val_addr) =
-                    self.get_value_addr_if_key_match(key_bytes, kv.key_value_addr)
-                {
+                if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
                     let v = self.heap.read(val_addr);
                     let new_v = updater(Some(v));
                     self.heap.write_at(val_addr, new_v);
@@ -245,25 +241,18 @@ mod tests {
     #[test]
     fn test_hash_map() {
         let mut hash_map: TermHashMap = TermHashMap::new(18);
-        {
-            hash_map.mutate_or_create("abc", |opt_val: Option<u32>| {
-                assert_eq!(opt_val, None);
-                3u32
-            });
-        }
-        {
-            hash_map.mutate_or_create("abcd", |opt_val: Option<u32>| {
-                assert_eq!(opt_val, None);
-                4u32
-            });
-        }
-        {
-            hash_map.mutate_or_create("abc", |opt_val: Option<u32>| {
-                assert_eq!(opt_val, Some(3u32));
-                5u32
-            });
-        }
-
+        hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
+            assert_eq!(opt_val, None);
+            3u32
+        });
+        hash_map.mutate_or_create(b"abcd", |opt_val: Option<u32>| {
+            assert_eq!(opt_val, None);
+            4u32
+        });
+        hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
+            assert_eq!(opt_val, Some(3u32));
+            5u32
+        });
         let mut vanilla_hash_map = HashMap::new();
         let iter_values = hash_map.iter();
         for (key, addr, _) in iter_values {

@@ -294,10 +294,10 @@ impl IndexMerger {
         for (field, field_entry) in self.schema.fields() {
             let field_type = field_entry.field_type();
             match field_type {
-                FieldType::HierarchicalFacet(_) => {
+                FieldType::Facet(_) => {
                     let term_ordinal_mapping = term_ord_mappings
                         .remove(&field)
-                        .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have required a\
+                        .expect("Logic Error in Tantivy (Please report). Facet field should have required a\
                         `term_ordinal_mapping`.");
                     self.write_hierarchical_facet_field(
                         field,
@@ -844,7 +844,7 @@ impl IndexMerger {
         }
 
         let mut term_ord_mapping_opt = match field_type {
-            FieldType::HierarchicalFacet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
+            FieldType::Facet(_) => Some(TermOrdinalMapping::new(max_term_ords)),
             _ => None,
         };
 

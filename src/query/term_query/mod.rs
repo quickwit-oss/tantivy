@@ -175,7 +175,7 @@ mod tests {
         );
         assert_eq!(
             format!("{:?}", term_query),
-            "TermQuery(Term(field=1,bytes=[104, 101, 108, 108, 111]))"
+            r#"TermQuery(Term(type=Str, field=1, val="hello"))"#
         );
     }
 

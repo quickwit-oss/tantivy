@@ -2,7 +2,6 @@ use super::{
     doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping},
     operation::AddOperation,
 };
-use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
 use crate::postings::compute_table_size;
@@ -18,6 +17,7 @@ use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
 use crate::tokenizer::{TokenStreamChain, Tokenizer};
 use crate::Opstamp;
 use crate::{core::Segment, store::StoreWriter};
+use crate::{fastfield::FastFieldsWriter, schema::Type};
 use crate::{DocId, SegmentComponent};
 
 /// Computes the initial size of the hash table.
@@ -173,8 +173,8 @@ impl SegmentWriter {
             let (term_buffer, multifield_postings) =
                 (&mut self.term_buffer, &mut self.multifield_postings);
             match *field_entry.field_type() {
-                FieldType::HierarchicalFacet(_) => {
-                    term_buffer.set_field(field);
+                FieldType::Facet(_) => {
+                    term_buffer.set_field(Type::Facet, field);
                     for field_value in field_values {
                         let facet = field_value.value().facet().ok_or_else(make_schema_error)?;
                         let facet_str = facet.encoded_str();
@@ -238,7 +238,7 @@ impl SegmentWriter {
                 }
                 FieldType::U64(_) => {
                     for field_value in field_values {
-                        term_buffer.set_field(field_value.field());
+                        term_buffer.set_field(Type::U64, field_value.field());
                         let u64_val = field_value
                             .value()
                             .u64_value()
@@ -249,7 +249,7 @@ impl SegmentWriter {
                 }
                 FieldType::Date(_) => {
                     for field_value in field_values {
-                        term_buffer.set_field(field_value.field());
+                        term_buffer.set_field(Type::Date, field_value.field());
                         let date_val = field_value
                             .value()
                             .date_value()
@@ -260,7 +260,7 @@ impl SegmentWriter {
                 }
                 FieldType::I64(_) => {
                     for field_value in field_values {
-                        term_buffer.set_field(field_value.field());
+                        term_buffer.set_field(Type::I64, field_value.field());
                         let i64_val = field_value
                             .value()
                             .i64_value()
@@ -271,7 +271,7 @@ impl SegmentWriter {
                 }
                 FieldType::F64(_) => {
                     for field_value in field_values {
-                        term_buffer.set_field(field_value.field());
+                        term_buffer.set_field(Type::F64, field_value.field());
                         let f64_val = field_value
                             .value()
                             .f64_value()
@@ -282,7 +282,7 @@ impl SegmentWriter {
                 }
                 FieldType::Bytes(_) => {
                     for field_value in field_values {
-                        term_buffer.set_field(field_value.field());
+                        term_buffer.set_field(Type::Bytes, field_value.field());
                         let bytes = field_value
                             .value()
                             .bytes_value()

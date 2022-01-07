@@ -54,7 +54,7 @@ impl FastFieldsWriter {
                         None => {}
                     }
                 }
-                FieldType::HierarchicalFacet(_) => {
+                FieldType::Facet(_) => {
                     let fast_field_writer = MultiValuedFastFieldWriter::new(field, true);
                     multi_values_writers.push(fast_field_writer);
                 }

@@ -21,7 +21,7 @@ pub enum Value {
     F64(f64),
     /// Signed 64-bits Date time stamp `date`
     Date(DateTime),
-    /// Hierarchical Facet
+    /// Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
     Bytes(Vec<u8>),
