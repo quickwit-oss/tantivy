@@ -6,15 +6,9 @@ use crate::postings::postings_writer::PostingsWriter;
 
 use super::stacker::TermHashMap;
 
-pub fn type_to_code(type: Type)
-
 pub struct JsonPostingsWriter {
     str_posting_writer: Box<dyn PostingsWriter>,
     non_str_posting_writer: Box<dyn PostingsWriter>,
-}
-
-fn get_json_type_byte(term: &Term) -> u8 {
-    term.value_bytes()[0]
 }
 
 impl PostingsWriter for JsonPostingWriter {
@@ -26,9 +20,7 @@ impl PostingsWriter for JsonPostingWriter {
         term: &crate::Term,
         heap: &mut super::stacker::MemoryArena,
     ) -> super::UnorderedTermId {
-        if get_json_type_byte() ==  {
-
-        } else |}
+        let term_type = term.typ();
     }
 
     fn serialize(

@@ -2,7 +2,6 @@ use serde_json::Number;
 
 use crate::schema::Value;
 
-
 pub fn infer_type_from_string(string: &str) -> Value {
     // TODO can we avoid the copy?
     Value::Str(string.to_string())

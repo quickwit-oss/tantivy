@@ -1,8 +1,8 @@
-use crate::schema::JsonObjectOptions;
 use crate::schema::bytes_options::BytesOptions;
 use crate::schema::facet_options::FacetOptions;
 use crate::schema::Facet;
 use crate::schema::IndexRecordOption;
+use crate::schema::JsonObjectOptions;
 use crate::schema::TextFieldIndexing;
 use crate::schema::Value;
 use crate::schema::{IntOptions, TextOptions};
@@ -27,9 +27,7 @@ pub enum ValueParsingError {
         json: serde_json::Value,
     },
     #[error("Invalid base64: {base64}")]
-    InvalidBase64 {
-        base64: String
-    },
+    InvalidBase64 { base64: String },
 }
 
 /// Type of the value that a field can take.
@@ -53,11 +51,9 @@ pub enum Type {
     Facet = b'h',
     /// `Vec<u8>`
     Bytes = b'b',
-    /// serde_json::Value
-    JsonObject = b'j'
 }
 
-const ALL_TYPES: [Type; 8] = [
+const ALL_TYPES: [Type; 7] = [
     Type::Str,
     Type::U64,
     Type::I64,
@@ -65,7 +61,6 @@ const ALL_TYPES: [Type; 8] = [
     Type::Date,
     Type::Facet,
     Type::Bytes,
-    Type::JsonObject,
 ];
 
 impl Type {
@@ -89,7 +84,6 @@ impl Type {
             Type::Date => "Date",
             Type::Facet => "Facet",
             Type::Bytes => "Bytes",
-            Type::JsonObject => "JsonObject",
         }
     }
 
@@ -104,7 +98,6 @@ impl Type {
             b'd' => Some(Type::Date),
             b'h' => Some(Type::Facet),
             b'b' => Some(Type::Bytes),
-            b'j' => Some(Type::JsonObject),
             _ => None,
         }
     }
@@ -131,7 +124,8 @@ pub enum FieldType {
     Facet(FacetOptions),
     /// Bytes (one per document)
     Bytes(BytesOptions),
-    JsonObject(JsonObjectOptions)
+    /// Json object
+    JsonObject(JsonObjectOptions),
 }
 
 impl FieldType {
@@ -145,7 +139,9 @@ impl FieldType {
             FieldType::Date(_) => Type::Date,
             FieldType::Facet(_) => Type::Facet,
             FieldType::Bytes(_) => Type::Bytes,
-            FieldType::JsonObject(_) => Type::JsonObject
+            FieldType::JsonObject(_) => {
+                unimplemented!()
+            }
         }
     }
 
@@ -211,12 +207,10 @@ impl FieldType {
                     None
                 }
             }
-            FieldType::JsonObject(ref json_obj_options) => {
-                json_obj_options
-                    .indexing
-                    .as_ref()
-                    .map(TextFieldIndexing::index_option)
-            }
+            FieldType::JsonObject(ref json_obj_options) => json_obj_options
+                .indexing
+                .as_ref()
+                .map(TextFieldIndexing::index_option),
         }
     }
 
@@ -230,33 +224,31 @@ impl FieldType {
             JsonValue::String(ref field_text) => match *self {
                 FieldType::Date(_) => {
                     let dt_with_fixed_tz: chrono::DateTime<FixedOffset> =
-                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|_err|
+                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|_err| {
                             ValueParsingError::TypeError {
                                 expected: "rfc3339 format",
-                                json: json.clone()
+                                json: json.clone(),
                             }
-                        )?;
+                        })?;
                     Ok(Value::Date(dt_with_fixed_tz.with_timezone(&Utc)))
                 }
                 FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => Err(
-                    ValueParsingError::TypeError {
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) => {
+                    Err(ValueParsingError::TypeError {
                         expected: "an integer",
-                        json: json.clone()
-                    }
-                ),
+                        json: json.clone(),
+                    })
+                }
                 FieldType::Facet(_) => Ok(Value::Facet(Facet::from(field_text))),
                 FieldType::Bytes(_) => base64::decode(field_text).map(Value::Bytes).map_err(|_| {
                     ValueParsingError::InvalidBase64 {
-                        base64: field_text.clone()
+                        base64: field_text.clone(),
                     }
                 }),
-                FieldType::JsonObject(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "a json object",
-                        json: json.clone()
-                    })
-                }
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: json.clone(),
+                }),
             },
             JsonValue::Number(ref field_val_num) => match *self {
                 FieldType::I64(_) | FieldType::Date(_) => {
@@ -275,7 +267,7 @@ impl FieldType {
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "u64",
-                            json: json.clone()
+                            json: json.clone(),
                         })
                     }
                 }
@@ -285,7 +277,7 @@ impl FieldType {
                     } else {
                         Err(ValueParsingError::OverflowError {
                             expected: "a f64",
-                            json: json.clone()
+                            json: json.clone(),
                         })
                     }
                 }
@@ -295,12 +287,10 @@ impl FieldType {
                         json: json.clone(),
                     })
                 }
-                FieldType::JsonObject(_) => {
-                    Err(ValueParsingError::TypeError {
-                        expected: "a json object",
-                        json: json.clone()
-                    })
-                }
+                FieldType::JsonObject(_) => Err(ValueParsingError::TypeError {
+                    expected: "a json object",
+                    json: json.clone(),
+                }),
             },
             JsonValue::Object(_) => match *self {
                 FieldType::Str(_) => {
@@ -311,23 +301,19 @@ impl FieldType {
                     } else {
                         Err(ValueParsingError::TypeError {
                             expected: "a string or an pretokenized string",
-                            json: json.clone()
+                            json: json.clone(),
                         })
                     }
                 }
-                _ => {
-                    Err(ValueParsingError::TypeError {
-                        expected: self.value_type().name(),
-                        json: json.clone()
-                    })
-                }
-            },
-            _ => {
-                Err(ValueParsingError::TypeError {
+                _ => Err(ValueParsingError::TypeError {
                     expected: self.value_type().name(),
-                    json: json.clone()
-                })
-            }
+                    json: json.clone(),
+                }),
+            },
+            _ => Err(ValueParsingError::TypeError {
+                expected: self.value_type().name(),
+                json: json.clone(),
+            }),
         }
     }
 }

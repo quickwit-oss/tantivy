@@ -40,9 +40,9 @@ fn postings_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Posting
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
-        | FieldType::JsonObject(_) => {
+        FieldType::JsonObject(_) => {
             unimplemented!()
-        },
+        }
     }
 }
 

@@ -116,10 +116,10 @@ mod bytes_options;
 mod field;
 mod index_record_option;
 mod int_options;
+mod json_object_options;
 mod named_field_document;
 mod text_options;
 mod value;
-mod json_object_options;
 
 mod flags;
 mod json_object_utils;
