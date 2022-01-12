@@ -162,8 +162,8 @@ impl WarmingStateInner {
             .name("tantivy-warm-gc".to_owned())
             .spawn(|| Self::gc_loop(weak_inner))
             .map_err(|_| {
-               TantivyError::SystemError("Failed to spawn warmer GC thread".to_owned())
-             })?;
+                TantivyError::SystemError("Failed to spawn warmer GC thread".to_owned())
+            })?;
         self.gc_thread = Some(handle);
         Ok(true)
     }
