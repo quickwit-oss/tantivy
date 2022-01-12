@@ -114,7 +114,7 @@ impl IndexReaderBuilder {
 
     /// Sets the number of [Searcher] to pool.
     ///
-    /// When more than `num_searchers` are requested, the caller will block.
+    /// See [Self::searcher()].
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
