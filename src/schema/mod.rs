@@ -106,7 +106,7 @@ mod document;
 mod facet;
 mod facet_options;
 mod schema;
-mod term;
+pub(crate) mod term;
 
 mod field_entry;
 mod field_type;
@@ -123,6 +123,7 @@ mod value;
 
 mod flags;
 mod json_object_utils;
+mod term_writer;
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::DocParsingError;

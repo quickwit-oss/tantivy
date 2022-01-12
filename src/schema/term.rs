@@ -13,13 +13,13 @@ const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
 /// The first bit of the `type_byte`
 /// is used to encode whether a Term is for
 /// json or not.
-const JSON_MARKER_BIT: u8 = 128u8;
+pub const JSON_MARKER_BIT: u8 = 128u8;
 /// Separates the different segments of
 /// the json path.
-const JSON_PATH_SEGMENT_SEP: u8 = 0u8;
+pub const JSON_PATH_SEGMENT_SEP: u8 = 0u8;
 /// Separates the json path and the value in
 /// a JSON term binary representation.
-const JSON_END_OF_PATH: u8 = 30u8;
+pub const JSON_END_OF_PATH: u8 = 30u8;
 
 /// Term represents the value that the token can take.
 ///
@@ -181,6 +181,7 @@ where
         Term(data)
     }
 
+    /// Returns true iff the term is a JSON term.
     pub fn is_json(&self) -> bool {
         self.typ_code() & JSON_MARKER_BIT == JSON_MARKER_BIT
     }
@@ -215,10 +216,14 @@ where
     }
 
     fn get_fast_type<T: FastValue>(&self) -> Option<T> {
-        if self.typ() != T::to_type() || self.as_slice().len() != FAST_VALUE_TERM_LEN {
+        if self.typ() != T::to_type()  {
             return None;
         }
         let mut value_bytes = [0u8; 8];
+        let bytes = self.value_bytes_without_path();
+        if bytes.len() != 8 {
+            return None;
+        }
         value_bytes.copy_from_slice(self.value_bytes_without_path());
         let value_u64 = u64::from_be_bytes(value_bytes);
         Some(FastValue::from_u64(value_u64))
@@ -233,7 +238,7 @@ where
     }
 
     fn json_path_value(&self) -> Option<&str> {
-        if self.is_json() {
+        if !self.is_json() {
             return None;
         }
         let value_bytes = self.value_bytes();
@@ -345,7 +350,10 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
     Ok(())
 }
 
-impl fmt::Debug for Term {
+impl<B> fmt::Debug for Term<B>
+where
+    B: AsRef<[u8]>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let field_id = self.field().field_id();
         let typ = self.typ();
