@@ -4,7 +4,7 @@ mod warming;
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use self::warming::WarmingState;
-use crate::core::searcher::SearcherGeneration;
+use crate::core::searcher::SearcherIndexGeneration;
 use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
@@ -161,15 +161,16 @@ impl InnerIndexReader {
                 .map(SegmentReader::open)
                 .collect::<crate::Result<_>>()?
         };
-        let searcher_generation =
-            Arc::new(SearcherGeneration::from_segment_readers(&segment_readers));
+        let searcher_index_generation = Arc::new(SearcherIndexGeneration::from_segment_readers(
+            &segment_readers,
+        ));
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
                 self.index.clone(),
                 segment_readers.clone(),
-                searcher_generation.clone(),
+                searcher_index_generation.clone(),
             )
         })
         .take(self.num_searchers)

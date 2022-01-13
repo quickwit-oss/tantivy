@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{Executor, Searcher, SearcherGeneration, SearcherGenerationToken, TantivyError};
+use crate::{Executor, Searcher, SearcherGenerationToken, SearcherIndexGeneration, TantivyError};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -16,8 +16,8 @@ pub trait Warmer: Sync + Send {
     /// Perform any warming work using the provided [Searcher].
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
-    /// Discard internal state for any [SearcherGeneration] not provided.
-    fn garbage_collect(&self, live_searcher_generations: &HashSet<SearcherGeneration>);
+    /// Discard internal state for any [SearcherIndexGeneration] not provided.
+    fn garbage_collect(&self, live_generations: &HashSet<SearcherIndexGeneration>);
 }
 
 /// Warming-related state with interior mutability.
@@ -34,7 +34,7 @@ impl WarmingState {
         }))))
     }
 
-    /// Start tracking a new generation of searchers, and [Warmer::warm] it if there are active warmers.
+    /// Start tracking a new generation of [Searcher], and [Warmer::warm] it if there are active warmers.
     ///
     /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are active warmers.
     pub fn new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
@@ -53,12 +53,12 @@ impl WarmingState {
 struct WarmingStateInner {
     num_warming_threads: usize,
     warmers: Vec<Weak<dyn Warmer>>,
-    searcher_generations: HashMap<SearcherGeneration, Vec<SearcherGenerationToken>>,
+    searcher_generations: HashMap<SearcherIndexGeneration, Vec<SearcherGenerationToken>>,
     gc_thread: Option<JoinHandle<()>>,
 }
 
 impl WarmingStateInner {
-    /// Start tracking provided searcher's segment IDs with its liveness token.
+    /// Start tracking provided searcher as an exemplar of a new generation.
     /// If there are active warmers, warm them with the provided searcher, and kick background GC thread if it has not yet been kicked.
     /// Otherwise, prune state for dropped searcher generations inline.
     fn new_searcher_generation(
@@ -66,11 +66,14 @@ impl WarmingStateInner {
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
     ) -> crate::Result<()> {
-        if let Some(tokens) = self.searcher_generations.get_mut(searcher.generation()) {
+        if let Some(tokens) = self
+            .searcher_generations
+            .get_mut(searcher.index_generation())
+        {
             tokens.push(searcher.generation_token());
         } else {
             self.searcher_generations.insert(
-                searcher.generation().clone(),
+                searcher.index_generation().clone(),
                 vec![searcher.generation_token()],
             );
         }
@@ -123,9 +126,9 @@ impl WarmingStateInner {
         if self.prune_searcher_generations() == 0 {
             return false;
         }
-        let live_searcher_generations = self.searcher_generations.keys().cloned().collect();
+        let live_generations = self.searcher_generations.keys().cloned().collect();
         for warmer in self.pruned_warmers() {
-            warmer.garbage_collect(&live_searcher_generations);
+            warmer.garbage_collect(&live_generations);
         }
         true
     }
@@ -182,7 +185,7 @@ mod tests {
     };
 
     use crate::{
-        core::searcher::SearcherGeneration,
+        core::searcher::SearcherIndexGeneration,
         directory::RamDirectory,
         schema::{Schema, INDEXED},
         Index, IndexSettings, ReloadPolicy, Searcher, SegmentId,
@@ -234,10 +237,10 @@ mod tests {
             Ok(())
         }
 
-        fn garbage_collect(&self, live_searcher_generations: &HashSet<SearcherGeneration>) {
+        fn garbage_collect(&self, live_generations: &HashSet<SearcherIndexGeneration>) {
             self.gc_calls
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            let active_segment_ids = live_searcher_generations
+            let active_segment_ids = live_generations
                 .iter()
                 .flat_map(|gen| gen.segment_ids())
                 .collect();
