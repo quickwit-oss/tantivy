@@ -1,12 +1,11 @@
 use std::{
-    collections::HashSet,
-    iter::FromIterator,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex, Weak},
     thread::JoinHandle,
     time::Duration,
 };
 
-use crate::{Executor, Searcher, SegmentId, TantivyError};
+use crate::{Executor, Searcher, SearcherGeneration, SearcherGenerationToken, TantivyError};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -17,8 +16,8 @@ pub trait Warmer: Sync + Send {
     /// Perform any warming work using the provided [Searcher].
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
-    /// Discard internal state for any [SegmentId] not provided.
-    fn garbage_collect(&self, live_segment_ids: &HashSet<SegmentId>);
+    /// Discard internal state for any [SearcherGeneration] not provided.
+    fn garbage_collect(&self, live_searcher_generations: &HashSet<SearcherGeneration>);
 }
 
 /// Warming-related state with interior mutability.
@@ -30,7 +29,7 @@ impl WarmingState {
         Ok(Self(Arc::new(Mutex::new(WarmingStateInner {
             num_warming_threads,
             warmers,
-            searcher_generations: Vec::new(),
+            searcher_generations: HashMap::new(),
             gc_thread: None,
         }))))
     }
@@ -38,15 +37,11 @@ impl WarmingState {
     /// Start tracking a new generation of searchers, and [Warmer::warm] it if there are active warmers.
     ///
     /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are active warmers.
-    pub fn new_searcher_generation(
-        &self,
-        liveness_token: Weak<()>,
-        searcher: &Searcher,
-    ) -> crate::Result<()> {
+    pub fn new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
         self.0
             .lock()
             .unwrap()
-            .new_searcher_generation(liveness_token, searcher, &self.0)
+            .new_searcher_generation(searcher, &self.0)
     }
 
     #[cfg(test)]
@@ -55,23 +50,10 @@ impl WarmingState {
     }
 }
 
-#[derive(Debug, Clone)]
-struct SearcherGeneration {
-    liveness_token: Weak<()>,
-    segment_ids: Vec<SegmentId>,
-}
-
-impl SearcherGeneration {
-    fn is_live(&self) -> bool {
-        self.liveness_token.strong_count() > 0
-    }
-}
-
-#[derive(Default)]
 struct WarmingStateInner {
     num_warming_threads: usize,
     warmers: Vec<Weak<dyn Warmer>>,
-    searcher_generations: Vec<SearcherGeneration>,
+    searcher_generations: HashMap<SearcherGeneration, Vec<SearcherGenerationToken>>,
     gc_thread: Option<JoinHandle<()>>,
 }
 
@@ -81,14 +63,17 @@ impl WarmingStateInner {
     /// Otherwise, prune state for dropped searcher generations inline.
     fn new_searcher_generation(
         &mut self,
-        liveness_token: Weak<()>,
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
     ) -> crate::Result<()> {
-        self.searcher_generations.push(SearcherGeneration {
-            liveness_token,
-            segment_ids: segment_ids(searcher),
-        });
+        if let Some(tokens) = self.searcher_generations.get_mut(searcher.generation()) {
+            tokens.push(searcher.generation_token());
+        } else {
+            self.searcher_generations.insert(
+                searcher.generation().clone(),
+                vec![searcher.generation_token()],
+            );
+        }
         let warmers = self.pruned_warmers();
         // Avoid threads (warming as well as background GC) if there are no warmers
         if warmers.is_empty() {
@@ -116,40 +101,33 @@ impl WarmingStateInner {
     /// Prune dropped searcher generations from our state.
     /// Return count of removed generations.
     fn prune_searcher_generations(&mut self) -> usize {
-        // This can be implemented neatly using Vec::drain_filter() when that is stable.
-        let mut pruned = 0;
-        let mut i = 0;
-        while i < self.searcher_generations.len() {
-            if !self.searcher_generations[i].is_live() {
-                self.searcher_generations.remove(i);
-                pruned += 1;
-            } else {
-                i += 1;
+        for tokens in self.searcher_generations.values_mut() {
+            // This can be implemented neatly using Vec::drain_filter() when that is stable.
+            let mut i = 0;
+            while i < tokens.len() {
+                if !tokens[i].is_live() {
+                    tokens.remove(i);
+                } else {
+                    i += 1;
+                }
             }
         }
-        pruned
-    }
-
-    /// Segment ID set of live searcher generations.
-    fn live_segment_ids(&self) -> HashSet<SegmentId> {
+        let before_len = self.searcher_generations.len();
         self.searcher_generations
-            .iter()
-            .filter(|gen| gen.is_live())
-            .flat_map(|gen| gen.segment_ids.iter().copied())
-            .collect()
+            .retain(|_gen, tokens| !tokens.is_empty());
+        before_len - self.searcher_generations.len()
     }
 
     /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have been dropped.
     fn gc_maybe(&mut self) -> bool {
-        if self.prune_searcher_generations() > 0 {
-            let live_segment_ids = self.live_segment_ids();
-            for warmer in self.pruned_warmers() {
-                warmer.garbage_collect(&live_segment_ids);
-            }
-            true
-        } else {
-            false
+        if self.prune_searcher_generations() == 0 {
+            return false;
         }
+        let live_searcher_generations = self.searcher_generations.keys().cloned().collect();
+        for warmer in self.pruned_warmers() {
+            warmer.garbage_collect(&live_searcher_generations);
+        }
+        true
     }
 
     /// Start GC thread if one has not already been started.
@@ -193,17 +171,6 @@ fn warming_executor(num_threads: usize) -> crate::Result<Executor> {
     }
 }
 
-fn segment_ids<T>(searcher: &Searcher) -> T
-where
-    T: FromIterator<SegmentId>,
-{
-    searcher
-        .segment_readers()
-        .iter()
-        .map(|reader| reader.segment_id())
-        .collect::<T>()
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -215,10 +182,10 @@ mod tests {
     };
 
     use crate::{
+        core::searcher::SearcherGeneration,
         directory::RamDirectory,
-        reader::warming::segment_ids,
         schema::{Schema, INDEXED},
-        Index, IndexSettings, ReloadPolicy, SegmentId,
+        Index, IndexSettings, ReloadPolicy, Searcher, SegmentId,
     };
 
     use super::Warmer;
@@ -267,14 +234,23 @@ mod tests {
             Ok(())
         }
 
-        fn garbage_collect(&self, segment_ids: &HashSet<SegmentId>) {
+        fn garbage_collect(&self, live_searcher_generations: &HashSet<SearcherGeneration>) {
             self.gc_calls
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            self.active_segment_ids
-                .write()
-                .unwrap()
-                .retain(|id| segment_ids.contains(id));
+            let active_segment_ids = live_searcher_generations
+                .iter()
+                .flat_map(|gen| gen.segment_ids())
+                .collect();
+            *self.active_segment_ids.write().unwrap() = active_segment_ids;
         }
+    }
+
+    fn segment_ids(searcher: &Searcher) -> HashSet<SegmentId> {
+        searcher
+            .segment_readers()
+            .iter()
+            .map(|reader| reader.segment_id())
+            .collect()
     }
 
     fn test_warming(num_warming_threads: usize) -> crate::Result<()> {
@@ -314,25 +290,15 @@ mod tests {
 
         let warming_state = &reader.inner.warming_state;
 
-        {
-            let searcher = reader.searcher();
-            assert_eq!(searcher.segment_readers().len(), num_writer_threads);
-            assert!(
-                !warming_state.gc_maybe(),
-                "no GC after first searcher generation"
-            );
-            warmer1.verify(1, 0, segment_ids(&searcher));
-            warmer2.verify(1, 0, segment_ids(&searcher));
-            assert_eq!(searcher.num_docs(), 1000);
-        }
-
-        reader.reload()?;
-        warming_state.gc_maybe();
-
         let searcher = reader.searcher();
+        assert_eq!(searcher.segment_readers().len(), num_writer_threads);
+        assert!(
+            !warming_state.gc_maybe(),
+            "no GC after first searcher generation"
+        );
+        warmer1.verify(1, 0, segment_ids(&searcher));
+        warmer2.verify(1, 0, segment_ids(&searcher));
         assert_eq!(searcher.num_docs(), 1000);
-        warmer1.verify(2, 1, segment_ids(&searcher));
-        warmer2.verify(2, 1, segment_ids(&searcher));
 
         for i in 1000u64..2000u64 {
             writer.add_document(doc!(field => i))?;
@@ -345,15 +311,16 @@ mod tests {
         let old_searcher = searcher;
 
         reader.reload()?;
+
         assert!(!warming_state.gc_maybe(), "old searcher still around");
 
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 2000);
 
         warmer2.verify(
-            3,
-            1,
-            segment_ids::<HashSet<_>>(&old_searcher)
+            2,
+            0,
+            segment_ids(&old_searcher)
                 .union(&segment_ids(&searcher))
                 .copied()
                 .collect(),
@@ -366,7 +333,7 @@ mod tests {
         }
         assert!(warming_state.gc_maybe(), "old searcher dropped");
 
-        warmer2.verify(3, 2, segment_ids(&searcher));
+        warmer2.verify(2, 1, segment_ids(&searcher));
 
         Ok(())
     }

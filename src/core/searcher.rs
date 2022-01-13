@@ -1,5 +1,6 @@
 use crate::collector::Collector;
 use crate::core::Executor;
+use crate::SegmentId;
 
 use crate::core::SegmentReader;
 use crate::query::Query;
@@ -11,8 +12,51 @@ use crate::store::StoreReader;
 use crate::DocAddress;
 use crate::Index;
 
+use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::sync::Arc;
+use std::sync::Weak;
 use std::{fmt, io};
+
+/// Identifies the data accessed by a generation of [Searcher].
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SearcherGeneration(BTreeMap<SegmentId, u32>);
+
+impl SearcherGeneration {
+    pub(crate) fn from_segment_readers(readers: &[SegmentReader]) -> Self {
+        let mut segment_id_to_del_docs = BTreeMap::new();
+        for reader in readers {
+            segment_id_to_del_docs.insert(reader.segment_id(), reader.num_deleted_docs());
+        }
+        Self(segment_id_to_del_docs)
+    }
+
+    /// Segment IDs represented in this generation.
+    pub fn segment_ids(&self) -> impl Iterator<Item = SegmentId> + '_ {
+        self.0.keys().copied()
+    }
+
+    /// Number of deleted documents for the specified segment ID if it is present in this generation.
+    pub fn num_deleted_docs(&self, segment_id: &SegmentId) -> Option<u32> {
+        self.0.get(segment_id).copied()
+    }
+}
+
+/// A token that is coupled with the lifetime of a [SearcherGeneration].
+#[derive(Debug, Clone)]
+pub struct SearcherGenerationToken(Weak<SearcherGeneration>);
+
+impl SearcherGenerationToken {
+    /// Whether the [SearcherGeneration] is still alive.
+    pub fn is_live(&self) -> bool {
+        self.0.strong_count() > 0
+    }
+
+    /// Access the [SearcherGeneration] if it is still alive.
+    pub fn access(&self) -> Option<SearcherGeneration> {
+        Weak::upgrade(&self.0).map(|gen| gen.deref().clone())
+    }
+}
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -24,7 +68,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
-    _liveness_token: Arc<()>,
+    generation: Arc<SearcherGeneration>,
 }
 
 impl Searcher {
@@ -33,7 +77,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
-        liveness_token: Arc<()>,
+        generation: Arc<SearcherGeneration>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -44,13 +88,23 @@ impl Searcher {
             index,
             segment_readers,
             store_readers,
-            _liveness_token: liveness_token,
+            generation,
         })
     }
 
     /// Returns the `Index` associated to the `Searcher`
     pub fn index(&self) -> &Index {
         &self.index
+    }
+
+    /// [SearcherGeneration] which uniquely identifies that data accessed by this generation of `Searcher`.
+    pub fn generation(&self) -> &SearcherGeneration {
+        &self.generation
+    }
+
+    /// [SearcherGenerationToken] which is coupled with the lifetime of this generation of `Searcher`.
+    pub fn generation_token(&self) -> SearcherGenerationToken {
+        SearcherGenerationToken(Arc::downgrade(&self.generation))
     }
 
     /// Fetches a document from tantivy's store given a `DocAddress`.

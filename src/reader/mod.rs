@@ -4,6 +4,7 @@ mod warming;
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use self::warming::WarmingState;
+use crate::core::searcher::SearcherGeneration;
 use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
@@ -152,7 +153,6 @@ struct InnerIndexReader {
 
 impl InnerIndexReader {
     fn reload(&self) -> crate::Result<()> {
-        let liveness_token = Arc::new(());
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
             let searchable_segments = self.searchable_segments()?;
@@ -161,19 +161,20 @@ impl InnerIndexReader {
                 .map(SegmentReader::open)
                 .collect::<crate::Result<_>>()?
         };
+        let searcher_generation =
+            Arc::new(SearcherGeneration::from_segment_readers(&segment_readers));
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
                 self.index.clone(),
                 segment_readers.clone(),
-                liveness_token.clone(),
+                searcher_generation.clone(),
             )
         })
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
-        self.warming_state
-            .new_searcher_generation(Arc::downgrade(&liveness_token), &searchers[0])?;
+        self.warming_state.new_searcher_generation(&searchers[0])?;
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }
