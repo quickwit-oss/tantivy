@@ -1,6 +1,8 @@
 use crate::collector::Collector;
 use crate::core::Executor;
+use crate::Opstamp;
 use crate::SegmentId;
+use crate::SegmentMeta;
 
 use crate::core::SegmentReader;
 use crate::query::Query;
@@ -20,15 +22,17 @@ use std::{fmt, io};
 
 /// Identifies the index generation accessed by a [Searcher].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SearcherIndexGeneration(BTreeMap<SegmentId, u32>);
+pub struct SearcherIndexGeneration(BTreeMap<SegmentId, Option<Opstamp>>);
 
 impl SearcherIndexGeneration {
-    pub(crate) fn from_segment_readers(readers: &[SegmentReader]) -> Self {
-        let mut segment_id_to_del_docs = BTreeMap::new();
-        for reader in readers {
-            segment_id_to_del_docs.insert(reader.segment_id(), reader.num_deleted_docs());
+    pub(crate) fn from_segment_metas<'a>(
+        segment_metas: impl Iterator<Item = &'a SegmentMeta>,
+    ) -> Self {
+        let mut segment_id_to_del_opstamp = BTreeMap::new();
+        for meta in segment_metas {
+            segment_id_to_del_opstamp.insert(meta.id(), meta.delete_opstamp());
         }
-        Self(segment_id_to_del_docs)
+        Self(segment_id_to_del_opstamp)
     }
 
     /// Segment IDs represented in this generation.
@@ -36,9 +40,9 @@ impl SearcherIndexGeneration {
         self.0.keys().copied()
     }
 
-    /// Number of deleted documents for the specified segment ID if it is present in this generation.
-    pub fn num_deleted_docs(&self, segment_id: &SegmentId) -> Option<u32> {
-        self.0.get(segment_id).copied()
+    /// `Opstamp` of the last delete operation accounted for in the specified segment, if present.
+    pub fn delete_opstamp(&self, segment_id: &SegmentId) -> Option<Opstamp> {
+        self.0.get(segment_id).copied().flatten()
     }
 }
 

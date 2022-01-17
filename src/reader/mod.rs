@@ -5,7 +5,6 @@ pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use self::warming::WarmingState;
 use crate::core::searcher::SearcherIndexGeneration;
-use crate::core::Segment;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
 use crate::directory::{Directory, WatchCallback};
@@ -153,36 +152,36 @@ struct InnerIndexReader {
 
 impl InnerIndexReader {
     fn reload(&self) -> crate::Result<()> {
-        let segment_readers: Vec<SegmentReader> = {
-            let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-            let searchable_segments = self.searchable_segments()?;
-            searchable_segments
-                .iter()
-                .map(SegmentReader::open)
-                .collect::<crate::Result<_>>()?
-        };
-        let searcher_index_generation = Arc::new(SearcherIndexGeneration::from_segment_readers(
-            &segment_readers,
-        ));
+        let (index_generation, segment_readers) = self.open()?;
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
                 self.index.clone(),
                 segment_readers.clone(),
-                searcher_index_generation.clone(),
+                index_generation.clone(),
             )
         })
         .take(self.num_searchers)
         .collect::<io::Result<_>>()?;
-        self.warming_state.new_searcher_generation(&searchers[0])?;
+        self.warming_state
+            .warm_new_searcher_generation(&searchers[0])?;
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
     }
 
-    /// Returns the list of segments that are searchable
-    fn searchable_segments(&self) -> crate::Result<Vec<Segment>> {
-        self.index.searchable_segments()
+    fn open(&self) -> crate::Result<(Arc<SearcherIndexGeneration>, Vec<SegmentReader>)> {
+        // Prevents segment files from getting deleted while we are in the process of opening them
+        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+        let searchable_segments = self.index.searchable_segments()?;
+        let index_generation = Arc::new(SearcherIndexGeneration::from_segment_metas(
+            searchable_segments.iter().map(|segment| segment.meta()),
+        ));
+        let segment_readers = searchable_segments
+            .iter()
+            .map(SegmentReader::open)
+            .collect::<crate::Result<_>>()?;
+        Ok((index_generation, segment_readers))
     }
 
     fn searcher(&self) -> LeasedItem<Searcher> {

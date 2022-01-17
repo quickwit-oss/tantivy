@@ -37,11 +37,11 @@ impl WarmingState {
     /// Start tracking a new generation of [Searcher], and [Warmer::warm] it if there are active warmers.
     ///
     /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are active warmers.
-    pub fn new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
+    pub fn warm_new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
         self.0
             .lock()
             .unwrap()
-            .new_searcher_generation(searcher, &self.0)
+            .warm_new_searcher_generation(searcher, &self.0)
     }
 
     #[cfg(test)]
@@ -61,7 +61,7 @@ impl WarmingStateInner {
     /// Start tracking provided searcher as an exemplar of a new generation.
     /// If there are active warmers, warm them with the provided searcher, and kick background GC thread if it has not yet been kicked.
     /// Otherwise, prune state for dropped searcher generations inline.
-    fn new_searcher_generation(
+    fn warm_new_searcher_generation(
         &mut self,
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
@@ -109,7 +109,7 @@ impl WarmingStateInner {
             let mut i = 0;
             while i < tokens.len() {
                 if !tokens[i].is_live() {
-                    tokens.remove(i);
+                    tokens.swap_remove(i);
                 } else {
                     i += 1;
                 }
