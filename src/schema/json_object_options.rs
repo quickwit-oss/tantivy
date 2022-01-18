@@ -18,4 +18,8 @@ impl JsonObjectOptions {
     pub fn is_indexed(&self) -> bool {
         self.indexing.is_some()
     }
+
+    pub fn get_text_indexing_option(&self) -> Option<&TextFieldIndexing> {
+        self.indexing.as_ref()
+    }
 }

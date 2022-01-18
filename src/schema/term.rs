@@ -9,7 +9,16 @@ use std::str;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
+///
+/// - <field> is a big endian encoded u32 field id
+/// - <type_byte>'s most significant bit expresses whether the term is a json term or not
+/// The remaining 7 bits are used to encode the type of the value.
+/// If this is a JSON term, the type is the type of the leaf of the json.
+///
+/// - <value> is,  if this is not the json term, a binary representation specific to the type.
+/// If it is a JSON Term, then it is preprended with the path that leads to this leaf value.
 const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
+
 /// The first bit of the `type_byte`
 /// is used to encode whether a Term is for
 /// json or not.
@@ -216,7 +225,7 @@ where
     }
 
     fn get_fast_type<T: FastValue>(&self) -> Option<T> {
-        if self.typ() != T::to_type()  {
+        if self.typ() != T::to_type() {
             return None;
         }
         let mut value_bytes = [0u8; 8];
@@ -352,7 +361,7 @@ fn write_opt<T: std::fmt::Debug>(f: &mut fmt::Formatter, val_opt: Option<T>) -> 
 
 impl<B> fmt::Debug for Term<B>
 where
-    B: AsRef<[u8]>
+    B: AsRef<[u8]>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let field_id = self.field().field_id();

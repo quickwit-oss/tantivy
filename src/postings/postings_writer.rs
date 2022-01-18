@@ -40,8 +40,20 @@ fn postings_writer_from_field_entry(field_entry: &FieldEntry) -> Box<dyn Posting
         | FieldType::Date(_)
         | FieldType::Bytes(_)
         | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
-        FieldType::JsonObject(_) => {
-            unimplemented!()
+        FieldType::JsonObject(ref json_object_options) => {
+            if let Some(text_indexing_option) = json_object_options.get_text_indexing_option() {
+                match text_indexing_option.index_option() {
+                    IndexRecordOption::Basic => JsonPostingsWriter::<NothingRecorder>::new_boxed(),
+                    IndexRecordOption::WithFreqs => {
+                        JsonPostingsWriter::<TermFrequencyRecorder>::new_boxed()
+                    }
+                    IndexRecordOption::WithFreqsAndPositions => {
+                        JsonPostingsWriter::<TfAndPositionRecorder>::new_boxed()
+                    }
+                }
+            } else {
+                JsonPostingsWriter::<NothingRecorder>::new_boxed()
+            }
         }
     }
 }
@@ -109,10 +121,10 @@ impl MultiFieldPostingsWriter {
         let postings_writer =
             self.per_field_postings_writers[field.field_id() as usize].deref_mut();
         postings_writer.index_text(
-            &mut self.term_index,
             doc,
             field,
             token_stream,
+            &mut self.term_index,
             &mut self.heap,
             term_buffer,
         )
@@ -121,7 +133,7 @@ impl MultiFieldPostingsWriter {
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
         let postings_writer =
             self.per_field_postings_writers[term.field().field_id() as usize].deref_mut();
-        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &mut self.heap)
+        postings_writer.subscribe(doc, 0u32, term, &mut self.term_index, &mut self.heap)
     }
 
     /// Serialize the inverted index.
@@ -176,10 +188,10 @@ impl MultiFieldPostingsWriter {
             )?;
             postings_writer.serialize(
                 &term_offsets[byte_offsets],
-                &mut field_serializer,
                 &self.term_index.heap,
                 &self.heap,
                 doc_id_map,
+                &mut field_serializer,
             )?;
             field_serializer.close()?;
         }
@@ -201,10 +213,10 @@ pub trait PostingsWriter {
     /// in the hashmap.
     fn subscribe(
         &mut self,
-        term_index: &mut TermHashMap,
         doc: DocId,
         pos: u32,
         term: &Term,
+        term_index: &mut TermHashMap,
         heap: &mut MemoryArena,
     ) -> UnorderedTermId;
 
@@ -213,19 +225,19 @@ pub trait PostingsWriter {
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer<'_>,
         term_heap: &MemoryArena,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
     fn index_text(
         &mut self,
-        term_index: &mut TermHashMap,
         doc_id: DocId,
         field: Field,
         token_stream: &mut dyn TokenStream,
+        term_index: &mut TermHashMap,
         heap: &mut MemoryArena,
         term_buffer: &mut Term,
     ) -> u32 {
@@ -234,7 +246,7 @@ pub trait PostingsWriter {
             // We skip all tokens with a len greater than u16.
             if token.text.len() <= MAX_TOKEN_LEN {
                 term_buffer.set_text(token.text.as_str());
-                self.subscribe(term_index, doc_id, token.position as u32, term_buffer, heap);
+                self.subscribe(doc_id, token.position as u32, term_buffer, term_index, heap);
             } else {
                 warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
@@ -250,35 +262,132 @@ pub trait PostingsWriter {
     fn total_num_tokens(&self) -> u64;
 }
 
+pub(crate) struct JsonPostingsWriter<Rec: Recorder> {
+    text_postings_writer: SpecializedPostingsWriter<Rec>,
+    other_postings_writer: SpecializedPostingsWriter<NothingRecorder>,
+}
+
+impl<Rec: Recorder> JsonPostingsWriter<Rec> {
+    pub fn new_boxed() -> Box<dyn PostingsWriter> {
+        let text_postings_writer: SpecializedPostingsWriter<Rec> = SpecializedPostingsWriter {
+            total_num_tokens: 0u64,
+            _recorder_type: PhantomData,
+        };
+        let other_postings_writer: SpecializedPostingsWriter<NothingRecorder> =
+            SpecializedPostingsWriter {
+                total_num_tokens: 0u64,
+                _recorder_type: PhantomData,
+            };
+        Box::new(JsonPostingsWriter {
+            text_postings_writer,
+            other_postings_writer,
+        })
+    }
+}
+
+impl<Rec: Recorder> PostingsWriter for JsonPostingsWriter<Rec> {
+    fn subscribe(
+        &mut self,
+        doc: DocId,
+        pos: u32,
+        term: &Term,
+        term_index: &mut TermHashMap,
+        heap: &mut MemoryArena,
+    ) -> UnorderedTermId {
+        // TODO will the unordered term id be correct!?
+        debug_assert!(term.is_json());
+        if term.typ() == Type::Str {
+            self.text_postings_writer
+                .subscribe(doc, pos, term, term_index, heap)
+        } else {
+            self.other_postings_writer
+                .subscribe(doc, pos, term, term_index, heap)
+        }
+    }
+
+    fn serialize(
+        &self,
+        term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
+        term_heap: &MemoryArena,
+        heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
+    ) -> io::Result<()> {
+        let mut buffer_lender = BufferLender::default();
+        for (term, addr, _) in term_addrs {
+            if term.typ() == Type::Str {
+                SpecializedPostingsWriter::<Rec>::serialize_one_term(
+                    term,
+                    *addr,
+                    term_heap,
+                    heap,
+                    doc_id_map,
+                    &mut buffer_lender,
+                    serializer,
+                )?;
+            } else {
+                SpecializedPostingsWriter::<NothingRecorder>::serialize_one_term(
+                    term,
+                    *addr,
+                    term_heap,
+                    heap,
+                    doc_id_map,
+                    &mut buffer_lender,
+                    serializer,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    fn total_num_tokens(&self) -> u64 {
+        self.text_postings_writer.total_num_tokens() + self.other_postings_writer.total_num_tokens()
+    }
+}
+
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-pub(crate) struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
+#[derive(Default)]
+pub(crate) struct SpecializedPostingsWriter<Rec: Recorder> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
 
-impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
-    /// constructor
-    pub fn new() -> SpecializedPostingsWriter<Rec> {
-        SpecializedPostingsWriter {
+impl<Rec: Recorder> SpecializedPostingsWriter<Rec> {
+    pub fn new_boxed() -> Box<dyn PostingsWriter> {
+        let new_specialized_posting_writer: Self = Self {
             total_num_tokens: 0u64,
             _recorder_type: PhantomData,
-        }
+        };
+        Box::new(new_specialized_posting_writer)
     }
 
-    /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
-    pub fn new_boxed() -> Box<dyn PostingsWriter> {
-        Box::new(SpecializedPostingsWriter::<Rec>::new())
+    #[inline]
+    fn serialize_one_term(
+        term: &Term<&[u8]>,
+        addr: Addr,
+        termdict_heap: &MemoryArena,
+        heap: &MemoryArena,
+        doc_id_map: Option<&DocIdMapping>,
+        buffer_lender: &mut BufferLender,
+        serializer: &mut FieldSerializer,
+    ) -> io::Result<()> {
+        let recorder: Rec = termdict_heap.read(addr);
+        let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
+        serializer.new_term(term.value_bytes(), term_doc_freq)?;
+        recorder.serialize(buffer_lender, heap, doc_id_map, serializer);
+        serializer.close_term()?;
+        Ok(())
     }
 }
 
-impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
+impl<Rec: Recorder> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
-        term_index: &mut TermHashMap,
         doc: DocId,
         position: u32,
         term: &Term,
+        term_index: &mut TermHashMap,
         heap: &mut MemoryArena,
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
@@ -304,18 +413,22 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer<'_>,
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (term, addr, _) in term_addrs {
-            let recorder: Rec = termdict_heap.read(*addr);
-            let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
-            serializer.new_term(term.value_bytes(), term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap, doc_id_map);
-            serializer.close_term()?;
+            Self::serialize_one_term(
+                term,
+                *addr,
+                termdict_heap,
+                heap,
+                doc_id_map,
+                &mut buffer_lender,
+                serializer,
+            )?;
         }
         Ok(())
     }

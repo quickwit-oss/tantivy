@@ -72,9 +72,9 @@ pub(crate) trait Recorder: Copy + 'static {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     );
     /// Returns the number of document containing this term.
     ///
@@ -113,9 +113,9 @@ impl Recorder for NothingRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     ) {
         let (buffer, doc_ids) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer);
@@ -184,9 +184,9 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     ) {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
@@ -252,9 +252,9 @@ impl Recorder for TfAndPositionRecorder {
     fn serialize(
         &self,
         buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
         heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);

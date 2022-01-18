@@ -1,6 +1,6 @@
-use crate::Term;
 use crate::fastfield::FastValue;
 use crate::schema::{Field, Type};
+use crate::Term;
 
 // Copyright (C) 2021 Quickwit, Inc.
 //
@@ -34,10 +34,7 @@ impl JsonTermWriter {
         buffer.resize(5, 0);
         let mut path_stack = Vec::with_capacity(10);
         path_stack.push(5);
-        Self {
-            buffer,
-            path_stack,
-        }
+        Self { buffer, path_stack }
     }
 
     pub fn with_field(field: Field) -> Self {
@@ -80,12 +77,12 @@ impl JsonTermWriter {
 
     pub fn set_i64(&mut self, val: i64) {
         self.close_path_and_set_type(Type::I64);
-        self.buffer.extend_from_slice(val.to_u64().to_be_bytes().as_slice());
+        self.buffer
+            .extend_from_slice(val.to_u64().to_be_bytes().as_slice());
     }
 
     pub fn set_field(&mut self, field: Field) {
-        self.buffer[0..4]
-            .copy_from_slice(field.field_id().to_be_bytes().as_ref());
+        self.buffer[0..4].copy_from_slice(field.field_id().to_be_bytes().as_ref());
     }
 
     pub fn term(&self) -> Term<&[u8]> {
@@ -106,17 +103,29 @@ mod tests {
         json_writer.push_path_segment("attributes");
         json_writer.push_path_segment("color");
         json_writer.set_text("red");
-        assert_eq!(format!("{:?}", json_writer.term()), "Term(type=Str, field=1, path=attributes.color, \"red\")");
+        assert_eq!(
+            format!("{:?}", json_writer.term()),
+            "Term(type=Str, field=1, path=attributes.color, \"red\")"
+        );
         json_writer.set_text("blue");
-        assert_eq!(format!("{:?}", json_writer.term()), "Term(type=Str, field=1, path=attributes.color, \"blue\")");
+        assert_eq!(
+            format!("{:?}", json_writer.term()),
+            "Term(type=Str, field=1, path=attributes.color, \"blue\")"
+        );
         json_writer.pop_path_segment();
         json_writer.push_path_segment("dimensions");
         json_writer.push_path_segment("width");
         json_writer.set_i64(400);
-        assert_eq!(format!("{:?}", json_writer.term()), "Term(type=I64, field=1, path=attributes.dimensions.width, 400)");
+        assert_eq!(
+            format!("{:?}", json_writer.term()),
+            "Term(type=I64, field=1, path=attributes.dimensions.width, 400)"
+        );
         json_writer.pop_path_segment();
         json_writer.push_path_segment("height");
         json_writer.set_i64(300);
-        assert_eq!(format!("{:?}", json_writer.term()), "Term(type=I64, field=1, path=attributes.dimensions.height, 300)");
+        assert_eq!(
+            format!("{:?}", json_writer.term()),
+            "Term(type=I64, field=1, path=attributes.dimensions.height, 300)"
+        );
     }
 }

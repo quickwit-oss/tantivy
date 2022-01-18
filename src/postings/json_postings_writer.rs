@@ -26,7 +26,7 @@ impl PostingsWriter for JsonPostingWriter {
     fn serialize(
         &self,
         term_addrs: &[(&[u8], super::stacker::Addr, super::UnorderedTermId)],
-        serializer: &mut super::FieldSerializer<'_>,
+        serializer: &mut super::FieldSerializer,
         term_heap: &super::stacker::MemoryArena,
         heap: &super::stacker::MemoryArena,
         doc_id_map: Option<&crate::indexer::doc_id_mapping::DocIdMapping>,
