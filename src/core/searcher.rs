@@ -1,9 +1,5 @@
 use crate::collector::Collector;
 use crate::core::Executor;
-use crate::Opstamp;
-use crate::SegmentId;
-use crate::SegmentMeta;
-
 use crate::core::SegmentReader;
 use crate::query::Query;
 use crate::schema::Document;
@@ -13,52 +9,59 @@ use crate::space_usage::SearcherSpaceUsage;
 use crate::store::StoreReader;
 use crate::DocAddress;
 use crate::Index;
+use crate::Opstamp;
+use crate::SegmentId;
+use crate::SegmentMeta;
+use crate::TrackedObject;
 
 use std::collections::BTreeMap;
-use std::ops::Deref;
-use std::sync::Arc;
-use std::sync::Weak;
 use std::{fmt, io};
 
 /// Identifies the index generation accessed by a [Searcher].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SearcherIndexGeneration(BTreeMap<SegmentId, Option<Opstamp>>);
+pub struct SearcherIndexGeneration {
+    segments: BTreeMap<SegmentId, Option<Opstamp>>,
+    generation_id: u64,
+}
 
 impl SearcherIndexGeneration {
     pub(crate) fn from_segment_metas<'a>(
         segment_metas: impl Iterator<Item = &'a SegmentMeta>,
+        generation_id: u64,
     ) -> Self {
         let mut segment_id_to_del_opstamp = BTreeMap::new();
         for meta in segment_metas {
             segment_id_to_del_opstamp.insert(meta.id(), meta.delete_opstamp());
         }
-        Self(segment_id_to_del_opstamp)
+        Self {
+            segments: segment_id_to_del_opstamp,
+            generation_id,
+        }
     }
 
     /// Segment IDs represented in this generation.
     pub fn segment_ids(&self) -> impl Iterator<Item = SegmentId> + '_ {
-        self.0.keys().copied()
+        self.segments.keys().copied()
+    }
+
+    /// Returns the searcher generation id.
+    pub fn generation_id(&self) -> u64 {
+        self.generation_id
     }
 
     /// `Opstamp` of the last delete operation accounted for in the specified segment, if present.
     pub fn delete_opstamp(&self, segment_id: &SegmentId) -> Option<Opstamp> {
-        self.0.get(segment_id).copied().flatten()
-    }
-}
-
-/// A token that is coupled with the lifetime of a generation of [Searcher].
-#[derive(Debug, Clone)]
-pub struct SearcherGenerationToken(Weak<SearcherIndexGeneration>);
-
-impl SearcherGenerationToken {
-    /// Whether this generation of [Searcher] is still alive.
-    pub fn is_live(&self) -> bool {
-        self.0.strong_count() > 0
+        self.segments.get(segment_id).copied().flatten()
     }
 
-    /// Access the [SearcherIndexGeneration] if this generation of [Searcher] is still alive.
-    pub fn index_generation(&self) -> Option<SearcherIndexGeneration> {
-        Weak::upgrade(&self.0).map(|gen| gen.deref().clone())
+    /// Return an iterator over the `(SegmentId, Option<Opstamp>)`.
+    pub fn segments(&self) -> &BTreeMap<SegmentId, Option<Opstamp>> {
+        &self.segments
+    }
+
+    /// Returns an ID identifying a searcher generation uniquely.
+    pub fn searcher_gen(&self) -> u64 {
+        self.generation_id
     }
 }
 
@@ -72,7 +75,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
-    index_generation: Arc<SearcherIndexGeneration>,
+    index_generation: TrackedObject<SearcherIndexGeneration>,
 }
 
 impl Searcher {
@@ -81,7 +84,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
-        index_generation: Arc<SearcherIndexGeneration>,
+        index_generation: TrackedObject<SearcherIndexGeneration>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -103,12 +106,7 @@ impl Searcher {
 
     /// [SearcherIndexGeneration] which identifies the index data accessed by this generation of `Searcher`.
     pub fn index_generation(&self) -> &SearcherIndexGeneration {
-        &self.index_generation
-    }
-
-    /// [SearcherGenerationToken] which is coupled with the lifetime of this generation of `Searcher`.
-    pub fn generation_token(&self) -> SearcherGenerationToken {
-        SearcherGenerationToken(Arc::downgrade(&self.index_generation))
+        self.index_generation.as_ref()
     }
 
     /// Fetches a document from tantivy's store given a `DocAddress`.

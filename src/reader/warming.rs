@@ -1,11 +1,12 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     sync::{Arc, Mutex, Weak},
     thread::JoinHandle,
     time::Duration,
 };
 
-use crate::{Executor, Searcher, SearcherGenerationToken, SearcherIndexGeneration, TantivyError};
+use crate::{Executor, Searcher, SearcherIndexGeneration, TantivyError};
+use crate::{Inventory, TrackedObject};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -17,7 +18,7 @@ pub trait Warmer: Sync + Send {
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
     /// Discard internal state for any [SearcherIndexGeneration] not provided.
-    fn garbage_collect(&self, live_generations: &HashSet<SearcherIndexGeneration>);
+    fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherIndexGeneration>]);
 }
 
 /// Warming-related state with interior mutability.
@@ -25,12 +26,17 @@ pub trait Warmer: Sync + Send {
 pub(crate) struct WarmingState(Arc<Mutex<WarmingStateInner>>);
 
 impl WarmingState {
-    pub fn new(num_warming_threads: usize, warmers: Vec<Weak<dyn Warmer>>) -> crate::Result<Self> {
+    pub fn new(
+        num_warming_threads: usize,
+        warmers: Vec<Weak<dyn Warmer>>,
+        searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
+    ) -> crate::Result<Self> {
         Ok(Self(Arc::new(Mutex::new(WarmingStateInner {
             num_warming_threads,
             warmers,
-            searcher_generations: HashMap::new(),
             gc_thread: None,
+            searcher_generation_ids: Default::default(),
+            searcher_generation_inventory,
         }))))
     }
 
@@ -53,8 +59,9 @@ impl WarmingState {
 struct WarmingStateInner {
     num_warming_threads: usize,
     warmers: Vec<Weak<dyn Warmer>>,
-    searcher_generations: HashMap<SearcherIndexGeneration, Vec<SearcherGenerationToken>>,
     gc_thread: Option<JoinHandle<()>>,
+    searcher_generation_ids: HashSet<u64>,
+    searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
 }
 
 impl WarmingStateInner {
@@ -66,26 +73,16 @@ impl WarmingStateInner {
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
     ) -> crate::Result<()> {
-        if let Some(tokens) = self
-            .searcher_generations
-            .get_mut(searcher.index_generation())
-        {
-            tokens.push(searcher.generation_token());
-        } else {
-            self.searcher_generations.insert(
-                searcher.index_generation().clone(),
-                vec![searcher.generation_token()],
-            );
-        }
+        self.searcher_generation_ids
+            .insert(searcher.index_generation().generation_id());
         let warmers = self.pruned_warmers();
         // Avoid threads (warming as well as background GC) if there are no warmers
         if warmers.is_empty() {
-            self.prune_searcher_generations();
-        } else {
-            self.start_gc_thread_maybe(this)?;
-            warming_executor(self.num_warming_threads.min(warmers.len()))?
-                .map(|warmer| warmer.warm(searcher), warmers.into_iter())?;
+            return Ok(());
         }
+        self.start_gc_thread_maybe(this)?;
+        warming_executor(self.num_warming_threads.min(warmers.len()))?
+            .map(|warmer| warmer.warm(searcher), warmers.into_iter())?;
         Ok(())
     }
 
@@ -101,35 +98,25 @@ impl WarmingStateInner {
         strong_warmers
     }
 
-    /// Prune dropped searcher generations from our state.
-    /// Return count of removed generations.
-    fn prune_searcher_generations(&mut self) -> usize {
-        for tokens in self.searcher_generations.values_mut() {
-            // This can be implemented neatly using Vec::drain_filter() when that is stable.
-            let mut i = 0;
-            while i < tokens.len() {
-                if !tokens[i].is_live() {
-                    tokens.swap_remove(i);
-                } else {
-                    i += 1;
-                }
-            }
-        }
-        let before_len = self.searcher_generations.len();
-        self.searcher_generations
-            .retain(|_gen, tokens| !tokens.is_empty());
-        before_len - self.searcher_generations.len()
-    }
-
     /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have been dropped.
     fn gc_maybe(&mut self) -> bool {
-        if self.prune_searcher_generations() == 0 {
+        // TODO avoid GC if no gen was deleted
+        let live_generations = self.searcher_generation_inventory.list();
+        let live_generation_ids: HashSet<u64> = live_generations
+            .iter()
+            .map(|searcher_generation| searcher_generation.generation_id())
+            .collect();
+        let warmup_not_required = self
+            .searcher_generation_ids
+            .iter()
+            .all(|warmed_up_generation| live_generation_ids.contains(warmed_up_generation));
+        if warmup_not_required {
             return false;
         }
-        let live_generations = self.searcher_generations.keys().cloned().collect();
         for warmer in self.pruned_warmers() {
             warmer.garbage_collect(&live_generations);
         }
+        self.searcher_generation_ids = live_generation_ids;
         true
     }
 
@@ -184,6 +171,7 @@ mod tests {
         },
     };
 
+    use crate::TrackedObject;
     use crate::{
         core::searcher::SearcherIndexGeneration,
         directory::RamDirectory,
@@ -237,7 +225,7 @@ mod tests {
             Ok(())
         }
 
-        fn garbage_collect(&self, live_generations: &HashSet<SearcherIndexGeneration>) {
+        fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherIndexGeneration>]) {
             self.gc_calls
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let active_segment_ids = live_generations

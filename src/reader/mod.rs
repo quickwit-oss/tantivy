@@ -11,6 +11,9 @@ use crate::directory::{Directory, WatchCallback};
 use crate::Index;
 use crate::Searcher;
 use crate::SegmentReader;
+use crate::{Inventory, TrackedObject};
+use std::sync::atomic;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::{convert::TryInto, io};
@@ -67,11 +70,19 @@ impl IndexReaderBuilder {
     /// of time and it may return an error.
     #[allow(clippy::needless_late_init)]
     pub fn try_into(self) -> crate::Result<IndexReader> {
+        let searcher_generation_inventory = Inventory::default();
+        let warming_state = WarmingState::new(
+            self.num_warming_threads,
+            self.warmers,
+            searcher_generation_inventory.clone(),
+        )?;
         let inner_reader = InnerIndexReader {
             index: self.index,
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
-            warming_state: WarmingState::new(self.num_warming_threads, self.warmers)?,
+            warming_state,
+            searcher_generation_counter: Default::default(),
+            searcher_generation_inventory,
         };
         inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
@@ -145,15 +156,18 @@ impl TryInto<IndexReader> for IndexReaderBuilder {
 
 struct InnerIndexReader {
     num_searchers: usize,
-    searcher_pool: Pool<Searcher>,
     index: Index,
     warming_state: WarmingState,
+    searcher_pool: Pool<Searcher>,
+    searcher_generation_counter: Arc<AtomicU64>,
+    searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
 }
 
 impl InnerIndexReader {
     fn reload(&self) -> crate::Result<()> {
         let (index_generation, segment_readers) = self.open()?;
         let schema = self.index.schema();
+
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
@@ -170,13 +184,20 @@ impl InnerIndexReader {
         Ok(())
     }
 
-    fn open(&self) -> crate::Result<(Arc<SearcherIndexGeneration>, Vec<SegmentReader>)> {
+    fn open(&self) -> crate::Result<(TrackedObject<SearcherIndexGeneration>, Vec<SegmentReader>)> {
         // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = self.index.searchable_segments()?;
-        let index_generation = Arc::new(SearcherIndexGeneration::from_segment_metas(
+        let generation = self
+            .searcher_generation_counter
+            .fetch_add(1, atomic::Ordering::Relaxed);
+        let searcher_generation = SearcherIndexGeneration::from_segment_metas(
             searchable_segments.iter().map(|segment| segment.meta()),
-        ));
+            generation,
+        );
+        let index_generation = self
+            .searcher_generation_inventory
+            .track(searcher_generation);
         let segment_readers = searchable_segments
             .iter()
             .map(SegmentReader::open)
