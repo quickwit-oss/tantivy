@@ -35,7 +35,7 @@ impl WarmingState {
             num_warming_threads,
             warmers,
             gc_thread: None,
-            searcher_generation_ids: Default::default(),
+            warmed_generation_ids: Default::default(),
             searcher_generation_inventory,
         }))))
     }
@@ -60,7 +60,7 @@ struct WarmingStateInner {
     num_warming_threads: usize,
     warmers: Vec<Weak<dyn Warmer>>,
     gc_thread: Option<JoinHandle<()>>,
-    searcher_generation_ids: HashSet<u64>,
+    warmed_generation_ids: HashSet<u64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
 
@@ -73,7 +73,7 @@ impl WarmingStateInner {
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
     ) -> crate::Result<()> {
-        self.searcher_generation_ids
+        self.warmed_generation_ids
             .insert(searcher.index_generation().generation_id());
         let warmers = self.pruned_warmers();
         // Avoid threads (warming as well as background GC) if there are no warmers
@@ -100,14 +100,13 @@ impl WarmingStateInner {
 
     /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have been dropped.
     fn gc_maybe(&mut self) -> bool {
-        // TODO avoid GC if no gen was deleted
         let live_generations = self.searcher_generation_inventory.list();
         let live_generation_ids: HashSet<u64> = live_generations
             .iter()
             .map(|searcher_generation| searcher_generation.generation_id())
             .collect();
         let gc_not_required = self
-            .searcher_generation_ids
+            .warmed_generation_ids
             .iter()
             .all(|warmed_up_generation| live_generation_ids.contains(warmed_up_generation));
         if gc_not_required {
@@ -116,7 +115,7 @@ impl WarmingStateInner {
         for warmer in self.pruned_warmers() {
             warmer.garbage_collect(&live_generations);
         }
-        self.searcher_generation_ids = live_generation_ids;
+        self.warmed_generation_ids = live_generation_ids;
         true
     }
 
@@ -230,7 +229,7 @@ mod tests {
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let active_segment_ids = live_generations
                 .iter()
-                .flat_map(|gen| gen.segment_ids())
+                .flat_map(|searcher_generation| searcher_generation.segments().keys().copied())
                 .collect();
             *self.active_segment_ids.write().unwrap() = active_segment_ids;
         }

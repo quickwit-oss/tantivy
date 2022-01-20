@@ -181,12 +181,12 @@ impl InnerIndexReader {
     }
 
     fn create_new_index_generation(&self, segment_readers: &[SegmentReader]) -> TrackedObject<SearcherGeneration> {
-        let generation = self
+        let generation_id = self
             .searcher_generation_counter
             .fetch_add(1, atomic::Ordering::Relaxed);
         let searcher_generation = SearcherGeneration::from_segment_readers(
             segment_readers,
-            generation,
+            generation_id,
         );
         self
             .searcher_generation_inventory

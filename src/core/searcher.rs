@@ -52,29 +52,14 @@ impl SearcherGeneration {
         }
     }
 
-    /// Segment IDs represented in this generation.
-    pub fn segment_ids(&self) -> impl Iterator<Item = SegmentId> + '_ {
-        self.segments.keys().copied()
-    }
-
     /// Returns the searcher generation id.
     pub fn generation_id(&self) -> u64 {
         self.generation_id
     }
 
-    /// `Opstamp` of the last delete operation accounted for in the specified segment, if present.
-    pub fn delete_opstamp(&self, segment_id: &SegmentId) -> Option<Opstamp> {
-        self.segments.get(segment_id).copied().flatten()
-    }
-
     /// Return an iterator over the `(SegmentId, Option<Opstamp>)`.
     pub fn segments(&self) -> &BTreeMap<SegmentId, Option<Opstamp>> {
         &self.segments
-    }
-
-    /// Returns an ID identifying a searcher generation uniquely.
-    pub fn searcher_gen(&self) -> u64 {
-        self.generation_id
     }
 }
 
