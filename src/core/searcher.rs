@@ -16,14 +16,28 @@ use crate::TrackedObject;
 use std::collections::BTreeMap;
 use std::{fmt, io};
 
-/// Identifies the index generation accessed by a [Searcher].
+/// Identifies the searcher generation accessed by a [Searcher].
+///
+/// While this may seem, it contains both a `generation_id` AND a list of
+/// `(SegmentId, DeleteOpstamp)`.
+///
+/// The reason for this, is that this object is used by the `Warmer` API.
+/// It makes it possible to identify which artifact should be refreshed
+/// or garbage collected.
+///
+/// Some `Warmer` might product artifact keyed by:
+/// - `generation_id` (e.g. some searcher level aggregates)
+/// - `(segment_id, delete_opstamp)`: segment level aggregates
+/// - `segment_id`: immutable document level information
+/// - `(generation_id, segment_id)`: consistent dynamic column.
+/// - ...
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SearcherIndexGeneration {
+pub struct SearcherGeneration {
     segments: BTreeMap<SegmentId, Option<Opstamp>>,
     generation_id: u64,
 }
 
-impl SearcherIndexGeneration {
+impl SearcherGeneration {
     pub(crate) fn from_segment_readers(
         segment_readers: &[SegmentReader],
         generation_id: u64,
@@ -74,7 +88,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
-    index_generation: TrackedObject<SearcherIndexGeneration>,
+    index_generation: TrackedObject<SearcherGeneration>,
 }
 
 impl Searcher {
@@ -83,7 +97,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
-        index_generation: TrackedObject<SearcherIndexGeneration>,
+        index_generation: TrackedObject<SearcherGeneration>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -104,7 +118,7 @@ impl Searcher {
     }
 
     /// [SearcherIndexGeneration] which identifies the index data accessed by this generation of `Searcher`.
-    pub fn index_generation(&self) -> &SearcherIndexGeneration {
+    pub fn index_generation(&self) -> &SearcherGeneration {
         self.index_generation.as_ref()
     }
 

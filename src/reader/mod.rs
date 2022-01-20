@@ -4,7 +4,7 @@ mod warming;
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use self::warming::WarmingState;
-use crate::core::searcher::SearcherIndexGeneration;
+use crate::core::searcher::SearcherGeneration;
 use crate::directory::WatchHandle;
 use crate::directory::META_LOCK;
 use crate::directory::{Directory, WatchCallback};
@@ -160,7 +160,7 @@ struct InnerIndexReader {
     warming_state: WarmingState,
     searcher_pool: Pool<Searcher>,
     searcher_generation_counter: Arc<AtomicU64>,
-    searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
+    searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
 
 impl InnerIndexReader {
@@ -180,11 +180,11 @@ impl InnerIndexReader {
         Ok(segment_readers)
     }
 
-    fn create_new_index_generation(&self, segment_readers: &[SegmentReader]) -> TrackedObject<SearcherIndexGeneration> {
+    fn create_new_index_generation(&self, segment_readers: &[SegmentReader]) -> TrackedObject<SearcherGeneration> {
         let generation = self
             .searcher_generation_counter
             .fetch_add(1, atomic::Ordering::Relaxed);
-        let searcher_generation = SearcherIndexGeneration::from_segment_readers(
+        let searcher_generation = SearcherGeneration::from_segment_readers(
             segment_readers,
             generation,
         );

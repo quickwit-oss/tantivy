@@ -167,7 +167,7 @@ pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{
     Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher,
-    SearcherIndexGeneration, Segment, SegmentId, SegmentMeta,
+    SearcherGeneration, Segment, SegmentId, SegmentMeta,
 };
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;

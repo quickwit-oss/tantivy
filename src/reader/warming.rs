@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{Executor, Searcher, SearcherIndexGeneration, TantivyError};
+use crate::{Executor, Searcher, SearcherGeneration, TantivyError};
 use crate::{Inventory, TrackedObject};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
@@ -18,7 +18,7 @@ pub trait Warmer: Sync + Send {
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
     /// Discard internal state for any [SearcherIndexGeneration] not provided.
-    fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherIndexGeneration>]);
+    fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]);
 }
 
 /// Warming-related state with interior mutability.
@@ -29,7 +29,7 @@ impl WarmingState {
     pub fn new(
         num_warming_threads: usize,
         warmers: Vec<Weak<dyn Warmer>>,
-        searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
+        searcher_generation_inventory: Inventory<SearcherGeneration>,
     ) -> crate::Result<Self> {
         Ok(Self(Arc::new(Mutex::new(WarmingStateInner {
             num_warming_threads,
@@ -61,7 +61,7 @@ struct WarmingStateInner {
     warmers: Vec<Weak<dyn Warmer>>,
     gc_thread: Option<JoinHandle<()>>,
     searcher_generation_ids: HashSet<u64>,
-    searcher_generation_inventory: Inventory<SearcherIndexGeneration>,
+    searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
 
 impl WarmingStateInner {
@@ -106,11 +106,11 @@ impl WarmingStateInner {
             .iter()
             .map(|searcher_generation| searcher_generation.generation_id())
             .collect();
-        let warmup_not_required = self
+        let gc_not_required = self
             .searcher_generation_ids
             .iter()
             .all(|warmed_up_generation| live_generation_ids.contains(warmed_up_generation));
-        if warmup_not_required {
+        if gc_not_required {
             return false;
         }
         for warmer in self.pruned_warmers() {
@@ -173,7 +173,7 @@ mod tests {
 
     use crate::TrackedObject;
     use crate::{
-        core::searcher::SearcherIndexGeneration,
+        core::searcher::SearcherGeneration,
         directory::RamDirectory,
         schema::{Schema, INDEXED},
         Index, IndexSettings, ReloadPolicy, Searcher, SegmentId,
@@ -225,7 +225,7 @@ mod tests {
             Ok(())
         }
 
-        fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherIndexGeneration>]) {
+        fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]) {
             self.gc_calls
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let active_segment_ids = live_generations
