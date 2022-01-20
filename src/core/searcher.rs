@@ -74,7 +74,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
-    index_generation: TrackedObject<SearcherGeneration>,
+    generation: TrackedObject<SearcherGeneration>,
 }
 
 impl Searcher {
@@ -83,7 +83,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
-        index_generation: TrackedObject<SearcherGeneration>,
+        generation: TrackedObject<SearcherGeneration>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -94,7 +94,7 @@ impl Searcher {
             index,
             segment_readers,
             store_readers,
-            index_generation,
+            generation,
         })
     }
 
@@ -103,9 +103,9 @@ impl Searcher {
         &self.index
     }
 
-    /// [SearcherIndexGeneration] which identifies the index data accessed by this generation of `Searcher`.
-    pub fn index_generation(&self) -> &SearcherGeneration {
-        self.index_generation.as_ref()
+    /// [SearcherGeneration] which identifies the version of the snapshot held by this `Searcher`.
+    pub fn generation(&self) -> &SearcherGeneration {
+        self.generation.as_ref()
     }
 
     /// Fetches a document from tantivy's store given a `DocAddress`.

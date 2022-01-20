@@ -17,7 +17,7 @@ pub trait Warmer: Sync + Send {
     /// Perform any warming work using the provided [Searcher].
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
-    /// Discard internal state for any [SearcherIndexGeneration] not provided.
+    /// Discards internal state for any [SearcherGeneration] not provided.
     fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]);
 }
 
@@ -83,7 +83,7 @@ impl WarmingStateInner {
         }
         self.start_gc_thread_maybe(this)?;
         self.warmed_generation_ids
-            .insert(searcher.index_generation().generation_id());
+            .insert(searcher.generation().generation_id());
         warming_executor(self.num_warming_threads.min(warmers.len()))?
             .map(|warmer| warmer.warm(searcher), warmers.into_iter())?;
         Ok(())
