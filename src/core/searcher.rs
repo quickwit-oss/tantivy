@@ -11,7 +11,6 @@ use crate::DocAddress;
 use crate::Index;
 use crate::Opstamp;
 use crate::SegmentId;
-use crate::SegmentMeta;
 use crate::TrackedObject;
 
 use std::collections::BTreeMap;
@@ -25,13 +24,13 @@ pub struct SearcherIndexGeneration {
 }
 
 impl SearcherIndexGeneration {
-    pub(crate) fn from_segment_metas<'a>(
-        segment_metas: impl Iterator<Item = &'a SegmentMeta>,
+    pub(crate) fn from_segment_readers(
+        segment_readers: &[SegmentReader],
         generation_id: u64,
     ) -> Self {
         let mut segment_id_to_del_opstamp = BTreeMap::new();
-        for meta in segment_metas {
-            segment_id_to_del_opstamp.insert(meta.id(), meta.delete_opstamp());
+        for segment_reader in segment_readers {
+            segment_id_to_del_opstamp.insert(segment_reader.segment_id(), segment_reader.delete_opstamp());
         }
         Self {
             segments: segment_id_to_del_opstamp,

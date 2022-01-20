@@ -164,10 +164,39 @@ struct InnerIndexReader {
 }
 
 impl InnerIndexReader {
-    fn reload(&self) -> crate::Result<()> {
-        let (index_generation, segment_readers) = self.open()?;
-        let schema = self.index.schema();
 
+    /// Opens the freshest segments `SegmentReader`.
+    ///
+    /// This function acquires a lot to prevent GC from removing files
+    /// as we are opening our index.
+    fn open_segment_readers(&self) -> crate::Result<Vec<SegmentReader>> {
+         // Prevents segment files from getting deleted while we are in the process of opening them
+        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+        let searchable_segments = self.index.searchable_segments()?;
+        let segment_readers = searchable_segments
+            .iter()
+            .map(SegmentReader::open)
+            .collect::<crate::Result<_>>()?;
+        Ok(segment_readers)
+    }
+
+    fn create_new_index_generation(&self, segment_readers: &[SegmentReader]) -> TrackedObject<SearcherIndexGeneration> {
+        let generation = self
+            .searcher_generation_counter
+            .fetch_add(1, atomic::Ordering::Relaxed);
+        let searcher_generation = SearcherIndexGeneration::from_segment_readers(
+            segment_readers,
+            generation,
+        );
+        self
+            .searcher_generation_inventory
+            .track(searcher_generation)
+    }
+
+    fn reload(&self) -> crate::Result<()> {
+        let segment_readers = self.open_segment_readers()?;
+        let index_generation = self.create_new_index_generation(&segment_readers);
+        let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
@@ -182,27 +211,6 @@ impl InnerIndexReader {
             .warm_new_searcher_generation(&searchers[0])?;
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
-    }
-
-    fn open(&self) -> crate::Result<(TrackedObject<SearcherIndexGeneration>, Vec<SegmentReader>)> {
-        // Prevents segment files from getting deleted while we are in the process of opening them
-        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.index.searchable_segments()?;
-        let generation = self
-            .searcher_generation_counter
-            .fetch_add(1, atomic::Ordering::Relaxed);
-        let searcher_generation = SearcherIndexGeneration::from_segment_metas(
-            searchable_segments.iter().map(|segment| segment.meta()),
-            generation,
-        );
-        let index_generation = self
-            .searcher_generation_inventory
-            .track(searcher_generation);
-        let segment_readers = searchable_segments
-            .iter()
-            .map(SegmentReader::open)
-            .collect::<crate::Result<_>>()?;
-        Ok((index_generation, segment_readers))
     }
 
     fn searcher(&self) -> LeasedItem<Searcher> {
