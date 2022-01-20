@@ -217,7 +217,7 @@ impl Index {
     /// Replace the default single thread search executor pool
     /// by a thread pool with a given number of threads.
     pub fn set_multithread_executor(&mut self, num_threads: usize) -> crate::Result<()> {
-        self.executor = Arc::new(Executor::multi_thread(num_threads, "thrd-tantivy-search-")?);
+        self.executor = Arc::new(Executor::multi_thread(num_threads, "tantivy-search-")?);
         Ok(())
     }
 

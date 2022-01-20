@@ -158,7 +158,7 @@ pub mod termdict;
 
 mod reader;
 
-pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy};
+pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy, Warmer};
 mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
@@ -166,8 +166,8 @@ mod docset;
 pub use self::docset::{DocSet, TERMINATED};
 pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{
-    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher, Segment,
-    SegmentId, SegmentMeta,
+    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher,
+    SearcherGeneration, Segment, SegmentId, SegmentMeta,
 };
 pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
@@ -179,6 +179,7 @@ pub use crate::indexer::{IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
+pub use census::{Inventory, TrackedObject};
 pub use common::HasLen;
 pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
 use std::fmt;
