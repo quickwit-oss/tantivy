@@ -17,6 +17,7 @@ use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
 use crate::DocId;
+use crate::Opstamp;
 use fail::fail_point;
 use std::fmt;
 use std::sync::Arc;
@@ -38,6 +39,8 @@ pub struct SegmentReader {
     inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
+    delete_opstamp: Option<Opstamp>,
+
     max_doc: DocId,
     num_docs: DocId,
 
@@ -205,6 +208,7 @@ impl SegmentReader {
             fast_fields_readers: fast_field_readers,
             fieldnorm_readers,
             segment_id: segment.id(),
+            delete_opstamp: segment.meta().delete_opstamp(),
             store_file,
             alive_bitset_opt,
             positions_composite,
@@ -288,6 +292,11 @@ impl SegmentReader {
     /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
+    }
+
+    /// Returns the delete opstamp
+    pub fn delete_opstamp(&self) -> Option<Opstamp> {
+        self.delete_opstamp
     }
 
     /// Returns the bitset representing

@@ -2,7 +2,7 @@ use super::SegmentComponent;
 use crate::schema::Schema;
 use crate::Opstamp;
 use crate::{core::SegmentId, store::Compressor};
-use census::{Inventory, TrackedObject};
+use crate::{Inventory, TrackedObject};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{collections::HashSet, sync::atomic::AtomicBool};

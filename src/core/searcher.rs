@@ -1,6 +1,5 @@
 use crate::collector::Collector;
 use crate::core::Executor;
-
 use crate::core::SegmentReader;
 use crate::query::Query;
 use crate::schema::Document;
@@ -10,8 +9,61 @@ use crate::space_usage::SearcherSpaceUsage;
 use crate::store::StoreReader;
 use crate::DocAddress;
 use crate::Index;
+use crate::Opstamp;
+use crate::SegmentId;
+use crate::TrackedObject;
 
+use std::collections::BTreeMap;
 use std::{fmt, io};
+
+/// Identifies the searcher generation accessed by a [Searcher].
+///
+/// While this might seem redundant, a [SearcherGeneration] contains
+/// both a `generation_id` AND a list of `(SegmentId, DeleteOpstamp)`.
+///
+/// This is on purpose. This object is used by the `Warmer` API.
+/// Having both information makes it possible to identify which
+/// artifact should be refreshed or garbage collected.
+///
+/// Depending on the use case, `Warmer`'s implementers can decide to
+/// produce artifacts per:
+/// - `generation_id` (e.g. some searcher level aggregates)
+/// - `(segment_id, delete_opstamp)` (e.g. segment level aggregates)
+/// - `segment_id` (e.g. for immutable document level information)
+/// - `(generation_id, segment_id)` (e.g. for consistent dynamic column)
+/// - ...
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SearcherGeneration {
+    segments: BTreeMap<SegmentId, Option<Opstamp>>,
+    generation_id: u64,
+}
+
+impl SearcherGeneration {
+    pub(crate) fn from_segment_readers(
+        segment_readers: &[SegmentReader],
+        generation_id: u64,
+    ) -> Self {
+        let mut segment_id_to_del_opstamp = BTreeMap::new();
+        for segment_reader in segment_readers {
+            segment_id_to_del_opstamp
+                .insert(segment_reader.segment_id(), segment_reader.delete_opstamp());
+        }
+        Self {
+            segments: segment_id_to_del_opstamp,
+            generation_id,
+        }
+    }
+
+    /// Returns the searcher generation id.
+    pub fn generation_id(&self) -> u64 {
+        self.generation_id
+    }
+
+    /// Return a `(SegmentId -> DeleteOpstamp)` mapping.
+    pub fn segments(&self) -> &BTreeMap<SegmentId, Option<Opstamp>> {
+        &self.segments
+    }
+}
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -23,6 +75,7 @@ pub struct Searcher {
     index: Index,
     segment_readers: Vec<SegmentReader>,
     store_readers: Vec<StoreReader>,
+    generation: TrackedObject<SearcherGeneration>,
 }
 
 impl Searcher {
@@ -31,6 +84,7 @@ impl Searcher {
         schema: Schema,
         index: Index,
         segment_readers: Vec<SegmentReader>,
+        generation: TrackedObject<SearcherGeneration>,
     ) -> io::Result<Searcher> {
         let store_readers: Vec<StoreReader> = segment_readers
             .iter()
@@ -41,12 +95,18 @@ impl Searcher {
             index,
             segment_readers,
             store_readers,
+            generation,
         })
     }
 
     /// Returns the `Index` associated to the `Searcher`
     pub fn index(&self) -> &Index {
         &self.index
+    }
+
+    /// [SearcherGeneration] which identifies the version of the snapshot held by this `Searcher`.
+    pub fn generation(&self) -> &SearcherGeneration {
+        self.generation.as_ref()
     }
 
     /// Fetches a document from tantivy's store given a `DocAddress`.
