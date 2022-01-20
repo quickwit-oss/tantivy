@@ -60,6 +60,9 @@ struct WarmingStateInner {
     num_warming_threads: usize,
     warmers: Vec<Weak<dyn Warmer>>,
     gc_thread: Option<JoinHandle<()>>,
+    // Contains all generations that have been warmed up.
+    // This list is used to avoid triggers the individual Warmer GCs
+    // if no warmed generation needs to be collected.
     warmed_generation_ids: HashSet<u64>,
     searcher_generation_inventory: Inventory<SearcherGeneration>,
 }
@@ -73,14 +76,14 @@ impl WarmingStateInner {
         searcher: &Searcher,
         this: &Arc<Mutex<Self>>,
     ) -> crate::Result<()> {
-        self.warmed_generation_ids
-            .insert(searcher.index_generation().generation_id());
         let warmers = self.pruned_warmers();
         // Avoid threads (warming as well as background GC) if there are no warmers
         if warmers.is_empty() {
             return Ok(());
         }
         self.start_gc_thread_maybe(this)?;
+        self.warmed_generation_ids
+            .insert(searcher.index_generation().generation_id());
         warming_executor(self.num_warming_threads.min(warmers.len()))?
             .map(|warmer| warmer.warm(searcher), warmers.into_iter())?;
         Ok(())

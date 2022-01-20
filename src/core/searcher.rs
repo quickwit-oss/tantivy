@@ -44,7 +44,8 @@ impl SearcherGeneration {
     ) -> Self {
         let mut segment_id_to_del_opstamp = BTreeMap::new();
         for segment_reader in segment_readers {
-            segment_id_to_del_opstamp.insert(segment_reader.segment_id(), segment_reader.delete_opstamp());
+            segment_id_to_del_opstamp
+                .insert(segment_reader.segment_id(), segment_reader.delete_opstamp());
         }
         Self {
             segments: segment_id_to_del_opstamp,
@@ -57,7 +58,7 @@ impl SearcherGeneration {
         self.generation_id
     }
 
-    /// Return an iterator over the `(SegmentId, Option<Opstamp>)`.
+    /// Return a `(SegmentId -> DeleteOpstamp)` mapping.
     pub fn segments(&self) -> &BTreeMap<SegmentId, Option<Opstamp>> {
         &self.segments
     }

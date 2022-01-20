@@ -164,13 +164,12 @@ struct InnerIndexReader {
 }
 
 impl InnerIndexReader {
-
     /// Opens the freshest segments `SegmentReader`.
     ///
     /// This function acquires a lot to prevent GC from removing files
     /// as we are opening our index.
     fn open_segment_readers(&self) -> crate::Result<Vec<SegmentReader>> {
-         // Prevents segment files from getting deleted while we are in the process of opening them
+        // Prevents segment files from getting deleted while we are in the process of opening them
         let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = self.index.searchable_segments()?;
         let segment_readers = searchable_segments
@@ -180,16 +179,16 @@ impl InnerIndexReader {
         Ok(segment_readers)
     }
 
-    fn create_new_index_generation(&self, segment_readers: &[SegmentReader]) -> TrackedObject<SearcherGeneration> {
+    fn create_new_index_generation(
+        &self,
+        segment_readers: &[SegmentReader],
+    ) -> TrackedObject<SearcherGeneration> {
         let generation_id = self
             .searcher_generation_counter
             .fetch_add(1, atomic::Ordering::Relaxed);
-        let searcher_generation = SearcherGeneration::from_segment_readers(
-            segment_readers,
-            generation_id,
-        );
-        self
-            .searcher_generation_inventory
+        let searcher_generation =
+            SearcherGeneration::from_segment_readers(segment_readers, generation_id);
+        self.searcher_generation_inventory
             .track(searcher_generation)
     }
 
