@@ -18,18 +18,19 @@ use std::{fmt, io};
 
 /// Identifies the searcher generation accessed by a [Searcher].
 ///
-/// While this may seem, it contains both a `generation_id` AND a list of
-/// `(SegmentId, DeleteOpstamp)`.
+/// While this might seem redundant, a [SearcherGeneration] contains
+/// both a `generation_id` AND a list of `(SegmentId, DeleteOpstamp)`.
 ///
-/// The reason for this, is that this object is used by the `Warmer` API.
-/// It makes it possible to identify which artifact should be refreshed
-/// or garbage collected.
+/// This is on purpose. This object is used by the `Warmer` API.
+/// Having both information makes it possible to identify which
+/// artifact should be refreshed or garbage collected.
 ///
-/// Some `Warmer` might product artifact keyed by:
+/// Depending on the use case, `Warmer`'s implementers can decide to
+/// product artifacts per:
 /// - `generation_id` (e.g. some searcher level aggregates)
-/// - `(segment_id, delete_opstamp)`: segment level aggregates
-/// - `segment_id`: immutable document level information
-/// - `(generation_id, segment_id)`: consistent dynamic column.
+/// - `(segment_id, delete_opstamp)` (e.g. segment level aggregates)
+/// - `segment_id` (e.g. for immutable document level information)
+/// - `(generation_id, segment_id)` (e.g. for consistent dynamic column)
 /// - ...
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SearcherGeneration {
