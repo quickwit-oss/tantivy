@@ -179,7 +179,7 @@ impl InnerIndexReader {
         Ok(segment_readers)
     }
 
-    fn create_new_index_generation(
+    fn create_new_searcher_generation(
         &self,
         segment_readers: &[SegmentReader],
     ) -> TrackedObject<SearcherGeneration> {
@@ -194,14 +194,14 @@ impl InnerIndexReader {
 
     fn reload(&self) -> crate::Result<()> {
         let segment_readers = self.open_segment_readers()?;
-        let index_generation = self.create_new_index_generation(&segment_readers);
+        let searcher_generation = self.create_new_searcher_generation(&segment_readers);
         let schema = self.index.schema();
         let searchers: Vec<Searcher> = std::iter::repeat_with(|| {
             Searcher::new(
                 schema.clone(),
                 self.index.clone(),
                 segment_readers.clone(),
-                index_generation.clone(),
+                searcher_generation.clone(),
             )
         })
         .take(self.num_searchers)
