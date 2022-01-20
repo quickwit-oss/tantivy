@@ -198,7 +198,6 @@ fn main() -> tantivy::Result<()> {
 
     reader.reload()?;
 
-    let searcher = reader.searcher();
     let hits_with_new_prices = searcher.search(&query, &most_expensive_first)?;
     assert_eq!(
         &hits_with_new_prices,
