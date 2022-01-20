@@ -26,7 +26,7 @@ use std::{fmt, io};
 /// artifact should be refreshed or garbage collected.
 ///
 /// Depending on the use case, `Warmer`'s implementers can decide to
-/// product artifacts per:
+/// produce artifacts per:
 /// - `generation_id` (e.g. some searcher level aggregates)
 /// - `(segment_id, delete_opstamp)` (e.g. segment level aggregates)
 /// - `segment_id` (e.g. for immutable document level information)
