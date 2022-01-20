@@ -1,6 +1,6 @@
 use crate::Opstamp;
 use crate::SegmentId;
-use census::{Inventory, TrackedObject};
+use crate::{Inventory, TrackedObject};
 use std::collections::HashSet;
 use std::ops::Deref;
 
