@@ -1,6 +1,9 @@
+mod agg_result;
 mod agg_tree;
 mod bucket;
+mod executor;
 mod metric;
+mod segment_agg_result;
 
 pub use agg_tree::Aggregation;
 pub use agg_tree::BucketAggregation;
@@ -8,12 +11,12 @@ pub use agg_tree::MetricAggregation;
 
 use crate::collector::Fruit;
 
-use self::agg_tree::BucketAggregationResult;
+use self::agg_result::BucketAggregationResult;
 
 /// The `SubAggregationCollector` is the trait in charge of defining the
-/// collect operation at the scale of the segment.
+/// collect operation for sub aggreagations at the scale of the segment.
 ///
-/// A `SubAggregationCollector` always is a handles the result of a bucket collector.
+/// A `SubAggregationCollector` handles the result of a bucket collector.
 ///
 pub trait SubAggregationCollector: 'static {
     /// `Fruit` is the type for the result of our collection.

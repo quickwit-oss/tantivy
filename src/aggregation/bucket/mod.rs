@@ -1,1 +1,2 @@
 mod histogram;
+mod range;
