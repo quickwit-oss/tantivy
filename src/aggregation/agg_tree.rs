@@ -1,7 +1,5 @@
 use std::{collections::HashMap, ops::Range};
 
-use crate::DocId;
-
 type Aggregations = HashMap<String, Aggregation>;
 
 /// Aggregation tree.
@@ -14,8 +12,7 @@ pub enum Aggregation {
     MetricAggregation(MetricAggregation),
 }
 
-/// BucketAggregations
-/// don’t calculate metrics over fields like the metrics aggregations do, but instead, they create buckets of documents.
+/// BucketAggregations don’t calculate metrics over fields like the metrics aggregations do, but instead, they create buckets of documents.
 /// Each bucket is associated with a criterion (depending on the aggregation type) which determines whether or not a document in the current context
 /// "falls" into it. In other words, the buckets effectively define document sets. In addition to the buckets themselves, the bucket aggregations also
 /// compute and return the number of documents that "fell into" each bucket.
@@ -26,7 +23,7 @@ pub enum Aggregation {
 pub enum BucketAggregation {
     TermAggregation {
         /// The field to aggregate on.
-        field: String,
+        field: String, // Produces as leaf doc_counts, but as intermediate additionally doc id list for the sub steps
     },
     /// Put data into predefined buckets.
     RangeAggregation {
@@ -36,16 +33,6 @@ pub enum BucketAggregation {
         /// Extra buckets will be created until the first to, and last from.
         buckets: Vec<Range<i64>>,
     },
-}
-
-/// BucketAggregation Results
-pub struct BucketAggregationResult {
-    /// [Bucket Index] -> List of DocIds
-    buckets: Vec<Vec<DocId>>,
-    /// [Bucket Index] -> Counts
-    counts: Vec<usize>,
-    /// [Bucket Index] -> Bucket Name
-    bucket_metadata: Vec<String>,
 }
 
 /// The aggregations in this family compute metrics based on values extracted in one way or another from the documents that are being aggregated.
@@ -58,8 +45,38 @@ pub struct BucketAggregationResult {
 /// each bucket).
 pub enum MetricAggregation {
     /// Calculates the average.
-    Average,
+    Average {
+        /// The field name to compute the average on.
+        field_name: String,
+    },
 }
+
+//pub struct NamedBucketAggregationResult {
+///// [Bucket Index] -> BucketAggregationResultVariant
+////buckets: BucketAggregationResultVariant,
+//buckets: Vec<Box<dyn BucketEntry>>,
+///// [Bucket Index] -> Bucket Name
+//bucket_metadata: Vec<String>,
+//}
+
+//pub enum BucketAggregationResultVariant {
+//SubBucket(Vec<Box<NamedBucketAggregationResult>>),
+//DocidBucket(Vec<Vec<DocId>>),
+//Counts(Vec<usize>),
+//Global(Vec<DocId>),
+//}
+
+//#[derive(Default)]
+//pub struct BucketAggregationResult {
+///// [Bucket Index] -> BucketAggregationResult
+//sub_buckets: Vec<Box<BucketAggregationResult>>,
+///// [Bucket Index] -> List of DocIds
+//buckets: Vec<Vec<DocId>>,
+///// [Bucket Index] -> Counts
+//counts: Vec<usize>,
+///// [Bucket Index] -> Bucket Name
+//bucket_metadata: Vec<String>,
+//}
 
 #[cfg(test)]
 mod tests {
@@ -70,7 +87,9 @@ mod tests {
         let mut sub_aggregation = HashMap::new();
         sub_aggregation.insert(
             "the_average".to_string(),
-            Aggregation::MetricAggregation(MetricAggregation::Average),
+            Aggregation::MetricAggregation(MetricAggregation::Average {
+                field_name: "my_field".to_string(),
+            }),
         );
 
         Aggregation::BucketAggregation {
@@ -81,4 +100,44 @@ mod tests {
             sub_aggregation: Some(Box::new(sub_aggregation)),
         };
     }
+    //#[test]
+    //fn bucketbucket_result_variant() {
+    //let sub_bucket1 = NamedBucketAggregationResult {
+    //buckets: BucketAggregationResultVariant::Counts(vec![10, 30]),
+    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
+    //};
+
+    //let sub_bucket2 = NamedBucketAggregationResult {
+    //buckets: BucketAggregationResultVariant::Counts(vec![40, 20]),
+    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
+    //};
+
+    //let _asdf = NamedBucketAggregationResult {
+    //buckets: BucketAggregationResultVariant::SubBucket(vec![
+    //Box::new(sub_bucket1),
+    //Box::new(sub_bucket2),
+    //]),
+    //bucket_metadata: vec!["green".to_string(), "blue".to_string()],
+    //};
+    //}
+
+    //#[test]
+    //fn bucketbucket_result_test() {
+    //let _geht = BucketAggregationResult {
+    //sub_buckets: vec![
+    //Box::new(BucketAggregationResult {
+    //counts: vec![10, 30],
+    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
+    //..Default::default()
+    //}),
+    //Box::new(BucketAggregationResult {
+    //counts: vec![40, 20],
+    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
+    //..Default::default()
+    //}),
+    //],
+    //bucket_metadata: vec!["green".to_string(), "blue".to_string()],
+    //..Default::default()
+    //};
+    //}
 }
