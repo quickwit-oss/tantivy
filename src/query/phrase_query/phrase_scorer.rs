@@ -140,7 +140,7 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 /// Returns the length of the intersection
 fn intersection_with_distance(
     left: &mut [u32],
-    right: &mut [u32],
+    right: &[u32],
     max_distance_to_begin: u32,
 ) -> usize {
     let mut left_index = 0;
@@ -160,8 +160,7 @@ fn intersection_with_distance(
                         // If the value was temporary we have found a closer match.
                         count -= 1;
                     };
-                    left[count] = left_val;
-                    right[count] = right_val;
+                    left[count] = right_val;
                     count += 1;
                     left_index += 1;
                     // Still possible to find a closer match.
@@ -177,7 +176,6 @@ fn intersection_with_distance(
                     is_temporary = false;
                 }
                 left[count] = left_val;
-                right[count] = right_val;
                 count += 1;
                 left_index += 1;
                 right_index += 1;
@@ -189,9 +187,6 @@ fn intersection_with_distance(
                 is_temporary = false;
             }
         }
-    }
-    for i in 0..count {
-        left[i] = right[i];
     }
     count
 }
@@ -308,7 +303,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             }
             intersection_len = intersection_with_distance(
                 &mut self.left[..intersection_len],
-                &mut self.right[..],
+                &self.right[..],
                 self.slop,
             );
             // Update the left to be equal to the right. Merge the initial left.
@@ -318,7 +313,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
         self.intersection_docset
             .docset_mut_specialized(self.num_terms - 1)
-            .positions(&mut self.right);
+            .positions(&mut self.left);
         intersection_len
     }
 
