@@ -138,54 +138,52 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 /// the value in right and that the distance to the previous token is lte to the slop.
 ///
 /// Returns the length of the intersection
-fn intersection_with_distance(
-    left: &mut [u32],
-    right: &[u32],
-    max_distance_to_begin: u32,
-) -> usize {
+fn intersection_with_distance(left: &mut [u32], right: &[u32], slop: u32) -> usize {
     let mut left_index = 0;
     let mut right_index = 0;
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
     // Is the current last value guaranteed to be the final value.
-    let mut is_temporary = false;
     while left_index < left_len && right_index < right_len {
         let left_val = left[left_index];
         let right_val = right[right_index];
-        match left_val.cmp(&right_val) {
-            Ordering::Less => {
-                if right_val - left[left_index] <= max_distance_to_begin {
-                    if is_temporary {
-                        // If the value was temporary we have found a closer match.
-                        count -= 1;
-                    };
-                    left[count] = right_val;
-                    count += 1;
-                    left_index += 1;
-                    // Still possible to find a closer match.
-                    is_temporary = true;
-                } else {
-                    left_index += 1;
+
+        /*
+         * The three conditions are:
+         * left_val < right_slop -> left index increment.
+         * right_slop <= left_val <= right -> find the best match.
+         * left_val > right -> right index increment.
+         */
+        let right_slop = if right_val >= slop {
+            right_val - slop
+        } else {
+            0
+        };
+
+        if left_val < right_slop {
+            left_index += 1;
+        } else if right_slop <= left_val && left_val <= right_val {
+            loop {
+                if left_index + 1 >= left_len {
+                    // current one is the best as there are no more values.
+                    break;
                 }
-            }
-            Ordering::Equal => {
-                if is_temporary {
-                    // If the value was temporary we have found an.
-                    count -= 1;
-                    is_temporary = false;
+                let next_left_val = left[left_index + 1];
+                if next_left_val > right_val {
+                    // the next value is outside the range, so current one is the best.
+                    break;
                 }
-                left[count] = left_val;
-                count += 1;
+                // the next value is better.
                 left_index += 1;
-                right_index += 1;
             }
-            Ordering::Greater => {
-                right_index += 1;
-                // Given the constraint that left cannot be greater than right we know that the value in left is
-                // final.
-                is_temporary = false;
-            }
+            // store the match in left.
+            left[count] = right_val;
+            count += 1;
+            left_index += 1;
+            right_index += 1;
+        } else if left_val > right_val {
+            right_index += 1;
         }
     }
     count
