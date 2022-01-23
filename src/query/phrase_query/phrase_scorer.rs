@@ -144,7 +144,6 @@ fn intersection_with_distance(left: &mut [u32], right: &[u32], slop: u32) -> usi
     let mut count = 0;
     let left_len = left.len();
     let right_len = right.len();
-    // Is the current last value guaranteed to be the final value.
     while left_index < left_len && right_index < right_len {
         let left_val = left[left_index];
         let right_val = right[right_index];
