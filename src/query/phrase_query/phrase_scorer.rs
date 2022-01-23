@@ -163,7 +163,7 @@ fn intersection_with_distance(left: &mut [u32], right: &[u32], slop: u32) -> usi
         if left_val < right_slop {
             left_index += 1;
         } else if right_slop <= left_val && left_val <= right_val {
-            while left_index + 1 >= left_len {
+            while left_index + 1 < left_len {
                 // there could be a better match
                 let next_left_val = left[left_index + 1];
                 if next_left_val > right_val {
