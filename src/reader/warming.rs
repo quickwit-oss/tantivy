@@ -1,12 +1,13 @@
 use std::{
     collections::HashSet,
+    ops::Deref,
     sync::{Arc, Mutex, Weak},
     thread::JoinHandle,
     time::Duration,
 };
 
+use crate::Inventory;
 use crate::{Executor, Searcher, SearcherGeneration, TantivyError};
-use crate::{Inventory, TrackedObject};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -18,7 +19,7 @@ pub trait Warmer: Sync + Send {
     fn warm(&self, searcher: &Searcher) -> crate::Result<()>;
 
     /// Discards internal state for any [SearcherGeneration] not provided.
-    fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]);
+    fn garbage_collect(&self, live_generations: &[&SearcherGeneration]);
 }
 
 /// Warming-related state with interior mutability.
@@ -115,8 +116,12 @@ impl WarmingStateInner {
         if gc_not_required {
             return false;
         }
+        let live_generation_refs = live_generations
+            .iter()
+            .map(Deref::deref)
+            .collect::<Vec<_>>();
         for warmer in self.pruned_warmers() {
-            warmer.garbage_collect(&live_generations);
+            warmer.garbage_collect(&live_generation_refs);
         }
         self.warmed_generation_ids = live_generation_ids;
         true
@@ -173,7 +178,6 @@ mod tests {
         },
     };
 
-    use crate::TrackedObject;
     use crate::{
         core::searcher::SearcherGeneration,
         directory::RamDirectory,
@@ -227,7 +231,7 @@ mod tests {
             Ok(())
         }
 
-        fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]) {
+        fn garbage_collect(&self, live_generations: &[&SearcherGeneration]) {
             self.gc_calls
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let active_segment_ids = live_generations
