@@ -6,7 +6,7 @@ use tantivy::collector::TopDocs;
 use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, FAST, TEXT};
-use tantivy::{doc, DocAddress, DocId, Index, IndexReader, SegmentReader, TrackedObject};
+use tantivy::{doc, DocAddress, DocId, Index, IndexReader, SegmentReader};
 use tantivy::{Opstamp, Searcher, SearcherGeneration, SegmentId, Warmer};
 
 // This example shows how warmers can be used to
@@ -69,7 +69,7 @@ impl Warmer for DynamicPriceColumn {
         Ok(())
     }
 
-    fn garbage_collect(&self, live_generations: &[TrackedObject<SearcherGeneration>]) {
+    fn garbage_collect(&self, live_generations: &[&SearcherGeneration]) {
         let live_segment_id_and_delete_ops: HashSet<(SegmentId, Option<Opstamp>)> =
             live_generations
                 .iter()
