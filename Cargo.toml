@@ -78,11 +78,6 @@ opt-level = 3
 debug = false
 debug-assertions = false
 
-[profile.bench]
-opt-level = 3
-debug = true
-debug-assertions = false
-
 [profile.test]
 debug-assertions = true
 overflow-checks = true
@@ -115,8 +110,4 @@ required-features = ["fail/failpoints"]
 
 [[bench]]
 name = "analyzer"
-harness = false
-
-[[bench]]
-name = "index-bench"
 harness = false

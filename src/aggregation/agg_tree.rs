@@ -1,13 +1,13 @@
 use std::{collections::HashMap, ops::Range};
 
-type Aggregations = HashMap<String, Aggregation>;
+pub type Aggregations = HashMap<String, Aggregation>;
 
 /// Aggregation tree.
 ///
 pub enum Aggregation {
     BucketAggregation {
         bucket_agg: BucketAggregation,
-        sub_aggregation: Option<Box<Aggregations>>,
+        sub_aggregation: Aggregations,
     },
     MetricAggregation(MetricAggregation),
 }
@@ -97,7 +97,7 @@ mod tests {
                 field: "test".to_string(),
                 buckets: vec![0..60, 60..90, 90..110],
             },
-            sub_aggregation: Some(Box::new(sub_aggregation)),
+            sub_aggregation,
         };
     }
     //#[test]

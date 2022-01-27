@@ -6,49 +6,19 @@ use crate::{
     SegmentReader,
 };
 
-pub(crate) struct AverageSegmentAggregator {
-    stats: AverageData,
-    fast_field: DynamicFastFieldReader<u64>,
-}
-
-impl AverageSegmentAggregator {
-    fn new(fast_field: DynamicFastFieldReader<u64>) -> Self {
-        AverageSegmentAggregator {
-            fast_field,
-            stats: Default::default(),
-        }
-    }
-}
-
-#[derive(Default)]
-pub struct AverageData {
-    sum: u64,
-    num_vals: u64,
-}
-
-impl AverageData {
-    fn finalize(&self) -> f64 {
-        self.sum as f64 / self.num_vals as f64
-    }
-}
-
-impl SegmentCollector for AverageSegmentAggregator {
-    type Fruit = AverageData;
-
-    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
-        let val = self.fast_field.get(doc);
-        self.stats.sum += val;
-        self.stats.num_vals += 1;
-    }
-
-    fn harvest(self) -> Self::Fruit {
-        self.stats
-    }
-}
-
+// Collector
 pub(crate) struct AverageAggregator {
     stats: AverageData,
     field: Field,
+}
+
+impl AverageAggregator {
+    pub(crate) fn new(field: Field) -> Self {
+        AverageAggregator {
+            field,
+            stats: Default::default(),
+        }
+    }
 }
 
 impl Collector for AverageAggregator {
@@ -79,8 +49,54 @@ impl Collector for AverageAggregator {
     }
 }
 
+// SegmentCollector
+
+pub(crate) struct AverageSegmentAggregator {
+    stats: AverageData,
+    fast_field: DynamicFastFieldReader<u64>,
+}
+
+impl AverageSegmentAggregator {
+    pub(crate) fn new(fast_field: DynamicFastFieldReader<u64>) -> Self {
+        AverageSegmentAggregator {
+            fast_field,
+            stats: Default::default(),
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct AverageData {
+    pub sum: u64,
+    pub num_vals: u64,
+}
+
+impl AverageData {
+    pub fn merge_fruits(&mut self, other: &AverageData) {
+        self.sum += other.sum;
+        self.num_vals += other.num_vals;
+    }
+    fn finalize(&self) -> f64 {
+        self.sum as f64 / self.num_vals as f64
+    }
+}
+
+impl SegmentCollector for AverageSegmentAggregator {
+    type Fruit = AverageData;
+
+    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
+        let val = self.fast_field.get(doc);
+        self.stats.sum += val;
+        self.stats.num_vals += 1;
+    }
+
+    fn harvest(self) -> Self::Fruit {
+        self.stats
+    }
+}
+
 impl SubAggregationCollector for AverageSegmentAggregator {
-    type Fruit = serde_json::Value;
+    type Fruit = AverageData;
 
     fn collect(&mut self, _result: BucketAggregationResult) {
         todo!()
