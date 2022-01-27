@@ -1,21 +1,12 @@
 
 [![Docs](https://docs.rs/tantivy/badge.svg)](https://docs.rs/crate/tantivy/)
-[![Build Status](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/quickwit-inc/tantivy/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/quickwit-inc/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/quickwit-inc/tantivy)
+[![Build Status](https://github.com/quickwit-oss/tantivy/actions/workflows/test.yml/badge.svg)](https://github.com/quickwit-oss/tantivy/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/quickwit-oss/tantivy/branch/main/graph/badge.svg)](https://codecov.io/gh/quickwit-oss/tantivy)
 [![Join the chat at https://discord.gg/MT27AG5EVE](https://shields.io/discord/908281611840282624?label=chat%20on%20discord)](https://discord.gg/MT27AG5EVE)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/tantivy.svg)](https://crates.io/crates/tantivy)
 
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
-
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/0)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/0)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/1)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/1)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/2)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/2)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/3)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/3)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/4)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/4)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/5)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/5)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/6)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/6)
-[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/7)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/7)
 
 **Tantivy** is a **full text search engine library** written in Rust.
 
@@ -27,7 +18,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Benchmark
 
-The following [benchmark](https://tantivy-search.github.io/bench/) break downs 
+The following [benchmark](https://tantivy-search.github.io/bench/) break downs
 performance for different type of queries / collection.
 
 Your mileage WILL vary depending on the nature of queries and their load.
@@ -57,7 +48,7 @@ Your mileage WILL vary depending on the nature of queries and their load.
 ## Non-features
 
 - Distributed search is out of the scope of Tantivy. That being said, Tantivy is a
-library upon which one could build a distributed search. Serializable/mergeable collector state for instance, 
+library upon which one could build a distributed search. Serializable/mergeable collector state for instance,
 are within the scope of Tantivy.
 
 
@@ -66,14 +57,14 @@ are within the scope of Tantivy.
 Tantivy works on stable Rust (>= 1.27) and supports Linux, MacOS, and Windows.
 
 - [Tantivy's simple search example](https://tantivy-search.github.io/examples/basic_search.html)
-- [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli) - `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
+- [tantivy-cli and its tutorial](https://github.com/quickwit-oss/tantivy-cli) - `tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
 index documents, and search via the CLI or a small server with a REST API.
 It walks you through getting a wikipedia search engine up and running in a few minutes.
 - [Reference doc for the last released version](https://docs.rs/tantivy/)
 
 # How can I support this project?
 
-There are many ways to support this project. 
+There are many ways to support this project.
 
 - Use Tantivy and tell us about your experience on [Discord](https://discord.gg/MT27AG5EVE) or by email (paul.masurel@gmail.com)
 - Report bugs
@@ -92,7 +83,7 @@ Tantivy compiles on stable Rust but requires `Rust >= 1.27`.
 To check out and run tests, you can simply run:
 
 ```bash
-    git clone https://github.com/quickwit-inc/tantivy.git
+    git clone https://github.com/quickwit-oss/tantivy.git
     cd tantivy
     cargo build
 ```

@@ -66,9 +66,9 @@ fn test_write_commit_fails() -> tantivy::Result<()> {
 }
 
 // Motivated by
-// - https://github.com/quickwit-inc/quickwit/issues/730
+// - https://github.com/quickwit-oss/quickwit/issues/730
 // Details at
-// - https://github.com/quickwit-inc/tantivy/issues/1198
+// - https://github.com/quickwit-oss/tantivy/issues/1198
 #[test]
 fn test_fail_on_flush_segment() -> tantivy::Result<()> {
     let _fail_scenario_guard = fail::FailScenario::setup();
