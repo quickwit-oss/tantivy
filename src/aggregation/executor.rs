@@ -5,7 +5,7 @@ use crate::{
         metric::{AverageAggregator, AverageSegmentAggregator},
         MetricAggregation,
     },
-    collector::{Collector, SegmentCollector},
+    collector::{Collector, DistributedCollector, SegmentCollector},
     schema::Schema,
     Index,
 };
@@ -65,6 +65,28 @@ struct AggregationSegmentCollector {
     agg: Aggregations,
     schema: Schema,
     result: AggregationResultTree,
+}
+
+impl DistributedCollector for AggregationCollector {
+    type Fruit = AggregationResultTree;
+
+    type Child = AggregationSegmentCollector;
+
+    fn for_segment(
+        &self,
+        segment_local_id: crate::SegmentOrdinal,
+        segment: &crate::SegmentReader,
+    ) -> crate::Result<Self::Child> {
+        todo!()
+    }
+
+    fn requires_scoring(&self) -> bool {
+        todo!()
+    }
+
+    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+        todo!()
+    }
 }
 
 impl Collector for AggregationCollector {

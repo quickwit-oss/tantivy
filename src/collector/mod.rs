@@ -119,6 +119,12 @@ pub use self::filter_collector_wrapper::FilterCollector;
 /// e.g. `usize` for the `Count` collector.
 pub trait Fruit: Send + downcast_rs::Downcast {}
 
+/// `MergeableFruit` is the type for the result of our collection in the distributed collector.
+pub trait MergeableFruit: Send + downcast_rs::Downcast {
+    /// Merge other Fruit into self.
+    fn merge_fruit(&mut self, other: &Self);
+}
+
 impl<T> Fruit for T where T: Send + downcast_rs::Downcast {}
 
 /// Collectors are in charge of collecting and retaining relevant
@@ -185,6 +191,36 @@ pub trait Collector: Sync + Send {
         }
         Ok(segment_collector.harvest())
     }
+}
+
+/// DistributedCollector is a specialized collector that ensures Fruits can be merged.
+///
+/// Segments are not guaranteed to be visited in any specific order.
+pub trait DistributedCollector: Sync + Send {
+    /// `Fruit` is the type for the result of our collection.
+    /// e.g. `usize` for the `Count` collector.
+    type Fruit: MergeableFruit;
+
+    /// Type of the `SegmentCollector` associated to this collector.
+    type Child: SegmentCollector;
+
+    /// `set_segment` is called before beginning to enumerate
+    /// on this segment.
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentOrdinal,
+        segment: &SegmentReader,
+    ) -> crate::Result<Self::Child>;
+
+    /// Returns true iff the collector requires to compute scores for documents.
+    fn requires_scoring(&self) -> bool;
+
+    /// Combines the fruit associated to the collection of each segments
+    /// into one fruit.
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<<Self::Child as SegmentCollector>::Fruit>,
+    ) -> crate::Result<Self::Fruit>;
 }
 
 impl<TSegmentCollector: SegmentCollector> SegmentCollector for Option<TSegmentCollector> {
