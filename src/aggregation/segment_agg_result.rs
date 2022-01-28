@@ -1,9 +1,15 @@
 use super::metric::AverageData;
-use crate::DocId;
+use crate::{collector::MergeableFruit, DocId};
 use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct AggregationResultTree(HashMap<String, AggregationResult>);
+
+impl MergeableFruit for AggregationResultTree {
+    fn merge_fruit(&mut self, other: &Self) {
+        self.merge_fruits(other);
+    }
+}
 
 impl AggregationResultTree {
     fn merge_fruits(&mut self, other: &AggregationResultTree) {
