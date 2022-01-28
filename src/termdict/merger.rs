@@ -1,11 +1,9 @@
-use crate::postings::TermInfo;
-use crate::termdict::TermDictionary;
-use crate::termdict::TermOrdinal;
-use crate::termdict::TermStreamer;
-use tantivy_fst::map::OpBuilder;
-use tantivy_fst::map::Union;
+use tantivy_fst::map::{OpBuilder, Union};
 use tantivy_fst::raw::IndexedValue;
 use tantivy_fst::Streamer;
+
+use crate::postings::TermInfo;
+use crate::termdict::{TermDictionary, TermOrdinal, TermStreamer};
 
 /// Given a list of sorted term streams,
 /// returns an iterator over sorted unique terms.
@@ -23,7 +21,6 @@ pub struct TermMerger<'a> {
 
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
-    ///
     pub fn new(streams: Vec<TermStreamer<'a>>) -> TermMerger<'a> {
         let mut op_builder = OpBuilder::new();
         let mut dictionaries = vec![];
@@ -98,13 +95,14 @@ impl<'a> TermMerger<'a> {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+    use test::{self, Bencher};
+
     use super::TermMerger;
     use crate::directory::FileSlice;
     use crate::postings::TermInfo;
     use crate::termdict::{TermDictionary, TermDictionaryBuilder};
-    use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
-    use test::{self, Bencher};
 
     fn make_term_info(term_ord: u64) -> TermInfo {
         let offset = |term_ord: u64| (term_ord * 100 + term_ord * term_ord) as usize;

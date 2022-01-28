@@ -1,12 +1,11 @@
-use super::term_weight::TermWeight;
-use crate::query::bm25::Bm25Weight;
-use crate::query::Weight;
-use crate::query::{Explanation, Query};
-use crate::schema::IndexRecordOption;
-use crate::Searcher;
-use crate::Term;
 use std::collections::BTreeMap;
 use std::fmt;
+
+use super::term_weight::TermWeight;
+use crate::query::bm25::Bm25Weight;
+use crate::query::{Explanation, Query, Weight};
+use crate::schema::IndexRecordOption;
+use crate::{Searcher, Term};
 
 /// A Term query matches all of the documents
 /// containing a specific term.

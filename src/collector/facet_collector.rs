@@ -1,20 +1,13 @@
-use crate::collector::Collector;
-use crate::collector::SegmentCollector;
-use crate::fastfield::FacetReader;
-use crate::schema::Facet;
-use crate::schema::Field;
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
 use std::cmp::Ordering;
-use std::collections::btree_map;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::collections::BinaryHeap;
+use std::collections::{btree_map, BTreeMap, BTreeSet, BinaryHeap};
 use std::iter::Peekable;
 use std::ops::Bound;
 use std::{u64, usize};
+
+use crate::collector::{Collector, SegmentCollector};
+use crate::fastfield::FacetReader;
+use crate::schema::{Facet, Field};
+use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 struct Hit<'a> {
     count: u64,
@@ -240,9 +233,7 @@ impl FacetCollector {
     /// If you need the correct number of unique documents for two such facets,
     /// just add them in separate `FacetCollector`.
     pub fn add_facet<T>(&mut self, facet_from: T)
-    where
-        Facet: From<T>,
-    {
+    where Facet: From<T> {
         let facet = Facet::from(facet_from);
         for old_facet in &self.facets {
             assert!(
@@ -402,9 +393,7 @@ impl FacetCounts {
     /// Returns an iterator over all of the facet count pairs inside this result.
     /// See the documentation for [FacetCollector] for a usage example.
     pub fn get<T>(&self, facet_from: T) -> FacetChildIterator<'_>
-    where
-        Facet: From<T>,
-    {
+    where Facet: From<T> {
         let facet = Facet::from(facet_from);
         let left_bound = Bound::Excluded(facet.clone());
         let right_bound = if facet.is_root() {
@@ -423,9 +412,7 @@ impl FacetCounts {
     /// Returns a vector of top `k` facets with their counts, sorted highest-to-lowest by counts.
     /// See the documentation for [FacetCollector] for a usage example.
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
-    where
-        Facet: From<T>,
-    {
+    where Facet: From<T> {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
@@ -458,16 +445,18 @@ impl FacetCounts {
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
+    use rand::distributions::Uniform;
+    use rand::prelude::SliceRandom;
+    use rand::{thread_rng, Rng};
+
     use super::{FacetCollector, FacetCounts};
     use crate::collector::Count;
     use crate::core::Index;
     use crate::query::{AllQuery, QueryParser, TermQuery};
     use crate::schema::{Document, Facet, FacetOptions, Field, IndexRecordOption, Schema};
     use crate::Term;
-    use rand::distributions::Uniform;
-    use rand::prelude::SliceRandom;
-    use rand::{thread_rng, Rng};
-    use std::iter;
 
     #[test]
     fn test_facet_collector_drilldown() -> crate::Result<()> {
@@ -522,8 +511,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Tried to add a facet which is a descendant of \
-                               an already added facet.")]
+    #[should_panic(
+        expected = "Tried to add a facet which is a descendant of an already added facet."
+    )]
     fn test_misused_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field::from_field_id(0));
         facet_collector.add_facet(Facet::from("/country"));
@@ -700,13 +690,14 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use rand::seq::SliceRandom;
+    use rand::thread_rng;
+    use test::Bencher;
+
     use crate::collector::FacetCollector;
     use crate::query::AllQuery;
     use crate::schema::{Facet, Schema, INDEXED};
     use crate::Index;
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
-    use test::Bencher;
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {

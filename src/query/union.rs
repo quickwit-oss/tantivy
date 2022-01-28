@@ -1,9 +1,9 @@
+use common::TinySet;
+
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 use crate::query::Scorer;
-use crate::DocId;
-use crate::Score;
-use common::TinySet;
+use crate::{DocId, Score};
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
@@ -14,9 +14,7 @@ const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 //
 // Also, it does not "yield" any elements.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-where
-    P: FnMut(&mut T) -> bool,
-{
+where P: FnMut(&mut T) -> bool {
     let mut i = 0;
     while i < v.len() {
         if predicate(&mut v[i]) {
@@ -249,16 +247,14 @@ where
 #[cfg(test)]
 mod tests {
 
-    use super::Union;
-    use super::HORIZON;
+    use std::collections::BTreeSet;
+
+    use super::{Union, HORIZON};
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::DoNothingCombiner;
-    use crate::query::ConstScorer;
-    use crate::query::VecDocSet;
-    use crate::tests;
-    use crate::DocId;
-    use std::collections::BTreeSet;
+    use crate::query::{ConstScorer, VecDocSet};
+    use crate::{tests, DocId};
 
     fn aux_test_union(vals: Vec<Vec<u32>>) {
         let mut val_set: BTreeSet<u32> = BTreeSet::new();
@@ -396,12 +392,11 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use test::Bencher;
+
     use crate::query::score_combiner::DoNothingCombiner;
     use crate::query::{ConstScorer, Union, VecDocSet};
-    use crate::DocId;
-    use crate::DocSet;
-    use crate::{tests, TERMINATED};
-    use test::Bencher;
+    use crate::{tests, DocId, DocSet, TERMINATED};
 
     #[bench]
     fn bench_union_3_high(bench: &mut Bencher) {

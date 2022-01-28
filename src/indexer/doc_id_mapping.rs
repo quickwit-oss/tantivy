@@ -1,13 +1,12 @@
 //! This module is used when sorting the index by a property, e.g.
 //! to get mappings from old doc_id to new doc_id and vice versa, after sorting
-//!
+
+use std::cmp::Reverse;
+use std::ops::Index;
 
 use super::SegmentWriter;
-use crate::{
-    schema::{Field, Schema},
-    DocId, IndexSortByField, Order, SegmentOrdinal, TantivyError,
-};
-use std::{cmp::Reverse, ops::Index};
+use crate::schema::{Field, Schema};
+use crate::{DocId, IndexSortByField, Order, SegmentOrdinal, TantivyError};
 
 /// Struct to provide mapping from new doc_id to old doc_id and segment.
 #[derive(Clone)]
@@ -152,11 +151,12 @@ pub(crate) fn get_doc_id_mapping_from_field(
 
 #[cfg(test)]
 mod tests_indexsorting {
+    use crate::collector::TopDocs;
     use crate::fastfield::FastFieldReader;
     use crate::indexer::doc_id_mapping::DocIdMapping;
-    use crate::{collector::TopDocs, query::QueryParser, schema::*};
-    use crate::{schema::Schema, DocAddress};
-    use crate::{Index, IndexSettings, IndexSortByField, Order};
+    use crate::query::QueryParser;
+    use crate::schema::{Schema, *};
+    use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order};
 
     fn create_test_index(
         index_settings: Option<IndexSettings>,
@@ -217,7 +217,7 @@ mod tests_indexsorting {
         ];
 
         for option in options {
-            //let options = get_text_options();
+            // let options = get_text_options();
             // no index_sort
             let index = create_test_index(None, option.clone())?;
             let my_text_field = index.schema().get_field("text_field").unwrap();
@@ -318,7 +318,7 @@ mod tests_indexsorting {
                     .doc(DocAddress::new(0, 3))?
                     .get_first(my_string_field)
                     .unwrap()
-                    .text(),
+                    .as_text(),
                 Some("blublub")
             );
         }
@@ -341,7 +341,7 @@ mod tests_indexsorting {
                     .doc(DocAddress::new(0, 0))?
                     .get_first(my_string_field)
                     .unwrap()
-                    .text(),
+                    .as_text(),
                 Some("blublub")
             );
             let doc = searcher.doc(DocAddress::new(0, 4))?;
@@ -363,7 +363,7 @@ mod tests_indexsorting {
         {
             let doc = searcher.doc(DocAddress::new(0, 4))?;
             assert_eq!(
-                doc.get_first(my_string_field).unwrap().text(),
+                doc.get_first(my_string_field).unwrap().as_text(),
                 Some("blublub")
             );
         }

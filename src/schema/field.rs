@@ -1,7 +1,7 @@
-use common::BinarySerializable;
 use std::io;
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
+
+use common::BinarySerializable;
 
 /// `Field` is represented by an unsigned 32-bit integer type
 /// The schema holds the mapping between field names and `Field` objects.

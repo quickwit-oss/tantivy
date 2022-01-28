@@ -1,8 +1,7 @@
 mod bitpacker;
 mod blocked_bitpacker;
 
-pub use crate::bitpacker::BitPacker;
-pub use crate::bitpacker::BitUnpacker;
+pub use crate::bitpacker::{BitPacker, BitUnpacker};
 pub use crate::blocked_bitpacker::BlockedBitpacker;
 
 /// Computes the number of bits that will be used for bitpacking.

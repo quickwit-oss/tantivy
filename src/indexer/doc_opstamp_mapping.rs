@@ -1,5 +1,4 @@
-use crate::DocId;
-use crate::Opstamp;
+use crate::{DocId, Opstamp};
 
 // Doc to opstamp is used to identify which
 // document should be deleted.

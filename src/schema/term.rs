@@ -1,11 +1,10 @@
-use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::{fmt, str};
 
 use super::Field;
 use crate::fastfield::FastValue;
 use crate::schema::{Facet, Type};
 use crate::DateTime;
-use std::str;
 
 /// Size (in bytes) of the buffer of a fast value (u64, i64, f64, or date) term.
 /// <field> + <type byte> + <value len>
@@ -16,8 +15,7 @@ const FAST_VALUE_TERM_LEN: usize = 4 + 1 + 8;
 /// It actually wraps a `Vec<u8>`.
 #[derive(Clone)]
 pub struct Term<B = Vec<u8>>(B)
-where
-    B: AsRef<[u8]>;
+where B: AsRef<[u8]>;
 
 impl Term {
     pub(crate) fn new() -> Term {
@@ -125,8 +123,7 @@ impl Term {
 }
 
 impl<B> Ord for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
@@ -134,8 +131,7 @@ where
 }
 
 impl<B> PartialOrd for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -143,8 +139,7 @@ where
 }
 
 impl<B> PartialEq for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
@@ -154,8 +149,7 @@ where
 impl<B> Eq for Term<B> where B: AsRef<[u8]> {}
 
 impl<B> Hash for Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.as_ref().hash(state)
@@ -163,8 +157,7 @@ where
 }
 
 impl<B> Term<B>
-where
-    B: AsRef<[u8]>,
+where B: AsRef<[u8]>
 {
     /// Wraps a object holding bytes
     pub fn wrap(data: B) -> Term<B> {

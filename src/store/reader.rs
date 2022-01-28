@@ -1,16 +1,20 @@
+use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+use common::{BinarySerializable, HasLen, VInt};
+use lru::LruCache;
+
+use super::footer::DocStoreFooter;
+use super::index::SkipIndex;
 use super::Compressor;
-use super::{footer::DocStoreFooter, index::SkipIndex};
 use crate::directory::{FileSlice, OwnedBytes};
+use crate::error::DataCorruption;
+use crate::fastfield::AliveBitSet;
 use crate::schema::Document;
 use crate::space_usage::StoreSpaceUsage;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use crate::{error::DataCorruption, fastfield::AliveBitSet};
-use common::{BinarySerializable, HasLen, VInt};
-use lru::LruCache;
-use std::io;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 const LRU_CACHE_CAPACITY: usize = 100;
 
@@ -105,14 +109,13 @@ impl StoreReader {
         Ok(Document::deserialize(&mut doc_bytes)?)
     }
 
-    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a document and its start and end
-    /// position within the block.
+    /// Reads raw bytes of a given document. Returns `RawDocument`, which contains the block of a
+    /// document and its start and end position within the block.
     ///
     /// Calling `.get(doc)` is relatively costly as it requires
     /// decompressing a compressed block. The store utilizes a LRU cache,
     /// so accessing docs from the same compressed block should be faster.
     /// For that reason a store reader should be kept and reused.
-    ///
     pub fn get_document_bytes(&self, doc_id: DocId) -> crate::Result<OwnedBytes> {
         let checkpoint = self.block_checkpoint(doc_id).ok_or_else(|| {
             crate::TantivyError::InvalidArgument(format!("Failed to lookup Doc #{}.", doc_id))
@@ -196,7 +199,8 @@ impl StoreReader {
                 let block = block
                     .ok_or_else(|| {
                         DataCorruption::comment_only(
-                            "the current checkpoint in the doc store iterator is none, this should never happen",
+                            "the current checkpoint in the doc store iterator is none, this \
+                             should never happen",
                         )
                     })?
                     .map_err(|error_kind| {
@@ -237,14 +241,16 @@ impl StoreReader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::schema::Document;
-    use crate::schema::Field;
-    use crate::{directory::RamDirectory, store::tests::write_lorem_ipsum_store, Directory};
     use std::path::Path;
 
+    use super::*;
+    use crate::directory::RamDirectory;
+    use crate::schema::{Document, Field};
+    use crate::store::tests::write_lorem_ipsum_store;
+    use crate::Directory;
+
     fn get_text_field<'a>(doc: &'a Document, field: &'a Field) -> Option<&'a str> {
-        doc.get_first(*field).and_then(|f| f.text())
+        doc.get_first(*field).and_then(|f| f.as_text())
     }
 
     #[test]

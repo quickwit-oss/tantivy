@@ -1,21 +1,18 @@
+use std::collections::BinaryHeap;
+use std::fmt;
+use std::marker::PhantomData;
+
 use super::Collector;
-use crate::collector::top_collector::{ComparableDoc, TopCollector};
+use crate::collector::custom_score_top_collector::CustomScoreTopCollector;
+use crate::collector::top_collector::{ComparableDoc, TopCollector, TopSegmentCollector};
 use crate::collector::tweak_score_top_collector::TweakedScoreTopCollector;
 use crate::collector::{
     CustomScorer, CustomSegmentScorer, ScoreSegmentTweaker, ScoreTweaker, SegmentCollector,
 };
-use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
 use crate::query::Weight;
 use crate::schema::Field;
-use crate::DocAddress;
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
-use crate::{collector::custom_score_top_collector::CustomScoreTopCollector, fastfield::FastValue};
-use crate::{collector::top_collector::TopSegmentCollector, TantivyError};
-use std::fmt;
-use std::{collections::BinaryHeap, marker::PhantomData};
+use crate::{DocAddress, DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 struct FastFieldConvertCollector<
     TCollector: Collector<Fruit = Vec<(u64, DocAddress)>>,
@@ -217,11 +214,12 @@ impl TopDocs {
 
     /// Set top-K to rank documents by a given fast field.
     ///
-    /// If the field is not a fast or does not exist, this method returns successfully (it is not aware of any schema).
-    /// An error will be returned at the moment of search.
+    /// If the field is not a fast or does not exist, this method returns successfully (it is not
+    /// aware of any schema). An error will be returned at the moment of search.
     ///
-    /// If the field is a FAST field but not a u64 field, search will return successfully but it will return
-    /// returns a monotonic u64-representation (ie. the order is still correct) of the requested field type.
+    /// If the field is a FAST field but not a u64 field, search will return successfully but it
+    /// will return returns a monotonic u64-representation (ie. the order is still correct) of
+    /// the requested field type.
     ///
     /// # Example
     ///
@@ -296,14 +294,15 @@ impl TopDocs {
 
     /// Set top-K to rank documents by a given fast field.
     ///
-    /// If the field is not a fast field, or its field type does not match the generic type, this method does not panic,
-    /// but an explicit error will be returned at the moment of collection.
+    /// If the field is not a fast field, or its field type does not match the generic type, this
+    /// method does not panic, but an explicit error will be returned at the moment of
+    /// collection.
     ///
     /// Note that this method is a generic. The requested fast field type will be often
     /// inferred in your code by the rust compiler.
     ///
-    /// Implementation-wise, for performance reason, tantivy will manipulate the u64 representation of your fast
-    /// field until the last moment.
+    /// Implementation-wise, for performance reason, tantivy will manipulate the u64 representation
+    /// of your fast field until the last moment.
     ///
     /// # Example
     ///
@@ -715,10 +714,7 @@ mod tests {
     use crate::collector::Collector;
     use crate::query::{AllQuery, Query, QueryParser};
     use crate::schema::{Field, Schema, FAST, STORED, TEXT};
-    use crate::Index;
-    use crate::IndexWriter;
-    use crate::Score;
-    use crate::{DocAddress, DocId, SegmentReader};
+    use crate::{DocAddress, DocId, Index, IndexWriter, Score, SegmentReader};
 
     fn make_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();

@@ -1,5 +1,6 @@
-use once_cell::sync::Lazy;
 use std::path::PathBuf;
+
+use once_cell::sync::Lazy;
 
 /// A directory lock.
 ///
@@ -11,7 +12,6 @@ use std::path::PathBuf;
 /// - [META_LOCK]
 ///
 /// Check out these locks documentation for more information.
-///
 #[derive(Debug)]
 pub struct Lock {
     /// The lock needs to be associated with its own file `path`.

@@ -1,8 +1,8 @@
 use std::path::Path;
+
 use tantivy::directory::{Directory, ManagedDirectory, RamDirectory, TerminatingWrite};
-use tantivy::doc;
 use tantivy::schema::{Schema, TEXT};
-use tantivy::{Index, Term};
+use tantivy::{doc, Index, Term};
 
 #[test]
 fn test_failpoints_managed_directory_gc_if_delete_fails() {

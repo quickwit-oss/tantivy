@@ -1,8 +1,8 @@
-use crate::directory::CompositeWrite;
-use crate::directory::WritePtr;
-use crate::schema::Field;
 use std::io;
 use std::io::Write;
+
+use crate::directory::{CompositeWrite, WritePtr};
+use crate::schema::Field;
 
 /// The fieldnorms serializer is in charge of
 /// the serialization of field norms for all fields.

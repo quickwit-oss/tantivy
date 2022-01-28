@@ -1,14 +1,12 @@
-use super::SegmentComponent;
-use crate::core::Index;
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
-use crate::directory::error::{OpenReadError, OpenWriteError};
-use crate::directory::Directory;
-use crate::directory::{FileSlice, WritePtr};
-use crate::schema::Schema;
-use crate::Opstamp;
 use std::fmt;
 use std::path::PathBuf;
+
+use super::SegmentComponent;
+use crate::core::{Index, SegmentId, SegmentMeta};
+use crate::directory::error::{OpenReadError, OpenWriteError};
+use crate::directory::{Directory, FileSlice, WritePtr};
+use crate::schema::Schema;
+use crate::Opstamp;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]

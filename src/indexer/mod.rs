@@ -23,8 +23,6 @@ mod stamper;
 use crossbeam::channel;
 use smallvec::SmallVec;
 
-use crate::indexer::operation::AddOperation;
-
 pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::MergeOperation;
@@ -33,9 +31,9 @@ pub use self::prepared_commit::PreparedCommit;
 pub use self::segment_entry::SegmentEntry;
 pub use self::segment_manager::SegmentManager;
 pub use self::segment_serializer::SegmentSerializer;
-pub use self::segment_updater::merge_filtered_segments;
-pub use self::segment_updater::merge_indices;
+pub use self::segment_updater::{merge_filtered_segments, merge_indices};
 pub use self::segment_writer::SegmentWriter;
+use crate::indexer::operation::AddOperation;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;

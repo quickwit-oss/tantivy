@@ -1,4 +1,4 @@
-/*! Query Module */
+//! Query Module
 
 mod all_query;
 mod automaton_weight;
@@ -27,16 +27,12 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
-pub(crate) use self::bm25::Bm25Weight;
-pub use self::intersection::Intersection;
-pub use self::union::Union;
-
-#[cfg(test)]
-pub use self::vec_docset::VecDocSet;
+pub use tantivy_query_grammar::Occur;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
+pub(crate) use self::bm25::Bm25Weight;
 pub use self::boolean_query::BooleanQuery;
 pub use self::boost_query::BoostQuery;
 pub use self::empty_query::{EmptyQuery, EmptyScorer, EmptyWeight};
@@ -45,28 +41,28 @@ pub use self::explanation::Explanation;
 #[cfg(test)]
 pub(crate) use self::fuzzy_query::DfaWrapper;
 pub use self::fuzzy_query::FuzzyTermQuery;
-pub use self::intersection::intersect_scorers;
+pub use self::intersection::{intersect_scorers, Intersection};
 pub use self::more_like_this::{MoreLikeThisQuery, MoreLikeThisQueryBuilder};
 pub use self::phrase_query::PhraseQuery;
 pub use self::query::{Query, QueryClone};
-pub use self::query_parser::QueryParser;
-pub use self::query_parser::QueryParserError;
+pub use self::query_parser::{QueryParser, QueryParserError};
 pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
-pub use self::scorer::ConstScorer;
-pub use self::scorer::Scorer;
+pub use self::scorer::{ConstScorer, Scorer};
 pub use self::term_query::TermQuery;
+pub use self::union::Union;
+#[cfg(test)]
+pub use self::vec_docset::VecDocSet;
 pub use self::weight::Weight;
-pub use tantivy_query_grammar::Occur;
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::query::QueryParser;
     use crate::schema::{Schema, TEXT};
-    use crate::Index;
-    use crate::Term;
-    use std::collections::BTreeMap;
+    use crate::{Index, Term};
 
     #[test]
     fn test_query_terms() {

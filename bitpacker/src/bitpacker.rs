@@ -1,4 +1,5 @@
-use std::{convert::TryInto, io};
+use std::convert::TryInto;
+use std::io;
 
 pub struct BitPacker {
     mini_buffer: u64,

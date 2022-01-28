@@ -1,12 +1,11 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::{
-    query::{bm25::idf, BooleanQuery, BoostQuery, Occur, Query, TermQuery},
-    schema::{Field, FieldType, FieldValue, IndexRecordOption, Term, Value},
-    tokenizer::{BoxTokenStream, FacetTokenizer, PreTokenizedStream, Tokenizer},
-    DocAddress, Result, Searcher, TantivyError,
-};
+use crate::query::bm25::idf;
+use crate::query::{BooleanQuery, BoostQuery, Occur, Query, TermQuery};
+use crate::schema::{Field, FieldType, IndexRecordOption, Term, Value};
+use crate::tokenizer::{BoxTokenStream, FacetTokenizer, PreTokenizedStream, Tokenizer};
+use crate::{DocAddress, Result, Searcher, TantivyError};
 
 #[derive(Debug, PartialEq)]
 struct ScoreTerm {
@@ -92,7 +91,7 @@ impl MoreLikeThis {
     pub fn query_with_document_fields(
         &self,
         searcher: &Searcher,
-        doc_fields: &[(Field, Vec<FieldValue>)],
+        doc_fields: &[(Field, Vec<Value>)],
     ) -> Result<BooleanQuery> {
         let score_terms = self.retrieve_terms_from_doc_fields(searcher, doc_fields)?;
         let query = self.create_query(score_terms);
@@ -126,20 +125,17 @@ impl MoreLikeThis {
         doc_address: DocAddress,
     ) -> Result<Vec<ScoreTerm>> {
         let doc = searcher.doc(doc_address)?;
-        let field_to_field_values = doc
+        let field_to_values = doc
             .get_sorted_field_values()
             .iter()
             .map(|(field, values)| {
                 (
                     *field,
-                    values
-                        .iter()
-                        .map(|v| (**v).clone())
-                        .collect::<Vec<FieldValue>>(),
+                    values.iter().map(|v| (**v).clone()).collect::<Vec<Value>>(),
                 )
             })
             .collect::<Vec<_>>();
-        self.retrieve_terms_from_doc_fields(searcher, &field_to_field_values)
+        self.retrieve_terms_from_doc_fields(searcher, &field_to_values)
     }
 
     /// Finds terms for a more-like-this query.
@@ -147,15 +143,18 @@ impl MoreLikeThis {
     fn retrieve_terms_from_doc_fields(
         &self,
         searcher: &Searcher,
-        field_to_field_values: &[(Field, Vec<FieldValue>)],
+        field_to_values: &[(Field, Vec<Value>)],
     ) -> Result<Vec<ScoreTerm>> {
-        if field_to_field_values.is_empty() {
-            return Err(TantivyError::InvalidArgument("Cannot create more like this query on empty field values. The document may not have stored fields".to_string()));
+        if field_to_values.is_empty() {
+            return Err(TantivyError::InvalidArgument(
+                "Cannot create more like this query on empty field values. The document may not \
+                 have stored fields"
+                    .to_string(),
+            ));
         }
-
         let mut field_to_term_freq_map = HashMap::new();
-        for (field, field_values) in field_to_field_values {
-            self.add_term_frequencies(searcher, *field, field_values, &mut field_to_term_freq_map)?;
+        for (field, values) in field_to_values {
+            self.add_term_frequencies(searcher, *field, values, &mut field_to_term_freq_map)?;
         }
         self.create_score_term(searcher, field_to_term_freq_map)
     }
@@ -167,7 +166,7 @@ impl MoreLikeThis {
         &self,
         searcher: &Searcher,
         field: Field,
-        field_values: &[FieldValue],
+        values: &[Value],
         term_frequencies: &mut HashMap<Term, usize>,
     ) -> Result<()> {
         let schema = searcher.schema();
@@ -181,9 +180,9 @@ impl MoreLikeThis {
         // extract the raw value, possibly tokenizing & filtering to update the term frequency map
         match field_entry.field_type() {
             FieldType::Facet(_) => {
-                let facets: Vec<&str> = field_values
+                let facets: Vec<&str> = values
                     .iter()
-                    .map(|field_value| match *field_value.value() {
+                    .map(|value| match value {
                         Value::Facet(ref facet) => Ok(facet.encoded_str()),
                         _ => Err(TantivyError::InvalidArgument(
                             "invalid field value".to_string(),
@@ -202,8 +201,8 @@ impl MoreLikeThis {
             FieldType::Str(text_options) => {
                 let mut token_streams: Vec<BoxTokenStream> = vec![];
 
-                for field_value in field_values {
-                    match field_value.value() {
+                for value in values {
+                    match value {
                         Value::PreTokStr(tok_str) => {
                             token_streams.push(PreTokenizedStream::from(tok_str.clone()).into());
                         }
@@ -232,8 +231,8 @@ impl MoreLikeThis {
                 }
             }
             FieldType::U64(_) => {
-                for field_value in field_values {
-                    let val = field_value.value().u64_value().ok_or_else(|| {
+                for value in values {
+                    let val = value.as_u64().ok_or_else(|| {
                         TantivyError::InvalidArgument("invalid value".to_string())
                     })?;
                     if !self.is_noise_word(val.to_string()) {
@@ -243,11 +242,10 @@ impl MoreLikeThis {
                 }
             }
             FieldType::Date(_) => {
-                for field_value in field_values {
+                for value in values {
                     // TODO: Ask if this is the semantic (timestamp) we want
-                    let val = field_value
-                        .value()
-                        .date_value()
+                    let val = value
+                        .as_date()
                         .ok_or_else(|| TantivyError::InvalidArgument("invalid value".to_string()))?
                         .timestamp();
                     if !self.is_noise_word(val.to_string()) {
@@ -257,8 +255,8 @@ impl MoreLikeThis {
                 }
             }
             FieldType::I64(_) => {
-                for field_value in field_values {
-                    let val = field_value.value().i64_value().ok_or_else(|| {
+                for value in values {
+                    let val = value.as_i64().ok_or_else(|| {
                         TantivyError::InvalidArgument("invalid value".to_string())
                     })?;
                     if !self.is_noise_word(val.to_string()) {
@@ -268,8 +266,8 @@ impl MoreLikeThis {
                 }
             }
             FieldType::F64(_) => {
-                for field_value in field_values {
-                    let val = field_value.value().f64_value().ok_or_else(|| {
+                for value in values {
+                    let val = value.as_f64().ok_or_else(|| {
                         TantivyError::InvalidArgument("invalid value".to_string())
                     })?;
                     if !self.is_noise_word(val.to_string()) {

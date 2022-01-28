@@ -1,13 +1,12 @@
-use crate::directory::CompositeFile;
-use crate::directory::FileSlice;
-use crate::fastfield::MultiValuedFastFieldReader;
-use crate::fastfield::{BitpackedFastFieldReader, FastFieldNotAvailableError};
-use crate::fastfield::{BytesFastFieldReader, FastValue};
+use super::reader::DynamicFastFieldReader;
+use crate::directory::{CompositeFile, FileSlice};
+use crate::fastfield::{
+    BitpackedFastFieldReader, BytesFastFieldReader, FastFieldNotAvailableError, FastValue,
+    MultiValuedFastFieldReader,
+};
 use crate::schema::{Cardinality, Field, FieldType, Schema};
 use crate::space_usage::PerFieldSpaceUsage;
 use crate::TantivyError;
-
-use super::reader::DynamicFastFieldReader;
 
 /// Provides access to all of the BitpackedFastFieldReader.
 ///
@@ -131,10 +130,11 @@ impl FastFieldReaders {
         self.typed_fast_field_reader(field)
     }
 
-    /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the given
-    /// field is effectively of type `u64` or not.
+    /// Returns the `u64` fast field reader reader associated to `field`, regardless of whether the
+    /// given field is effectively of type `u64` or not.
     ///
-    /// If not, the fastfield reader will returns the u64-value associated to the original FastValue.
+    /// If not, the fastfield reader will returns the u64-value associated to the original
+    /// FastValue.
     pub fn u64_lenient(&self, field: Field) -> crate::Result<DynamicFastFieldReader<u64>> {
         self.typed_fast_field_reader(field)
     }
@@ -171,8 +171,8 @@ impl FastFieldReaders {
         self.typed_fast_field_multi_reader(field)
     }
 
-    /// Returns a `u64s` multi-valued fast field reader reader associated to `field`, regardless of whether the given
-    /// field is effectively of type `u64` or not.
+    /// Returns a `u64s` multi-valued fast field reader reader associated to `field`, regardless of
+    /// whether the given field is effectively of type `u64` or not.
     ///
     /// If `field` is not a u64 multi-valued fast field, this method returns an Error.
     pub fn u64s_lenient(&self, field: Field) -> crate::Result<MultiValuedFastFieldReader<u64>> {

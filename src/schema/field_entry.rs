@@ -1,10 +1,7 @@
-use crate::schema::FacetOptions;
-use crate::schema::TextOptions;
-use crate::schema::{is_valid_field_name, IntOptions};
+use serde::{Deserialize, Serialize};
 
 use crate::schema::bytes_options::BytesOptions;
-use crate::schema::FieldType;
-use serde::{Deserialize, Serialize};
+use crate::schema::{is_valid_field_name, FacetOptions, FieldType, IntOptions, TextOptions};
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`
@@ -146,12 +143,11 @@ impl FieldEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        schema::{Schema, TextFieldIndexing, TEXT},
-        Index,
-    };
     use serde_json;
+
+    use super::*;
+    use crate::schema::{Schema, TextFieldIndexing, TEXT};
+    use crate::Index;
 
     #[test]
     #[should_panic]

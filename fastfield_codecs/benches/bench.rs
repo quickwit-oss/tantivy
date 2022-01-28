@@ -4,14 +4,14 @@ extern crate test;
 
 #[cfg(test)]
 mod tests {
-    use fastfield_codecs::{
-        bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
-        linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer},
-        multilinearinterpol::{
-            MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
-        },
-        *,
+    use fastfield_codecs::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
+    use fastfield_codecs::linearinterpol::{
+        LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
     };
+    use fastfield_codecs::multilinearinterpol::{
+        MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+    };
+    use fastfield_codecs::*;
 
     fn get_data() -> Vec<u64> {
         let mut data: Vec<_> = (100..55000_u64)

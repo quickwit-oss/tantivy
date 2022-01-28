@@ -1,24 +1,20 @@
-use super::logical_ast::*;
-use crate::core::Index;
-use crate::query::BooleanQuery;
-use crate::query::EmptyQuery;
-use crate::query::Occur;
-use crate::query::PhraseQuery;
-use crate::query::Query;
-use crate::query::RangeQuery;
-use crate::query::TermQuery;
-use crate::query::{AllQuery, BoostQuery};
-use crate::schema::{Facet, FacetParseError, IndexRecordOption};
-use crate::schema::{Field, Schema};
-use crate::schema::{FieldType, Term};
-use crate::tokenizer::TokenizerManager;
-use crate::Score;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::{ParseFloatError, ParseIntError};
 use std::ops::Bound;
 use std::str::FromStr;
+
 use tantivy_query_grammar::{UserInputAst, UserInputBound, UserInputLeaf};
+
+use super::logical_ast::*;
+use crate::core::Index;
+use crate::query::{
+    AllQuery, BooleanQuery, BoostQuery, EmptyQuery, Occur, PhraseQuery, Query, RangeQuery,
+    TermQuery,
+};
+use crate::schema::{Facet, FacetParseError, Field, FieldType, IndexRecordOption, Schema, Term};
+use crate::tokenizer::TokenizerManager;
+use crate::Score;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -123,10 +119,9 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///
 /// The language covered by the current parser is extremely simple.
 ///
-/// * simple terms: "e.g.: `Barack Obama` are simply tokenized using
-///   tantivy's [`SimpleTokenizer`](../tokenizer/struct.SimpleTokenizer.html), hence
-///   becoming `["barack", "obama"]`. The terms are then searched within
-///   the default terms of the query parser.
+/// * simple terms: "e.g.: `Barack Obama` are simply tokenized using tantivy's
+///   [`SimpleTokenizer`](../tokenizer/struct.SimpleTokenizer.html), hence becoming `["barack",
+///   "obama"]`. The terms are then searched within the default terms of the query parser.
 ///
 ///   e.g. If `body` and `title` are default fields, our example terms are
 ///   `["title:barack", "body:barack", "title:obama", "body:obama"]`.
@@ -143,33 +138,35 @@ fn trim_ast(logical_ast: LogicalAst) -> Option<LogicalAst> {
 ///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
 ///
-/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is interpreted
+/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is
+///   interpreted
 /// as `(a AND b) OR c`.
 ///
-/// * In addition to the boolean operators, the `-`, `+` can help define. These operators
-///   are sufficient to express all queries using boolean operators. For instance `x AND y OR z` can
-///   be written (`(+x +y) z`). In addition, these operators can help define "required optional"
-///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.
+/// * In addition to the boolean operators, the `-`, `+` can help define. These operators are
+///   sufficient to express all queries using boolean operators. For instance `x AND y OR z` can be
+///   written (`(+x +y) z`). In addition, these operators can help define "required optional"
+///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the
+///   score.
 ///
-/// * negative terms: By prepending a term by a `-`, a term can be excluded
-///   from the search. This is useful for disambiguating a query.
-///   e.g. `apple -fruit`
+/// * negative terms: By prepending a term by a `-`, a term can be excluded from the search. This is
+///   useful for disambiguating a query. e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
 ///
-/// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
-///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed
-///   by "obama".
+/// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed. e.g.,
+///   `title:"Barack Obama"` will only find documents that have "barack" immediately followed by
+///   "obama".
 ///
 /// * range terms: Range searches can be done by specifying the start and end bound. These can be
-///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains
-///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
+///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains a
+///   word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
 ///   Inclusive bounds are `[]`, exclusive are `{}`.
 ///
-/// * date values: The query parser supports rfc3339 formatted dates. For example `"2002-10-02T15:00:00.05Z"`
-///   or `some_date_field:[2002-10-02T15:00:00Z TO 2002-10-02T18:00:00Z}`
+/// * date values: The query parser supports rfc3339 formatted dates. For example
+///   `"2002-10-02T15:00:00.05Z"` or `some_date_field:[2002-10-02T15:00:00Z TO
+///   2002-10-02T18:00:00Z}`
 ///
-/// *  all docs query: A plain `*` will match all documents in the index.
+/// * all docs query: A plain `*` will match all documents in the index.
 ///
 /// Parts of the queries can be boosted by appending `^boostfactor`.
 /// For instance, `"SRE"^2.0 OR devops^0.4` will boost documents containing `SRE` instead of
@@ -200,8 +197,7 @@ fn all_negative(ast: &LogicalAst) -> bool {
 impl QueryParser {
     /// Creates a `QueryParser`, given
     /// * schema - index Schema
-    /// * default_fields - fields used to search if no field is specifically defined
-    ///   in the query.
+    /// * default_fields - fields used to search if no field is specifically defined in the query.
     pub fn new(
         schema: Schema,
         default_fields: Vec<Field>,
@@ -583,19 +579,19 @@ fn convert_to_query(logical_ast: LogicalAst) -> Box<dyn Query> {
 
 #[cfg(test)]
 mod test {
+    use matches::assert_matches;
+
     use super::super::logical_ast::*;
-    use super::QueryParser;
-    use super::QueryParserError;
+    use super::{QueryParser, QueryParserError};
     use crate::query::Query;
-    use crate::schema::FacetOptions;
-    use crate::schema::Field;
-    use crate::schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
-    use crate::schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
+    use crate::schema::{
+        FacetOptions, Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions,
+        INDEXED, STORED, STRING, TEXT,
+    };
     use crate::tokenizer::{
         LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer, TokenizerManager,
     };
     use crate::Index;
-    use matches::assert_matches;
 
     fn make_schema() -> Schema {
         let mut schema_builder = Schema::builder();
@@ -691,7 +687,8 @@ mod test {
         let query = query_parser.parse_query("title:[A TO B]").unwrap();
         assert_eq!(
             format!("{:?}", query),
-            "Boost(query=RangeQuery { field: Field(0), value_type: Str, left_bound: Included([97]), right_bound: Included([98]) }, boost=2)"
+            "Boost(query=RangeQuery { field: Field(0), value_type: Str, left_bound: \
+             Included([97]), right_bound: Included([98]) }, boost=2)"
         );
     }
 

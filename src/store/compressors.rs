@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::io;
+
+use serde::{Deserialize, Serialize};
 
 pub trait StoreCompressor {
     fn compress(&self, uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>;

@@ -1,13 +1,9 @@
-use crate::schema;
-use crate::Index;
-use crate::IndexSettings;
-use crate::IndexSortByField;
-use crate::Order;
-use crate::Searcher;
-use crate::{doc, schema::*};
-use rand::thread_rng;
-use rand::Rng;
 use std::collections::HashSet;
+
+use rand::{thread_rng, Rng};
+
+use crate::schema::*;
+use crate::{doc, schema, Index, IndexSettings, IndexSortByField, Order, Searcher};
 
 fn check_index_content(searcher: &Searcher, vals: &[u64]) -> crate::Result<()> {
     assert!(searcher.segment_readers().len() < 20);
@@ -130,14 +126,12 @@ fn test_functional_indexing_sorted() -> crate::Result<()> {
     Ok(())
 }
 
-const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
-             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
-             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
-             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
-             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
-             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
-             proident, sunt in culpa qui officia deserunt mollit anim id est \
-             laborum.";
+const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod \
+                     tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, \
+                     quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo \
+                     consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse \
+                     cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat \
+                     non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
 fn get_text() -> String {
     use rand::seq::SliceRandom;
     let mut rng = thread_rng();

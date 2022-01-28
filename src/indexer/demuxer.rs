@@ -5,8 +5,8 @@ use crate::fastfield::AliveBitSet;
 use crate::{merge_filtered_segments, Directory, Index, IndexSettings, Segment, SegmentOrdinal};
 /// DemuxMapping can be used to reorganize data from multiple segments.
 ///
-/// DemuxMapping is useful in a multitenant settings, in which each document might actually belong to a different tenant.
-/// It allows to reorganize documents as follows:
+/// DemuxMapping is useful in a multitenant settings, in which each document might actually belong
+/// to a different tenant. It allows to reorganize documents as follows:
 ///
 /// e.g. if you have two tenant ids TENANT_A and TENANT_B and two segments with
 /// the documents (simplified)
@@ -18,7 +18,8 @@ use crate::{merge_filtered_segments, Directory, Index, IndexSettings, Segment, S
 /// Seg 2 [TENANT_B, TENANT_B]
 ///
 /// Demuxing is the tool for that.
-/// Semantically you can define a mapping from [old segment ordinal, old doc_id] -> [new segment ordinal].
+/// Semantically you can define a mapping from [old segment ordinal, old doc_id] -> [new segment
+/// ordinal].
 #[derive(Debug, Default)]
 pub struct DemuxMapping {
     /// [index old segment ordinal] -> [index doc_id] = new segment ordinal
@@ -132,27 +133,24 @@ pub fn demux(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        collector::TopDocs,
-        directory::RamDirectory,
-        query::QueryParser,
-        schema::{Schema, TEXT},
-        DocAddress, Term,
-    };
-
     use super::*;
+    use crate::collector::TopDocs;
+    use crate::directory::RamDirectory;
+    use crate::query::QueryParser;
+    use crate::schema::{Schema, TEXT};
+    use crate::{DocAddress, Term};
 
     #[test]
     fn test_demux_map_to_deletebitset() {
         let max_value = 2;
         let mut demux_mapping = DemuxMapping::default();
-        //segment ordinal 0 mapping
+        // segment ordinal 0 mapping
         let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
         doc_id_to_segment.set(0, 1);
         doc_id_to_segment.set(1, 0);
         demux_mapping.add(doc_id_to_segment);
 
-        //segment ordinal 1 mapping
+        // segment ordinal 1 mapping
         let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
         doc_id_to_segment.set(0, 1);
         doc_id_to_segment.set(1, 1);
@@ -235,13 +233,13 @@ mod tests {
         let mut demux_mapping = DemuxMapping::default();
         {
             let max_value = 2;
-            //segment ordinal 0 mapping
+            // segment ordinal 0 mapping
             let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
             doc_id_to_segment.set(0, 1);
             doc_id_to_segment.set(1, 0);
             demux_mapping.add(doc_id_to_segment);
 
-            //segment ordinal 1 mapping
+            // segment ordinal 1 mapping
             let mut doc_id_to_segment = DocIdToSegmentOrdinal::with_max_doc(max_value);
             doc_id_to_segment.set(0, 1);
             doc_id_to_segment.set(1, 1);

@@ -1,34 +1,26 @@
-use super::{segment::Segment, IndexSettings};
-use crate::core::Executor;
-use crate::core::IndexMeta;
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
-use crate::core::SegmentMetaInventory;
-use crate::core::META_FILEPATH;
-use crate::directory::error::OpenReadError;
-use crate::directory::ManagedDirectory;
-#[cfg(feature = "mmap")]
-use crate::directory::MmapDirectory;
-use crate::directory::INDEX_WRITER_LOCK;
-use crate::directory::{Directory, RamDirectory};
-use crate::error::DataCorruption;
-use crate::error::TantivyError;
-use crate::indexer::index_writer::{HEAP_SIZE_MIN, MAX_NUM_THREAD};
-use crate::indexer::segment_updater::save_new_metas;
-use crate::reader::IndexReader;
-use crate::reader::IndexReaderBuilder;
-use crate::schema::Field;
-use crate::schema::FieldType;
-use crate::schema::Schema;
-use crate::tokenizer::{TextAnalyzer, TokenizerManager};
-use crate::IndexWriter;
 use std::collections::HashSet;
 use std::fmt;
-
 #[cfg(feature = "mmap")]
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use super::segment::Segment;
+use super::IndexSettings;
+use crate::core::{
+    Executor, IndexMeta, SegmentId, SegmentMeta, SegmentMetaInventory, META_FILEPATH,
+};
+use crate::directory::error::OpenReadError;
+#[cfg(feature = "mmap")]
+use crate::directory::MmapDirectory;
+use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
+use crate::error::{DataCorruption, TantivyError};
+use crate::indexer::index_writer::{HEAP_SIZE_MIN, MAX_NUM_THREAD};
+use crate::indexer::segment_updater::save_new_metas;
+use crate::reader::{IndexReader, IndexReaderBuilder};
+use crate::schema::{Field, FieldType, Schema};
+use crate::tokenizer::{TextAnalyzer, TokenizerManager};
+use crate::IndexWriter;
 
 fn load_metas(
     directory: &dyn Directory,
@@ -78,7 +70,6 @@ fn load_metas(
 /// let schema = schema_builder.build();
 /// let settings = IndexSettings{sort_by_field: Some(IndexSortByField{field:"number".to_string(), order:Order::Asc}), ..Default::default()};
 /// let index = Index::builder().schema(schema).settings(settings).create_in_ram();
-///
 /// ```
 pub struct IndexBuilder {
     schema: Option<Schema>,
@@ -416,10 +407,9 @@ impl Index {
                 TantivyError::LockFailure(
                     err,
                     Some(
-                        "Failed to acquire index lock. If you are using \
-                         a regular directory, this means there is already an \
-                         `IndexWriter` working on this `Directory`, in this process \
-                         or in a different process."
+                        "Failed to acquire index lock. If you are using a regular directory, this \
+                         means there is already an `IndexWriter` working on this `Directory`, in \
+                         this process or in a different process."
                             .to_string(),
                     ),
                 )
@@ -462,13 +452,11 @@ impl Index {
     }
 
     /// Accessor to the index settings
-    ///
     pub fn settings(&self) -> &IndexSettings {
         &self.settings
     }
 
     /// Accessor to the index settings
-    ///
     pub fn settings_mut(&mut self) -> &mut IndexSettings {
         &mut self.settings
     }
@@ -556,15 +544,9 @@ impl fmt::Debug for Index {
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::Field;
-    use crate::schema::{Schema, INDEXED, TEXT};
-    use crate::IndexReader;
-    use crate::ReloadPolicy;
-    use crate::{
-        directory::{RamDirectory, WatchCallback},
-        IndexSettings,
-    };
-    use crate::{Directory, Index};
+    use crate::directory::{RamDirectory, WatchCallback};
+    use crate::schema::{Field, Schema, INDEXED, TEXT};
+    use crate::{Directory, Index, IndexReader, IndexSettings, ReloadPolicy};
 
     #[test]
     fn test_indexer_for_field() {
@@ -673,10 +655,12 @@ mod tests {
     #[cfg(feature = "mmap")]
     mod mmap_specific {
 
+        use std::path::PathBuf;
+
+        use tempfile::TempDir;
+
         use super::*;
         use crate::Directory;
-        use std::path::PathBuf;
-        use tempfile::TempDir;
 
         #[test]
         fn test_index_on_commit_reload_policy_mmap() -> crate::Result<()> {

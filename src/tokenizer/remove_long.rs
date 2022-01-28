@@ -11,7 +11,6 @@
 //! assert_eq!(stream.next().unwrap().text, "nice");
 //! assert!(stream.next().is_none());
 //! ```
-//!
 use super::{Token, TokenFilter, TokenStream};
 use crate::tokenizer::BoxTokenStream;
 

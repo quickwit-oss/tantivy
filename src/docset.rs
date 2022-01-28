@@ -1,7 +1,7 @@
+use std::borrow::{Borrow, BorrowMut};
+
 use crate::fastfield::AliveBitSet;
 use crate::DocId;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 
 /// Sentinel value returned when a DocSet has been entirely consumed.
 ///

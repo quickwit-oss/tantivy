@@ -1,13 +1,9 @@
-use super::Collector;
-use super::SegmentCollector;
-use crate::collector::Fruit;
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
-use crate::TantivyError;
 use std::marker::PhantomData;
 use std::ops::Deref;
+
+use super::{Collector, SegmentCollector};
+use crate::collector::Fruit;
+use crate::{DocId, Score, SegmentOrdinal, SegmentReader, TantivyError};
 
 pub struct MultiFruit {
     sub_fruits: Vec<Option<Box<dyn Fruit>>>,
@@ -104,7 +100,8 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///
 /// If the type of the collectors is known, you can just group yours collectors
 /// in a tuple. See the
-/// [Combining several collectors section of the collector documentation](./index.html#combining-several-collectors).
+/// [Combining several collectors section of the collector
+/// documentation](./index.html#combining-several-collectors).
 ///
 /// ```rust
 /// use tantivy::collector::{Count, TopDocs, MultiCollector};
@@ -248,10 +245,8 @@ mod tests {
     use super::*;
     use crate::collector::{Count, TopDocs};
     use crate::query::TermQuery;
-    use crate::schema::IndexRecordOption;
-    use crate::schema::{Schema, TEXT};
-    use crate::Index;
-    use crate::Term;
+    use crate::schema::{IndexRecordOption, Schema, TEXT};
+    use crate::{Index, Term};
 
     #[test]
     fn test_multi_collector() -> crate::Result<()> {

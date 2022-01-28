@@ -310,12 +310,12 @@ pub mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use test::Bencher;
+
     use super::*;
     use crate::TERMINATED;
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
-    use test::Bencher;
 
     fn generate_array_with_seed(n: usize, ratio: f64, seed_val: u8) -> Vec<u32> {
         let mut seed: [u8; 32] = [0; 32];
@@ -349,16 +349,15 @@ mod bench {
     }
 
     //#[test]
-    //fn test_all_docs_compression_numbits() {
-    //for expected_num_bits in 0u8.. {
-    //let mut data = [0u32; 128];
-    //if expected_num_bits > 0 {
-    //data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
+    // fn test_all_docs_compression_numbits() {
+    // for expected_num_bits in 0u8.. {
+    // let mut data = [0u32; 128];
+    // if expected_num_bits > 0 {
+    // data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
     //}
-    //let mut encoder = BlockEncoder::new();
-    //let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
-    //assert_eq!(compressed.len(), compressed_block_size(num_bits));
-    //}
+    // let mut encoder = BlockEncoder::new();
+    // let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
+    // assert_eq!(compressed.len(), compressed_block_size(num_bits));
     //}
 
     const NUM_INTS_BENCH_VINT: usize = 10;

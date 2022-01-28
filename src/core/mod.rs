@@ -8,6 +8,10 @@ mod segment_component;
 mod segment_id;
 mod segment_reader;
 
+use std::path::Path;
+
+use once_cell::sync::Lazy;
+
 pub use self::executor::Executor;
 pub use self::index::{Index, IndexBuilder};
 pub use self::index_meta::{
@@ -19,9 +23,6 @@ pub use self::segment::Segment;
 pub use self::segment_component::SegmentComponent;
 pub use self::segment_id::SegmentId;
 pub use self::segment_reader::SegmentReader;
-
-use once_cell::sync::Lazy;
-use std::path::Path;
 
 /// The meta file contains all the information about the list of segments and the schema
 /// of the index.

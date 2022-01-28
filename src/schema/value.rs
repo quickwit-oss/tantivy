@@ -1,9 +1,11 @@
+use std::fmt;
+
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use crate::schema::Facet;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
-use serde::de::Visitor;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -31,9 +33,7 @@ impl Eq for Value {}
 
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    where S: Serializer {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::PreTokStr(ref v) => v.serialize(serializer),
@@ -49,9 +49,7 @@ impl Serialize for Value {
 
 impl<'de> Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         struct ValueVisitor;
 
         impl<'de> Visitor<'de> for ValueVisitor {
@@ -89,7 +87,7 @@ impl<'de> Deserialize<'de> for Value {
 impl Value {
     /// Returns the text value, provided the value is of the `Str` type.
     /// (Returns None if the value is not of the `Str` type).
-    pub fn text(&self) -> Option<&str> {
+    pub fn as_text(&self) -> Option<&str> {
         if let Value::Str(text) = self {
             Some(text)
         } else {
@@ -99,7 +97,7 @@ impl Value {
 
     /// Returns the facet value, provided the value is of the `Facet` type.
     /// (Returns None if the value is not of the `Facet` type).
-    pub fn facet(&self) -> Option<&Facet> {
+    pub fn as_facet(&self) -> Option<&Facet> {
         if let Value::Facet(facet) = self {
             Some(facet)
         } else {
@@ -119,7 +117,7 @@ impl Value {
 
     /// Returns the u64-value, provided the value is of the `U64` type.
     /// (Returns None if the value is not of the `U64` type)
-    pub fn u64_value(&self) -> Option<u64> {
+    pub fn as_u64(&self) -> Option<u64> {
         if let Value::U64(val) = self {
             Some(*val)
         } else {
@@ -130,7 +128,7 @@ impl Value {
     /// Returns the i64-value, provided the value is of the `I64` type.
     ///
     /// Return None if the value is not of type `I64`.
-    pub fn i64_value(&self) -> Option<i64> {
+    pub fn as_i64(&self) -> Option<i64> {
         if let Value::I64(val) = self {
             Some(*val)
         } else {
@@ -141,7 +139,7 @@ impl Value {
     /// Returns the f64-value, provided the value is of the `F64` type.
     ///
     /// Return None if the value is not of type `F64`.
-    pub fn f64_value(&self) -> Option<f64> {
+    pub fn as_f64(&self) -> Option<f64> {
         if let Value::F64(value) = self {
             Some(*value)
         } else {
@@ -152,7 +150,7 @@ impl Value {
     /// Returns the Date-value, provided the value is of the `Date` type.
     ///
     /// Returns None if the value is not of type `Date`.
-    pub fn date_value(&self) -> Option<&DateTime> {
+    pub fn as_date(&self) -> Option<&DateTime> {
         if let Value::Date(date) = self {
             Some(date)
         } else {
@@ -163,7 +161,7 @@ impl Value {
     /// Returns the Bytes-value, provided the value is of the `Bytes` type.
     ///
     /// Returns None if the value is not of type `Bytes`.
-    pub fn bytes_value(&self) -> Option<&[u8]> {
+    pub fn as_bytes(&self) -> Option<&[u8]> {
         if let Value::Bytes(bytes) = self {
             Some(bytes)
         } else {
@@ -233,12 +231,14 @@ impl From<PreTokenizedString> for Value {
 }
 
 mod binary_serialize {
+    use std::io::{self, Read, Write};
+
+    use chrono::{TimeZone, Utc};
+    use common::{f64_to_u64, u64_to_f64, BinarySerializable};
+
     use super::Value;
     use crate::schema::Facet;
     use crate::tokenizer::PreTokenizedString;
-    use chrono::{TimeZone, Utc};
-    use common::{f64_to_u64, u64_to_f64, BinarySerializable};
-    use std::io::{self, Read, Write};
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
@@ -358,9 +358,10 @@ mod binary_serialize {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::Value;
     use crate::DateTime;
-    use std::str::FromStr;
 
     #[test]
     fn test_serialize_date() {

@@ -1,14 +1,15 @@
+use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter, VInt};
+
+use super::compressors::Compressor;
+use super::footer::DocStoreFooter;
 use super::index::SkipIndexBuilder;
 use super::StoreReader;
-use super::{compressors::Compressor, footer::DocStoreFooter};
-use crate::directory::TerminatingWrite;
-use crate::directory::WritePtr;
+use crate::directory::{TerminatingWrite, WritePtr};
 use crate::schema::Document;
 use crate::store::index::Checkpoint;
 use crate::DocId;
-use common::CountingWriter;
-use common::{BinarySerializable, VInt};
-use std::io::{self, Write};
 
 const BLOCK_SIZE: usize = 16_384;
 
@@ -19,7 +20,6 @@ const BLOCK_SIZE: usize = 16_384;
 /// as opposed to when the segment is getting finalized.
 ///
 /// The skip list index on the other hand, is built in memory.
-///
 pub struct StoreWriter {
     compressor: Compressor,
     doc: DocId,
@@ -60,7 +60,6 @@ impl StoreWriter {
     ///
     /// The document id is implicitely the current number
     /// of documents.
-    ///
     pub fn store_bytes(&mut self, serialized_document: &[u8]) -> io::Result<()> {
         let doc_num_bytes = serialized_document.len();
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
@@ -76,7 +75,6 @@ impl StoreWriter {
     ///
     /// The document id is implicitely the current number
     /// of documents.
-    ///
     pub fn store(&mut self, stored_document: &Document) -> io::Result<()> {
         self.intermediary_buffer.clear();
         stored_document.serialize(&mut self.intermediary_buffer)?;

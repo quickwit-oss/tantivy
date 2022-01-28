@@ -1,24 +1,24 @@
-use super::FastValue;
-use crate::directory::CompositeFile;
-use crate::directory::FileSlice;
-use crate::directory::OwnedBytes;
-use crate::directory::{Directory, RamDirectory, WritePtr};
-use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
-use crate::schema::Schema;
-use crate::schema::FAST;
-use crate::DocId;
-use common::BinarySerializable;
-use fastfield_codecs::bitpacked::BitpackedFastFieldReader as BitpackedReader;
-use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldReader;
-use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldReader;
-use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-use fastfield_codecs::FastFieldCodecReader;
-use fastfield_codecs::FastFieldCodecSerializer;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::Path;
+
+use common::BinarySerializable;
+use fastfield_codecs::bitpacked::{
+    BitpackedFastFieldReader as BitpackedReader, BitpackedFastFieldSerializer,
+};
+use fastfield_codecs::linearinterpol::{
+    LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer,
+};
+use fastfield_codecs::multilinearinterpol::{
+    MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
+};
+use fastfield_codecs::{FastFieldCodecReader, FastFieldCodecSerializer};
+
+use super::FastValue;
+use crate::directory::{CompositeFile, Directory, FileSlice, OwnedBytes, RamDirectory, WritePtr};
+use crate::fastfield::{CompositeFastFieldSerializer, FastFieldsWriter};
+use crate::schema::{Schema, FAST};
+use crate::DocId;
 
 /// FastFieldReader is the trait to access fast field data.
 pub trait FastFieldReader<Item: FastValue>: Clone {
@@ -64,7 +64,6 @@ pub trait FastFieldReader<Item: FastValue>: Clone {
 #[derive(Clone)]
 /// DynamicFastFieldReader wraps different readers to access
 /// the various encoded fastfield data
-///
 pub enum DynamicFastFieldReader<Item: FastValue> {
     /// Bitpacked compressed fastfield data.
     Bitpacked(FastFieldReaderCodecWrapper<Item, BitpackedReader>),
@@ -146,7 +145,6 @@ impl<Item: FastValue> FastFieldReader<Item> for DynamicFastFieldReader<Item> {
 /// Wrapper for accessing a fastfield.
 ///
 /// Holds the data and the codec to the read the data.
-///
 #[derive(Clone)]
 pub struct FastFieldReaderCodecWrapper<Item: FastValue, CodecReader> {
     reader: CodecReader,
@@ -162,7 +160,8 @@ impl<Item: FastValue, C: FastFieldCodecReader> FastFieldReaderCodecWrapper<Item,
         assert_eq!(
             BitpackedFastFieldSerializer::ID,
             id,
-            "Tried to open fast field as bitpacked encoded (id=1), but got serializer with different id"
+            "Tried to open fast field as bitpacked encoded (id=1), but got serializer with \
+             different id"
         );
         Self::open_from_bytes(bytes)
     }

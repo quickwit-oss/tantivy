@@ -268,9 +268,7 @@ impl SkipReader {
 #[cfg(test)]
 mod tests {
 
-    use super::BlockInfo;
-    use super::IndexRecordOption;
-    use super::{SkipReader, SkipSerializer};
+    use super::{BlockInfo, IndexRecordOption, SkipReader, SkipSerializer};
     use crate::directory::OwnedBytes;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
 

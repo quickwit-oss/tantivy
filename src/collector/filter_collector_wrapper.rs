@@ -17,7 +17,8 @@ use crate::schema::Field;
 use crate::{Score, SegmentReader, TantivyError};
 
 /// The `FilterCollector` filters docs using a fast field value and a predicate.
-/// Only the documents for which the predicate returned "true" will be passed on to the next collector.
+/// Only the documents for which the predicate returned "true" will be passed on to the next
+/// collector.
 ///
 /// ```rust
 /// use tantivy::collector::{TopDocs, FilterCollector};
@@ -58,8 +59,7 @@ use crate::{Score, SegmentReader, TantivyError};
 /// # }
 /// ```
 pub struct FilterCollector<TCollector, TPredicate, TPredicateValue: FastValue>
-where
-    TPredicate: 'static + Clone,
+where TPredicate: 'static + Clone
 {
     field: Field,
     collector: TCollector,

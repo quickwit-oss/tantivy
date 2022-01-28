@@ -1,11 +1,9 @@
-use crate::core::Searcher;
-use crate::core::SegmentReader;
+use crate::core::{Searcher, SegmentReader};
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::boost_query::BoostScorer;
 use crate::query::explanation::does_not_match;
 use crate::query::{Explanation, Query, Scorer, Weight};
-use crate::DocId;
-use crate::Score;
+use crate::{DocId, Score};
 
 /// Query that matches all of the documents.
 ///

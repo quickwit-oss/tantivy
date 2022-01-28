@@ -1,23 +1,20 @@
+use std::collections::HashSet;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::{io, result};
+
+use crc32fast::Hasher;
+
 use crate::core::MANAGED_FILEPATH;
 use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
 use crate::directory::footer::{Footer, FooterProxy};
-use crate::directory::GarbageCollectionResult;
-use crate::directory::Lock;
-use crate::directory::META_LOCK;
-use crate::directory::{DirectoryLock, FileHandle};
-use crate::directory::{FileSlice, WritePtr};
-use crate::directory::{WatchCallback, WatchHandle};
+use crate::directory::{
+    DirectoryLock, FileHandle, FileSlice, GarbageCollectionResult, Lock, WatchCallback,
+    WatchHandle, WritePtr, META_LOCK,
+};
 use crate::error::DataCorruption;
 use crate::Directory;
-
-use crc32fast::Hasher;
-use std::collections::HashSet;
-use std::io;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::result;
-use std::sync::RwLockWriteGuard;
-use std::sync::{Arc, RwLock};
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -344,11 +341,13 @@ impl Clone for ManagedDirectory {
 #[cfg(test)]
 mod tests_mmap_specific {
 
-    use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
     use std::collections::HashSet;
     use std::io::Write;
     use std::path::{Path, PathBuf};
+
     use tempfile::TempDir;
+
+    use crate::directory::{Directory, ManagedDirectory, MmapDirectory, TerminatingWrite};
 
     #[test]
     fn test_managed_directory() {

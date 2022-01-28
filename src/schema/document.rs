@@ -1,20 +1,18 @@
+use std::collections::{HashMap, HashSet};
+use std::io::{self, Read, Write};
+use std::mem;
+
+use common::{BinarySerializable, VInt};
+
 use super::*;
 use crate::tokenizer::PreTokenizedString;
 use crate::DateTime;
-use common::BinarySerializable;
-use common::VInt;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::io::{self, Read, Write};
-use std::mem;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
 ///
 /// Documents are fundamentally a collection of unordered couple `(field, value)`.
 /// In this list, one field may appear more than once.
-///
-///
 
 /// Documents are really just a list of couple `(field, value)`.
 /// In this list, one field may appear more than once.
@@ -78,9 +76,7 @@ impl Document {
 
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
-    where
-        Facet: From<F>,
-    {
+    where Facet: From<F> {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
         self.add(FieldValue::new(field, value));
@@ -140,7 +136,7 @@ impl Document {
     ///
     /// The result of this method is not cached and is
     /// computed on the fly when this method is called.
-    pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&FieldValue>)> {
+    pub fn get_sorted_field_values(&self) -> Vec<(Field, Vec<&Value>)> {
         let mut field_values: Vec<&FieldValue> = self.field_values().iter().collect();
         field_values.sort_by_key(|field_value| field_value.field());
 
@@ -154,15 +150,15 @@ impl Document {
 
         let mut grouped_field_values = vec![];
         let mut current_field = first_field_value.field();
-        let mut current_group = vec![first_field_value];
+        let mut current_group = vec![first_field_value.value()];
 
         for field_value in field_values_it {
             if field_value.field() == current_field {
-                current_group.push(field_value);
+                current_group.push(field_value.value());
             } else {
                 grouped_field_values.push((
                     current_field,
-                    mem::replace(&mut current_group, vec![field_value]),
+                    mem::replace(&mut current_group, vec![field_value.value()]),
                 ));
                 current_field = field_value.field();
             }

@@ -1,13 +1,12 @@
 use std::io;
 
+use common::BinarySerializable;
+
 use crate::directory::FileSlice;
 use crate::positions::PositionReader;
-use crate::postings::TermInfo;
-use crate::postings::{BlockSegmentPostings, SegmentPostings};
-use crate::schema::IndexRecordOption;
-use crate::schema::Term;
+use crate::postings::{BlockSegmentPostings, SegmentPostings, TermInfo};
+use crate::schema::{IndexRecordOption, Term};
 use crate::termdict::TermDictionary;
-use common::BinarySerializable;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.

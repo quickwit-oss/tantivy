@@ -1,11 +1,10 @@
+use std::sync::Arc;
+
 use super::{fieldnorm_to_id, id_to_fieldnorm};
-use crate::directory::CompositeFile;
-use crate::directory::FileSlice;
-use crate::directory::OwnedBytes;
+use crate::directory::{CompositeFile, FileSlice, OwnedBytes};
 use crate::schema::Field;
 use crate::space_usage::PerFieldSpaceUsage;
 use crate::DocId;
-use std::sync::Arc;
 
 /// Reader for the fieldnorm (for each document, the number of tokens indexed in the
 /// field) of all indexed fields in the index.

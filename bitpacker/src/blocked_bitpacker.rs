@@ -1,12 +1,11 @@
+use super::bitpacker::BitPacker;
+use super::compute_num_bits;
 use crate::{minmax, BitUnpacker};
-
-use super::{bitpacker::BitPacker, compute_num_bits};
 
 const BLOCK_SIZE: usize = 128;
 
 /// `BlockedBitpacker` compresses data in blocks of
 /// 128 elements, while keeping an index on it
-///
 #[derive(Debug, Clone)]
 pub struct BlockedBitpacker {
     // bitpacked blocks

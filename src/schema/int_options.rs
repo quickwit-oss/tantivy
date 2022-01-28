@@ -1,6 +1,8 @@
-use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
-use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
+
+use serde::{Deserialize, Serialize};
+
+use crate::schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// Express whether a field is single-value or multi-valued.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]

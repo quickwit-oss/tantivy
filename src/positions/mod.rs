@@ -7,17 +7,20 @@
 //! for all terms of a given field, one term after the other.
 //!
 //! Each terms is encoded independently.
-//! Like for positing lists, tantivy rely on simd bitpacking to encode the positions delta in blocks of 128 deltas.
-//! Because we rarely have a multiple of 128, a final block may encode the remaining values variable byte encoding.
+//! Like for positing lists, tantivy rely on simd bitpacking to encode the positions delta in blocks
+//! of 128 deltas. Because we rarely have a multiple of 128, a final block may encode the remaining
+//! values variable byte encoding.
 //!
-//! In order to make reading possible, the term delta positions first encodes the number of bitpacked blocks,
-//! then the bitwidth for each blocks, then the actual bitpacked block and finally the final variable int encoded block.
+//! In order to make reading possible, the term delta positions first encodes the number of
+//! bitpacked blocks, then the bitwidth for each blocks, then the actual bitpacked block and finally
+//! the final variable int encoded block.
 //!
-//! Contrary to postings list, the reader does not have access on the number of positions that is encoded, and instead
-//! stops decoding the last block when its byte slice has been entirely read.
+//! Contrary to postings list, the reader does not have access on the number of positions that is
+//! encoded, and instead stops decoding the last block when its byte slice has been entirely read.
 //!
 //! More formally:
-//! * *Positions* := *NumBitPackedBlocks* *BitPackedPositionBlock*^(P/128) *BitPackedPositionsDeltaBitWidth* *VIntPosDeltas*?
+//! * *Positions* := *NumBitPackedBlocks* *BitPackedPositionBlock*^(P/128)
+//!   *BitPackedPositionsDeltaBitWidth* *VIntPosDeltas*?
 //! * *NumBitPackedBlocks**: := *P* / 128 encoded as a variable byte integer.
 //! * *BitPackedPositionBlock* := bit width encoded block of 128 positions delta
 //! * *BitPackedPositionsDeltaBitWidth* := (*BitWidth*: u8)^*NumBitPackedBlocks*
@@ -27,21 +30,24 @@
 mod reader;
 mod serializer;
 
+use bitpacking::{BitPacker, BitPacker4x};
+
 pub use self::reader::PositionReader;
 pub use self::serializer::PositionSerializer;
-use bitpacking::{BitPacker, BitPacker4x};
 
 const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 
 #[cfg(test)]
 pub mod tests {
 
+    use std::iter;
+
+    use proptest::prelude::*;
+    use proptest::sample::select;
+
     use super::PositionSerializer;
     use crate::directory::OwnedBytes;
     use crate::positions::reader::PositionReader;
-    use proptest::prelude::*;
-    use proptest::sample::select;
-    use std::iter;
 
     fn create_positions_data(vals: &[u32]) -> crate::Result<OwnedBytes> {
         let mut positions_buffer = vec![];

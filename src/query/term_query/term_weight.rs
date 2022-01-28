@@ -6,11 +6,9 @@ use crate::postings::SegmentPostings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::explanation::does_not_match;
 use crate::query::weight::for_each_scorer;
-use crate::query::Weight;
-use crate::query::{Explanation, Scorer};
+use crate::query::{Explanation, Scorer, Weight};
 use crate::schema::IndexRecordOption;
-use crate::Term;
-use crate::{DocId, Score};
+use crate::{DocId, Score, Term};
 
 pub struct TermWeight {
     term: Term,

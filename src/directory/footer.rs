@@ -1,14 +1,13 @@
-use crate::directory::error::Incompatibility;
-use crate::directory::FileSlice;
-use crate::{
-    directory::{AntiCallToken, TerminatingWrite},
-    Version, INDEX_FORMAT_VERSION,
-};
+use std::io;
+use std::io::Write;
+
 use common::{BinarySerializable, CountingWriter, DeserializeFrom, FixedSize, HasLen};
 use crc32fast::Hasher;
 use serde::{Deserialize, Serialize};
-use std::io;
-use std::io::Write;
+
+use crate::directory::error::Incompatibility;
+use crate::directory::{AntiCallToken, FileSlice, TerminatingWrite};
+use crate::{Version, INDEX_FORMAT_VERSION};
 
 const FOOTER_MAX_LEN: u32 = 50_000;
 
@@ -64,7 +63,9 @@ impl Footer {
         if footer_magic_byte != FOOTER_MAGIC_NUMBER {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                    "Footer magic byte mismatch. File corrupted or index was created using old an tantivy version which is not supported anymore. Please use tantivy 0.15 or above to recreate the index.",
+                "Footer magic byte mismatch. File corrupted or index was created using old an \
+                 tantivy version which is not supported anymore. Please use tantivy 0.15 or above \
+                 to recreate the index.",
             ));
         }
 
@@ -73,7 +74,7 @@ impl Footer {
                 io::ErrorKind::InvalidData,
                 format!(
                     "Footer seems invalid as it suggests a footer len of {}. File is corrupted, \
-            or the index was created with a different & old version of tantivy.",
+                     or the index was created with a different & old version of tantivy.",
                     footer_len
                 ),
             ));
@@ -154,11 +155,12 @@ impl<W: TerminatingWrite> TerminatingWrite for FooterProxy<W> {
 #[cfg(test)]
 mod tests {
 
-    use crate::directory::footer::Footer;
-    use crate::directory::OwnedBytes;
-    use crate::directory::{footer::FOOTER_MAGIC_NUMBER, FileSlice};
-    use common::BinarySerializable;
     use std::io;
+
+    use common::BinarySerializable;
+
+    use crate::directory::footer::{Footer, FOOTER_MAGIC_NUMBER};
+    use crate::directory::{FileSlice, OwnedBytes};
 
     #[test]
     fn test_deserialize_footer() {
@@ -183,8 +185,9 @@ mod tests {
         let err = Footer::extract_footer(fileslice).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Footer magic byte mismatch. File corrupted or index was created using old an tantivy version which \
-            is not supported anymore. Please use tantivy 0.15 or above to recreate the index."
+            "Footer magic byte mismatch. File corrupted or index was created using old an tantivy \
+             version which is not supported anymore. Please use tantivy 0.15 or above to recreate \
+             the index."
         );
     }
     #[test]
@@ -219,8 +222,8 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert_eq!(
             err.to_string(),
-            "Footer seems invalid as it suggests a footer len of 50001. File is corrupted, \
-    or the index was created with a different & old version of tantivy."
+            "Footer seems invalid as it suggests a footer len of 50001. File is corrupted, or the \
+             index was created with a different & old version of tantivy."
         );
     }
 }

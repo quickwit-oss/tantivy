@@ -1,6 +1,3 @@
-use super::*;
-use futures::channel::oneshot;
-use futures::executor::block_on;
 use std::io::Write;
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -8,6 +5,11 @@ use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::Arc;
 use std::time::Duration;
+
+use futures::channel::oneshot;
+use futures::executor::block_on;
+
+use super::*;
 
 #[cfg(feature = "mmap")]
 mod mmap_directory_tests {

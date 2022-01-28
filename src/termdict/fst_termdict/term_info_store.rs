@@ -1,12 +1,13 @@
+use std::cmp;
+use std::io::{self, Read, Write};
+
+use byteorder::{ByteOrder, LittleEndian};
+use common::{BinarySerializable, FixedSize};
+use tantivy_bitpacker::{compute_num_bits, BitPacker};
+
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use byteorder::{ByteOrder, LittleEndian};
-use common::{BinarySerializable, FixedSize};
-use std::cmp;
-use std::io::{self, Read, Write};
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
 const BLOCK_LEN: usize = 256;
 
@@ -287,15 +288,13 @@ impl TermInfoStoreWriter {
 #[cfg(test)]
 mod tests {
 
-    use super::extract_bits;
-    use super::TermInfoBlockMeta;
-    use super::{TermInfoStore, TermInfoStoreWriter};
-    use crate::directory::FileSlice;
-    use crate::postings::TermInfo;
     use common;
     use common::BinarySerializable;
-    use tantivy_bitpacker::compute_num_bits;
-    use tantivy_bitpacker::BitPacker;
+    use tantivy_bitpacker::{compute_num_bits, BitPacker};
+
+    use super::{extract_bits, TermInfoBlockMeta, TermInfoStore, TermInfoStoreWriter};
+    use crate::directory::FileSlice;
+    use crate::postings::TermInfo;
 
     #[test]
     fn test_term_info_block() {

@@ -1,9 +1,7 @@
 use crate::docset::{DocSet, TERMINATED};
 use crate::query::term_query::TermScorer;
-use crate::query::EmptyScorer;
-use crate::query::Scorer;
-use crate::DocId;
-use crate::Score;
+use crate::query::{EmptyScorer, Scorer};
+use crate::{DocId, Score};
 
 /// Returns the intersection scorer.
 ///

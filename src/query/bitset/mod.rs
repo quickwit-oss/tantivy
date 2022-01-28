@@ -1,6 +1,7 @@
+use common::{BitSet, TinySet};
+
 use crate::docset::{DocSet, TERMINATED};
 use crate::DocId;
-use common::{BitSet, TinySet};
 
 /// A `BitSetDocSet` makes it possible to iterate through a bitset as if it was a `DocSet`.
 ///
@@ -98,11 +99,12 @@ impl DocSet for BitSetDocSet {
 mod tests {
     use std::collections::BTreeSet;
 
+    use common::BitSet;
+
     use super::BitSetDocSet;
     use crate::docset::{DocSet, TERMINATED};
     use crate::tests::generate_nonunique_unsorted;
     use crate::DocId;
-    use common::BitSet;
 
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
@@ -235,12 +237,9 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::BitSet;
-    use super::BitSetDocSet;
+    use super::{BitSet, BitSetDocSet};
     use crate::docset::TERMINATED;
-    use crate::test;
-    use crate::tests;
-    use crate::DocSet;
+    use crate::{test, tests, DocSet};
 
     #[bench]
     fn bench_bitset_1pct_insert(b: &mut test::Bencher) {

@@ -1,6 +1,8 @@
-use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
-use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+
+use serde::{Deserialize, Serialize};
+
+use crate::tokenizer::{BoxTokenStream, Token, TokenStream, TokenStreamChain};
 
 /// Struct representing pre-tokenized text
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -91,7 +93,6 @@ impl TokenStream for PreTokenizedStream {
 mod tests {
 
     use super::*;
-
     use crate::tokenizer::Token;
 
     #[test]

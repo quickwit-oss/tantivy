@@ -57,7 +57,10 @@ fn main() -> tantivy::Result<()> {
         let doc = searcher.doc(doc_address)?;
         let snippet = snippet_generator.snippet_from_doc(&doc);
         println!("Document score {}:", score);
-        println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
+        println!(
+            "title: {}",
+            doc.get_first(title).unwrap().as_text().unwrap()
+        );
         println!("snippet: {}", snippet.to_html());
         println!("custom highlighting: {}", highlight(snippet));
     }

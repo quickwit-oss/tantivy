@@ -1,8 +1,9 @@
-use crate::positions::COMPRESSION_BLOCK_SIZE;
-use crate::postings::compression::BlockEncoder;
-use crate::postings::compression::VIntEncoder;
-use common::{BinarySerializable, CountingWriter, VInt};
 use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter, VInt};
+
+use crate::positions::COMPRESSION_BLOCK_SIZE;
+use crate::postings::compression::{BlockEncoder, VIntEncoder};
 
 /// The PositionSerializer is in charge of serializing all of the positions
 /// of all of the terms of a given field.

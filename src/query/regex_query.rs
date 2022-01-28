@@ -1,10 +1,12 @@
+use std::clone::Clone;
+use std::sync::Arc;
+
+use tantivy_fst::Regex;
+
 use crate::error::TantivyError;
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Field;
 use crate::Searcher;
-use std::clone::Clone;
-use std::sync::Arc;
-use tantivy_fst::Regex;
 
 /// A Regex Query matches all of the documents
 /// containing a specific term that matches
@@ -91,14 +93,14 @@ impl Query for RegexQuery {
 
 #[cfg(test)]
 mod test {
-    use super::RegexQuery;
-    use crate::assert_nearly_equals;
-    use crate::collector::TopDocs;
-    use crate::schema::TEXT;
-    use crate::schema::{Field, Schema};
-    use crate::{Index, IndexReader};
     use std::sync::Arc;
+
     use tantivy_fst::Regex;
+
+    use super::RegexQuery;
+    use crate::collector::TopDocs;
+    use crate::schema::{Field, Schema, TEXT};
+    use crate::{assert_nearly_equals, Index, IndexReader};
 
     fn build_test_index() -> crate::Result<(IndexReader, Field)> {
         let mut schema_builder = Schema::builder();

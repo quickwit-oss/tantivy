@@ -1,14 +1,19 @@
+use std::ops::Range;
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
+
+use common::BitSet;
+use crossbeam::channel;
+use futures::executor::block_on;
+use futures::future::Future;
+use smallvec::smallvec;
+
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
-use super::PreparedCommit;
-use crate::core::Index;
-use crate::core::Segment;
-use crate::core::SegmentComponent;
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
-use crate::core::SegmentReader;
-use crate::directory::TerminatingWrite;
-use crate::directory::{DirectoryLock, GarbageCollectionResult};
+use super::{AddBatch, AddBatchReceiver, AddBatchSender, PreparedCommit};
+use crate::core::{Index, Segment, SegmentComponent, SegmentId, SegmentMeta, SegmentReader};
+use crate::directory::{DirectoryLock, GarbageCollectionResult, TerminatingWrite};
 use crate::docset::{DocSet, TERMINATED};
 use crate::error::TantivyError;
 use crate::fastfield::write_alive_bitset;
@@ -17,24 +22,9 @@ use crate::indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use crate::indexer::index_writer_status::IndexWriterStatus;
 use crate::indexer::operation::DeleteOperation;
 use crate::indexer::stamper::Stamper;
-use crate::indexer::MergePolicy;
-use crate::indexer::SegmentEntry;
-use crate::indexer::SegmentWriter;
-use crate::schema::Document;
-use crate::schema::IndexRecordOption;
-use crate::schema::Term;
+use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
+use crate::schema::{Document, IndexRecordOption, Term};
 use crate::Opstamp;
-use common::BitSet;
-use crossbeam::channel;
-use futures::executor::block_on;
-use futures::future::Future;
-use smallvec::smallvec;
-use std::ops::Range;
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
-
-use super::{AddBatch, AddBatchReceiver, AddBatchSender};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -392,7 +382,13 @@ impl IndexWriter {
     fn operation_receiver(&self) -> crate::Result<AddBatchReceiver> {
         self.index_writer_status
             .operation_receiver()
-            .ok_or_else(|| crate::TantivyError::ErrorInThread("The index writer was killed. It can happen if an indexing worker encounterred an Io error for instance.".to_string()))
+            .ok_or_else(|| {
+                crate::TantivyError::ErrorInThread(
+                    "The index writer was killed. It can happen if an indexing worker \
+                     encounterred an Io error for instance."
+                        .to_string(),
+                )
+            })
     }
 
     /// Spawns a new worker thread for indexing.
@@ -653,7 +649,6 @@ impl IndexWriter {
     ///
     /// Commit returns the `opstamp` of the last document
     /// that made it in the commit.
-    ///
     pub fn commit(&mut self) -> crate::Result<Opstamp> {
         self.prepare_commit()?.commit()
     }
@@ -780,8 +775,7 @@ impl Drop for IndexWriter {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     use futures::executor::block_on;
     use proptest::prelude::*;
@@ -794,31 +788,20 @@ mod tests {
     use crate::error::*;
     use crate::fastfield::FastFieldReader;
     use crate::indexer::NoMergePolicy;
-    use crate::query::QueryParser;
-    use crate::query::TermQuery;
-    use crate::schema::Cardinality;
-    use crate::schema::Facet;
-    use crate::schema::FacetOptions;
-    use crate::schema::IntOptions;
-    use crate::schema::TextFieldIndexing;
-    use crate::schema::TextOptions;
-    use crate::schema::STORED;
-    use crate::schema::TEXT;
-    use crate::schema::{self, IndexRecordOption, FAST, INDEXED, STRING};
-    use crate::DocAddress;
-    use crate::Index;
-    use crate::ReloadPolicy;
-    use crate::Term;
-    use crate::{IndexSettings, IndexSortByField, Order};
+    use crate::query::{QueryParser, TermQuery};
+    use crate::schema::{
+        self, Cardinality, Facet, FacetOptions, IndexRecordOption, IntOptions, TextFieldIndexing,
+        TextOptions, FAST, INDEXED, STORED, STRING, TEXT,
+    };
+    use crate::{DocAddress, Index, IndexSettings, IndexSortByField, Order, ReloadPolicy, Term};
 
-    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
-             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
-             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
-             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
-             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
-             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
-             proident, sunt in culpa qui officia deserunt mollit anim id est \
-             laborum.";
+    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
+                         eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad \
+                         minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip \
+                         ex ea commodo consequat. Duis aute irure dolor in reprehenderit in \
+                         voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur \
+                         sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt \
+                         mollit anim id est laborum.";
 
     #[test]
     fn test_operations_group() {
@@ -973,8 +956,8 @@ mod tests {
         let index_writer = index.writer(3_000_000).unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
-            "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, min_layer_size: 10000, \
-             level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
+            "LogMergePolicy { min_num_segments: 8, max_docs_before_merge: 10000000, \
+             min_layer_size: 10000, level_log_size: 0.75, del_docs_ratio_before_merge: 1.0 }"
         );
         let merge_policy = Box::new(NoMergePolicy::default());
         index_writer.set_merge_policy(merge_policy);
@@ -1547,12 +1530,7 @@ mod tests {
             let store_reader = segment_reader.get_store_reader().unwrap();
             // test store iterator
             for doc in store_reader.iter(segment_reader.alive_bitset()) {
-                let id = doc
-                    .unwrap()
-                    .get_first(id_field)
-                    .unwrap()
-                    .u64_value()
-                    .unwrap();
+                let id = doc.unwrap().get_first(id_field).unwrap().as_u64().unwrap();
                 assert!(expected_ids_and_num_occurences.contains_key(&id));
             }
             // test store random access
@@ -1562,7 +1540,7 @@ mod tests {
                     .unwrap()
                     .get_first(id_field)
                     .unwrap()
-                    .u64_value()
+                    .as_u64()
                     .unwrap();
                 assert!(expected_ids_and_num_occurences.contains_key(&id));
                 let id2 = store_reader
@@ -1570,7 +1548,7 @@ mod tests {
                     .unwrap()
                     .get_first(multi_numbers)
                     .unwrap()
-                    .u64_value()
+                    .as_u64()
                     .unwrap();
                 assert_eq!(id, id2);
             }

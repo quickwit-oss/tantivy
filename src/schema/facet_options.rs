@@ -1,6 +1,8 @@
-use crate::schema::flags::{IndexedFlag, SchemaFlagList, StoredFlag};
-use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
+
+use serde::{Deserialize, Serialize};
+
+use crate::schema::flags::{IndexedFlag, SchemaFlagList, StoredFlag};
 
 /// Define how a facet field should be handled by tantivy.
 ///

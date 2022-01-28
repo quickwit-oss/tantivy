@@ -1,8 +1,9 @@
+use fastdivide::DividerU64;
+
 use crate::collector::{Collector, SegmentCollector};
 use crate::fastfield::{DynamicFastFieldReader, FastFieldReader, FastValue};
 use crate::schema::{Field, Type};
 use crate::{DocId, Score};
-use fastdivide::DividerU64;
 
 /// Histogram builds an histogram of the values of a fastfield for the
 /// collected DocSet.
@@ -36,8 +37,8 @@ impl HistogramCollector {
     ///  - `bucket_width`: the length of the interval that is associated to each buckets.
     ///  - `num_buckets`: The overall number of buckets.
     ///
-    /// Together, this parameters define a partition of `[min_value, min_value + num_buckets * bucket_width)`
-    /// into `num_buckets` intervals of width bucket that we call `bucket`.
+    /// Together, this parameters define a partition of `[min_value, min_value + num_buckets *
+    /// bucket_width)` into `num_buckets` intervals of width bucket that we call `bucket`.
     ///
     /// # Disclaimer
     /// This function panics if the field given is of type f64.
@@ -147,12 +148,13 @@ fn add_vecs(mut vals_list: Vec<Vec<u64>>, len: usize) -> Vec<u64> {
 
 #[cfg(test)]
 mod tests {
+    use fastdivide::DividerU64;
+    use query::AllQuery;
+
     use super::{add_vecs, HistogramCollector, HistogramComputer};
     use crate::chrono::{TimeZone, Utc};
     use crate::schema::{Schema, FAST};
     use crate::{doc, query, Index};
-    use fastdivide::DividerU64;
-    use query::AllQuery;
 
     #[test]
     fn test_add_histograms_simple() {

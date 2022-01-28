@@ -1,9 +1,6 @@
 use super::Collector;
 use crate::collector::SegmentCollector;
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
+use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
@@ -80,8 +77,7 @@ impl SegmentCollector for SegmentCountCollector {
 #[cfg(test)]
 mod tests {
     use super::{Count, SegmentCountCollector};
-    use crate::collector::Collector;
-    use crate::collector::SegmentCollector;
+    use crate::collector::{Collector, SegmentCollector};
 
     #[test]
     fn test_count_collect_does_not_requires_scoring() {

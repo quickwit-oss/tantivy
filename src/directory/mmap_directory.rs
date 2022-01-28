@@ -1,31 +1,27 @@
-use crate::core::META_FILEPATH;
-use crate::directory::error::LockError;
-use crate::directory::error::{DeleteError, OpenDirectoryError, OpenReadError, OpenWriteError};
-use crate::directory::file_watcher::FileWatcher;
-use crate::directory::Directory;
-use crate::directory::DirectoryLock;
-use crate::directory::Lock;
-use crate::directory::WatchCallback;
-use crate::directory::WatchHandle;
-use crate::directory::{AntiCallToken, FileHandle, OwnedBytes};
-use crate::directory::{ArcBytes, WeakArcBytes};
-use crate::directory::{TerminatingWrite, WritePtr};
+use std::collections::HashMap;
+use std::convert::From;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, BufWriter, Read, Seek, SeekFrom, Write};
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::{fmt, result};
+
 use fs2::FileExt;
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use stable_deref_trait::StableDeref;
-use std::convert::From;
-use std::fmt;
-use std::fs::OpenOptions;
-use std::fs::{self, File};
-use std::io::{self, Seek, SeekFrom};
-use std::io::{BufWriter, Read, Write};
-use std::path::{Path, PathBuf};
-use std::result;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::{collections::HashMap, ops::Deref};
 use tempfile::TempDir;
+
+use crate::core::META_FILEPATH;
+use crate::directory::error::{
+    DeleteError, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
+};
+use crate::directory::file_watcher::FileWatcher;
+use crate::directory::{
+    AntiCallToken, ArcBytes, Directory, DirectoryLock, FileHandle, Lock, OwnedBytes,
+    TerminatingWrite, WatchCallback, WatchHandle, WeakArcBytes, WritePtr,
+};
 
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
@@ -320,8 +316,7 @@ impl Directory for MmapDirectory {
 
         let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
             let msg = format!(
-                "Failed to acquired write lock \
-                 on mmap cache while reading {:?}",
+                "Failed to acquired write lock on mmap cache while reading {:?}",
                 path
             );
             let io_err = make_io_err(msg);
@@ -457,6 +452,7 @@ impl Directory for MmapDirectory {
         #[cfg(windows)]
         {
             use std::os::windows::fs::OpenOptionsExt;
+
             use winapi::um::winbase;
 
             open_opts
@@ -476,15 +472,12 @@ mod tests {
     // There are more tests in directory/mod.rs
     // The following tests are specific to the MmapDirectory
 
+    use common::HasLen;
+
     use super::*;
     use crate::indexer::LogMergePolicy;
-    use crate::Index;
-    use crate::ReloadPolicy;
-    use crate::{
-        schema::{Schema, SchemaBuilder, TEXT},
-        IndexSettings,
-    };
-    use common::HasLen;
+    use crate::schema::{Schema, SchemaBuilder, TEXT};
+    use crate::{Index, IndexSettings, ReloadPolicy};
 
     #[test]
     fn test_open_non_existent_path() {

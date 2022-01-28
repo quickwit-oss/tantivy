@@ -1,6 +1,6 @@
-use super::BoxTokenStream;
-use super::{Token, TokenStream, Tokenizer};
 use std::str::CharIndices;
+
+use super::{BoxTokenStream, Token, TokenStream, Tokenizer};
 
 /// Tokenize the text by splitting on whitespaces.
 #[derive(Clone)]

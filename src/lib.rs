@@ -125,8 +125,9 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use crate::error::TantivyError;
 pub use chrono;
+
+pub use crate::error::TantivyError;
 
 /// Tantivy result.
 ///
@@ -163,29 +164,26 @@ mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
+use std::fmt;
+
+pub use census::{Inventory, TrackedObject};
+pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, HasLen};
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+
 pub use self::docset::{DocSet, TERMINATED};
-pub use crate::core::{Executor, SegmentComponent};
 pub use crate::core::{
-    Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, Order, Searcher,
-    SearcherGeneration, Segment, SegmentId, SegmentMeta,
+    Executor, Index, IndexBuilder, IndexMeta, IndexSettings, IndexSortByField, InvertedIndexReader,
+    Order, Searcher, SearcherGeneration, Segment, SegmentComponent, SegmentId, SegmentMeta,
+    SegmentReader,
 };
-pub use crate::core::{InvertedIndexReader, SegmentReader};
 pub use crate::directory::Directory;
 pub use crate::indexer::demuxer::*;
-pub use crate::indexer::merge_filtered_segments;
-pub use crate::indexer::merge_indices;
 pub use crate::indexer::operation::UserOperation;
-pub use crate::indexer::{IndexWriter, PreparedCommit};
+pub use crate::indexer::{merge_filtered_segments, merge_indices, IndexWriter, PreparedCommit};
 pub use crate::postings::Postings;
 pub use crate::reader::LeasedItem;
 pub use crate::schema::{Document, Term};
-pub use census::{Inventory, TrackedObject};
-pub use common::HasLen;
-pub use common::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
-use std::fmt;
-
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 
 /// Index format version.
 const INDEX_FORMAT_VERSION: u32 = 4;
@@ -237,11 +235,9 @@ pub fn version_string() -> &'static str {
 
 /// Defines tantivy's merging strategy
 pub mod merge_policy {
-    pub use crate::indexer::DefaultMergePolicy;
-    pub use crate::indexer::LogMergePolicy;
-    pub use crate::indexer::MergeCandidate;
-    pub use crate::indexer::MergePolicy;
-    pub use crate::indexer::NoMergePolicy;
+    pub use crate::indexer::{
+        DefaultMergePolicy, LogMergePolicy, MergeCandidate, MergePolicy, NoMergePolicy,
+    };
 }
 
 /// A `u32` identifying a document within a segment.
@@ -299,21 +295,18 @@ pub struct DocAddress {
 
 #[cfg(test)]
 pub mod tests {
+    use common::{BinarySerializable, FixedSize};
+    use rand::distributions::{Bernoulli, Uniform};
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::core::SegmentReader;
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::FastFieldReader;
     use crate::query::BooleanQuery;
     use crate::schema::*;
-    use crate::DocAddress;
-    use crate::Index;
-    use crate::Postings;
-    use crate::ReloadPolicy;
-    use common::{BinarySerializable, FixedSize};
-    use rand::distributions::Bernoulli;
-    use rand::distributions::Uniform;
-    use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
+    use crate::{DocAddress, Index, Postings, ReloadPolicy};
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();
@@ -868,11 +861,11 @@ pub mod tests {
         assert_eq!(document.len(), 3);
         let values: Vec<&Value> = document.get_all(text_field).collect();
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].text(), Some("tantivy"));
-        assert_eq!(values[1].text(), Some("some other value"));
+        assert_eq!(values[0].as_text(), Some("tantivy"));
+        assert_eq!(values[1].as_text(), Some("some other value"));
         let values: Vec<&Value> = document.get_all(other_text_field).collect();
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].text(), Some("short"));
+        assert_eq!(values[0].as_text(), Some("short"));
     }
 
     #[test]
@@ -938,11 +931,12 @@ pub mod tests {
     // motivated by #729
     #[test]
     fn test_update_via_delete_insert() -> crate::Result<()> {
+        use futures::executor::block_on;
+
         use crate::collector::Count;
         use crate::indexer::NoMergePolicy;
         use crate::query::AllQuery;
         use crate::SegmentId;
-        use futures::executor::block_on;
 
         const DOC_COUNT: u64 = 2u64;
 

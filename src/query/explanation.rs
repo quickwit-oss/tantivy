@@ -1,6 +1,8 @@
-use crate::{DocId, Score, TantivyError};
-use serde::Serialize;
 use std::fmt;
+
+use serde::Serialize;
+
+use crate::{DocId, Score, TantivyError};
 
 pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
     TantivyError::InvalidArgument(format!("Document #({}) does not match", doc))

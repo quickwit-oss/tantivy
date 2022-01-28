@@ -1,14 +1,14 @@
 use std::cmp::{Ord, Ordering};
+use std::error::Error;
 use std::fmt;
-use uuid::Uuid;
+use std::str::FromStr;
+#[cfg(test)]
+use std::sync::atomic;
 
 #[cfg(test)]
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
-use std::str::FromStr;
-#[cfg(test)]
-use std::sync::atomic;
+use uuid::Uuid;
 
 /// Uuid identifying a segment.
 ///

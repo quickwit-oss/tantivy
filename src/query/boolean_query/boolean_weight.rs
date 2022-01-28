@@ -1,19 +1,16 @@
+use std::collections::HashMap;
+
 use crate::core::SegmentReader;
 use crate::postings::FreqReadingOption;
 use crate::query::explanation::does_not_match;
 use crate::query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use crate::query::term_query::TermScorer;
 use crate::query::weight::{for_each_pruning_scorer, for_each_scorer};
-use crate::query::EmptyScorer;
-use crate::query::Exclude;
-use crate::query::Occur;
-use crate::query::RequiredOptionalScorer;
-use crate::query::Scorer;
-use crate::query::Union;
-use crate::query::Weight;
-use crate::query::{intersect_scorers, Explanation};
+use crate::query::{
+    intersect_scorers, EmptyScorer, Exclude, Explanation, Occur, RequiredOptionalScorer, Scorer,
+    Union, Weight,
+};
 use crate::{DocId, Score};
-use std::collections::HashMap;
 
 enum SpecializedScorer {
     TermUnion(Vec<TermScorer>),
@@ -21,9 +18,7 @@ enum SpecializedScorer {
 }
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<dyn Scorer>>) -> SpecializedScorer
-where
-    TScoreCombiner: ScoreCombiner,
-{
+where TScoreCombiner: ScoreCombiner {
     assert!(!scorers.is_empty());
     if scorers.len() == 1 {
         return SpecializedScorer::Other(scorers.into_iter().next().unwrap()); //< we checked the size beforehands

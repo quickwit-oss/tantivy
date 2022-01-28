@@ -1,15 +1,15 @@
-use crate::schema::field_type::ValueParsingError;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt;
 use std::sync::Arc;
 
-use super::*;
-use crate::schema::bytes_options::BytesOptions;
 use serde::de::{SeqAccess, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{self, Map as JsonObject, Value as JsonValue};
-use std::fmt;
+
+use super::*;
+use crate::schema::bytes_options::BytesOptions;
+use crate::schema::field_type::ValueParsingError;
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance whether a field is indexed or not,
@@ -29,7 +29,6 @@ use std::fmt;
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
 /// let schema = schema_builder.build();
-///
 /// ```
 #[derive(Default)]
 pub struct SchemaBuilder {
@@ -224,7 +223,6 @@ impl Eq for InnerSchema {}
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
 /// let schema = schema_builder.build();
-///
 /// ```
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Schema(Arc<InnerSchema>);
@@ -286,11 +284,7 @@ impl Schema {
         let mut field_map = BTreeMap::new();
         for (field, field_values) in doc.get_sorted_field_values() {
             let field_name = self.get_field_name(field);
-            let values: Vec<Value> = field_values
-                .into_iter()
-                .map(FieldValue::value)
-                .cloned()
-                .collect();
+            let values: Vec<Value> = field_values.into_iter().cloned().collect();
             field_map.insert(field_name.to_string(), values);
         }
         NamedFieldDocument(field_map)
@@ -344,9 +338,7 @@ impl Schema {
 
 impl Serialize for Schema {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    where S: Serializer {
         let mut seq = serializer.serialize_seq(Some(self.0.fields.len()))?;
         for e in &self.0.fields {
             seq.serialize_element(e)?;
@@ -357,9 +349,7 @@ impl Serialize for Schema {
 
 impl<'de> Deserialize<'de> for Schema {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
+    where D: Deserializer<'de> {
         struct SchemaVisitor;
 
         impl<'de> Visitor<'de> for SchemaVisitor {
@@ -370,9 +360,7 @@ impl<'de> Deserialize<'de> for Schema {
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: SeqAccess<'de>,
-            {
+            where A: SeqAccess<'de> {
                 let mut schema = SchemaBuilder {
                     fields: Vec::with_capacity(seq.size_hint().unwrap_or(0)),
                     fields_map: HashMap::with_capacity(seq.size_hint().unwrap_or(0)),
@@ -405,13 +393,15 @@ pub enum DocParsingError {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
+    use matches::{assert_matches, matches};
+    use serde_json;
+
     use crate::schema::field_type::ValueParsingError;
     use crate::schema::int_options::Cardinality::SingleValue;
     use crate::schema::schema::DocParsingError::NotJson;
     use crate::schema::*;
-    use matches::{assert_matches, matches};
-    use serde_json;
-    use std::collections::BTreeMap;
 
     #[test]
     pub fn is_indexed_test() {
@@ -636,20 +626,17 @@ mod tests {
             }"#,
                 )
                 .unwrap();
-            assert_eq!(doc.get_first(title_field).unwrap().text(), Some("my title"));
             assert_eq!(
-                doc.get_first(author_field).unwrap().text(),
+                doc.get_first(title_field).unwrap().as_text(),
+                Some("my title")
+            );
+            assert_eq!(
+                doc.get_first(author_field).unwrap().as_text(),
                 Some("fulmicoton")
             );
-            assert_eq!(doc.get_first(count_field).unwrap().u64_value(), Some(4));
-            assert_eq!(
-                doc.get_first(popularity_field).unwrap().i64_value(),
-                Some(10)
-            );
-            assert_eq!(
-                doc.get_first(score_field).unwrap().f64_value(),
-                Some(80.5f64)
-            );
+            assert_eq!(doc.get_first(count_field).unwrap().as_u64(), Some(4));
+            assert_eq!(doc.get_first(popularity_field).unwrap().as_i64(), Some(10));
+            assert_eq!(doc.get_first(score_field).unwrap().as_f64(), Some(80.5f64));
         }
         {
             let res = schema.parse_document(

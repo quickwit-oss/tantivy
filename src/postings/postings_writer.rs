@@ -1,22 +1,21 @@
-use super::stacker::{Addr, MemoryArena, TermHashMap};
-
-use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
-};
-use crate::postings::UnorderedTermId;
-use crate::postings::{FieldSerializer, InvertedIndexSerializer};
-use crate::schema::{Field, FieldEntry, FieldType, Schema, Term};
-use crate::schema::{IndexRecordOption, Type};
-use crate::termdict::TermOrdinal;
-use crate::tokenizer::TokenStream;
-use crate::tokenizer::{Token, MAX_TOKEN_LEN};
-use crate::DocId;
-use crate::{fieldnorm::FieldNormReaders, indexer::doc_id_mapping::DocIdMapping};
-use fnv::FnvHashMap;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::{DerefMut, Range};
+
+use fnv::FnvHashMap;
+
+use super::stacker::{Addr, MemoryArena, TermHashMap};
+use crate::fieldnorm::FieldNormReaders;
+use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::postings::recorder::{
+    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
+};
+use crate::postings::{FieldSerializer, InvertedIndexSerializer, UnorderedTermId};
+use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema, Term, Type};
+use crate::termdict::TermOrdinal;
+use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
+use crate::DocId;
 
 fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
     match *field_entry.field_type() {

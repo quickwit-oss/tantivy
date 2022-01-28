@@ -1,13 +1,13 @@
-use crate::query::Query;
-use crate::schema::Field;
-use crate::schema::Value;
-use crate::tokenizer::{TextAnalyzer, Token};
-use crate::Searcher;
-use crate::{Document, Score};
-use htmlescape::encode_minimal;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Range;
+
+use htmlescape::encode_minimal;
+
+use crate::query::Query;
+use crate::schema::{Field, Value};
+use crate::tokenizer::{TextAnalyzer, Token};
+use crate::{Document, Score, Searcher};
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -280,7 +280,7 @@ impl SnippetGenerator {
     pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
         let text: String = doc
             .get_all(self.field)
-            .flat_map(Value::text)
+            .flat_map(Value::as_text)
             .collect::<Vec<&str>>()
             .join(" ");
         self.snippet(&text)
@@ -296,14 +296,15 @@ impl SnippetGenerator {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use maplit::btreemap;
+
     use super::{search_fragments, select_best_fragment_combination};
     use crate::query::QueryParser;
     use crate::schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
     use crate::tokenizer::SimpleTokenizer;
-    use crate::Index;
-    use crate::SnippetGenerator;
-    use maplit::btreemap;
-    use std::collections::BTreeMap;
+    use crate::{Index, SnippetGenerator};
 
     const TEST_TEXT: &str = r#"Rust is a systems programming language sponsored by
 Mozilla which describes it as a "safe, concurrent, practical language", supporting functional and
@@ -335,13 +336,13 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], TEST_TEXT);
         assert_eq!(
             snippet.fragment,
-            "Rust is a systems programming language sponsored by\n\
-             Mozilla which describes it as a \"safe"
+            "Rust is a systems programming language sponsored by\nMozilla which describes it as a \
+             \"safe"
         );
         assert_eq!(
             snippet.to_html(),
-            "<b>Rust</b> is a systems programming <b>language</b> \
-             sponsored by\nMozilla which describes it as a &quot;safe"
+            "<b>Rust</b> is a systems programming <b>language</b> sponsored by\nMozilla which \
+             describes it as a &quot;safe"
         )
     }
 
@@ -367,7 +368,7 @@ Survey in 2016, 2017, and 2018."#;
                 String::from("language") => 1.0
             };
             let fragments = search_fragments(&From::from(SimpleTokenizer), TEST_TEXT, &terms, 20);
-            //assert_eq!(fragments.len(), 7);
+            // assert_eq!(fragments.len(), 7);
             {
                 let first = &fragments[0];
                 assert_eq!(first.score, 0.9);
@@ -547,12 +548,21 @@ Survey in 2016, 2017, and 2018."#;
             SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
         {
             let snippet = snippet_generator.snippet(TEST_TEXT);
-            assert_eq!(snippet.to_html(), "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to provide better memory safety");
+            assert_eq!(
+                snippet.to_html(),
+                "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to \
+                 C++[according to whom?],\nbut its <b>designers</b> intend it to provide better \
+                 memory safety"
+            );
         }
         {
             snippet_generator.set_max_num_chars(90);
             let snippet = snippet_generator.snippet(TEST_TEXT);
-            assert_eq!(snippet.to_html(), "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to");
+            assert_eq!(
+                snippet.to_html(),
+                "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its \
+                 <b>designers</b> intend it to"
+            );
         }
         Ok(())
     }

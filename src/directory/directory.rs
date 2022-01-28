@@ -1,18 +1,12 @@
-use crate::directory::directory_lock::Lock;
-use crate::directory::error::LockError;
-use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use crate::directory::WatchHandle;
-use crate::directory::{FileHandle, WatchCallback};
-use crate::directory::{FileSlice, WritePtr};
-use std::fmt;
-use std::io;
 use std::io::Write;
-use std::marker::Send;
-use std::marker::Sync;
-use std::path::Path;
-use std::path::PathBuf;
-use std::thread;
+use std::marker::{Send, Sync};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{fmt, io, thread};
+
+use crate::directory::directory_lock::Lock;
+use crate::directory::error::{DeleteError, LockError, OpenReadError, OpenWriteError};
+use crate::directory::{FileHandle, FileSlice, WatchCallback, WatchHandle, WritePtr};
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -233,8 +227,7 @@ pub trait DirectoryClone {
 }
 
 impl<T> DirectoryClone for T
-where
-    T: 'static + Directory + Clone,
+where T: 'static + Directory + Clone
 {
     fn box_clone(&self) -> Box<dyn Directory> {
         Box::new(self.clone())

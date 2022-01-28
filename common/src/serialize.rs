@@ -1,10 +1,9 @@
-use crate::Endianness;
-use crate::VInt;
+use std::io::{Read, Write};
+use std::{fmt, io};
+
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use std::fmt;
-use std::io;
-use std::io::Read;
-use std::io::Write;
+
+use crate::{Endianness, VInt};
 
 /// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {
@@ -202,8 +201,7 @@ impl BinarySerializable for String {
 #[cfg(test)]
 pub mod test {
 
-    use super::VInt;
-    use super::*;
+    use super::{VInt, *};
     use crate::serialize::BinarySerializable;
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();

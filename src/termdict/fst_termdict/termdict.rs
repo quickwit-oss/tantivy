@@ -1,14 +1,16 @@
+use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter};
+use once_cell::sync::Lazy;
+use tantivy_fst::raw::Fst;
+use tantivy_fst::Automaton;
+
 use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 use super::{TermStreamer, TermStreamerBuilder};
 use crate::directory::{FileSlice, OwnedBytes};
 use crate::error::DataCorruption;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use common::{BinarySerializable, CountingWriter};
-use once_cell::sync::Lazy;
-use std::io::{self, Write};
-use tantivy_fst::raw::Fst;
-use tantivy_fst::Automaton;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -24,8 +26,7 @@ pub struct TermDictionaryBuilder<W> {
 }
 
 impl<W> TermDictionaryBuilder<W>
-where
-    W: Write,
+where W: Write
 {
     /// Creates a new `TermDictionaryBuilder`
     pub fn create(w: W) -> io::Result<Self> {

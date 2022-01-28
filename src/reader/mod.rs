@@ -1,23 +1,19 @@
 mod pool;
 mod warming;
 
+use std::convert::TryInto;
+use std::io;
+use std::sync::atomic::AtomicU64;
+use std::sync::{atomic, Arc, Weak};
+
+pub use warming::Warmer;
+
 pub use self::pool::LeasedItem;
 use self::pool::Pool;
 use self::warming::WarmingState;
 use crate::core::searcher::SearcherGeneration;
-use crate::directory::WatchHandle;
-use crate::directory::META_LOCK;
-use crate::directory::{Directory, WatchCallback};
-use crate::Index;
-use crate::Searcher;
-use crate::SegmentReader;
-use crate::{Inventory, TrackedObject};
-use std::sync::atomic;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::sync::Weak;
-use std::{convert::TryInto, io};
-pub use warming::Warmer;
+use crate::directory::{Directory, WatchCallback, WatchHandle, META_LOCK};
+use crate::{Index, Inventory, Searcher, SegmentReader, TrackedObject};
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -29,7 +25,8 @@ pub enum ReloadPolicy {
     /// The index is entirely reloaded manually.
     /// All updates of the index should be manual.
     ///
-    /// No change is reflected automatically. You are required to call `IndexReader::reload()` manually.
+    /// No change is reflected automatically. You are required to call `IndexReader::reload()`
+    /// manually.
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
@@ -139,7 +136,8 @@ impl IndexReaderBuilder {
 
     /// Sets the number of warming threads.
     ///
-    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the [IndexReader].
+    /// This allows parallelizing warming work when there are multiple [Warmer] registered with the
+    /// [IndexReader].
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
         self

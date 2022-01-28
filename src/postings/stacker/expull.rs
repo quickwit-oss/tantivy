@@ -1,9 +1,7 @@
-use super::{Addr, MemoryArena};
+use std::{io, mem};
 
-use crate::postings::stacker::memory_arena::load;
-use crate::postings::stacker::memory_arena::store;
-use std::io;
-use std::mem;
+use super::{Addr, MemoryArena};
+use crate::postings::stacker::memory_arena::{load, store};
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 const FIRST_BLOCK: usize = 16;
@@ -181,10 +179,10 @@ impl ExpUnrolledLinkedList {
 #[cfg(test)]
 mod tests {
 
-    use super::super::MemoryArena;
-    use super::len_to_capacity;
-    use super::*;
     use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+
+    use super::super::MemoryArena;
+    use super::{len_to_capacity, *};
 
     #[test]
     fn test_stack() {
@@ -303,11 +301,13 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
+    use std::iter;
+
+    use byteorder::{NativeEndian, WriteBytesExt};
+    use test::Bencher;
+
     use super::super::MemoryArena;
     use super::ExpUnrolledLinkedList;
-    use byteorder::{NativeEndian, WriteBytesExt};
-    use std::iter;
-    use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;

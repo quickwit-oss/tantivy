@@ -1,6 +1,4 @@
-/*!
-Postings module (also called inverted index)
-*/
+//! Postings module (also called inverted index)
 
 mod block_search;
 
@@ -38,24 +36,20 @@ pub(crate) enum FreqReadingOption {
 
 #[cfg(test)]
 pub mod tests {
-    use super::InvertedIndexSerializer;
-    use super::Postings;
-    use crate::core::Index;
-    use crate::core::SegmentComponent;
-    use crate::core::SegmentReader;
+    use std::mem;
+
+    use super::{InvertedIndexSerializer, Postings};
+    use crate::core::{Index, SegmentComponent, SegmentReader};
     use crate::docset::{DocSet, TERMINATED};
     use crate::fieldnorm::FieldNormReader;
     use crate::indexer::operation::AddOperation;
     use crate::indexer::SegmentWriter;
     use crate::query::Scorer;
-    use crate::schema::{Field, TextOptions};
-    use crate::schema::{IndexRecordOption, TextFieldIndexing};
-    use crate::schema::{Schema, Term, INDEXED, TEXT};
+    use crate::schema::{
+        Field, IndexRecordOption, Schema, Term, TextFieldIndexing, TextOptions, INDEXED, TEXT,
+    };
     use crate::tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
-    use crate::DocId;
-    use crate::HasLen;
-    use crate::Score;
-    use std::mem;
+    use crate::{DocId, HasLen, Score};
 
     #[test]
     pub fn test_position_write() -> crate::Result<()> {
@@ -565,17 +559,15 @@ pub mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use crate::docset::TERMINATED;
-    use crate::query::Intersection;
-    use crate::schema::IndexRecordOption;
-    use crate::schema::{Document, Field, Schema, Term, STRING};
-    use crate::tests;
-    use crate::DocSet;
-    use crate::Index;
     use once_cell::sync::Lazy;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use test::{self, Bencher};
+
+    use crate::docset::TERMINATED;
+    use crate::query::Intersection;
+    use crate::schema::{Document, Field, IndexRecordOption, Schema, Term, STRING};
+    use crate::{tests, DocSet, Index};
 
     pub static TERM_A: Lazy<Term> = Lazy::new(|| {
         let field = Field::from_field_id(0);

@@ -28,6 +28,7 @@
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+
 use tantivy::schema::{Schema, STORED, TEXT};
 use tantivy::{doc, Index, IndexWriter, Opstamp, TantivyError};
 
@@ -90,7 +91,8 @@ fn main() -> tantivy::Result<()> {
     // # In the main thread, we commit 10 times, once every 500ms.
     for _ in 0..10 {
         let opstamp: Opstamp = {
-            // Committing or rollbacking on the other hand requires write lock. This will block other threads.
+            // Committing or rollbacking on the other hand requires write lock. This will block
+            // other threads.
             let mut index_writer_wlock = index_writer.write().unwrap();
             index_writer_wlock.commit()?
         };

@@ -1,13 +1,12 @@
+use std::collections::hash_set::HashSet;
+use std::fmt::{self, Debug, Formatter};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use super::segment_register::SegmentRegister;
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
+use crate::core::{SegmentId, SegmentMeta};
 use crate::error::TantivyError;
 use crate::indexer::delete_queue::DeleteCursor;
 use crate::indexer::SegmentEntry;
-use std::collections::hash_set::HashSet;
-use std::fmt::{self, Debug, Formatter};
-use std::sync::RwLock;
-use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Default)]
 struct SegmentRegisters {
@@ -154,21 +153,23 @@ impl SegmentManager {
         let mut segment_entries = vec![];
         if registers_lock.uncommitted.contains_all(segment_ids) {
             for segment_id in segment_ids {
-                let segment_entry = registers_lock.uncommitted
-                    .get(segment_id)
-                    .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
+                let segment_entry = registers_lock.uncommitted.get(segment_id).expect(
+                    "Segment id not found {}. Should never happen because of the contains all \
+                     if-block.",
+                );
                 segment_entries.push(segment_entry);
             }
         } else if registers_lock.committed.contains_all(segment_ids) {
             for segment_id in segment_ids {
-                let segment_entry = registers_lock.committed
-                    .get(segment_id)
-                    .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
+                let segment_entry = registers_lock.committed.get(segment_id).expect(
+                    "Segment id not found {}. Should never happen because of the contains all \
+                     if-block.",
+                );
                 segment_entries.push(segment_entry);
             }
         } else {
-            let error_msg = "Merge operation sent for segments that are not \
-                             all uncommited or commited."
+            let error_msg = "Merge operation sent for segments that are not all uncommited or \
+                             commited."
                 .to_string();
             return Err(TantivyError::InvalidArgument(error_msg));
         }
@@ -193,8 +194,8 @@ impl SegmentManager {
             .ok_or_else(|| {
                 warn!("couldn't find segment in SegmentManager");
                 crate::TantivyError::InvalidArgument(
-                    "The segments that were merged could not be found in the SegmentManager. \
-                     This is not necessarily a bug, and can happen after a rollback for instance."
+                    "The segments that were merged could not be found in the SegmentManager. This \
+                     is not necessarily a bug, and can happen after a rollback for instance."
                         .to_string(),
                 )
             })?;

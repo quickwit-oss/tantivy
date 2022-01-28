@@ -1,10 +1,9 @@
-use crate::query::Occur;
-use crate::schema::Field;
-use crate::schema::Term;
-use crate::schema::Type;
-use crate::Score;
 use std::fmt;
 use std::ops::Bound;
+
+use crate::query::Occur;
+use crate::schema::{Field, Term, Type};
+use crate::Score;
 
 #[derive(Clone)]
 pub enum LogicalLiteral {

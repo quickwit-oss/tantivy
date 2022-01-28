@@ -6,10 +6,9 @@ mod block;
 mod skip_index;
 mod skip_index_builder;
 
-use crate::DocId;
-
 pub use self::skip_index::SkipIndex;
 pub use self::skip_index_builder::SkipIndexBuilder;
+use crate::DocId;
 
 /// A checkpoint contains meta-information about
 /// a block. Either a block of documents, or another block
@@ -45,13 +44,12 @@ mod tests {
     use futures::executor::block_on;
     use proptest::strategy::{BoxedStrategy, Strategy};
 
+    use super::{SkipIndex, SkipIndexBuilder};
     use crate::directory::OwnedBytes;
     use crate::indexer::NoMergePolicy;
     use crate::schema::{SchemaBuilder, STORED, TEXT};
     use crate::store::index::Checkpoint;
     use crate::{DocAddress, DocId, Index, Term};
-
-    use super::{SkipIndex, SkipIndexBuilder};
 
     #[test]
     fn test_skip_index_empty() -> io::Result<()> {

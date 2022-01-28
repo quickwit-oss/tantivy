@@ -1,8 +1,10 @@
-use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
-use crate::DocId;
-use common::VInt;
 use std::io;
 use std::ops::Range;
+
+use common::VInt;
+
+use crate::store::index::{Checkpoint, CHECKPOINT_PERIOD};
+use crate::DocId;
 
 /// Represents a block of checkpoints.
 ///
@@ -105,10 +107,11 @@ impl CheckpointBlock {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use crate::store::index::block::CheckpointBlock;
     use crate::store::index::Checkpoint;
     use crate::DocId;
-    use std::io;
 
     fn test_aux_ser_deser(checkpoints: &[Checkpoint]) -> io::Result<()> {
         let mut block = CheckpointBlock::default();
