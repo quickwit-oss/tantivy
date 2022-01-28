@@ -1,9 +1,11 @@
-use crate::tokenizer::TokenStreamChain;
-use serde::{Deserialize, Serialize};
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
 use std::borrow::{Borrow, BorrowMut};
 use std::ops::{Deref, DerefMut};
+
+use serde::{Deserialize, Serialize};
+
+use crate::tokenizer::TokenStreamChain;
 
 /// Token
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -76,7 +78,6 @@ impl TextAnalyzer {
     ///     .filter(LowerCaser)
     ///     .filter(Stemmer::default());
     /// ```
-    ///
     pub fn filter<F: Into<BoxTokenFilter>>(mut self, token_filter: F) -> Self {
         self.token_filters.push(token_filter.into());
         self
@@ -176,8 +177,7 @@ impl<'a> TokenStream for Box<dyn TokenStream + 'a> {
 pub struct BoxTokenStream<'a>(Box<dyn TokenStream + 'a>);
 
 impl<'a, T> From<T> for BoxTokenStream<'a>
-where
-    T: TokenStream + 'a,
+where T: TokenStream + 'a
 {
     fn from(token_stream: T) -> BoxTokenStream<'a> {
         BoxTokenStream(Box::new(token_stream))
@@ -244,7 +244,6 @@ impl<T: TokenFilter> From<T> for BoxTokenFilter {
 ///     assert_eq!(token.position, 1);
 /// }
 /// ```
-///
 pub trait TokenStream {
     /// Advance to the next token
     ///

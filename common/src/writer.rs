@@ -54,7 +54,8 @@ impl<W: TerminatingWrite> TerminatingWrite for CountingWriter<W> {
     }
 }
 
-/// Struct used to prevent from calling [`terminate_ref`](trait.TerminatingWrite.html#tymethod.terminate_ref) directly
+/// Struct used to prevent from calling
+/// [`terminate_ref`](trait.TerminatingWrite.html#tymethod.terminate_ref) directly
 ///
 /// The point is that while the type is public, it cannot be built by anyone
 /// outside of this module.
@@ -64,9 +65,7 @@ pub struct AntiCallToken(());
 pub trait TerminatingWrite: Write {
     /// Indicate that the writer will no longer be used. Internally call terminate_ref.
     fn terminate(mut self) -> io::Result<()>
-    where
-        Self: Sized,
-    {
+    where Self: Sized {
         self.terminate_ref(AntiCallToken(()))
     }
 
@@ -97,8 +96,9 @@ impl<'a> TerminatingWrite for &'a mut Vec<u8> {
 #[cfg(test)]
 mod test {
 
-    use super::CountingWriter;
     use std::io::Write;
+
+    use super::CountingWriter;
 
     #[test]
     fn test_counting_writer() {

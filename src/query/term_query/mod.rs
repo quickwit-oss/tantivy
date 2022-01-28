@@ -14,8 +14,7 @@ mod tests {
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::{Query, QueryParser, Scorer, TermQuery};
     use crate::schema::{Field, IndexRecordOption, Schema, STRING, TEXT};
-    use crate::{assert_nearly_equals, DocAddress};
-    use crate::{Index, Term, TERMINATED};
+    use crate::{assert_nearly_equals, DocAddress, Index, Term, TERMINATED};
 
     #[test]
     pub fn test_term_query_no_freq() -> crate::Result<()> {

@@ -1,19 +1,19 @@
-use crate::core::META_FILEPATH;
-use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use crate::directory::AntiCallToken;
-use crate::directory::WatchCallbackList;
-use crate::directory::{Directory, FileSlice, WatchCallback, WatchHandle};
-use crate::directory::{TerminatingWrite, WritePtr};
-use common::HasLen;
-use fail::fail_point;
 use std::collections::HashMap;
-use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::result;
 use std::sync::{Arc, RwLock};
+use std::{fmt, result};
+
+use common::HasLen;
+use fail::fail_point;
 
 use super::FileHandle;
+use crate::core::META_FILEPATH;
+use crate::directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use crate::directory::{
+    AntiCallToken, Directory, FileSlice, TerminatingWrite, WatchCallback, WatchCallbackList,
+    WatchHandle, WritePtr,
+};
 
 /// Writer associated with the `RamDirectory`
 ///
@@ -40,7 +40,9 @@ impl Drop for VecWriter {
     fn drop(&mut self) {
         if !self.is_flushed {
             warn!(
-                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop. This also occurs when the indexer crashed, so you may want to check the logs for the root cause.",
+                "You forgot to flush {:?} before its writter got Drop. Do not rely on drop. This \
+                 also occurs when the indexer crashed, so you may want to check the logs for the \
+                 root cause.",
                 self.path
             )
         }
@@ -123,7 +125,6 @@ impl fmt::Debug for RamDirectory {
 ///
 /// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
-///
 #[derive(Clone, Default)]
 pub struct RamDirectory {
     fs: Arc<RwLock<InnerDirectory>>,
@@ -233,10 +234,11 @@ impl Directory for RamDirectory {
 
 #[cfg(test)]
 mod tests {
-    use super::RamDirectory;
-    use crate::Directory;
     use std::io::Write;
     use std::path::Path;
+
+    use super::RamDirectory;
+    use crate::Directory;
 
     #[test]
     fn test_persist() {

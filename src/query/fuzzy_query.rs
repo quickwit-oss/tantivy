@@ -1,12 +1,14 @@
+use std::collections::HashMap;
+use std::ops::Range;
+
+use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
+use once_cell::sync::Lazy;
+use tantivy_fst::Automaton;
+
 use crate::query::{AutomatonWeight, Query, Weight};
 use crate::schema::Term;
 use crate::Searcher;
 use crate::TantivyError::InvalidArgument;
-use levenshtein_automata::{Distance, LevenshteinAutomatonBuilder, DFA};
-use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::ops::Range;
-use tantivy_fst::Automaton;
 
 pub(crate) struct DfaWrapper(pub DFA);
 
@@ -168,13 +170,9 @@ impl Query for FuzzyTermQuery {
 #[cfg(test)]
 mod test {
     use super::FuzzyTermQuery;
-    use crate::assert_nearly_equals;
-    use crate::collector::Count;
-    use crate::collector::TopDocs;
-    use crate::schema::Schema;
-    use crate::schema::TEXT;
-    use crate::Index;
-    use crate::Term;
+    use crate::collector::{Count, TopDocs};
+    use crate::schema::{Schema, TEXT};
+    use crate::{assert_nearly_equals, Index, Term};
 
     #[test]
     pub fn test_fuzzy_term() -> crate::Result<()> {

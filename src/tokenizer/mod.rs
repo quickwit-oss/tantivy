@@ -88,7 +88,8 @@
 //! If you built your schema programmatically, a complete example
 //! could like this for instance.
 //!
-//! Note that tokens with a len greater or equal to [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).
+//! Note that tokens with a len greater or equal to
+//! [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).
 //!
 //! # Example
 //!
@@ -116,7 +117,6 @@
 //!     .tokenizers()
 //!     .register("custom_en", custom_en_tokenizer);
 //! ```
-//!
 mod alphanum_only;
 mod ascii_folding_filter;
 mod facet_tokenizer;
@@ -144,14 +144,12 @@ pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
-pub use self::whitespace_tokenizer::WhitespaceTokenizer;
-
 pub use self::tokenized_string::{PreTokenizedStream, PreTokenizedString};
 pub use self::tokenizer::{
     BoxTokenFilter, BoxTokenStream, TextAnalyzer, Token, TokenFilter, TokenStream, Tokenizer,
 };
-
 pub use self::tokenizer_manager::TokenizerManager;
+pub use self::whitespace_tokenizer::WhitespaceTokenizer;
 
 /// Maximum authorized len (in bytes) for a token.
 ///

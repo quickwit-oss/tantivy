@@ -1,15 +1,17 @@
-use crate::Version;
-use std::fmt;
-use std::io;
 use std::path::PathBuf;
+use std::{fmt, io};
+
+use crate::Version;
 
 /// Error while trying to acquire a directory lock.
 #[derive(Debug, Error)]
 pub enum LockError {
     /// Failed to acquired a lock as it is already held by another
     /// client.
-    /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
-    /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
+    /// - In the context of a blocking lock, this means the lock was not released within some
+    ///   `timeout` period.
+    /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the
+    ///   call.
     #[error("Could not acquire lock as it is already held, possibly by a different process.")]
     LockBusy,
     /// Trying to acquire a lock failed with an `IoError`

@@ -1,10 +1,7 @@
 use super::MoreLikeThis;
-
-use crate::{
-    query::{Query, Weight},
-    schema::{Field, FieldValue},
-    DocAddress, Result, Searcher,
-};
+use crate::query::{Query, Weight};
+use crate::schema::{Field, Value};
+use crate::{DocAddress, Result, Searcher};
 
 /// A query that matches all of the documents similar to a document
 /// or a set of field values provided.
@@ -24,7 +21,6 @@ use crate::{
 ///     .with_boost_factor(1.0)
 ///     .with_stop_words(vec!["for".to_string()])
 ///     .with_document(DocAddress::new(2, 1));
-///
 /// ```
 #[derive(Debug, Clone)]
 pub struct MoreLikeThisQuery {
@@ -35,7 +31,7 @@ pub struct MoreLikeThisQuery {
 #[derive(Debug, PartialEq, Clone)]
 enum TargetDocument {
     DocumentAdress(DocAddress),
-    DocumentFields(Vec<(Field, Vec<FieldValue>)>),
+    DocumentFields(Vec<(Field, Vec<Value>)>),
 }
 
 impl MoreLikeThisQuery {
@@ -156,10 +152,7 @@ impl MoreLikeThisQueryBuilder {
     /// that will be used to compose the resulting query.
     /// This interface is meant to be used when you want to provide your own set of fields
     /// not necessarily from a specific document.
-    pub fn with_document_fields(
-        self,
-        doc_fields: Vec<(Field, Vec<FieldValue>)>,
-    ) -> MoreLikeThisQuery {
+    pub fn with_document_fields(self, doc_fields: Vec<(Field, Vec<Value>)>) -> MoreLikeThisQuery {
         MoreLikeThisQuery {
             mlt: self.mlt,
             target: TargetDocument::DocumentFields(doc_fields),
@@ -169,12 +162,10 @@ impl MoreLikeThisQueryBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::MoreLikeThisQuery;
-    use super::TargetDocument;
+    use super::{MoreLikeThisQuery, TargetDocument};
     use crate::collector::TopDocs;
     use crate::schema::{Schema, STORED, TEXT};
-    use crate::DocAddress;
-    use crate::Index;
+    use crate::{DocAddress, Index};
 
     fn create_test_index() -> crate::Result<Index> {
         let mut schema_builder = Schema::builder();

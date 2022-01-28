@@ -1,13 +1,11 @@
-use crate::tokenizer::stemmer::Language;
-use crate::tokenizer::tokenizer::TextAnalyzer;
-use crate::tokenizer::LowerCaser;
-use crate::tokenizer::RawTokenizer;
-use crate::tokenizer::RemoveLongFilter;
-use crate::tokenizer::SimpleTokenizer;
-use crate::tokenizer::Stemmer;
-use crate::tokenizer::WhitespaceTokenizer;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+
+use crate::tokenizer::stemmer::Language;
+use crate::tokenizer::tokenizer::TextAnalyzer;
+use crate::tokenizer::{
+    LowerCaser, RawTokenizer, RemoveLongFilter, SimpleTokenizer, Stemmer, WhitespaceTokenizer,
+};
 
 /// The tokenizer manager serves as a store for
 /// all of the pre-configured tokenizer pipelines.
@@ -29,9 +27,7 @@ pub struct TokenizerManager {
 impl TokenizerManager {
     /// Registers a new tokenizer associated with a given name.
     pub fn register<T>(&self, tokenizer_name: &str, tokenizer: T)
-    where
-        TextAnalyzer: From<T>,
-    {
+    where TextAnalyzer: From<T> {
         let boxed_tokenizer: TextAnalyzer = TextAnalyzer::from(tokenizer);
         self.tokenizers
             .write()

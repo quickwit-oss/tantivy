@@ -1,17 +1,20 @@
-use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
-use crate::Occur;
+use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, space, spaces, string};
+use combine::parser::combinator::recognize;
 use combine::parser::range::{take_while, take_while1};
 use combine::parser::repeat::escaped;
 use combine::parser::Parser;
 use combine::{
     attempt, choice, eof, many, many1, one_of, optional, parser, satisfy, skip_many1, value,
 };
-use combine::{error::StringStreamError, parser::combinator::recognize};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-// Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to special characters.
+use super::user_input_ast::{UserInputAst, UserInputBound, UserInputLeaf, UserInputLiteral};
+use crate::Occur;
+
+// Note: '-' char is only forbidden at the beginning of a field name, would be clearer to add it to
+// special characters.
 const SPECIAL_CHARS: &[char] = &[
     '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\', '*', ' ',
 ];
@@ -363,8 +366,9 @@ mod test {
 
     type TestParseResult = Result<(), StringStreamError>;
 
-    use super::*;
     use combine::parser::Parser;
+
+    use super::*;
 
     pub fn nearly_equals(a: f64, b: f64) -> bool {
         (a - b).abs() < 0.0005 * (a + b).abs()

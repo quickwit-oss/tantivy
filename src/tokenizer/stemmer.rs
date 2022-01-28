@@ -1,7 +1,8 @@
-use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::BoxTokenStream;
 use rust_stemmers::{self, Algorithm};
 use serde::{Deserialize, Serialize};
+
+use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 
 /// Available stemmer languages.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]

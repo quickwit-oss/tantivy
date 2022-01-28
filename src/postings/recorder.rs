@@ -1,8 +1,9 @@
+use common::{read_u32_vint, write_u32_vint};
+
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::FieldSerializer;
 use crate::DocId;
-use common::{read_u32_vint, write_u32_vint};
 
 const POSITION_END: u32 = 0;
 
@@ -119,7 +120,7 @@ impl Recorder for NothingRecorder {
     ) {
         let (buffer, doc_ids) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer);
-        //TODO avoid reading twice.
+        // TODO avoid reading twice.
         if let Some(doc_id_map) = doc_id_map {
             doc_ids.extend(
                 VInt32Reader::new(&buffer[..])
@@ -299,9 +300,7 @@ impl Recorder for TfAndPositionRecorder {
 #[cfg(test)]
 mod tests {
 
-    use super::write_u32_vint;
-    use super::BufferLender;
-    use super::VInt32Reader;
+    use super::{write_u32_vint, BufferLender, VInt32Reader};
 
     #[test]
     fn test_buffer_lender() {

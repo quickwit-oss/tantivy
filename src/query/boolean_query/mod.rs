@@ -2,29 +2,22 @@ mod block_wand;
 mod boolean_query;
 mod boolean_weight;
 
-pub(crate) use self::block_wand::block_wand;
-pub(crate) use self::block_wand::block_wand_single_scorer;
+pub(crate) use self::block_wand::{block_wand, block_wand_single_scorer};
 pub use self::boolean_query::BooleanQuery;
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::assert_nearly_equals;
     use crate::collector::tests::TEST_COLLECTOR_WITH_SCORE;
     use crate::collector::TopDocs;
     use crate::query::score_combiner::SumWithCoordsCombiner;
     use crate::query::term_query::TermScorer;
-    use crate::query::Intersection;
-    use crate::query::Occur;
-    use crate::query::Query;
-    use crate::query::QueryParser;
-    use crate::query::RequiredOptionalScorer;
-    use crate::query::Scorer;
-    use crate::query::TermQuery;
+    use crate::query::{
+        Intersection, Occur, Query, QueryParser, RequiredOptionalScorer, Scorer, TermQuery,
+    };
     use crate::schema::*;
-    use crate::Index;
-    use crate::{DocAddress, DocId, Score};
+    use crate::{assert_nearly_equals, DocAddress, DocId, Index, Score};
 
     fn aux_test_helper() -> crate::Result<(Index, Field)> {
         let mut schema_builder = Schema::builder();

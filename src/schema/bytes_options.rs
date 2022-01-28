@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::ops::BitOr;
+
+use serde::{Deserialize, Serialize};
 
 use super::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 /// Define how an a bytes field should be handled by tantivy.

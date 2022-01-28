@@ -1,37 +1,36 @@
-/*!
-Compressed/slow/row-oriented storage for documents.
-
-A field needs to be marked as stored in the schema in
-order to be handled in the `Store`.
-
-Internally, documents (or rather their stored fields) are serialized to a buffer.
-When the buffer exceeds 16K, the buffer is compressed using `brotli`, `LZ4` or `snappy`
-and the resulting block is written to disk.
-
-One can then request for a specific `DocId`.
-A skip list helps navigating to the right block,
-decompresses it entirely and returns the document within it.
-
-If the last document requested was in the same block,
-the reader is smart enough to avoid decompressing
-the block a second time, but their is no real
-*uncompressed block* cache.
-
-A typical use case for the store is, once
-the search result page has been computed, returning
-the actual content of the 10 best document.
-
-# Usage
-
-Most users should not access the `StoreReader` directly
-and should rely on either
-
-- at the segment level, the
-[`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
-- at the index level, the
-[`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
-
-!*/
+//! Compressed/slow/row-oriented storage for documents.
+//!
+//! A field needs to be marked as stored in the schema in
+//! order to be handled in the `Store`.
+//!
+//! Internally, documents (or rather their stored fields) are serialized to a buffer.
+//! When the buffer exceeds 16K, the buffer is compressed using `brotli`, `LZ4` or `snappy`
+//! and the resulting block is written to disk.
+//!
+//! One can then request for a specific `DocId`.
+//! A skip list helps navigating to the right block,
+//! decompresses it entirely and returns the document within it.
+//!
+//! If the last document requested was in the same block,
+//! the reader is smart enough to avoid decompressing
+//! the block a second time, but their is no real
+//! uncompressed block* cache.
+//!
+//! A typical use case for the store is, once
+//! the search result page has been computed, returning
+//! the actual content of the 10 best document.
+//!
+//! # Usage
+//!
+//! Most users should not access the `StoreReader` directly
+//! and should rely on either
+//!
+//! - at the segment level, the
+//! [`SegmentReader`'s `doc` method](../struct.SegmentReader.html#method.doc)
+//! - at the index level, the
+//! [`Searcher`'s `doc` method](../struct.Searcher.html#method.doc)
+//!
+//! !
 
 mod compressors;
 mod footer;
@@ -54,27 +53,25 @@ mod compression_snap;
 #[cfg(test)]
 pub mod tests {
 
+    use std::path::Path;
+
     use futures::executor::block_on;
 
     use super::*;
+    use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::{self, FieldValue, TextFieldIndexing, STORED, TEXT};
-    use crate::schema::{Document, TextOptions};
-    use crate::{
-        directory::{Directory, RamDirectory, WritePtr},
-        Term,
+    use crate::schema::{
+        self, Document, FieldValue, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
     };
-    use crate::{schema::Schema, Index};
-    use std::path::Path;
+    use crate::{Index, Term};
 
-    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed \
-             do eiusmod tempor incididunt ut labore et dolore magna aliqua. \
-             Ut enim ad minim veniam, quis nostrud exercitation ullamco \
-             laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure \
-             dolor in reprehenderit in voluptate velit esse cillum dolore eu \
-             fugiat nulla pariatur. Excepteur sint occaecat cupidatat non \
-             proident, sunt in culpa qui officia deserunt mollit anim id est \
-             laborum.";
+    const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
+                         eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad \
+                         minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip \
+                         ex ea commodo consequat. Duis aute irure dolor in reprehenderit in \
+                         voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur \
+                         sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt \
+                         mollit anim id est laborum.";
 
     pub fn write_lorem_ipsum_store(
         writer: WritePtr,
@@ -99,7 +96,7 @@ pub mod tests {
                     let field_value = FieldValue::new(field_title, From::from(title_text));
                     fields.push(field_value);
                 }
-                //let fields_refs: Vec<&FieldValue> = fields.iter().collect();
+                // let fields_refs: Vec<&FieldValue> = fields.iter().collect();
                 let doc = Document::from(fields);
                 store_writer.store(&doc).unwrap();
             }
@@ -129,7 +126,7 @@ pub mod tests {
                     .get(i)?
                     .get_first(field_title)
                     .unwrap()
-                    .text()
+                    .as_text()
                     .unwrap(),
                 format!("Doc {}", i)
             );
@@ -137,7 +134,7 @@ pub mod tests {
 
         for (_, doc) in store.iter(Some(&alive_bitset)).enumerate() {
             let doc = doc?;
-            let title_content = doc.get_first(field_title).unwrap().text().unwrap();
+            let title_content = doc.get_first(field_title).unwrap().as_text().unwrap();
             if !title_content.starts_with("Doc ") {
                 panic!("unexpected title_content {}", title_content);
             }
@@ -169,14 +166,14 @@ pub mod tests {
                     .get(i)?
                     .get_first(field_title)
                     .unwrap()
-                    .text()
+                    .as_text()
                     .unwrap(),
                 format!("Doc {}", i)
             );
         }
         for (i, doc) in store.iter(None).enumerate() {
             assert_eq!(
-                *doc?.get_first(field_title).unwrap().text().unwrap(),
+                *doc?.get_first(field_title).unwrap().as_text().unwrap(),
                 format!("Doc {}", i)
             );
         }
@@ -236,7 +233,7 @@ pub mod tests {
         let store = reader.get_store_reader()?;
         for doc in store.iter(reader.alive_bitset()) {
             assert_eq!(
-                *doc?.get_first(text_field).unwrap().text().unwrap(),
+                *doc?.get_first(text_field).unwrap().as_text().unwrap(),
                 "deletemenot".to_string()
             );
         }
@@ -346,13 +343,13 @@ pub mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::tests::write_lorem_ipsum_store;
-    use crate::directory::Directory;
-    use crate::directory::RamDirectory;
-    use crate::store::Compressor;
-    use crate::store::StoreReader;
     use std::path::Path;
+
     use test::Bencher;
+
+    use super::tests::write_lorem_ipsum_store;
+    use crate::directory::{Directory, RamDirectory};
+    use crate::store::{Compressor, StoreReader};
 
     #[bench]
     #[cfg(feature = "mmap")]

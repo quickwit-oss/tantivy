@@ -1,8 +1,8 @@
-use ownedbytes::OwnedBytes;
 use std::convert::TryInto;
 use std::io::Write;
-use std::u64;
-use std::{fmt, io};
+use std::{fmt, io, u64};
+
+use ownedbytes::OwnedBytes;
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct TinySet(u64);
@@ -187,7 +187,6 @@ fn num_buckets(max_val: u32) -> u32 {
 
 impl BitSet {
     /// serialize a `BitSet`.
-    ///
     pub fn serialize<T: Write>(&self, writer: &mut T) -> io::Result<()> {
         writer.write_all(self.max_value.to_le_bytes().as_ref())?;
         for tinyset in self.tinysets.iter().cloned() {
@@ -353,7 +352,6 @@ impl ReadOnlyBitSet {
     }
 
     /// Iterate the tinyset on the fly from serialized data.
-    ///
     #[inline]
     fn iter_tinysets(&self) -> impl Iterator<Item = TinySet> + '_ {
         self.data.chunks_exact(8).map(move |chunk| {
@@ -363,7 +361,6 @@ impl ReadOnlyBitSet {
     }
 
     /// Iterate over the positions of the elements.
-    ///
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.iter_tinysets()
@@ -415,14 +412,14 @@ impl<'a> From<&'a BitSet> for ReadOnlyBitSet {
 #[cfg(test)]
 mod tests {
 
-    use super::BitSet;
-    use super::ReadOnlyBitSet;
-    use super::TinySet;
+    use std::collections::HashSet;
+
     use ownedbytes::OwnedBytes;
     use rand::distributions::Bernoulli;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
-    use std::collections::HashSet;
+
+    use super::{BitSet, ReadOnlyBitSet, TinySet};
 
     #[test]
     fn test_read_serialized_bitset_full_multi() {
@@ -710,9 +707,9 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::BitSet;
-    use super::TinySet;
     use test;
+
+    use super::{BitSet, TinySet};
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {

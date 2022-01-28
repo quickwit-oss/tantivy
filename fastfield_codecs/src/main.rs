@@ -1,10 +1,8 @@
 #[macro_use]
 extern crate prettytable;
-use fastfield_codecs::{
-    linearinterpol::LinearInterpolFastFieldSerializer,
-    multilinearinterpol::MultiLinearInterpolFastFieldSerializer, FastFieldCodecSerializer,
-    FastFieldStats,
-};
+use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
+use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
+use fastfield_codecs::{FastFieldCodecSerializer, FastFieldStats};
 use prettytable::{Cell, Row, Table};
 
 fn main() {
@@ -24,7 +22,7 @@ fn main() {
         );
         results.push(res);
 
-        //let best_estimation_codec = results
+        // let best_estimation_codec = results
         //.iter()
         //.min_by(|res1, res2| res1.partial_cmp(&res2).unwrap())
         //.unwrap();
@@ -73,7 +71,7 @@ pub fn get_codec_test_data_sets() -> Vec<(Vec<u64>, &'static str)> {
             current_cumulative
         })
         .collect::<Vec<_>>();
-    //let data = (1..=200000_u64).map(|num| num + num).collect::<Vec<_>>();
+    // let data = (1..=200000_u64).map(|num| num + num).collect::<Vec<_>>();
     data_and_names.push((data, "Monotonically increasing concave"));
 
     let mut current_cumulative = 0;

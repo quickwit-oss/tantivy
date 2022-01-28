@@ -1,19 +1,16 @@
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
+
     use crate::collector::TopDocs;
     use crate::core::Index;
-    use crate::fastfield::MultiValuedFastFieldReader;
-    use crate::fastfield::{AliveBitSet, FastFieldReader};
+    use crate::fastfield::{AliveBitSet, FastFieldReader, MultiValuedFastFieldReader};
     use crate::query::QueryParser;
     use crate::schema::{
-        self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, TextFieldIndexing,
+        self, BytesOptions, Cardinality, Facet, FacetOptions, IndexRecordOption, IntOptions,
+        TextFieldIndexing, TextOptions,
     };
-    use crate::schema::{IntOptions, TextOptions};
-    use crate::DocAddress;
-    use crate::IndexSortByField;
-    use crate::Order;
-    use crate::{DocSet, IndexSettings, Postings, Term};
-    use futures::executor::block_on;
+    use crate::{DocAddress, DocSet, IndexSettings, IndexSortByField, Order, Postings, Term};
 
     fn create_test_index_posting_list_issue(index_settings: Option<IndexSettings>) -> Index {
         let mut schema_builder = schema::Schema::builder();
@@ -59,8 +56,8 @@ mod tests {
         index
     }
 
-    // force_disjunct_segment_sort_values forces the field, by which the index is sorted have disjunct
-    // ranges between segments, e.g. values in segment [1-3] [10 - 20] [50 - 500]
+    // force_disjunct_segment_sort_values forces the field, by which the index is sorted have
+    // disjunct ranges between segments, e.g. values in segment [1-3] [10 - 20] [50 - 500]
     fn create_test_index(
         index_settings: Option<IndexSettings>,
         force_disjunct_segment_sort_values: bool,
@@ -282,11 +279,11 @@ mod tests {
             };
             let doc = searcher.doc(DocAddress::new(0, blubber_pos)).unwrap();
             assert_eq!(
-                doc.get_first(my_text_field).unwrap().text(),
+                doc.get_first(my_text_field).unwrap().as_text(),
                 Some("blubber")
             );
             let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1000));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1000));
         }
     }
 
@@ -465,17 +462,17 @@ mod tests {
         // access doc store
         {
             let doc = searcher.doc(DocAddress::new(0, 0)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1));
             let doc = searcher.doc(DocAddress::new(0, 1)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(2));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(2));
             let doc = searcher.doc(DocAddress::new(0, 2)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(3));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(3));
             let doc = searcher.doc(DocAddress::new(0, 3)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(10));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(10));
             let doc = searcher.doc(DocAddress::new(0, 4)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(20));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(20));
             let doc = searcher.doc(DocAddress::new(0, 5)).unwrap();
-            assert_eq!(doc.get_first(int_field).unwrap().u64_value(), Some(1_000));
+            assert_eq!(doc.get_first(int_field).unwrap().as_u64(), Some(1_000));
         }
     }
 }
@@ -483,20 +480,14 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench_sorted_index_merge {
 
-    use crate::core::Index;
-    //use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
-    use crate::fastfield::DynamicFastFieldReader;
-    use crate::fastfield::FastFieldReader;
-    use crate::indexer::merger::IndexMerger;
-    use crate::schema::Cardinality;
-    use crate::schema::Document;
-    use crate::schema::IntOptions;
-    use crate::schema::Schema;
-    use crate::IndexSettings;
-    use crate::IndexSortByField;
-    use crate::IndexWriter;
-    use crate::Order;
     use test::{self, Bencher};
+
+    use crate::core::Index;
+    // use cratedoc_id, readerdoc_id_mappinglet vals = reader.fate::schema;
+    use crate::fastfield::{DynamicFastFieldReader, FastFieldReader};
+    use crate::indexer::merger::IndexMerger;
+    use crate::schema::{Cardinality, Document, IntOptions, Schema};
+    use crate::{IndexSettings, IndexSortByField, IndexWriter, Order};
     fn create_index(sort_by_field: Option<IndexSortByField>) -> Index {
         let mut schema_builder = Schema::builder();
         let int_options = IntOptions::default()
@@ -544,13 +535,13 @@ mod bench_sorted_index_merge {
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;
         let doc_id_mapping = merger.generate_doc_id_mapping(&sort_by_field).unwrap();
         b.iter(|| {
-
-            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, ordinal)|{
-            let reader = &merger.readers[*ordinal as usize];
-            let u64_reader: DynamicFastFieldReader<u64> = reader
-                .fast_fields()
-                .typed_fast_field_reader(field)
-                .expect("Failed to find a reader for single fast field. This is a tantivy bug and it should never happen.");
+            let sorted_doc_ids = doc_id_mapping.iter().map(|(doc_id, ordinal)| {
+                let reader = &merger.readers[*ordinal as usize];
+                let u64_reader: DynamicFastFieldReader<u64> =
+                    reader.fast_fields().typed_fast_field_reader(field).expect(
+                        "Failed to find a reader for single fast field. This is a tantivy bug and \
+                         it should never happen.",
+                    );
                 (doc_id, reader, u64_reader)
             });
             // add values in order of the new doc_ids
@@ -560,7 +551,6 @@ mod bench_sorted_index_merge {
             }
 
             val
-
         });
 
         Ok(())
@@ -572,7 +562,7 @@ mod bench_sorted_index_merge {
             order: Order::Desc,
         };
         let index = create_index(Some(sort_by_field.clone()));
-        //let field = index.schema().get_field("intval").unwrap();
+        // let field = index.schema().get_field("intval").unwrap();
         let segments = index.searchable_segments().unwrap();
         let merger: IndexMerger =
             IndexMerger::open(index.schema(), index.settings().clone(), &segments[..])?;

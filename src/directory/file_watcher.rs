@@ -1,13 +1,13 @@
-use crate::directory::{WatchCallback, WatchCallbackList, WatchHandle};
-use crc32fast::Hasher;
-use std::fs;
-use std::io;
 use std::io::BufRead;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
+use std::{fs, io, thread};
+
+use crc32fast::Hasher;
+
+use crate::directory::{WatchCallback, WatchCallbackList, WatchHandle};
 
 pub const POLLING_INTERVAL: Duration = Duration::from_millis(if cfg!(test) { 1 } else { 500 });
 
@@ -99,9 +99,8 @@ mod tests {
 
     use std::mem;
 
-    use crate::directory::mmap_directory::atomic_write;
-
     use super::*;
+    use crate::directory::mmap_directory::atomic_write;
 
     #[test]
     fn test_file_watcher_drop_watcher() -> crate::Result<()> {

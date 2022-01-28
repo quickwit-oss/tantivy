@@ -6,8 +6,10 @@ use tantivy::collector::TopDocs;
 use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::{Field, Schema, FAST, TEXT};
-use tantivy::{doc, DocAddress, DocId, Index, IndexReader, SegmentReader};
-use tantivy::{Opstamp, Searcher, SearcherGeneration, SegmentId, Warmer};
+use tantivy::{
+    doc, DocAddress, DocId, Index, IndexReader, Opstamp, Searcher, SearcherGeneration, SegmentId,
+    SegmentReader, Warmer,
+};
 
 // This example shows how warmers can be used to
 // load a values from an external sources using the Warmer API.
@@ -90,7 +92,6 @@ impl Warmer for DynamicPriceColumn {
 /// This map represents a map (ProductId -> Price)
 ///
 /// In practise, it could be fetching things from an external service, like a SQL table.
-///
 #[derive(Default, Clone)]
 pub struct ExternalPriceTable {
     prices: Arc<RwLock<HashMap<ProductId, Price>>>,

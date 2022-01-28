@@ -1,26 +1,24 @@
 use std::io;
 
+use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::map::{Stream, StreamBuilder};
+use tantivy_fst::{Automaton, IntoStreamer, Streamer};
+
 use super::TermDictionary;
 use crate::postings::TermInfo;
 use crate::termdict::TermOrdinal;
-use tantivy_fst::automaton::AlwaysMatch;
-use tantivy_fst::map::{Stream, StreamBuilder};
-use tantivy_fst::Automaton;
-use tantivy_fst::{IntoStreamer, Streamer};
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
 pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
-where
-    A: Automaton,
+where A: Automaton
 {
     fst_map: &'a TermDictionary,
     stream_builder: StreamBuilder<'a, A>,
 }
 
 impl<'a, A> TermStreamerBuilder<'a, A>
-where
-    A: Automaton,
+where A: Automaton
 {
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
@@ -75,8 +73,7 @@ where
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
 pub struct TermStreamer<'a, A = AlwaysMatch>
-where
-    A: Automaton,
+where A: Automaton
 {
     pub(crate) fst_map: &'a TermDictionary,
     pub(crate) stream: Stream<'a, A>,
@@ -86,8 +83,7 @@ where
 }
 
 impl<'a, A> TermStreamer<'a, A>
-where
-    A: Automaton,
+where A: Automaton
 {
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream

@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
-use crate::{DocAddress, DocId, Score};
-
 use super::{Collector, SegmentCollector};
+use crate::{DocAddress, DocId, Score};
 
 /// Collectors that returns the set of DocAddress that matches the query.
 ///

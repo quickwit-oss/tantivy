@@ -1,5 +1,4 @@
-use crate::schema::Document;
-use crate::schema::Term;
+use crate::schema::{Document, Term};
 use crate::Opstamp;
 
 /// Timestamped Delete operation.

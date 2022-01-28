@@ -1,16 +1,13 @@
-use crate::directory::FileSlice;
-use crate::directory::{TerminatingWrite, WritePtr};
-use crate::schema::Field;
-use crate::space_usage::FieldUsage;
-use crate::space_usage::PerFieldSpaceUsage;
-use common::BinarySerializable;
-use common::CountingWriter;
-use common::HasLen;
-use common::VInt;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::iter::ExactSizeIterator;
 use std::ops::Range;
+
+use common::{BinarySerializable, CountingWriter, HasLen, VInt};
+
+use crate::directory::{FileSlice, TerminatingWrite, WritePtr};
+use crate::schema::Field;
+use crate::space_usage::{FieldUsage, PerFieldSpaceUsage};
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
@@ -186,13 +183,14 @@ impl CompositeFile {
 #[cfg(test)]
 mod test {
 
+    use std::io::Write;
+    use std::path::Path;
+
+    use common::{BinarySerializable, VInt};
+
     use super::{CompositeFile, CompositeWrite};
     use crate::directory::{Directory, RamDirectory};
     use crate::schema::Field;
-    use common::BinarySerializable;
-    use common::VInt;
-    use std::io::Write;
-    use std::path::Path;
 
     #[test]
     fn test_composite_file() -> crate::Result<()> {

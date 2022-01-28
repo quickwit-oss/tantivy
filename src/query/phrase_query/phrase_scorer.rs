@@ -1,10 +1,11 @@
+use std::cmp::Ordering;
+
 use crate::docset::{DocSet, TERMINATED};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::Postings;
 use crate::query::bm25::Bm25Weight;
 use crate::query::{Intersection, Scorer};
 use crate::{DocId, Score};
-use std::cmp::Ordering;
 
 struct PostingsWithOffset<TPostings> {
     offset: u32,
@@ -295,8 +296,9 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::{intersection, intersection_count};
     use test::Bencher;
+
+    use super::{intersection, intersection_count};
 
     #[bench]
     fn bench_intersection_short(b: &mut Bencher) {

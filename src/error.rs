@@ -1,17 +1,14 @@
 //! Definition of Tantivy's error and result.
 
-use std::io;
-
-use crate::directory::error::{Incompatibility, LockError};
-use crate::fastfield::FastFieldNotAvailableError;
-use crate::query;
-use crate::{
-    directory::error::{OpenDirectoryError, OpenReadError, OpenWriteError},
-    schema,
-};
-use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
+use std::{fmt, io};
+
+use crate::directory::error::{
+    Incompatibility, LockError, OpenDirectoryError, OpenReadError, OpenWriteError,
+};
+use crate::fastfield::FastFieldNotAvailableError;
+use crate::{query, schema};
 
 /// Represents a `DataCorruption` error.
 ///

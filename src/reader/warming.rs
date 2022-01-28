@@ -1,13 +1,10 @@
-use std::{
-    collections::HashSet,
-    ops::Deref,
-    sync::{Arc, Mutex, Weak},
-    thread::JoinHandle,
-    time::Duration,
-};
+use std::collections::HashSet;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex, Weak};
+use std::thread::JoinHandle;
+use std::time::Duration;
 
-use crate::Inventory;
-use crate::{Executor, Searcher, SearcherGeneration, TantivyError};
+use crate::{Executor, Inventory, Searcher, SearcherGeneration, TantivyError};
 
 pub const GC_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -41,9 +38,11 @@ impl WarmingState {
         }))))
     }
 
-    /// Start tracking a new generation of [Searcher], and [Warmer::warm] it if there are active warmers.
+    /// Start tracking a new generation of [Searcher], and [Warmer::warm] it if there are active
+    /// warmers.
     ///
-    /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are active warmers.
+    /// A background GC thread for [Warmer::garbage_collect] calls is uniquely created if there are
+    /// active warmers.
     pub fn warm_new_searcher_generation(&self, searcher: &Searcher) -> crate::Result<()> {
         self.0
             .lock()
@@ -70,8 +69,9 @@ struct WarmingStateInner {
 
 impl WarmingStateInner {
     /// Start tracking provided searcher as an exemplar of a new generation.
-    /// If there are active warmers, warm them with the provided searcher, and kick background GC thread if it has not yet been kicked.
-    /// Otherwise, prune state for dropped searcher generations inline.
+    /// If there are active warmers, warm them with the provided searcher, and kick background GC
+    /// thread if it has not yet been kicked. Otherwise, prune state for dropped searcher
+    /// generations inline.
     fn warm_new_searcher_generation(
         &mut self,
         searcher: &Searcher,
@@ -102,7 +102,8 @@ impl WarmingStateInner {
         strong_warmers
     }
 
-    /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have been dropped.
+    /// [Warmer::garbage_collect] active warmers if some searcher generation is observed to have
+    /// been dropped.
     fn gc_maybe(&mut self) -> bool {
         let live_generations = self.searcher_generation_inventory.list();
         let live_generation_ids: HashSet<u64> = live_generations
@@ -143,7 +144,8 @@ impl WarmingStateInner {
         Ok(true)
     }
 
-    /// Every [GC_INTERVAL] attempt to GC, with panics caught and logged using [std::panic::catch_unwind].
+    /// Every [GC_INTERVAL] attempt to GC, with panics caught and logged using
+    /// [std::panic::catch_unwind].
     fn gc_loop(inner: Weak<Mutex<WarmingStateInner>>) {
         for _ in crossbeam::channel::tick(GC_INTERVAL) {
             if let Some(inner) = inner.upgrade() {
@@ -170,22 +172,15 @@ fn warming_executor(num_threads: usize) -> crate::Result<Executor> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::HashSet,
-        sync::{
-            atomic::{self, AtomicUsize},
-            Arc, RwLock, Weak,
-        },
-    };
-
-    use crate::{
-        core::searcher::SearcherGeneration,
-        directory::RamDirectory,
-        schema::{Schema, INDEXED},
-        Index, IndexSettings, ReloadPolicy, Searcher, SegmentId,
-    };
+    use std::collections::HashSet;
+    use std::sync::atomic::{self, AtomicUsize};
+    use std::sync::{Arc, RwLock, Weak};
 
     use super::Warmer;
+    use crate::core::searcher::SearcherGeneration;
+    use crate::directory::RamDirectory;
+    use crate::schema::{Schema, INDEXED};
+    use crate::{Index, IndexSettings, ReloadPolicy, Searcher, SegmentId};
 
     #[derive(Default)]
     struct TestWarmer {

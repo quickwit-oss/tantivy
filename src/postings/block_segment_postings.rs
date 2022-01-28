@@ -1,14 +1,14 @@
 use std::io;
 
-use crate::directory::FileSlice;
-use crate::directory::OwnedBytes;
+use common::{BinarySerializable, VInt};
+
+use crate::directory::{FileSlice, OwnedBytes};
 use crate::fieldnorm::FieldNormReader;
 use crate::postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::{BlockInfo, FreqReadingOption, SkipReader};
 use crate::query::Bm25Weight;
 use crate::schema::IndexRecordOption;
 use crate::{DocId, Score, TERMINATED};
-use common::{BinarySerializable, VInt};
 
 fn max_score<I: Iterator<Item = Score>>(mut it: I) -> Option<Score> {
     it.next().map(|first| it.fold(first, Score::max))
@@ -346,18 +346,16 @@ impl BlockSegmentPostings {
 
 #[cfg(test)]
 mod tests {
+    use common::HasLen;
+
     use super::BlockSegmentPostings;
     use crate::core::Index;
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::postings::postings::Postings;
     use crate::postings::SegmentPostings;
-    use crate::schema::IndexRecordOption;
-    use crate::schema::Schema;
-    use crate::schema::Term;
-    use crate::schema::INDEXED;
+    use crate::schema::{IndexRecordOption, Schema, Term, INDEXED};
     use crate::DocId;
-    use common::HasLen;
 
     #[test]
     fn test_empty_segment_postings() {

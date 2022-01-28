@@ -91,8 +91,8 @@ fn main() -> tantivy::Result<()> {
     old_man_doc.add_text(title, "The Old Man and the Sea");
     old_man_doc.add_text(
         body,
-        "He was an old man who fished alone in a skiff in the Gulf Stream and \
-         he had gone eighty-four days now without taking a fish.",
+        "He was an old man who fished alone in a skiff in the Gulf Stream and he had gone \
+         eighty-four days now without taking a fish.",
     );
 
     // ... and add it to the `IndexWriter`.

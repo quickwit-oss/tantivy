@@ -1,5 +1,4 @@
-use crate::core::Segment;
-use crate::core::SegmentComponent;
+use crate::core::{Segment, SegmentComponent};
 use crate::fastfield::CompositeFastFieldSerializer;
 use crate::fieldnorm::FieldNormsSerializer;
 use crate::postings::InvertedIndexSerializer;

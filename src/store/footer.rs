@@ -1,6 +1,9 @@
-use crate::{directory::FileSlice, store::Compressor};
-use common::{BinarySerializable, FixedSize, HasLen};
 use std::io;
+
+use common::{BinarySerializable, FixedSize, HasLen};
+
+use crate::directory::FileSlice;
+use crate::store::Compressor;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DocStoreFooter {
@@ -10,7 +13,7 @@ pub struct DocStoreFooter {
 
 /// Serialises the footer to a byte-array
 /// - offset : 8 bytes
-///-  compressor id: 1 byte
+/// - compressor id: 1 byte
 /// - reserved for future use: 15 bytes
 impl BinarySerializable for DocStoreFooter {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -61,6 +64,7 @@ impl DocStoreFooter {
 #[test]
 fn doc_store_footer_test() {
     // This test is just to safe guard changes on the footer.
-    // When the doc store footer is updated, make sure to update also the serialize/deserialize methods
+    // When the doc store footer is updated, make sure to update also the serialize/deserialize
+    // methods
     assert_eq!(core::mem::size_of::<DocStoreFooter>(), 16);
 }

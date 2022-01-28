@@ -1,8 +1,9 @@
-use super::BinarySerializable;
-use byteorder::{ByteOrder, LittleEndian};
 use std::io;
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
+
+use byteorder::{ByteOrder, LittleEndian};
+
+use super::BinarySerializable;
 
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -174,9 +175,7 @@ impl BinarySerializable for VInt {
 #[cfg(test)]
 mod tests {
 
-    use super::serialize_vint_u32;
-    use super::BinarySerializable;
-    use super::VInt;
+    use super::{serialize_vint_u32, BinarySerializable, VInt};
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];

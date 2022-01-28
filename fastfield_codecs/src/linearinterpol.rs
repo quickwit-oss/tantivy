@@ -1,15 +1,10 @@
-use crate::FastFieldCodecReader;
-use crate::FastFieldCodecSerializer;
-use crate::FastFieldDataAccess;
-use crate::FastFieldStats;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
-use common::BinarySerializable;
-use common::FixedSize;
-use tantivy_bitpacker::BitUnpacker;
+use common::{BinarySerializable, FixedSize};
+use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.
@@ -137,7 +132,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
                 // will be offset to 0
                 offset = offset.max(calculated_value - actual_value);
             } else {
-                //positive value no offset reuqired
+                // positive value no offset reuqired
                 rel_positive_max = rel_positive_max.max(actual_value - calculated_value);
             }
         }
@@ -171,7 +166,7 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
         stats: FastFieldStats,
     ) -> bool {
         if stats.num_vals < 3 {
-            return false; //disable compressor for this case
+            return false; // disable compressor for this case
         }
         // On serialisation the offset is added to the actual value.
         // We need to make sure this won't run into overflow calculation issues.
@@ -211,8 +206,8 @@ impl FastFieldCodecSerializer for LinearInterpolFastFieldSerializer {
             .max()
             .unwrap_or(0);
 
-        // the theory would be that we don't have the actual max_distance, but we are close within 50%
-        // threshold.
+        // the theory would be that we don't have the actual max_distance, but we are close within
+        // 50% threshold.
         // It is multiplied by 2 because in a log case scenario the line would be as much above as
         // below. So the offset would = max_distance
         //

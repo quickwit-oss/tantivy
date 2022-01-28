@@ -1,20 +1,12 @@
-use super::*;
-use crate::core::SegmentReader;
-use crate::fastfield::BytesFastFieldReader;
-use crate::fastfield::DynamicFastFieldReader;
-use crate::fastfield::FastFieldReader;
-use crate::schema::Field;
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::{DocAddress, Document, Searcher};
-
-use crate::collector::{Count, FilterCollector, TopDocs};
-use crate::query::{AllQuery, QueryParser};
-use crate::schema::{Schema, FAST, TEXT};
-use crate::DateTime;
-use crate::{doc, Index};
 use std::str::FromStr;
+
+use super::*;
+use crate::collector::{Count, FilterCollector, TopDocs};
+use crate::core::SegmentReader;
+use crate::fastfield::{BytesFastFieldReader, DynamicFastFieldReader, FastFieldReader};
+use crate::query::{AllQuery, QueryParser};
+use crate::schema::{Field, Schema, FAST, TEXT};
+use crate::{doc, DateTime, DocAddress, DocId, Document, Index, Score, Searcher, SegmentOrdinal};
 
 pub const TEST_COLLECTOR_WITH_SCORE: TestCollector = TestCollector {
     compute_score: true,

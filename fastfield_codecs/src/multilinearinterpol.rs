@@ -1,30 +1,22 @@
-/*!
+//! MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the
+//! offset, but in blocks of 512.
+//!
+//! With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 /
+//! 512 = 0,45 bits per element. The additional space required per element in a block is the the
+//! maximum deviation of the linear interpolation estimation function.
+//!
+//! E.g. if the maximum deviation of an element is 12, all elements cost 4bits.
+//!
+//! Size per block:
+//! Num Elements * Maximum Deviation from Interpolation + 29 Byte Metadata
 
-MultiLinearInterpol compressor uses linear interpolation to guess a values and stores the offset, but in blocks of 512.
-
-With a CHUNK_SIZE of 512 and 29 byte metadata per block, we get a overhead for metadata of 232 / 512 = 0,45 bits per element.
-The additional space required per element in a block is the the maximum deviation of the linear interpolation estimation function.
-
-E.g. if the maximum deviation of an element is 12, all elements cost 4bits.
-
-Size per block:
-Num Elements * Maximum Deviation from Interpolation + 29 Byte Metadata
-
-*/
-
-use crate::FastFieldCodecReader;
-use crate::FastFieldCodecSerializer;
-use crate::FastFieldDataAccess;
-use crate::FastFieldStats;
-use common::CountingWriter;
 use std::io::{self, Read, Write};
 use std::ops::Sub;
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
-use common::BinarySerializable;
-use common::DeserializeFrom;
-use tantivy_bitpacker::BitUnpacker;
+use common::{BinarySerializable, CountingWriter, DeserializeFrom};
+use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 const CHUNK_SIZE: u64 = 512;
 
@@ -252,11 +244,11 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
                 );
                 if calculated_value > actual_value {
                     // negative value we need to apply an offset
-                    // we ignore negative values in the max value calculation, because negative values
-                    // will be offset to 0
+                    // we ignore negative values in the max value calculation, because negative
+                    // values will be offset to 0
                     offset = offset.max(calculated_value - actual_value);
                 } else {
-                    //positive value no offset reuqired
+                    // positive value no offset reuqired
                     rel_positive_max = rel_positive_max.max(actual_value - calculated_value);
                 }
             }
@@ -350,8 +342,8 @@ impl FastFieldCodecSerializer for MultiLinearInterpolFastFieldSerializer {
             .unwrap();
 
         // Estimate one block and extrapolate the cost to all blocks.
-        // the theory would be that we don't have the actual max_distance, but we are close within 50%
-        // threshold.
+        // the theory would be that we don't have the actual max_distance, but we are close within
+        // 50% threshold.
         // It is multiplied by 2 because in a log case scenario the line would be as much above as
         // below. So the offset would = max_distance
         //

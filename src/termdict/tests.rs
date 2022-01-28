@@ -1,10 +1,9 @@
-use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
-
-use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
-use crate::postings::TermInfo;
-
 use std::path::PathBuf;
 use std::str;
+
+use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
+use crate::directory::{Directory, FileSlice, RamDirectory, TerminatingWrite};
+use crate::postings::TermInfo;
 
 const BLOCK_SIZE: usize = 1_500;
 
@@ -390,8 +389,9 @@ fn test_stream_term_ord() -> crate::Result<()> {
 
 #[test]
 fn test_automaton_search() -> crate::Result<()> {
-    use crate::query::DfaWrapper;
     use levenshtein_automata::LevenshteinAutomatonBuilder;
+
+    use crate::query::DfaWrapper;
 
     const COUNTRIES: [&str; 7] = [
         "San Marino",

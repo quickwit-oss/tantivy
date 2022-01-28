@@ -1,13 +1,15 @@
+use std::io;
+
+use fnv::FnvHashMap;
+use tantivy_bitpacker::minmax;
+
 use crate::fastfield::serializer::BitpackedFastFieldSerializerLegacy;
-use crate::fastfield::CompositeFastFieldSerializer;
+use crate::fastfield::{value_to_u64, CompositeFastFieldSerializer};
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::postings::UnorderedTermId;
 use crate::schema::{Document, Field};
 use crate::termdict::TermOrdinal;
 use crate::DocId;
-use crate::{fastfield::value_to_u64, indexer::doc_id_mapping::DocIdMapping};
-use fnv::FnvHashMap;
-use std::io;
-use tantivy_bitpacker::minmax;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -20,7 +22,8 @@ use tantivy_bitpacker::minmax;
 /// - add your document simply by calling `.add_document(...)`.
 ///
 /// The `MultiValuedFastFieldWriter` can be acquired from the
-/// fastfield writer, by calling [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
+/// fastfield writer, by calling
+/// [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
 ///
 /// Once acquired, writing is done by calling calls to
 /// `.add_document_vals(&[u64])` once per document.
@@ -131,7 +134,6 @@ impl MultiValuedFastFieldWriter {
     /// During the serialization of the segment, terms gets sorted and
     /// `tantivy` builds a mapping to convert this `UnorderedTermId` into
     /// term ordinals.
-    ///
     pub fn serialize(
         &self,
         serializer: &mut CompositeFastFieldSerializer,

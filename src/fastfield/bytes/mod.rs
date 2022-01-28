@@ -6,10 +6,11 @@ pub use self::writer::BytesFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
-    use crate::schema::{BytesOptions, IndexRecordOption, Schema, Value};
-    use crate::{query::TermQuery, schema::FAST, schema::INDEXED, schema::STORED};
-    use crate::{DocAddress, DocSet, Index, Searcher, Term};
     use std::ops::Deref;
+
+    use crate::query::TermQuery;
+    use crate::schema::{BytesOptions, IndexRecordOption, Schema, Value, FAST, INDEXED, STORED};
+    use crate::{DocAddress, DocSet, Index, Searcher, Term};
 
     #[test]
     fn test_bytes() -> crate::Result<()> {
@@ -62,7 +63,7 @@ mod tests {
         assert_eq!(values.len(), 2);
         let values_bytes: Vec<&[u8]> = values
             .into_iter()
-            .flat_map(|value| value.bytes_value())
+            .flat_map(|value| value.as_bytes())
             .collect();
         assert_eq!(values_bytes, &[&b"tantivy"[..], &b"lucene"[..]]);
         Ok(())

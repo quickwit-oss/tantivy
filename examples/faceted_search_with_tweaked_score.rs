@@ -1,9 +1,9 @@
 use std::collections::HashSet;
+
 use tantivy::collector::TopDocs;
-use tantivy::doc;
 use tantivy::query::BooleanQuery;
 use tantivy::schema::*;
-use tantivy::{DocId, Index, Score, SegmentReader};
+use tantivy::{doc, DocId, Index, Score, SegmentReader};
 
 fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
@@ -87,7 +87,7 @@ fn main() -> tantivy::Result<()> {
                     .unwrap()
                     .get_first(title)
                     .unwrap()
-                    .text()
+                    .as_text()
                     .unwrap()
                     .to_owned()
             })

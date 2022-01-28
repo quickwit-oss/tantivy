@@ -1,11 +1,11 @@
-use crate::space_usage::ByteCount;
-use crate::DocId;
-use common::intersect_bitsets;
-use common::BitSet;
-use common::ReadOnlyBitSet;
-use ownedbytes::OwnedBytes;
 use std::io;
 use std::io::Write;
+
+use common::{intersect_bitsets, BitSet, ReadOnlyBitSet};
+use ownedbytes::OwnedBytes;
+
+use crate::space_usage::ByteCount;
+use crate::DocId;
 
 /// Write a alive `BitSet`
 ///
@@ -168,10 +168,11 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use super::AliveBitSet;
     use rand::prelude::IteratorRandom;
     use rand::thread_rng;
     use test::Bencher;
+
+    use super::AliveBitSet;
 
     fn get_alive() -> Vec<u32> {
         let mut data = (0..1_000_000_u32).collect::<Vec<u32>>();

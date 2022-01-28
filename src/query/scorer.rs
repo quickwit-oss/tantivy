@@ -1,8 +1,9 @@
-use crate::docset::DocSet;
-use crate::DocId;
-use crate::Score;
-use downcast_rs::impl_downcast;
 use std::ops::DerefMut;
+
+use downcast_rs::impl_downcast;
+
+use crate::docset::DocSet;
+use crate::{DocId, Score};
 
 /// Scored set of documents matching a query within a specific segment.
 ///

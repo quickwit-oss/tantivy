@@ -90,9 +90,11 @@ impl Drop for IndexWriterBomb {
 
 #[cfg(test)]
 mod tests {
-    use super::IndexWriterStatus;
-    use crossbeam::channel;
     use std::mem;
+
+    use crossbeam::channel;
+
+    use super::IndexWriterStatus;
 
     #[test]
     fn test_bomb_goes_boom() {

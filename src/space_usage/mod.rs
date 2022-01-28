@@ -1,18 +1,18 @@
-/*!
-Representations for the space usage of various parts of a Tantivy index.
+//! Representations for the space usage of various parts of a Tantivy index.
+//!
+//! This can be used programmatically, and will also be exposed in a human readable fashion in
+//! tantivy-cli.
+//!
+//! One important caveat for all of this functionality is that none of it currently takes
+//! storage-level details into consideration. For example, if your file system block size is 4096
+//! bytes, we can under-count actual resultant space usage by up to 4095 bytes per file.
 
-This can be used programmatically, and will also be exposed in a human readable fashion in
-tantivy-cli.
+use std::collections::HashMap;
 
-One important caveat for all of this functionality is that none of it currently takes storage-level
-details into consideration. For example, if your file system block size is 4096 bytes, we can
-under-count actual resultant space usage by up to 4095 bytes per file.
-*/
+use serde::{Deserialize, Serialize};
 
 use crate::schema::Field;
 use crate::SegmentComponent;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Indicates space usage in bytes
 pub type ByteCount = usize;
@@ -286,11 +286,8 @@ impl FieldUsage {
 #[cfg(test)]
 mod test {
     use crate::core::Index;
-    use crate::schema::Field;
-    use crate::schema::Schema;
-    use crate::schema::{FAST, INDEXED, STORED, TEXT};
-    use crate::space_usage::ByteCount;
-    use crate::space_usage::PerFieldSpaceUsage;
+    use crate::schema::{Field, Schema, FAST, INDEXED, STORED, TEXT};
+    use crate::space_usage::{ByteCount, PerFieldSpaceUsage};
     use crate::Term;
 
     #[test]

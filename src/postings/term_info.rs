@@ -1,7 +1,8 @@
-use common::{BinarySerializable, FixedSize};
 use std::io;
 use std::iter::ExactSizeIterator;
 use std::ops::Range;
+
+use common::{BinarySerializable, FixedSize};
 
 /// `TermInfo` wraps the metadata associated to a Term.
 /// It is segment-local.

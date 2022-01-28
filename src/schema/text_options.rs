@@ -1,9 +1,10 @@
-use crate::schema::flags::SchemaFlagList;
-use crate::schema::flags::StoredFlag;
-use crate::schema::IndexRecordOption;
-use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::ops::BitOr;
+
+use serde::{Deserialize, Serialize};
+
+use crate::schema::flags::{SchemaFlagList, StoredFlag};
+use crate::schema::IndexRecordOption;
 
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
@@ -40,7 +41,8 @@ impl TextOptions {
 ///
 /// It defines
 /// - the amount of information that should be stored about the presence of a term in a document.
-/// Essentially, should we store the term frequency and/or the positions (See [`IndexRecordOption`](./enum.IndexRecordOption.html)).
+/// Essentially, should we store the term frequency and/or the positions (See
+/// [`IndexRecordOption`](./enum.IndexRecordOption.html)).
 /// - the name of the `Tokenizer` that should be used to process the field.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {

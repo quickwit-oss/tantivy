@@ -1,51 +1,39 @@
-/*!
-Column oriented field storage for tantivy.
+//! Column oriented field storage for tantivy.
+//!
+//! It is the equivalent of `Lucene`'s `DocValues`.
+//!
+//! Fast fields is a column-oriented fashion storage of `tantivy`.
+//!
+//! It is designed for the fast random access of some document
+//! fields given a document id.
+//!
+//! `FastField` are useful when a field is required for all or most of
+//! the `DocSet` : for instance for scoring, grouping, filtering, or faceting.
+//!
+//!
+//! Fields have to be declared as `FAST` in the  schema.
+//! Currently only 64-bits integers (signed or unsigned) are
+//! supported.
+//!
+//! They are stored in a bit-packed fashion so that their
+//! memory usage is directly linear with the amplitude of the
+//! values stored.
+//!
+//! Read access performance is comparable to that of an array lookup.
 
-It is the equivalent of `Lucene`'s `DocValues`.
-
-Fast fields is a column-oriented fashion storage of `tantivy`.
-
-It is designed for the fast random access of some document
-fields given a document id.
-
-`FastField` are useful when a field is required for all or most of
-the `DocSet` : for instance for scoring, grouping, filtering, or faceting.
-
-
-Fields have to be declared as `FAST` in the  schema.
-Currently only 64-bits integers (signed or unsigned) are
-supported.
-
-They are stored in a bit-packed fashion so that their
-memory usage is directly linear with the amplitude of the
-values stored.
-
-Read access performance is comparable to that of an array lookup.
-*/
-
-pub use self::alive_bitset::intersect_alive_bitsets;
-pub use self::alive_bitset::write_alive_bitset;
-pub use self::alive_bitset::AliveBitSet;
+pub use self::alive_bitset::{intersect_alive_bitsets, write_alive_bitset, AliveBitSet};
 pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValuedFastFieldReader, MultiValuedFastFieldWriter};
 pub(crate) use self::reader::BitpackedFastFieldReader;
-pub use self::reader::DynamicFastFieldReader;
-pub use self::reader::FastFieldReader;
+pub use self::reader::{DynamicFastFieldReader, FastFieldReader};
 pub use self::readers::FastFieldReaders;
-pub use self::serializer::CompositeFastFieldSerializer;
-pub use self::serializer::FastFieldDataAccess;
-pub use self::serializer::FastFieldStats;
+pub use self::serializer::{CompositeFastFieldSerializer, FastFieldDataAccess, FastFieldStats};
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-use crate::schema::Cardinality;
-use crate::schema::FieldType;
-use crate::schema::Value;
+use crate::chrono::{NaiveDateTime, Utc};
+use crate::schema::{Cardinality, FieldType, Type, Value};
 use crate::DocId;
-use crate::{
-    chrono::{NaiveDateTime, Utc},
-    schema::Type,
-};
 
 mod alive_bitset;
 mod bytes;
@@ -213,22 +201,20 @@ fn value_to_u64(value: &Value) -> u64 {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
-    use crate::directory::CompositeFile;
-    use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::merge_policy::NoMergePolicy;
-    use crate::schema::Field;
-    use crate::schema::Schema;
-    use crate::schema::FAST;
-    use crate::schema::{Document, IntOptions};
-    use crate::{Index, SegmentId, SegmentReader};
+    use std::collections::HashMap;
+    use std::path::Path;
+
     use common::HasLen;
     use once_cell::sync::Lazy;
     use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
-    use std::collections::HashMap;
-    use std::path::Path;
+
+    use super::*;
+    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::merge_policy::NoMergePolicy;
+    use crate::schema::{Document, Field, IntOptions, Schema, FAST};
+    use crate::{Index, SegmentId, SegmentReader};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();
@@ -407,7 +393,7 @@ mod tests {
             serializer.close().unwrap();
         }
         let file = directory.open_read(path).unwrap();
-        //assert_eq!(file.len(), 17710 as usize); //bitpacked size
+        // assert_eq!(file.len(), 17710 as usize); //bitpacked size
         assert_eq!(file.len(), 10175_usize); // linear interpol size
         {
             let fast_fields_composite = CompositeFile::open(&file)?;
@@ -587,15 +573,15 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use super::tests::FIELD;
-    use super::tests::{generate_permutation, SCHEMA};
-    use super::*;
-    use crate::directory::CompositeFile;
-    use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::fastfield::FastFieldReader;
     use std::collections::HashMap;
     use std::path::Path;
+
     use test::{self, Bencher};
+
+    use super::tests::{generate_permutation, FIELD, SCHEMA};
+    use super::*;
+    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::fastfield::FastFieldReader;
 
     #[bench]
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {

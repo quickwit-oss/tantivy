@@ -1,28 +1,19 @@
-use crate::core::InvertedIndexReader;
-use crate::core::Segment;
-use crate::core::SegmentComponent;
-use crate::core::SegmentId;
-use crate::directory::CompositeFile;
-use crate::directory::FileSlice;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use std::{fmt, io};
+
+use fail::fail_point;
+
+use crate::core::{InvertedIndexReader, Segment, SegmentComponent, SegmentId};
+use crate::directory::{CompositeFile, FileSlice};
 use crate::error::DataCorruption;
-use crate::fastfield::intersect_alive_bitsets;
-use crate::fastfield::AliveBitSet;
-use crate::fastfield::FacetReader;
-use crate::fastfield::FastFieldReaders;
+use crate::fastfield::{intersect_alive_bitsets, AliveBitSet, FacetReader, FastFieldReaders};
 use crate::fieldnorm::{FieldNormReader, FieldNormReaders};
-use crate::schema::FieldType;
-use crate::schema::Schema;
-use crate::schema::{Field, IndexRecordOption};
+use crate::schema::{Field, FieldType, IndexRecordOption, Schema};
 use crate::space_usage::SegmentSpaceUsage;
 use crate::store::StoreReader;
 use crate::termdict::TermDictionary;
-use crate::DocId;
-use crate::Opstamp;
-use fail::fail_point;
-use std::fmt;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::{collections::HashMap, io};
+use crate::{DocId, Opstamp};
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -130,7 +121,8 @@ impl SegmentReader {
         self.fieldnorm_readers.get_field(field)?.ok_or_else(|| {
             let field_name = self.schema.get_field_name(field);
             let err_msg = format!(
-                "Field norm not found for field {:?}. Was the field set to record norm during indexing?",
+                "Field norm not found for field {:?}. Was the field set to record norm during \
+                 indexing?",
                 field_name
             );
             crate::TantivyError::SchemaError(err_msg)
@@ -259,18 +251,23 @@ impl SegmentReader {
         let record_option = record_option_opt.unwrap();
         let postings_file = postings_file_opt.unwrap();
 
-        let termdict_file: FileSlice = self.termdict_composite.open_read(field)
-            .ok_or_else(||
-               DataCorruption::comment_only(format!("Failed to open field {:?}'s term dictionary in the composite file. Has the schema been modified?", field_entry.name()))
-            )?;
-
-        let positions_file = self
-            .positions_composite
-            .open_read(field)
-            .ok_or_else(|| {
-                let error_msg = format!("Failed to open field {:?}'s positions in the composite file. Has the schema been modified?", field_entry.name());
-               DataCorruption::comment_only(error_msg)
+        let termdict_file: FileSlice =
+            self.termdict_composite.open_read(field).ok_or_else(|| {
+                DataCorruption::comment_only(format!(
+                    "Failed to open field {:?}'s term dictionary in the composite file. Has the \
+                     schema been modified?",
+                    field_entry.name()
+                ))
             })?;
+
+        let positions_file = self.positions_composite.open_read(field).ok_or_else(|| {
+            let error_msg = format!(
+                "Failed to open field {:?}'s positions in the composite file. Has the schema been \
+                 modified?",
+                field_entry.name()
+            );
+            DataCorruption::comment_only(error_msg)
+        })?;
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::open(termdict_file)?,

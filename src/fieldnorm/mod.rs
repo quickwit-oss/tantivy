@@ -21,32 +21,24 @@ mod reader;
 mod serializer;
 mod writer;
 
+use self::code::{fieldnorm_to_id, id_to_fieldnorm};
 pub use self::reader::{FieldNormReader, FieldNormReaders};
 pub use self::serializer::FieldNormsSerializer;
 pub use self::writer::FieldNormsWriter;
 
-use self::code::{fieldnorm_to_id, id_to_fieldnorm};
-
 #[cfg(test)]
 mod tests {
-    use crate::directory::CompositeFile;
-    use crate::directory::{Directory, RamDirectory, WritePtr};
-    use crate::fieldnorm::FieldNormReader;
-    use crate::fieldnorm::FieldNormsSerializer;
-    use crate::fieldnorm::FieldNormsWriter;
-    use crate::query::Query;
-    use crate::query::TermQuery;
-    use crate::schema::IndexRecordOption;
-    use crate::schema::TextFieldIndexing;
-    use crate::schema::TextOptions;
-    use crate::schema::TEXT;
-    use crate::Index;
-    use crate::Term;
-    use crate::TERMINATED;
-    use once_cell::sync::Lazy;
     use std::path::Path;
 
-    use crate::schema::{Field, Schema, STORED};
+    use once_cell::sync::Lazy;
+
+    use crate::directory::{CompositeFile, Directory, RamDirectory, WritePtr};
+    use crate::fieldnorm::{FieldNormReader, FieldNormsSerializer, FieldNormsWriter};
+    use crate::query::{Query, TermQuery};
+    use crate::schema::{
+        Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
+    };
+    use crate::{Index, Term, TERMINATED};
 
     pub static SCHEMA: Lazy<Schema> = Lazy::new(|| {
         let mut schema_builder = Schema::builder();

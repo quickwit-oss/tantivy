@@ -1,7 +1,9 @@
+use std::cmp;
+
+use itertools::Itertools;
+
 use super::merge_policy::{MergeCandidate, MergePolicy};
 use crate::core::SegmentMeta;
-use itertools::Itertools;
-use std::cmp;
 
 const DEFAULT_LEVEL_LOG_SIZE: f64 = 0.75;
 const DEFAULT_MIN_LAYER_SIZE: u32 = 10_000;
@@ -139,13 +141,13 @@ impl Default for LogMergePolicy {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        core::{SegmentId, SegmentMeta, SegmentMetaInventory},
-        schema,
-    };
-    use crate::{indexer::merge_policy::MergePolicy, schema::INDEXED};
     use once_cell::sync::Lazy;
+
+    use super::*;
+    use crate::core::{SegmentId, SegmentMeta, SegmentMetaInventory};
+    use crate::indexer::merge_policy::MergePolicy;
+    use crate::schema;
+    use crate::schema::INDEXED;
 
     static INVENTORY: Lazy<SegmentMetaInventory> = Lazy::new(SegmentMetaInventory::default);
 

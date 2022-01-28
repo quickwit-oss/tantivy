@@ -1,94 +1,89 @@
-/*!
+//! # Collectors
+//!
+//! Collectors define the information you want to extract from the documents matching the queries.
+//! In tantivy jargon, we call this information your search "fruit".
+//!
+//! Your fruit could for instance be :
+//! - [the count of matching documents](./struct.Count.html)
+//! - [the top 10 documents, by relevancy or by a fast field](./struct.TopDocs.html)
+//! - [facet counts](./struct.FacetCollector.html)
+//!
+//! At one point in your code, you will trigger the actual search operation by calling
+//! [the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).
+//! This call will look like this.
+//!
+//! ```verbatim
+//! let fruit = searcher.search(&query, &collector)?;
+//! ```
+//!
+//! Here the type of fruit is actually determined as an associated type of the collector
+//! (`Collector::Fruit`).
+//!
+//!
+//! # Combining several collectors
+//!
+//! A rich search experience often requires to run several collectors on your search query.
+//! For instance,
+//! - selecting the top-K products matching your query
+//! - counting the matching documents
+//! - computing several facets
+//! - computing statistics about the matching product prices
+//!
+//! A simple and efficient way to do that is to pass your collectors as one tuple.
+//! The resulting `Fruit` will then be a typed tuple with each collector's original fruits
+//! in their respective position.
+//!
+//! ```rust
+//! # use tantivy::schema::*;
+//! # use tantivy::*;
+//! # use tantivy::query::*;
+//! use tantivy::collector::{Count, TopDocs};
+//! #
+//! # fn main() -> tantivy::Result<()> {
+//! # let mut schema_builder = Schema::builder();
+//! #     let title = schema_builder.add_text_field("title", TEXT);
+//! #     let schema = schema_builder.build();
+//! #     let index = Index::create_in_ram(schema);
+//! #     let mut index_writer = index.writer(3_000_000)?;
+//! #       index_writer.add_document(doc!(
+//! #       title => "The Name of the Wind",
+//! #      ))?;
+//! #     index_writer.add_document(doc!(
+//! #        title => "The Diary of Muadib",
+//! #     ))?;
+//! #     index_writer.commit()?;
+//! #     let reader = index.reader()?;
+//! #     let searcher = reader.searcher();
+//! #     let query_parser = QueryParser::for_index(&index, vec![title]);
+//! #     let query = query_parser.parse_query("diary")?;
+//! let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
+//! searcher.search(&query, &(Count, TopDocs::with_limit(2)))?;
+//! #     Ok(())
+//! # }
+//! ```
+//!
+//! The `Collector` trait is implemented for up to 4 collectors.
+//! If you have more than 4 collectors, you can either group them into
+//! tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
+//!
+//! # Combining several collectors dynamically
+//!
+//! Combining collectors into a tuple is a zero-cost abstraction: everything
+//! happens as if you had manually implemented a single collector
+//! combining all of our features.
+//!
+//! Unfortunately it requires you to know at compile time your collector types.
+//! If on the other hand, the collectors depend on some query parameter,
+//! you can rely on `MultiCollector`'s.
+//!
+//!
+//! # Implementing your own collectors.
+//!
+//! See the `custom_collector` example.
 
-# Collectors
-
-Collectors define the information you want to extract from the documents matching the queries.
-In tantivy jargon, we call this information your search "fruit".
-
-Your fruit could for instance be :
-- [the count of matching documents](./struct.Count.html)
-- [the top 10 documents, by relevancy or by a fast field](./struct.TopDocs.html)
-- [facet counts](./struct.FacetCollector.html)
-
-At one point in your code, you will trigger the actual search operation by calling
-[the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).
-This call will look like this.
-
-```verbatim
-let fruit = searcher.search(&query, &collector)?;
-```
-
-Here the type of fruit is actually determined as an associated type of the collector (`Collector::Fruit`).
-
-
-# Combining several collectors
-
-A rich search experience often requires to run several collectors on your search query.
-For instance,
-- selecting the top-K products matching your query
-- counting the matching documents
-- computing several facets
-- computing statistics about the matching product prices
-
-A simple and efficient way to do that is to pass your collectors as one tuple.
-The resulting `Fruit` will then be a typed tuple with each collector's original fruits
-in their respective position.
-
-```rust
-# use tantivy::schema::*;
-# use tantivy::*;
-# use tantivy::query::*;
-use tantivy::collector::{Count, TopDocs};
-#
-# fn main() -> tantivy::Result<()> {
-# let mut schema_builder = Schema::builder();
-#     let title = schema_builder.add_text_field("title", TEXT);
-#     let schema = schema_builder.build();
-#     let index = Index::create_in_ram(schema);
-#     let mut index_writer = index.writer(3_000_000)?;
-#       index_writer.add_document(doc!(
-#       title => "The Name of the Wind",
-#      ))?;
-#     index_writer.add_document(doc!(
-#        title => "The Diary of Muadib",
-#     ))?;
-#     index_writer.commit()?;
-#     let reader = index.reader()?;
-#     let searcher = reader.searcher();
-#     let query_parser = QueryParser::for_index(&index, vec![title]);
-#     let query = query_parser.parse_query("diary")?;
-let (doc_count, top_docs): (usize, Vec<(Score, DocAddress)>) =
-    searcher.search(&query, &(Count, TopDocs::with_limit(2)))?;
-#     Ok(())
-# }
-```
-
-The `Collector` trait is implemented for up to 4 collectors.
-If you have more than 4 collectors, you can either group them into
-tuples of tuples `(a,(b,(c,d)))`, or rely on [`MultiCollector`](./struct.MultiCollector.html).
-
-# Combining several collectors dynamically
-
-Combining collectors into a tuple is a zero-cost abstraction: everything
-happens as if you had manually implemented a single collector
-combining all of our features.
-
-Unfortunately it requires you to know at compile time your collector types.
-If on the other hand, the collectors depend on some query parameter,
-you can rely on `MultiCollector`'s.
-
-
-# Implementing your own collectors.
-
-See the `custom_collector` example.
-
-*/
-
-use crate::DocId;
-use crate::Score;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
 use downcast_rs::impl_downcast;
+
+use crate::{DocId, Score, SegmentOrdinal, SegmentReader};
 
 mod count_collector;
 pub use self::count_collector::Count;
@@ -111,8 +106,7 @@ mod tweak_score_top_collector;
 pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
-pub use self::facet_collector::FacetCollector;
-pub use self::facet_collector::FacetCounts;
+pub use self::facet_collector::{FacetCollector, FacetCounts};
 use crate::query::Weight;
 
 mod docset_collector;

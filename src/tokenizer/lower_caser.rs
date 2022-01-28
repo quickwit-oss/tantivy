@@ -1,6 +1,7 @@
+use std::mem;
+
 use super::{Token, TokenFilter, TokenStream};
 use crate::tokenizer::BoxTokenStream;
-use std::mem;
 
 impl TokenFilter for LowerCaser {
     fn transform<'a>(&self, token_stream: BoxTokenStream<'a>) -> BoxTokenStream<'a> {

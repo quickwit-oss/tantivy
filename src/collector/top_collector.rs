@@ -1,10 +1,8 @@
-use crate::DocAddress;
-use crate::DocId;
-use crate::SegmentOrdinal;
-use crate::SegmentReader;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::marker::PhantomData;
+
+use crate::{DocAddress, DocId, SegmentOrdinal, SegmentReader};
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
@@ -62,8 +60,7 @@ pub(crate) struct TopCollector<T> {
 }
 
 impl<T> TopCollector<T>
-where
-    T: PartialOrd + Clone,
+where T: PartialOrd + Clone
 {
     /// Creates a top collector, with a number of documents equal to "limit".
     ///
@@ -322,8 +319,9 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use super::TopSegmentCollector;
     use test::Bencher;
+
+    use super::TopSegmentCollector;
 
     #[bench]
     fn bench_top_segment_collector_collect_not_at_capacity(b: &mut Bencher) {

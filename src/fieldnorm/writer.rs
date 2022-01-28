@@ -1,11 +1,10 @@
-use crate::{indexer::doc_id_mapping::DocIdMapping, DocId};
-
-use super::fieldnorm_to_id;
-use super::FieldNormsSerializer;
-use crate::schema::Field;
-use crate::schema::Schema;
 use std::cmp::Ordering;
 use std::{io, iter};
+
+use super::{fieldnorm_to_id, FieldNormsSerializer};
+use crate::indexer::doc_id_mapping::DocIdMapping;
+use crate::schema::{Field, Schema};
+use crate::DocId;
 
 /// The `FieldNormsWriter` is in charge of tracking the fieldnorm byte
 /// of each document for each field with field norms.

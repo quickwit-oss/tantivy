@@ -1,10 +1,10 @@
+use std::str;
+
 use super::MultiValuedFastFieldReader;
 use crate::error::DataCorruption;
 use crate::schema::Facet;
-use crate::termdict::TermDictionary;
-use crate::termdict::TermOrdinal;
+use crate::termdict::{TermDictionary, TermOrdinal};
 use crate::DocId;
-use std::str;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific
@@ -82,11 +82,8 @@ impl FacetReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::Index;
-    use crate::{
-        schema::{Facet, FacetOptions, SchemaBuilder, Value, STORED},
-        DocAddress, Document,
-    };
+    use crate::schema::{Facet, FacetOptions, SchemaBuilder, Value, STORED};
+    use crate::{DocAddress, Document, Index};
 
     #[test]
     fn test_facet_only_indexed() -> crate::Result<()> {
@@ -106,7 +103,7 @@ mod tests {
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert_eq!(&facet_ords, &[2u64]);
         let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
-        let value = doc.get_first(facet_field).and_then(Value::facet);
+        let value = doc.get_first(facet_field).and_then(Value::as_facet);
         assert_eq!(value, None);
         Ok(())
     }
@@ -129,7 +126,7 @@ mod tests {
         facet_reader.facet_ords(0u32, &mut facet_ords);
         assert_eq!(&facet_ords, &[2u64]);
         let doc = searcher.doc(DocAddress::new(0u32, 0u32))?;
-        let value: Option<&Facet> = doc.get_first(facet_field).and_then(Value::facet);
+        let value: Option<&Facet> = doc.get_first(facet_field).and_then(Value::as_facet);
         assert_eq!(value, Facet::from_text("/a/b").ok().as_ref());
         Ok(())
     }

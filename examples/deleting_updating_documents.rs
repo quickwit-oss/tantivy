@@ -56,8 +56,9 @@ fn main() -> tantivy::Result<()> {
     // If it is `text`, let's make sure to keep it `raw` and let's avoid
     // running any text processing on it.
     // This is done by associating this field to the tokenizer named `raw`.
-    // Rather than building our [`TextOptions`](//docs.rs/tantivy/~0/tantivy/schema/struct.TextOptions.html) manually,
-    // We use the `STRING` shortcut. `STRING` stands for indexed (without term frequency or positions)
+    // Rather than building our
+    // [`TextOptions`](//docs.rs/tantivy/~0/tantivy/schema/struct.TextOptions.html) manually, We
+    // use the `STRING` shortcut. `STRING` stands for indexed (without term frequency or positions)
     // and untokenized.
     //
     // Because we also want to be able to see this `id` in our returned documents,

@@ -7,23 +7,17 @@ pub use self::writer::MultiValuedFastFieldWriter;
 #[cfg(test)]
 mod tests {
 
+    use chrono::Duration;
+    use futures::executor::block_on;
+    use proptest::strategy::Strategy;
+    use proptest::{prop_oneof, proptest};
+    use test_log::test;
+
     use crate::collector::TopDocs;
     use crate::indexer::NoMergePolicy;
     use crate::query::QueryParser;
-    use crate::schema::Cardinality;
-    use crate::schema::Facet;
-    use crate::schema::FacetOptions;
-    use crate::schema::IntOptions;
-    use crate::schema::Schema;
-    use crate::Document;
-    use crate::Index;
-    use crate::Term;
-    use chrono::Duration;
-    use futures::executor::block_on;
-    use proptest::prop_oneof;
-    use proptest::proptest;
-    use proptest::strategy::Strategy;
-    use test_log::test;
+    use crate::schema::{Cardinality, Facet, FacetOptions, IntOptions, Schema};
+    use crate::{Document, Index, Term};
 
     #[test]
     fn test_multivalued_u64() -> crate::Result<()> {
@@ -110,7 +104,7 @@ mod tests {
                     retrieved_doc
                         .get_first(date_field)
                         .expect("cannot find value")
-                        .date_value()
+                        .as_date()
                         .unwrap()
                         .timestamp(),
                     first_time_stamp.timestamp()
@@ -119,7 +113,7 @@ mod tests {
                     retrieved_doc
                         .get_first(time_i)
                         .expect("cannot find value")
-                        .i64_value(),
+                        .as_i64(),
                     Some(1i64)
                 );
             }
@@ -138,7 +132,7 @@ mod tests {
                     retrieved_doc
                         .get_first(date_field)
                         .expect("cannot find value")
-                        .date_value()
+                        .as_date()
                         .unwrap()
                         .timestamp(),
                     two_secs_ahead.timestamp()
@@ -147,7 +141,7 @@ mod tests {
                     retrieved_doc
                         .get_first(time_i)
                         .expect("cannot find value")
-                        .i64_value(),
+                        .as_i64(),
                     Some(3i64)
                 );
             }
@@ -180,7 +174,7 @@ mod tests {
                     retrieved_doc
                         .get_first(date_field)
                         .expect("cannot find value")
-                        .date_value()
+                        .as_date()
                         .expect("value not of Date type")
                         .timestamp(),
                     (first_time_stamp + Duration::seconds(offset_sec)).timestamp()
@@ -189,7 +183,7 @@ mod tests {
                     retrieved_doc
                         .get_first(time_i)
                         .expect("cannot find value")
-                        .i64_value(),
+                        .as_i64(),
                     Some(time_i_val)
                 );
             }

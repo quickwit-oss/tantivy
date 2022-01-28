@@ -1,7 +1,8 @@
-use crate::schema::Field;
-use crate::schema::Value;
-use common::BinarySerializable;
 use std::io::{self, Read, Write};
+
+use common::BinarySerializable;
+
+use crate::schema::{Field, Value};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

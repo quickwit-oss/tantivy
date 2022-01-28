@@ -1,11 +1,11 @@
+use std::ops::{Deref, Range};
+use std::sync::{Arc, Weak};
+use std::{fmt, io};
+
+use common::HasLen;
 use stable_deref_trait::StableDeref;
 
 use crate::directory::OwnedBytes;
-use common::HasLen;
-use std::fmt;
-use std::ops::Range;
-use std::sync::{Arc, Weak};
-use std::{io, ops::Deref};
 
 pub type ArcBytes = Arc<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
 pub type WeakArcBytes = Weak<dyn Deref<Target = [u8]> + Send + Sync + 'static>;
@@ -33,8 +33,7 @@ impl FileHandle for &'static [u8] {
 }
 
 impl<B> From<B> for FileSlice
-where
-    B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync,
+where B: StableDeref + Deref<Target = [u8]> + 'static + Send + Sync
 {
     fn from(bytes: B) -> FileSlice {
         FileSlice::new(Box::new(OwnedBytes::new(bytes)))
@@ -44,7 +43,6 @@ where
 /// Logical slice of read only file in tantivy.
 ///
 /// It can be cloned and sliced cheaply.
-///
 #[derive(Clone)]
 pub struct FileSlice {
     data: Arc<dyn FileHandle>,
@@ -172,9 +170,11 @@ impl HasLen for FileSlice {
 
 #[cfg(test)]
 mod tests {
-    use super::{FileHandle, FileSlice};
-    use common::HasLen;
     use std::io;
+
+    use common::HasLen;
+
+    use super::{FileHandle, FileSlice};
 
     #[test]
     fn test_file_slice() -> io::Result<()> {

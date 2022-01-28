@@ -1,8 +1,8 @@
-use std::io::{self};
-
 use core::convert::TryInto;
-use lz4_flex::{compress_into, decompress_into};
+use std::io::{self};
 use std::mem;
+
+use lz4_flex::{compress_into, decompress_into};
 
 #[inline]
 #[allow(clippy::uninit_vec)]

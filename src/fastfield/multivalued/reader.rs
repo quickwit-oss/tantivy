@@ -10,7 +10,6 @@ use crate::DocId;
 /// The `vals_reader` will access the concatenated list of all
 /// values for all reader.
 /// The `idx_reader` associated, for each document, the index of its first value.
-///
 #[derive(Clone)]
 pub struct MultiValuedFastFieldReader<Item: FastValue> {
     idx_reader: DynamicFastFieldReader<u64>,

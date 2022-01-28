@@ -52,11 +52,11 @@ fn main() -> tantivy::Result<()> {
         let term_the = Term::from_field_text(title, "the");
 
         // This segment posting object is like a cursor over the documents matching the term.
-        // The `IndexRecordOption` arguments tells tantivy we will be interested in both term frequencies
-        // and positions.
+        // The `IndexRecordOption` arguments tells tantivy we will be interested in both term
+        // frequencies and positions.
         //
-        // If you don't need all this information, you may get better performance by decompressing less
-        // information.
+        // If you don't need all this information, you may get better performance by decompressing
+        // less information.
         if let Some(mut segment_postings) =
             inverted_index.read_postings(&term_the, IndexRecordOption::WithFreqsAndPositions)?
         {
@@ -109,11 +109,11 @@ fn main() -> tantivy::Result<()> {
         let inverted_index = segment_reader.inverted_index(title)?;
 
         // This segment posting object is like a cursor over the documents matching the term.
-        // The `IndexRecordOption` arguments tells tantivy we will be interested in both term frequencies
-        // and positions.
+        // The `IndexRecordOption` arguments tells tantivy we will be interested in both term
+        // frequencies and positions.
         //
-        // If you don't need all this information, you may get better performance by decompressing less
-        // information.
+        // If you don't need all this information, you may get better performance by decompressing
+        // less information.
         if let Some(mut block_segment_postings) =
             inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic)?
         {

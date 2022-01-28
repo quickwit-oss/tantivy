@@ -104,10 +104,11 @@ pub fn u64_to_f64(val: u64) -> f64 {
 #[cfg(test)]
 pub mod test {
 
-    use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64};
-    use super::{BinarySerializable, FixedSize};
-    use proptest::prelude::*;
     use std::f64;
+
+    use proptest::prelude::*;
+
+    use super::{f64_to_u64, i64_to_u64, u64_to_f64, u64_to_i64, BinarySerializable, FixedSize};
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);
@@ -157,10 +158,10 @@ pub mod test {
     #[test]
     fn test_f64_order() {
         assert!(!(f64_to_u64(f64::NEG_INFINITY)..f64_to_u64(f64::INFINITY))
-            .contains(&f64_to_u64(f64::NAN))); //nan is not a number
-        assert!(f64_to_u64(1.5) > f64_to_u64(1.0)); //same exponent, different mantissa
-        assert!(f64_to_u64(2.0) > f64_to_u64(1.0)); //same mantissa, different exponent
-        assert!(f64_to_u64(2.0) > f64_to_u64(1.5)); //different exponent and mantissa
+            .contains(&f64_to_u64(f64::NAN))); // nan is not a number
+        assert!(f64_to_u64(1.5) > f64_to_u64(1.0)); // same exponent, different mantissa
+        assert!(f64_to_u64(2.0) > f64_to_u64(1.0)); // same mantissa, different exponent
+        assert!(f64_to_u64(2.0) > f64_to_u64(1.5)); // different exponent and mantissa
         assert!(f64_to_u64(1.0) > f64_to_u64(-1.0)); // pos > neg
         assert!(f64_to_u64(-1.5) < f64_to_u64(-1.0));
         assert!(f64_to_u64(-2.0) < f64_to_u64(1.0));

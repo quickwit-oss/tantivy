@@ -1,8 +1,8 @@
-use super::operation::DeleteOperation;
-use crate::Opstamp;
-
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock, Weak};
+
+use super::operation::DeleteOperation;
+use crate::Opstamp;
 
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.
@@ -13,12 +13,10 @@ use std::sync::{Arc, RwLock, Weak};
 // which points to a specific place of the `DeleteQueue`.
 //
 // New consumer can be created in two ways
-// - calling `delete_queue.cursor()` returns a cursor, that
-//   will include all future delete operation (and some or none
-//   of the past operations... The client is in charge of checking the opstamps.).
-// - cloning an existing cursor returns a new cursor, that
-//   is at the exact same position, and can now advance independently
-//   from the original cursor.
+// - calling `delete_queue.cursor()` returns a cursor, that will include all future delete operation
+//   (and some or none of the past operations... The client is in charge of checking the opstamps.).
+// - cloning an existing cursor returns a new cursor, that is at the exact same position, and can
+//   now advance independently from the original cursor.
 #[derive(Default)]
 struct InnerDeleteQueue {
     writer: Vec<DeleteOperation>,
@@ -179,8 +177,8 @@ pub struct DeleteCursor {
 
 impl DeleteCursor {
     /// Skips operations and position it so that
-    /// - either all of the delete operation currently in the
-    ///   queue are consume and the next get will return None.
+    /// - either all of the delete operation currently in the queue are consume and the next get
+    ///   will return None.
     /// - the next get will return the first operation with an
     /// `opstamp >= target_opstamp`.
     pub fn skip_to(&mut self, target_opstamp: Opstamp) {

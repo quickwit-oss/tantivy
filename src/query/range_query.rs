@@ -1,17 +1,15 @@
-use crate::core::Searcher;
-use crate::core::SegmentReader;
-use crate::error::TantivyError;
-use crate::query::explanation::does_not_match;
-use crate::query::ConstScorer;
-use crate::query::{BitSetDocSet, Explanation};
-use crate::query::{Query, Scorer, Weight};
-use crate::schema::Type;
-use crate::schema::{Field, IndexRecordOption, Term};
-use crate::termdict::{TermDictionary, TermStreamer};
-use crate::{DocId, Score};
-use common::BitSet;
 use std::io;
 use std::ops::{Bound, Range};
+
+use common::BitSet;
+
+use crate::core::{Searcher, SegmentReader};
+use crate::error::TantivyError;
+use crate::query::explanation::does_not_match;
+use crate::query::{BitSetDocSet, ConstScorer, Explanation, Query, Scorer, Weight};
+use crate::schema::{Field, IndexRecordOption, Term, Type};
+use crate::termdict::{TermDictionary, TermStreamer};
+use crate::{DocId, Score};
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -330,12 +328,13 @@ impl Weight for RangeWeight {
 #[cfg(test)]
 mod tests {
 
+    use std::ops::Bound;
+
     use super::RangeQuery;
     use crate::collector::{Count, TopDocs};
     use crate::query::QueryParser;
     use crate::schema::{Document, Field, Schema, INDEXED, TEXT};
     use crate::Index;
-    use std::ops::Bound;
 
     #[test]
     fn test_range_query_simple() -> crate::Result<()> {

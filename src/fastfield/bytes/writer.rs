@@ -1,10 +1,9 @@
 use std::io;
 
+use crate::fastfield::serializer::CompositeFastFieldSerializer;
+use crate::indexer::doc_id_mapping::DocIdMapping;
 use crate::schema::{Document, Field, Value};
 use crate::DocId;
-use crate::{
-    fastfield::serializer::CompositeFastFieldSerializer, indexer::doc_id_mapping::DocIdMapping,
-};
 
 /// Writer for byte array (as in, any number of bytes per document) fast fields
 ///

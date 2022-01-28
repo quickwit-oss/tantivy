@@ -1,12 +1,9 @@
 use crate::docset::DocSet;
-use crate::query::{Explanation, Scorer};
-use crate::DocId;
-use crate::Score;
-
 use crate::fieldnorm::FieldNormReader;
-use crate::postings::SegmentPostings;
-use crate::postings::{FreqReadingOption, Postings};
+use crate::postings::{FreqReadingOption, Postings, SegmentPostings};
 use crate::query::bm25::Bm25Weight;
+use crate::query::{Explanation, Scorer};
+use crate::{DocId, Score};
 
 #[derive(Clone)]
 pub struct TermScorer {
@@ -128,16 +125,17 @@ impl Scorer for TermScorer {
 
 #[cfg(test)]
 mod tests {
+    use futures::executor::block_on;
+    use proptest::prelude::*;
+
     use crate::merge_policy::NoMergePolicy;
     use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
     use crate::query::term_query::TermScorer;
     use crate::query::{Bm25Weight, Scorer, TermQuery};
     use crate::schema::{IndexRecordOption, Schema, TEXT};
-    use crate::Score;
-    use crate::{assert_nearly_equals, Index, Searcher, SegmentId, Term};
-    use crate::{DocId, DocSet, TERMINATED};
-    use futures::executor::block_on;
-    use proptest::prelude::*;
+    use crate::{
+        assert_nearly_equals, DocId, DocSet, Index, Score, Searcher, SegmentId, Term, TERMINATED,
+    };
 
     #[test]
     fn test_term_scorer_max_score() -> crate::Result<()> {

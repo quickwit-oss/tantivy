@@ -12,8 +12,7 @@
 use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::fastfield::{DynamicFastFieldReader, FastFieldReader};
 use tantivy::query::QueryParser;
-use tantivy::schema::Field;
-use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
+use tantivy::schema::{Field, Schema, FAST, INDEXED, TEXT};
 use tantivy::{doc, Index, Score, SegmentReader};
 
 #[derive(Default)]

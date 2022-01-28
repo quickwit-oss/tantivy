@@ -1,6 +1,6 @@
-use crate::schema::IntOptions;
-use crate::schema::TextOptions;
 use std::ops::BitOr;
+
+use crate::schema::{IntOptions, TextOptions};
 
 #[derive(Clone)]
 pub struct StoredFlag;

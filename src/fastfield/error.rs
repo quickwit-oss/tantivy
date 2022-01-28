@@ -1,5 +1,6 @@
-use crate::schema::FieldEntry;
 use std::result;
+
+use crate::schema::FieldEntry;
 
 /// `FastFieldNotAvailableError` is returned when the
 /// user requested for a fast field reader, and the field was not

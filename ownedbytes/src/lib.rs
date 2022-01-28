@@ -1,11 +1,11 @@
 #![allow(clippy::return_self_not_must_use)]
 
-use stable_deref_trait::StableDeref;
 use std::convert::TryInto;
-use std::mem;
 use std::ops::{Deref, Range};
 use std::sync::Arc;
-use std::{fmt, io};
+use std::{fmt, io, mem};
+
+use stable_deref_trait::StableDeref;
 
 /// An OwnedBytes simply wraps an object that owns a slice of data and exposes
 /// this data as a static slice.
@@ -102,7 +102,6 @@ impl OwnedBytes {
     }
 
     /// Drops the left most `advance_len` bytes.
-    ///
     #[inline]
     pub fn advance(&mut self, advance_len: usize) {
         self.data = &self.data[advance_len..]
@@ -163,8 +162,7 @@ impl PartialEq<str> for OwnedBytes {
 }
 
 impl<'a, T: ?Sized> PartialEq<&'a T> for OwnedBytes
-where
-    OwnedBytes: PartialEq<T>,
+where OwnedBytes: PartialEq<T>
 {
     fn eq(&self, other: &&'a T) -> bool {
         *self == **other

@@ -3,10 +3,8 @@ use std::collections::BTreeMap;
 use super::PhraseWeight;
 use crate::core::searcher::Searcher;
 use crate::query::bm25::Bm25Weight;
-use crate::query::Query;
-use crate::query::Weight;
-use crate::schema::IndexRecordOption;
-use crate::schema::{Field, Term};
+use crate::query::{Query, Weight};
+use crate::schema::{Field, IndexRecordOption, Term};
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -21,7 +19,6 @@ use crate::schema::{Field, Term};
 ///
 /// Using a `PhraseQuery` on a field requires positions
 /// to be indexed for this field.
-///
 #[derive(Clone, Debug)]
 pub struct PhraseQuery {
     field: Field,

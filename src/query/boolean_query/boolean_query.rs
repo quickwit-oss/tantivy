@@ -1,12 +1,9 @@
-use super::boolean_weight::BooleanWeight;
-use crate::query::Occur;
-use crate::query::Query;
-use crate::query::TermQuery;
-use crate::query::Weight;
-use crate::schema::IndexRecordOption;
-use crate::schema::Term;
-use crate::Searcher;
 use std::collections::BTreeMap;
+
+use super::boolean_weight::BooleanWeight;
+use crate::query::{Occur, Query, TermQuery, Weight};
+use crate::schema::{IndexRecordOption, Term};
+use crate::Searcher;
 
 /// The boolean query returns a set of documents
 /// that matches the Boolean combination of constituent subqueries.
@@ -24,14 +21,14 @@ use std::collections::BTreeMap;
 /// You can combine other query types and their `Occur`ances into one `BooleanQuery`
 ///
 /// ```rust
-///use tantivy::collector::Count;
-///use tantivy::doc;
-///use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
-///use tantivy::schema::{IndexRecordOption, Schema, TEXT};
-///use tantivy::Term;
-///use tantivy::Index;
+/// use tantivy::collector::Count;
+/// use tantivy::doc;
+/// use tantivy::query::{BooleanQuery, Occur, PhraseQuery, Query, TermQuery};
+/// use tantivy::schema::{IndexRecordOption, Schema, TEXT};
+/// use tantivy::Term;
+/// use tantivy::Index;
 ///
-///fn main() -> tantivy::Result<()> {
+/// fn main() -> tantivy::Result<()> {
 ///    let mut schema_builder = Schema::builder();
 ///    let title = schema_builder.add_text_field("title", TEXT);
 ///    let body = schema_builder.add_text_field("body", TEXT);
@@ -124,7 +121,7 @@ use std::collections::BTreeMap;
 ///    let count4 = searcher.search(&nested_query, &Count)?;
 ///    assert_eq!(count4, 1);
 ///    Ok(())
-///}
+/// }
 /// ```
 #[derive(Debug)]
 pub struct BooleanQuery {

@@ -1,8 +1,7 @@
+use std::sync::{Arc, RwLock, Weak};
+
 use futures::channel::oneshot;
 use futures::{Future, TryFutureExt};
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::sync::Weak;
 
 /// Cloneable wrapper for callbacks registered when watching files of a `Directory`.
 #[derive(Clone)]
@@ -103,11 +102,13 @@ impl WatchCallbackList {
 
 #[cfg(test)]
 mod tests {
-    use crate::directory::{WatchCallback, WatchCallbackList};
-    use futures::executor::block_on;
     use std::mem;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+
+    use futures::executor::block_on;
+
+    use crate::directory::{WatchCallback, WatchCallbackList};
 
     #[test]
     fn test_watch_event_router_simple() {

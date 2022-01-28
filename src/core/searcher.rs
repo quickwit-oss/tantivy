@@ -1,20 +1,13 @@
-use crate::collector::Collector;
-use crate::core::Executor;
-use crate::core::SegmentReader;
-use crate::query::Query;
-use crate::schema::Document;
-use crate::schema::Schema;
-use crate::schema::Term;
-use crate::space_usage::SearcherSpaceUsage;
-use crate::store::StoreReader;
-use crate::DocAddress;
-use crate::Index;
-use crate::Opstamp;
-use crate::SegmentId;
-use crate::TrackedObject;
-
 use std::collections::BTreeMap;
 use std::{fmt, io};
+
+use crate::collector::Collector;
+use crate::core::{Executor, SegmentReader};
+use crate::query::Query;
+use crate::schema::{Document, Schema, Term};
+use crate::space_usage::SearcherSpaceUsage;
+use crate::store::StoreReader;
+use crate::{DocAddress, Index, Opstamp, SegmentId, TrackedObject};
 
 /// Identifies the searcher generation accessed by a [Searcher].
 ///
@@ -69,7 +62,6 @@ impl SearcherGeneration {
 ///
 /// It guarantees that the `Segment` will not be removed before
 /// the destruction of the `Searcher`.
-///
 pub struct Searcher {
     schema: Schema,
     index: Index,

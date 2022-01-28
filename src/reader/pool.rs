@@ -1,9 +1,8 @@
-use crossbeam::channel::unbounded;
-use crossbeam::channel::{Receiver, RecvError, Sender};
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+
+use crossbeam::channel::{unbounded, Receiver, RecvError, Sender};
 
 pub struct GenerationItem<T> {
     generation: usize,
@@ -196,10 +195,11 @@ impl<T> Drop for LeasedItem<T> {
 #[cfg(test)]
 mod tests {
 
-    use super::Pool;
-    use super::Queue;
-    use crossbeam::channel;
     use std::{iter, mem};
+
+    use crossbeam::channel;
+
+    use super::{Pool, Queue};
 
     #[test]
     fn test_pool() {

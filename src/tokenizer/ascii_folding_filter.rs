@@ -1,5 +1,6 @@
-use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 use std::mem;
+
+use super::{BoxTokenStream, Token, TokenFilter, TokenStream};
 
 /// This class converts alphabetic, numeric, and symbolic Unicode characters
 /// which are not in the first 127 ASCII characters (the "Basic Latin" Unicode
@@ -1540,12 +1541,10 @@ fn to_ascii(text: &mut String, output: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use super::to_ascii;
-    use crate::tokenizer::AsciiFoldingFilter;
-    use crate::tokenizer::RawTokenizer;
-    use crate::tokenizer::SimpleTokenizer;
-    use crate::tokenizer::TextAnalyzer;
     use std::iter;
+
+    use super::to_ascii;
+    use crate::tokenizer::{AsciiFoldingFilter, RawTokenizer, SimpleTokenizer, TextAnalyzer};
 
     #[test]
     fn test_ascii_folding() {

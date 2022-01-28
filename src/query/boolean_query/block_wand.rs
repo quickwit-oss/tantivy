@@ -1,8 +1,8 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::query::term_query::TermScorer;
 use crate::query::Scorer;
 use crate::{DocId, DocSet, Score, TERMINATED};
-use std::ops::Deref;
-use std::ops::DerefMut;
 
 /// Takes a term_scorers sorted by their current doc() and a threshold and returns
 /// Returns (pivot_len, pivot_ord) defined as follows:
@@ -216,10 +216,9 @@ pub fn block_wand(
 /// than the generic algorithm.
 /// The algorithm behaves as follows:
 /// - While we don't hit the end of the docset:
-///   - While the block max score is under the `threshold`, go to the
-///     next block.
-///   - On a block, advance until the end and execute `callback``
-///     when the doc score is greater or equal to the `threshold`.
+///   - While the block max score is under the `threshold`, go to the next block.
+///   - On a block, advance until the end and execute `callback`` when the doc score is greater or
+///     equal to the `threshold`.
 pub fn block_wand_single_scorer(
     mut scorer: TermScorer,
     mut threshold: Score,
@@ -301,15 +300,16 @@ fn is_sorted<I: Iterator<Item = DocId>>(mut it: I) -> bool {
 }
 #[cfg(test)]
 mod tests {
-    use crate::query::score_combiner::SumCombiner;
-    use crate::query::term_query::TermScorer;
-    use crate::query::Union;
-    use crate::query::{Bm25Weight, Scorer};
-    use crate::{DocId, DocSet, Score, TERMINATED};
-    use proptest::prelude::*;
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
     use std::iter;
+
+    use proptest::prelude::*;
+
+    use crate::query::score_combiner::SumCombiner;
+    use crate::query::term_query::TermScorer;
+    use crate::query::{Bm25Weight, Scorer, Union};
+    use crate::{DocId, DocSet, Score, TERMINATED};
 
     struct Float(Score);
 

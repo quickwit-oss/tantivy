@@ -1,21 +1,20 @@
+use std::cmp::Ordering;
+use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter, VInt};
+use fail::fail_point;
+
 use super::TermInfo;
 use crate::core::Segment;
-use crate::directory::CompositeWrite;
-use crate::directory::WritePtr;
+use crate::directory::{CompositeWrite, WritePtr};
 use crate::fieldnorm::FieldNormReader;
 use crate::positions::PositionSerializer;
 use crate::postings::compression::{BlockEncoder, VIntEncoder, COMPRESSION_BLOCK_SIZE};
 use crate::postings::skip::SkipSerializer;
 use crate::query::Bm25Weight;
-use crate::schema::{Field, FieldEntry, FieldType};
-use crate::schema::{IndexRecordOption, Schema};
+use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema};
 use crate::termdict::{TermDictionaryBuilder, TermOrdinal};
 use crate::{DocId, Score};
-use common::CountingWriter;
-use common::{BinarySerializable, VInt};
-use fail::fail_point;
-use std::cmp::Ordering;
-use std::io::{self, Write};
 
 /// `InvertedIndexSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -172,8 +171,8 @@ impl<'a> FieldSerializer<'a> {
     }
 
     /// Starts the postings for a new term.
-    /// * term - the term. It needs to come after the previous term according
-    ///   to the lexicographical order.
+    /// * term - the term. It needs to come after the previous term according to the lexicographical
+    ///   order.
     /// * term_doc_freq - return the number of document containing the term.
     pub fn new_term(&mut self, term: &[u8], term_doc_freq: u32) -> io::Result<TermOrdinal> {
         assert!(
@@ -308,8 +307,8 @@ pub struct PostingsSerializer<W: Write> {
     fieldnorm_reader: Option<FieldNormReader>,
 
     bm25_weight: Option<Bm25Weight>,
-    avg_fieldnorm: Score, // Average number of term in the field for that segment.
-                          // this value is used to compute the block wand information.
+    avg_fieldnorm: Score, /* Average number of term in the field for that segment.
+                           * this value is used to compute the block wand information. */
 }
 
 impl<W: Write> PostingsSerializer<W> {

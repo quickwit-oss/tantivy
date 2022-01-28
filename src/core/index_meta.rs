@@ -1,12 +1,16 @@
-use super::SegmentComponent;
-use crate::schema::Schema;
-use crate::Opstamp;
-use crate::{core::SegmentId, store::Compressor};
-use crate::{Inventory, TrackedObject};
-use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::fmt;
 use std::path::PathBuf;
-use std::{collections::HashSet, sync::atomic::AtomicBool};
-use std::{fmt, sync::Arc};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+
+use super::SegmentComponent;
+use crate::core::SegmentId;
+use crate::schema::Schema;
+use crate::store::Compressor;
+use crate::{Inventory, Opstamp, TrackedObject};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {
@@ -282,7 +286,6 @@ impl Order {
 /// * the searchable segments,
 /// * the index `docstamp`
 /// * the schema
-///
 #[derive(Clone, Serialize)]
 pub struct IndexMeta {
     /// `IndexSettings` to configure index options.
@@ -370,10 +373,8 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
-    use crate::{
-        schema::{Schema, TEXT},
-        IndexSettings, IndexSortByField, Order,
-    };
+    use crate::schema::{Schema, TEXT};
+    use crate::{IndexSettings, IndexSortByField, Order};
 
     #[test]
     fn test_serialize_metas() {

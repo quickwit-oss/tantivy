@@ -1,8 +1,4 @@
-/*!
-
-WORM (Write Once Read Many) directory abstraction.
-
-*/
+//! WORM (Write Once Read Many) directory abstraction.
 
 #[cfg(feature = "mmap")]
 mod mmap_directory;
@@ -22,19 +18,19 @@ pub mod error;
 
 mod composite_file;
 
+use std::io::BufWriter;
+use std::path::PathBuf;
+
+pub use common::{AntiCallToken, TerminatingWrite};
+
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
-pub use self::directory::DirectoryLock;
-pub use self::directory::{Directory, DirectoryClone};
+pub use self::directory::{Directory, DirectoryClone, DirectoryLock};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub(crate) use self::file_slice::{ArcBytes, WeakArcBytes};
 pub use self::file_slice::{FileHandle, FileSlice};
 pub use self::owned_bytes::OwnedBytes;
 pub use self::ram_directory::RamDirectory;
 pub use self::watch_event_router::{WatchCallback, WatchCallbackList, WatchHandle};
-pub use common::AntiCallToken;
-pub use common::TerminatingWrite;
-use std::io::BufWriter;
-use std::path::PathBuf;
 
 /// Outcome of the Garbage collection
 pub struct GarbageCollectionResult {
@@ -50,10 +46,9 @@ pub struct GarbageCollectionResult {
     pub failed_to_delete_files: Vec<PathBuf>,
 }
 
+pub use self::managed_directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
-
-pub use self::managed_directory::ManagedDirectory;
 
 /// Write object for Directory.
 ///

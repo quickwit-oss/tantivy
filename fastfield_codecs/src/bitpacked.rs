@@ -1,13 +1,9 @@
-use crate::FastFieldCodecReader;
-use crate::FastFieldCodecSerializer;
-use crate::FastFieldDataAccess;
-use crate::FastFieldStats;
-use common::BinarySerializable;
 use std::io::{self, Write};
-use tantivy_bitpacker::compute_num_bits;
-use tantivy_bitpacker::BitPacker;
 
-use tantivy_bitpacker::BitUnpacker;
+use common::BinarySerializable;
+use tantivy_bitpacker::{compute_num_bits, BitPacker, BitUnpacker};
+
+use crate::{FastFieldCodecReader, FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
 
 /// Depending on the field type, a different
 /// fast field is required.

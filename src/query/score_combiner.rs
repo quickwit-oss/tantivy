@@ -21,7 +21,6 @@ pub trait ScoreCombiner: Default + Clone + Send + Copy + 'static {
 /// even call the scorers `.score()` function.
 ///
 /// It is useful to optimize the case when scoring is disabled.
-///
 #[derive(Default, Clone, Copy)] //< these should not be too much work :)
 pub struct DoNothingCombiner;
 

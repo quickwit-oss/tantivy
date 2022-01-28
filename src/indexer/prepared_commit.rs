@@ -1,6 +1,7 @@
+use futures::executor::block_on;
+
 use super::IndexWriter;
 use crate::Opstamp;
-use futures::executor::block_on;
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {

@@ -10,11 +10,13 @@
 //! assert_eq!(stream.next().unwrap().text, "crafty");
 //! assert!(stream.next().is_none());
 //! ```
-use super::{Token, TokenFilter, TokenStream};
-use crate::tokenizer::BoxTokenStream;
-use fnv::FnvHasher;
 use std::collections::HashSet;
 use std::hash::BuildHasherDefault;
+
+use fnv::FnvHasher;
+
+use super::{Token, TokenFilter, TokenStream};
+use crate::tokenizer::BoxTokenStream;
 
 // configure our hashers for SPEED
 type StopWordHasher = BuildHasherDefault<FnvHasher>;

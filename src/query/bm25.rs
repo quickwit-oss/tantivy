@@ -1,10 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::fieldnorm::FieldNormReader;
 use crate::query::Explanation;
-use crate::Score;
-use crate::Searcher;
-use crate::Term;
-use serde::Deserialize;
-use serde::Serialize;
+use crate::{Score, Searcher, Term};
 
 const K1: Score = 1.2;
 const B: Score = 0.75;

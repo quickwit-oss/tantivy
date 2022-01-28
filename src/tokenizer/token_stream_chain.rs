@@ -1,5 +1,6 @@
-use crate::tokenizer::{BoxTokenStream, Token, TokenStream};
 use std::ops::DerefMut;
+
+use crate::tokenizer::{BoxTokenStream, Token, TokenStream};
 
 const POSITION_GAP: usize = 2;
 
@@ -67,8 +68,7 @@ impl<'a> TokenStream for TokenStreamChain<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::{SimpleTokenizer, TokenStream, Tokenizer};
-    use super::TokenStreamChain;
-    use super::POSITION_GAP;
+    use super::{TokenStreamChain, POSITION_GAP};
 
     #[test]
     fn test_chain_first_emits_no_tokens() {

@@ -1,13 +1,12 @@
+use std::{iter, mem, slice};
+
+use byteorder::{ByteOrder, NativeEndian};
 use murmurhash32::murmurhash2;
 
 use super::{Addr, MemoryArena};
 use crate::postings::stacker::memory_arena::store;
 use crate::postings::UnorderedTermId;
 use crate::Term;
-use byteorder::{ByteOrder, NativeEndian};
-use std::iter;
-use std::mem;
-use std::slice;
 
 /// Returns the actual memory size in bytes
 /// required to create a table of size $2^num_bits$.
@@ -49,7 +48,6 @@ impl KeyValue {
 /// The quirky API has the benefit of avoiding
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
-///
 pub struct TermHashMap {
     table: Box<[KeyValue]>,
     pub heap: MemoryArena,
@@ -235,8 +233,9 @@ impl TermHashMap {
 #[cfg(test)]
 mod tests {
 
-    use super::TermHashMap;
     use std::collections::HashMap;
+
+    use super::TermHashMap;
 
     #[test]
     fn test_hash_map() {

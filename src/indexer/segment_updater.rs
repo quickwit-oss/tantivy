@@ -1,11 +1,21 @@
+use std::borrow::BorrowMut;
+use std::collections::HashSet;
+use std::io;
+use std::io::Write;
+use std::ops::Deref;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+
+use fail::fail_point;
+use futures::channel::oneshot;
+use futures::executor::{ThreadPool, ThreadPoolBuilder};
+use futures::future::{Future, TryFutureExt};
+
 use super::segment_manager::SegmentManager;
-use crate::core::Index;
-use crate::core::IndexMeta;
-use crate::core::IndexSettings;
-use crate::core::Segment;
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
-use crate::core::META_FILEPATH;
+use crate::core::{
+    Index, IndexMeta, IndexSettings, Segment, SegmentId, SegmentMeta, META_FILEPATH,
+};
 use crate::directory::{Directory, DirectoryClone, GarbageCollectionResult};
 use crate::fastfield::AliveBitSet;
 use crate::indexer::delete_queue::DeleteCursor;
@@ -14,27 +24,12 @@ use crate::indexer::merge_operation::MergeOperationInventory;
 use crate::indexer::merger::IndexMerger;
 use crate::indexer::segment_manager::SegmentsStatus;
 use crate::indexer::stamper::Stamper;
-use crate::indexer::SegmentEntry;
-use crate::indexer::SegmentSerializer;
-use crate::indexer::{DefaultMergePolicy, MergePolicy};
-use crate::indexer::{MergeCandidate, MergeOperation};
+use crate::indexer::{
+    DefaultMergePolicy, MergeCandidate, MergeOperation, MergePolicy, SegmentEntry,
+    SegmentSerializer,
+};
 use crate::schema::Schema;
-use crate::Opstamp;
-use crate::TantivyError;
-use fail::fail_point;
-use futures::channel::oneshot;
-use futures::executor::{ThreadPool, ThreadPoolBuilder};
-use futures::future::Future;
-use futures::future::TryFutureExt;
-use std::borrow::BorrowMut;
-use std::collections::HashSet;
-use std::io;
-use std::io::Write;
-use std::ops::Deref;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::sync::RwLock;
+use crate::{Opstamp, TantivyError};
 
 const NUM_MERGE_THREADS: usize = 4;
 
@@ -702,10 +697,7 @@ mod tests {
     use crate::indexer::segment_updater::merge_filtered_segments;
     use crate::query::QueryParser;
     use crate::schema::*;
-    use crate::Directory;
-    use crate::DocAddress;
-    use crate::Index;
-    use crate::Segment;
+    use crate::{Directory, DocAddress, Index, Segment};
 
     #[test]
     fn test_delete_during_merge() -> crate::Result<()> {

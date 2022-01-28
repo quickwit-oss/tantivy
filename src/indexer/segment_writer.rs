@@ -1,24 +1,16 @@
-use super::{
-    doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping},
-    operation::AddOperation,
-};
+use super::doc_id_mapping::{get_doc_id_mapping_from_field, DocIdMapping};
+use super::operation::AddOperation;
+use crate::core::Segment;
+use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
-use crate::postings::compute_table_size;
-use crate::postings::MultiFieldPostingsWriter;
-use crate::schema::FieldType;
-use crate::schema::Schema;
-use crate::schema::Term;
-use crate::schema::Value;
-use crate::schema::{Field, FieldEntry};
-use crate::store::StoreReader;
-use crate::tokenizer::{BoxTokenStream, PreTokenizedStream};
-use crate::tokenizer::{FacetTokenizer, TextAnalyzer};
-use crate::tokenizer::{TokenStreamChain, Tokenizer};
-use crate::Opstamp;
-use crate::{core::Segment, store::StoreWriter};
-use crate::{fastfield::FastFieldsWriter, schema::Type};
-use crate::{DocId, SegmentComponent};
+use crate::postings::{compute_table_size, MultiFieldPostingsWriter};
+use crate::schema::{Field, FieldEntry, FieldType, Schema, Term, Type, Value};
+use crate::store::{StoreReader, StoreWriter};
+use crate::tokenizer::{
+    BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, TokenStreamChain, Tokenizer,
+};
+use crate::{DocId, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
 ///
@@ -31,8 +23,11 @@ fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     {
         Ok(limit.min(19)) // we cap it at 2^19 = 512K.
     } else {
-        Err(crate::TantivyError::InvalidArgument(
-            format!("per thread memory budget (={}) is too small. Raise the memory budget or lower the number of threads.", per_thread_memory_budget)))
+        Err(crate::TantivyError::InvalidArgument(format!(
+            "per thread memory budget (={}) is too small. Raise the memory budget or lower the \
+             number of threads.",
+            per_thread_memory_budget
+        )))
     }
 }
 
@@ -158,7 +153,7 @@ impl SegmentWriter {
 
         self.fast_field_writers.add_document(&doc);
 
-        for (field, field_values) in doc.get_sorted_field_values() {
+        for (field, values) in doc.get_sorted_field_values() {
             let field_entry = schema.get_field_entry(field);
             let make_schema_error = || {
                 crate::TantivyError::SchemaError(format!(
@@ -175,8 +170,8 @@ impl SegmentWriter {
             match *field_entry.field_type() {
                 FieldType::Facet(_) => {
                     term_buffer.set_field(Type::Facet, field);
-                    for field_value in field_values {
-                        let facet = field_value.value().facet().ok_or_else(make_schema_error)?;
+                    for value in values {
+                        let facet = value.as_facet().ok_or_else(make_schema_error)?;
                         let facet_str = facet.encoded_str();
                         let mut unordered_term_id_opt = None;
                         FacetTokenizer
@@ -200,8 +195,8 @@ impl SegmentWriter {
                     let mut offsets = vec![];
                     let mut total_offset = 0;
 
-                    for field_value in field_values {
-                        match field_value.value() {
+                    for value in values {
+                        match value {
                             Value::PreTokStr(tok_str) => {
                                 offsets.push(total_offset);
                                 if let Some(last_token) = tok_str.tokens.last() {
@@ -237,56 +232,41 @@ impl SegmentWriter {
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(_) => {
-                    for field_value in field_values {
-                        term_buffer.set_field(Type::U64, field_value.field());
-                        let u64_val = field_value
-                            .value()
-                            .u64_value()
-                            .ok_or_else(make_schema_error)?;
+                    for value in values {
+                        term_buffer.set_field(Type::U64, field);
+                        let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(u64_val);
                         multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::Date(_) => {
-                    for field_value in field_values {
-                        term_buffer.set_field(Type::Date, field_value.field());
-                        let date_val = field_value
-                            .value()
-                            .date_value()
-                            .ok_or_else(make_schema_error)?;
+                    for value in values {
+                        term_buffer.set_field(Type::Date, field);
+                        let date_val = value.as_date().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(date_val.timestamp());
                         multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::I64(_) => {
-                    for field_value in field_values {
-                        term_buffer.set_field(Type::I64, field_value.field());
-                        let i64_val = field_value
-                            .value()
-                            .i64_value()
-                            .ok_or_else(make_schema_error)?;
+                    for value in values {
+                        term_buffer.set_field(Type::I64, field);
+                        let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(i64_val);
                         multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::F64(_) => {
-                    for field_value in field_values {
-                        term_buffer.set_field(Type::F64, field_value.field());
-                        let f64_val = field_value
-                            .value()
-                            .f64_value()
-                            .ok_or_else(make_schema_error)?;
+                    for value in values {
+                        term_buffer.set_field(Type::F64, field);
+                        let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
                         multifield_postings.subscribe(doc_id, term_buffer);
                     }
                 }
                 FieldType::Bytes(_) => {
-                    for field_value in field_values {
-                        term_buffer.set_field(Type::Bytes, field_value.field());
-                        let bytes = field_value
-                            .value()
-                            .bytes_value()
-                            .ok_or_else(make_schema_error)?;
+                    for value in values {
+                        term_buffer.set_field(Type::Bytes, field);
+                        let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
                         self.multifield_postings.subscribe(doc_id, term_buffer);
                     }

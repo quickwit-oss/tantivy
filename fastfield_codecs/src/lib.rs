@@ -53,7 +53,8 @@ pub trait FastFieldCodecSerializer {
 pub trait FastFieldDataAccess {
     /// Return the value associated to the given position.
     ///
-    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance reasons.
+    /// Whenever possible use the Iterator passed to the fastfield creation instead, for performance
+    /// reasons.
     ///
     /// # Panics
     ///
@@ -82,12 +83,10 @@ impl FastFieldDataAccess for Vec<u64> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer},
-        linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer},
-        multilinearinterpol::{
-            MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
-        },
+    use crate::bitpacked::{BitpackedFastFieldReader, BitpackedFastFieldSerializer};
+    use crate::linearinterpol::{LinearInterpolFastFieldReader, LinearInterpolFastFieldSerializer};
+    use crate::multilinearinterpol::{
+        MultiLinearInterpolFastFieldReader, MultiLinearInterpolFastFieldSerializer,
     };
 
     pub fn create_and_validate<S: FastFieldCodecSerializer, R: FastFieldCodecReader>(

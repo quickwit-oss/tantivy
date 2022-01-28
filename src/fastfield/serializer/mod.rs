@@ -1,16 +1,15 @@
-use crate::directory::CompositeWrite;
-use crate::directory::WritePtr;
-use crate::schema::Field;
-use common::BinarySerializable;
-use common::CountingWriter;
-pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializer;
-pub use fastfield_codecs::bitpacked::BitpackedFastFieldSerializerLegacy;
+use std::io::{self, Write};
+
+use common::{BinarySerializable, CountingWriter};
+pub use fastfield_codecs::bitpacked::{
+    BitpackedFastFieldSerializer, BitpackedFastFieldSerializerLegacy,
+};
 use fastfield_codecs::linearinterpol::LinearInterpolFastFieldSerializer;
 use fastfield_codecs::multilinearinterpol::MultiLinearInterpolFastFieldSerializer;
-pub use fastfield_codecs::FastFieldCodecSerializer;
-pub use fastfield_codecs::FastFieldDataAccess;
-pub use fastfield_codecs::FastFieldStats;
-use std::io::{self, Write};
+pub use fastfield_codecs::{FastFieldCodecSerializer, FastFieldDataAccess, FastFieldStats};
+
+use crate::directory::{CompositeWrite, WritePtr};
+use crate::schema::Field;
 
 /// `CompositeFastFieldSerializer` is in charge of serializing
 /// fastfields on disk.
@@ -58,7 +57,8 @@ impl CompositeFastFieldSerializer {
         Ok(CompositeFastFieldSerializer { composite_write })
     }
 
-    /// Serialize data into a new u64 fast field. The best compression codec will be chosen automatically.
+    /// Serialize data into a new u64 fast field. The best compression codec will be chosen
+    /// automatically.
     pub fn create_auto_detect_u64_fast_field(
         &mut self,
         field: Field,
@@ -76,7 +76,8 @@ impl CompositeFastFieldSerializer {
             0,
         )
     }
-    /// Serialize data into a new u64 fast field. The best compression codec will be chosen automatically.
+    /// Serialize data into a new u64 fast field. The best compression codec will be chosen
+    /// automatically.
     pub fn create_auto_detect_u64_fast_field_with_idx(
         &mut self,
         field: Field,
@@ -112,7 +113,8 @@ impl CompositeFastFieldSerializer {
                 broken_estimation.1
             );
         }
-        // removing nan values for codecs with broken calculations, and max values which disables codecs
+        // removing nan values for codecs with broken calculations, and max values which disables
+        // codecs
         estimations.retain(|estimation| !estimation.0.is_nan() && estimation.0 != f32::MAX);
         estimations.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let (_ratio, name, id) = estimations[0];

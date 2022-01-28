@@ -1,14 +1,11 @@
-use crate::schema::bytes_options::BytesOptions;
-use crate::schema::facet_options::FacetOptions;
-use crate::schema::Facet;
-use crate::schema::IndexRecordOption;
-use crate::schema::TextFieldIndexing;
-use crate::schema::Value;
-use crate::schema::{IntOptions, TextOptions};
-use crate::tokenizer::PreTokenizedString;
 use chrono::{FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+
+use crate::schema::bytes_options::BytesOptions;
+use crate::schema::facet_options::FacetOptions;
+use crate::schema::{Facet, IndexRecordOption, IntOptions, TextFieldIndexing, TextOptions, Value};
+use crate::tokenizer::PreTokenizedString;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -192,12 +189,13 @@ impl FieldType {
             JsonValue::String(ref field_text) => match *self {
                 FieldType::Date(_) => {
                     let dt_with_fixed_tz: chrono::DateTime<FixedOffset> =
-                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|err|
+                        chrono::DateTime::parse_from_rfc3339(field_text).map_err(|err| {
                             ValueParsingError::TypeError(format!(
-                                "Failed to parse date from JSON. Expected rfc3339 format, got {}. {:?}",
+                                "Failed to parse date from JSON. Expected rfc3339 format, got {}. \
+                                 {:?}",
                                 field_text, err
                             ))
-                        )?;
+                        })?;
                     Ok(Value::Date(dt_with_fixed_tz.with_timezone(&Utc)))
                 }
                 FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
@@ -277,15 +275,13 @@ impl FieldType {
 
 #[cfg(test)]
 mod tests {
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
+
     use super::FieldType;
     use crate::schema::field_type::ValueParsingError;
-    use crate::schema::TextOptions;
-    use crate::schema::Type;
-    use crate::schema::Value;
-    use crate::schema::{Schema, INDEXED};
+    use crate::schema::{Schema, TextOptions, Type, Value, INDEXED};
     use crate::tokenizer::{PreTokenizedString, Token};
     use crate::{DateTime, Document};
-    use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
     #[test]
     fn test_deserialize_json_date() {

@@ -1,12 +1,11 @@
+use common::HasLen;
+
 use crate::docset::DocSet;
 use crate::fastfield::AliveBitSet;
 use crate::positions::PositionReader;
-use crate::postings::branchless_binary_search;
 use crate::postings::compression::COMPRESSION_BLOCK_SIZE;
-use crate::postings::BlockSegmentPostings;
-use crate::postings::Postings;
+use crate::postings::{branchless_binary_search, BlockSegmentPostings, Postings};
 use crate::{DocId, TERMINATED};
-use common::HasLen;
 
 /// `SegmentPostings` represents the inverted list or postings associated to
 /// a term in a `Segment`.
@@ -142,8 +141,7 @@ impl SegmentPostings {
     ///
     /// * `len` - number of document in the posting lists.
     /// * `data` - data array. The complete data is not necessarily used.
-    /// * `freq_handler` - the freq handler is in charge of decoding
-    ///   frequencies and/or positions
+    /// * `freq_handler` - the freq handler is in charge of decoding frequencies and/or positions
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
         position_reader: Option<PositionReader>,
@@ -234,8 +232,7 @@ impl Postings for SegmentPostings {
             // In that case we hit the block just as if the frequency had been
             // decoded. The block is simply prefilled by the value 1.
             self.cur < COMPRESSION_BLOCK_SIZE,
-            "Have you forgotten to call `.advance()` at least once before calling \
-             `.term_freq()`."
+            "Have you forgotten to call `.advance()` at least once before calling `.term_freq()`."
         );
         self.block_cursor.freq(self.cur)
     }
@@ -264,9 +261,9 @@ impl Postings for SegmentPostings {
 #[cfg(test)]
 mod tests {
 
-    use super::SegmentPostings;
     use common::HasLen;
 
+    use super::SegmentPostings;
     use crate::docset::{DocSet, TERMINATED};
     use crate::fastfield::AliveBitSet;
     use crate::postings::postings::Postings;

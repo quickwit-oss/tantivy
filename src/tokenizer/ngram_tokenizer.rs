@@ -21,7 +21,8 @@ use crate::tokenizer::BoxTokenStream;
 /// | Position | 0   | 0   | 0     | 0     |
 /// | Offsets  | 0,2 | 0,3 | 0,4   | 0,5   |
 ///
-/// Example 3: `hεllo` (non-ascii) would be tokenized as (min_gram: 2, max_gram: 5, prefix_only: **true**)
+/// Example 3: `hεllo` (non-ascii) would be tokenized as (min_gram: 2, max_gram: 5, prefix_only:
+/// **true**)
 ///
 /// | Term     | hε  | hεl | hεll  | hεllo |
 /// |----------|-----|-----|-------|-------|
@@ -191,8 +192,7 @@ struct StutteringIterator<T> {
 }
 
 impl<T> StutteringIterator<T>
-where
-    T: Iterator<Item = usize>,
+where T: Iterator<Item = usize>
 {
     pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
         assert!(min_gram > 0);
@@ -221,8 +221,7 @@ where
 }
 
 impl<T> Iterator for StutteringIterator<T>
-where
-    T: Iterator<Item = usize>,
+where T: Iterator<Item = usize>
 {
     type Item = (usize, usize);
 
@@ -302,10 +301,7 @@ fn utf8_codepoint_width(b: u8) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use super::utf8_codepoint_width;
-    use super::CodepointFrontiers;
-    use super::NgramTokenizer;
-    use super::StutteringIterator;
+    use super::{utf8_codepoint_width, CodepointFrontiers, NgramTokenizer, StutteringIterator};
     use crate::tokenizer::tests::assert_token;
     use crate::tokenizer::tokenizer::Tokenizer;
     use crate::tokenizer::{BoxTokenStream, Token};

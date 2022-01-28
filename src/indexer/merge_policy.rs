@@ -1,7 +1,7 @@
-use crate::core::SegmentId;
-use crate::core::SegmentMeta;
 use std::fmt::Debug;
 use std::marker;
+
+use crate::core::{SegmentId, SegmentMeta};
 
 /// Set of segment suggested for a merge.
 #[derive(Debug, Clone)]
@@ -39,8 +39,7 @@ impl MergePolicy for NoMergePolicy {
 pub mod tests {
 
     use super::*;
-    use crate::core::SegmentId;
-    use crate::core::SegmentMeta;
+    use crate::core::{SegmentId, SegmentMeta};
 
     /// `MergePolicy` useful for test purposes.
     ///

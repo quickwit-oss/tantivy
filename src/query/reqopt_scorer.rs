@@ -1,9 +1,9 @@
+use std::marker::PhantomData;
+
 use crate::docset::DocSet;
 use crate::query::score_combiner::ScoreCombiner;
 use crate::query::Scorer;
-use crate::DocId;
-use crate::Score;
-use std::marker::PhantomData;
+use crate::{DocId, Score};
 
 /// Given a required scorer and an optional scorer
 /// matches all document from the required scorer
@@ -89,9 +89,7 @@ mod tests {
     use crate::docset::{DocSet, TERMINATED};
     use crate::postings::tests::test_skip_against_unoptimized;
     use crate::query::score_combiner::{DoNothingCombiner, SumCombiner};
-    use crate::query::ConstScorer;
-    use crate::query::Scorer;
-    use crate::query::VecDocSet;
+    use crate::query::{ConstScorer, Scorer, VecDocSet};
     use crate::tests::sample_with_seed;
 
     #[test]

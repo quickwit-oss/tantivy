@@ -1,11 +1,12 @@
+use std::collections::BTreeMap;
+use std::fmt;
+
+use downcast_rs::impl_downcast;
+
 use super::Weight;
 use crate::core::searcher::Searcher;
 use crate::query::Explanation;
-use crate::DocAddress;
-use crate::Term;
-use downcast_rs::impl_downcast;
-use std::collections::BTreeMap;
-use std::fmt;
+use crate::{DocAddress, Term};
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -81,8 +82,7 @@ pub trait QueryClone {
 }
 
 impl<T> QueryClone for T
-where
-    T: 'static + Query + Clone,
+where T: 'static + Query + Clone
 {
     fn box_clone(&self) -> Box<dyn Query> {
         Box::new(self.clone())
