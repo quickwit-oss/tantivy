@@ -79,7 +79,7 @@ impl MultiValuedFastFieldWriter {
         // facets are indexed in the `SegmentWriter` as we encode their unordered id.
         if !self.is_facet {
             for field_value in doc.field_values() {
-                if field_value.field() == self.field {
+                if field_value.field == self.field {
                     self.add_val(value_to_u64(field_value.value()));
                 }
             }

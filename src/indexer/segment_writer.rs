@@ -4,31 +4,33 @@ use crate::core::Segment;
 use crate::fastfield::FastFieldsWriter;
 use crate::fieldnorm::{FieldNormReaders, FieldNormsWriter};
 use crate::indexer::segment_serializer::SegmentSerializer;
-use crate::postings::{compute_table_size, MultiFieldPostingsWriter};
-use crate::schema::{Field, FieldEntry, FieldType, Schema, Term, Type, Value};
+use crate::postings::{
+    compute_table_size, serialize_postings, IndexingContext, PerFieldPostingsWriter, PostingsWriter,
+};
+use crate::schema::{Field, FieldEntry, FieldType, FieldValue, Schema, Term, Type, Value};
 use crate::store::{StoreReader, StoreWriter};
 use crate::tokenizer::{
     BoxTokenStream, FacetTokenizer, PreTokenizedStream, TextAnalyzer, TokenStreamChain, Tokenizer,
 };
-use crate::{DocId, Opstamp, SegmentComponent};
+use crate::{DocId, Document, Opstamp, SegmentComponent};
 
 /// Computes the initial size of the hash table.
 ///
-/// Returns a number of bit `b`, such that the recommended initial table size is 2^b.
-fn initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
+/// Returns the recommended initial table size as a power of 2.
+///
+/// Note this is a very dumb way to compute log2, but it is easier to proofread that way.
+fn compute_initial_table_size(per_thread_memory_budget: usize) -> crate::Result<usize> {
     let table_memory_upper_bound = per_thread_memory_budget / 3;
-    if let Some(limit) = (10..)
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_memory_upper_bound)
+    (10..20) // We cap it at 2^19 = 512K capacity.
+        .map(|power| 1 << power)
+        .take_while(|capacity| compute_table_size(*capacity) < table_memory_upper_bound)
         .last()
-    {
-        Ok(limit.min(19)) // we cap it at 2^19 = 512K.
-    } else {
-        Err(crate::TantivyError::InvalidArgument(format!(
-            "per thread memory budget (={}) is too small. Raise the memory budget or lower the \
-             number of threads.",
-            per_thread_memory_budget
-        )))
-    }
+        .ok_or_else(|| {
+            crate::TantivyError::InvalidArgument(format!(
+                "per thread memory budget (={per_thread_memory_budget}) is too small. Raise the \
+                 memory budget or lower the number of threads."
+            ))
+        })
 }
 
 fn remap_doc_opstamps(
@@ -52,13 +54,15 @@ fn remap_doc_opstamps(
 /// The segment is layed on disk when the segment gets `finalized`.
 pub struct SegmentWriter {
     pub(crate) max_doc: DocId,
-    pub(crate) multifield_postings: MultiFieldPostingsWriter,
+    pub(crate) indexing_context: IndexingContext,
+    pub(crate) per_field_postings_writers: PerFieldPostingsWriter,
     pub(crate) segment_serializer: SegmentSerializer,
     pub(crate) fast_field_writers: FastFieldsWriter,
     pub(crate) fieldnorms_writer: FieldNormsWriter,
     pub(crate) doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<TextAnalyzer>>,
     term_buffer: Term,
+    schema: Schema,
 }
 
 impl SegmentWriter {
@@ -66,20 +70,20 @@ impl SegmentWriter {
     ///
     /// The arguments are defined as follows
     ///
-    /// - heap: most of the segment writer data (terms, and postings lists recorders)
-    /// is stored in a user-defined heap object. This makes it possible for the user to define
-    /// the flushing behavior as a buffer limit
+    /// - memory_budget: most of the segment writer data (terms, and postings lists recorders)
+    /// is stored in a memory arena. This makes it possible for the user to define
+    /// the flushing behavior as a memory limit.
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(
-        memory_budget: usize,
+        memory_budget_in_bytes: usize,
         segment: Segment,
-        schema: &Schema,
+        schema: Schema,
     ) -> crate::Result<SegmentWriter> {
         let tokenizer_manager = segment.index().tokenizers().clone();
-        let table_num_bits = initial_table_size(memory_budget)?;
+        let table_size = compute_initial_table_size(memory_budget_in_bytes)?;
         let segment_serializer = SegmentSerializer::for_segment(segment, false)?;
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_num_bits);
+        let per_field_postings_writers = PerFieldPostingsWriter::for_schema(&schema);
         let tokenizers = schema
             .fields()
             .map(
@@ -96,13 +100,15 @@ impl SegmentWriter {
             .collect();
         Ok(SegmentWriter {
             max_doc: 0,
-            multifield_postings,
-            fieldnorms_writer: FieldNormsWriter::for_schema(schema),
+            indexing_context: IndexingContext::new(table_size),
+            per_field_postings_writers,
+            fieldnorms_writer: FieldNormsWriter::for_schema(&schema),
             segment_serializer,
-            fast_field_writers: FastFieldsWriter::from_schema(schema),
+            fast_field_writers: FastFieldsWriter::from_schema(&schema),
             doc_opstamps: Vec::with_capacity(1_000),
             tokenizers,
             term_buffer: Term::new(),
+            schema,
         })
     }
 
@@ -122,9 +128,11 @@ impl SegmentWriter {
             .map(|sort_by_field| get_doc_id_mapping_from_field(sort_by_field, &self))
             .transpose()?;
         remap_and_write(
-            &self.multifield_postings,
+            &self.per_field_postings_writers,
+            self.indexing_context,
             &self.fast_field_writers,
             &self.fieldnorms_writer,
+            &self.schema,
             self.segment_serializer,
             mapping.as_ref(),
         )?;
@@ -133,28 +141,16 @@ impl SegmentWriter {
     }
 
     pub fn mem_usage(&self) -> usize {
-        self.multifield_postings.mem_usage()
+        self.indexing_context.mem_usage()
             + self.fieldnorms_writer.mem_usage()
             + self.fast_field_writers.mem_usage()
             + self.segment_serializer.mem_usage()
     }
 
-    /// Indexes a new document
-    ///
-    /// As a user, you should rather use `IndexWriter`'s add_document.
-    pub fn add_document(
-        &mut self,
-        add_operation: AddOperation,
-        schema: &Schema,
-    ) -> crate::Result<()> {
+    fn index_document(&mut self, doc: &Document) -> crate::Result<()> {
         let doc_id = self.max_doc;
-        let mut doc = add_operation.document;
-        self.doc_opstamps.push(add_operation.opstamp);
-
-        self.fast_field_writers.add_document(&doc);
-
         for (field, values) in doc.get_sorted_field_values() {
-            let field_entry = schema.get_field_entry(field);
+            let field_entry = self.schema.get_field_entry(field);
             let make_schema_error = || {
                 crate::TantivyError::SchemaError(format!(
                     "Expected a {:?} for field {:?}",
@@ -165,8 +161,10 @@ impl SegmentWriter {
             if !field_entry.is_indexed() {
                 continue;
             }
-            let (term_buffer, multifield_postings) =
-                (&mut self.term_buffer, &mut self.multifield_postings);
+            let (term_buffer, indexing_context) =
+                (&mut self.term_buffer, &mut self.indexing_context);
+            let postings_writer: &mut dyn PostingsWriter =
+                self.per_field_postings_writers.get_for_field_mut(field);
             match *field_entry.field_type() {
                 FieldType::Facet(_) => {
                     term_buffer.set_field(Type::Facet, field);
@@ -178,8 +176,13 @@ impl SegmentWriter {
                             .token_stream(facet_str)
                             .process(&mut |token| {
                                 term_buffer.set_text(&token.text);
-                                let unordered_term_id =
-                                    multifield_postings.subscribe(doc_id, term_buffer);
+                                let unordered_term_id = postings_writer.subscribe(
+                                    doc_id,
+                                    0u32,
+                                    term_buffer,
+                                    indexing_context,
+                                );
+                                // TODO pass indexing context directly in subscribe function
                                 unordered_term_id_opt = Some(unordered_term_id);
                             });
                         if let Some(unordered_term_id) = unordered_term_id_opt {
@@ -222,11 +225,12 @@ impl SegmentWriter {
                         0
                     } else {
                         let mut token_stream = TokenStreamChain::new(offsets, token_streams);
-                        multifield_postings.index_text(
+                        postings_writer.index_text(
                             doc_id,
                             field,
                             &mut token_stream,
                             term_buffer,
+                            indexing_context,
                         )
                     };
                     self.fieldnorms_writer.record(doc_id, field, num_tokens);
@@ -236,7 +240,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::U64, field);
                         let u64_val = value.as_u64().ok_or_else(make_schema_error)?;
                         term_buffer.set_u64(u64_val);
-                        multifield_postings.subscribe(doc_id, term_buffer);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
                 FieldType::Date(_) => {
@@ -244,7 +248,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::Date, field);
                         let date_val = value.as_date().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(date_val.timestamp());
-                        multifield_postings.subscribe(doc_id, term_buffer);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
                 FieldType::I64(_) => {
@@ -252,7 +256,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::I64, field);
                         let i64_val = value.as_i64().ok_or_else(make_schema_error)?;
                         term_buffer.set_i64(i64_val);
-                        multifield_postings.subscribe(doc_id, term_buffer);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
                 FieldType::F64(_) => {
@@ -260,7 +264,7 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::F64, field);
                         let f64_val = value.as_f64().ok_or_else(make_schema_error)?;
                         term_buffer.set_f64(f64_val);
-                        multifield_postings.subscribe(doc_id, term_buffer);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
                 FieldType::Bytes(_) => {
@@ -268,15 +272,25 @@ impl SegmentWriter {
                         term_buffer.set_field(Type::Bytes, field);
                         let bytes = value.as_bytes().ok_or_else(make_schema_error)?;
                         term_buffer.set_bytes(bytes);
-                        self.multifield_postings.subscribe(doc_id, term_buffer);
+                        postings_writer.subscribe(doc_id, 0u32, term_buffer, indexing_context);
                     }
                 }
             }
         }
-        doc.filter_fields(|field| schema.get_field_entry(field).is_stored());
-        doc.prepare_for_store();
+        Ok(())
+    }
+
+    /// Indexes a new document
+    ///
+    /// As a user, you should rather use `IndexWriter`'s add_document.
+    pub fn add_document(&mut self, add_operation: AddOperation) -> crate::Result<()> {
+        let doc = add_operation.document;
+        self.doc_opstamps.push(add_operation.opstamp);
+        self.fast_field_writers.add_document(&doc);
+        self.index_document(&doc)?;
+        let prepared_doc = prepare_doc_for_store(doc, &self.schema);
         let doc_writer = self.segment_serializer.get_store_writer();
-        doc_writer.store(&doc)?;
+        doc_writer.store(&prepared_doc)?;
         self.max_doc += 1;
         Ok(())
     }
@@ -308,9 +322,11 @@ impl SegmentWriter {
 ///
 /// `doc_id_map` is used to map to the new doc_id order.
 fn remap_and_write(
-    multifield_postings: &MultiFieldPostingsWriter,
+    per_field_postings_writers: &PerFieldPostingsWriter,
+    indexing_context: IndexingContext,
     fast_field_writers: &FastFieldsWriter,
     fieldnorms_writer: &FieldNormsWriter,
+    schema: &Schema,
     mut serializer: SegmentSerializer,
     doc_id_map: Option<&DocIdMapping>,
 ) -> crate::Result<()> {
@@ -321,10 +337,13 @@ fn remap_and_write(
         .segment()
         .open_read(SegmentComponent::FieldNorms)?;
     let fieldnorm_readers = FieldNormReaders::open(fieldnorm_data)?;
-    let term_ord_map = multifield_postings.serialize(
-        serializer.get_postings_serializer(),
+    let term_ord_map = serialize_postings(
+        indexing_context,
+        per_field_postings_writers,
         fieldnorm_readers,
         doc_id_map,
+        schema,
+        serializer.get_postings_serializer(),
     )?;
     fast_field_writers.serialize(
         serializer.get_fast_field_serializer(),
@@ -348,7 +367,6 @@ fn remap_and_write(
                 .segment()
                 .open_read(SegmentComponent::TempStore)?,
         )?;
-
         for old_doc_id in doc_id_map.iter_old_doc_ids() {
             let doc_bytes = store_read.get_document_bytes(old_doc_id)?;
             serializer.get_store_writer().store_bytes(&doc_bytes)?;
@@ -360,15 +378,70 @@ fn remap_and_write(
     Ok(())
 }
 
+/// Prepares Document for being stored in the document store
+///
+/// Method transforms PreTokenizedString values into String
+/// values.
+pub fn prepare_doc_for_store(doc: Document, schema: &Schema) -> Document {
+    Document::from(
+        doc.into_iter()
+            .filter(|field_value| schema.get_field_entry(field_value.field()).is_stored())
+            .map(|field_value| match field_value {
+                FieldValue {
+                    field,
+                    value: Value::PreTokStr(pre_tokenized_text),
+                } => FieldValue {
+                    field,
+                    value: Value::Str(pre_tokenized_text.text),
+                },
+                field_value => field_value,
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::initial_table_size;
+    use super::compute_initial_table_size;
+    use crate::schema::{Schema, STORED, TEXT};
+    use crate::tokenizer::{PreTokenizedString, Token};
+    use crate::Document;
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(initial_table_size(100_000).unwrap(), 11);
-        assert_eq!(initial_table_size(1_000_000).unwrap(), 14);
-        assert_eq!(initial_table_size(10_000_000).unwrap(), 17);
-        assert_eq!(initial_table_size(1_000_000_000).unwrap(), 19);
+        assert_eq!(compute_initial_table_size(100_000).unwrap(), 1 << 11);
+        assert_eq!(compute_initial_table_size(1_000_000).unwrap(), 1 << 14);
+        assert_eq!(compute_initial_table_size(10_000_000).unwrap(), 1 << 17);
+        assert_eq!(compute_initial_table_size(1_000_000_000).unwrap(), 1 << 19);
+        assert_eq!(compute_initial_table_size(4_000_000_000).unwrap(), 1 << 19);
+    }
+
+    #[test]
+    fn test_prepare_for_store() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("title", TEXT | STORED);
+        let schema = schema_builder.build();
+        let mut doc = Document::default();
+        let pre_tokenized_text = PreTokenizedString {
+            text: String::from("A"),
+            tokens: vec![Token {
+                offset_from: 0,
+                offset_to: 1,
+                position: 0,
+                text: String::from("A"),
+                position_length: 1,
+            }],
+        };
+
+        doc.add_pre_tokenized_text(text_field, pre_tokenized_text);
+        doc.add_text(text_field, "title");
+        let prepared_doc = super::prepare_doc_for_store(doc, &schema);
+
+        assert_eq!(prepared_doc.field_values().len(), 2);
+        assert_eq!(prepared_doc.field_values()[0].value().as_text(), Some("A"));
+        assert_eq!(
+            prepared_doc.field_values()[1].value().as_text(),
+            Some("title")
+        );
     }
 }

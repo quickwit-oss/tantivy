@@ -26,13 +26,13 @@ use crate::indexer::{MergePolicy, SegmentEntry, SegmentWriter};
 use crate::schema::{Document, IndexRecordOption, Term};
 use crate::Opstamp;
 
-// Size of the margin for the heap. A segment is closed when the remaining memory
-// in the heap goes below MARGIN_IN_BYTES.
+// Size of the margin for the `memory_arena`. A segment is closed when the remaining memory
+// in the `memory_arena` goes below MARGIN_IN_BYTES.
 pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
 // We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
-pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
+pub const MEMORY_ARENA_NUM_BYTES_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
+pub const MEMORY_ARENA_NUM_BYTES_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
 // We impose the number of index writter thread to be at most this.
 pub const MAX_NUM_THREAD: usize = 8;
@@ -61,7 +61,7 @@ pub struct IndexWriter {
 
     index: Index,
 
-    heap_size_in_bytes_per_thread: usize,
+    memory_arena_in_bytes_per_thread: usize,
 
     workers_join_handle: Vec<JoinHandle<crate::Result<()>>>,
 
@@ -179,10 +179,10 @@ fn index_documents(
 ) -> crate::Result<()> {
     let schema = segment.schema();
 
-    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), &schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(memory_budget, segment.clone(), schema)?;
     for document_group in grouped_document_iterator {
         for doc in document_group {
-            segment_writer.add_document(doc, &schema)?;
+            segment_writer.add_document(doc)?;
         }
         let mem_usage = segment_writer.mem_usage();
         if mem_usage >= memory_budget - MARGIN_IN_BYTES {
@@ -268,22 +268,26 @@ impl IndexWriter {
     /// should work at the same time.
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
+    /// If the memory arena per thread is too small or too big, returns
+    /// `TantivyError::InvalidArgument`
     pub(crate) fn new(
         index: &Index,
         num_threads: usize,
-        heap_size_in_bytes_per_thread: usize,
+        memory_arena_in_bytes_per_thread: usize,
         directory_lock: DirectoryLock,
     ) -> crate::Result<IndexWriter> {
-        if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
+        if memory_arena_in_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
             let err_msg = format!(
-                "The heap size per thread needs to be at least {}.",
-                HEAP_SIZE_MIN
+                "The memory arena in bytes per thread needs to be at least {}.",
+                MEMORY_ARENA_NUM_BYTES_MIN
             );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
-        if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
-            let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
+        if memory_arena_in_bytes_per_thread >= MEMORY_ARENA_NUM_BYTES_MAX {
+            let err_msg = format!(
+                "The memory arena in bytes per thread cannot exceed {}",
+                MEMORY_ARENA_NUM_BYTES_MAX
+            );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
         let (document_sender, document_receiver): (AddBatchSender, AddBatchReceiver) =
@@ -301,7 +305,7 @@ impl IndexWriter {
         let mut index_writer = IndexWriter {
             _directory_lock: Some(directory_lock),
 
-            heap_size_in_bytes_per_thread,
+            memory_arena_in_bytes_per_thread,
             index: index.clone(),
 
             index_writer_status: IndexWriterStatus::from(document_receiver),
@@ -401,7 +405,7 @@ impl IndexWriter {
 
         let mut delete_cursor = self.delete_queue.cursor();
 
-        let mem_budget = self.heap_size_in_bytes_per_thread;
+        let mem_budget = self.memory_arena_in_bytes_per_thread;
         let index = self.index.clone();
         let join_handle: JoinHandle<crate::Result<()>> = thread::Builder::new()
             .name(format!("thrd-tantivy-index{}", self.worker_id))
@@ -560,7 +564,7 @@ impl IndexWriter {
         let new_index_writer: IndexWriter = IndexWriter::new(
             &self.index,
             self.num_threads,
-            self.heap_size_in_bytes_per_thread,
+            self.memory_arena_in_bytes_per_thread,
             directory_lock,
         )?;
 

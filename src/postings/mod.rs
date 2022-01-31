@@ -6,6 +6,8 @@ pub(crate) use self::block_search::branchless_binary_search;
 
 mod block_segment_postings;
 pub(crate) mod compression;
+mod indexing_context;
+mod per_field_postings_writer;
 mod postings;
 mod postings_writer;
 mod recorder;
@@ -16,8 +18,10 @@ mod stacker;
 mod term_info;
 
 pub use self::block_segment_postings::BlockSegmentPostings;
+pub(crate) use self::indexing_context::IndexingContext;
+pub(crate) use self::per_field_postings_writer::PerFieldPostingsWriter;
 pub use self::postings::Postings;
-pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
+pub(crate) use self::postings_writer::{serialize_postings, PostingsWriter};
 pub use self::segment_postings::SegmentPostings;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::skip::{BlockInfo, SkipReader};
@@ -222,7 +226,7 @@ pub mod tests {
 
         {
             let mut segment_writer =
-                SegmentWriter::for_segment(3_000_000, segment.clone(), &schema).unwrap();
+                SegmentWriter::for_segment(3_000_000, segment.clone(), schema).unwrap();
             {
                 // checking that position works if the field has two values
                 let op = AddOperation {
@@ -232,14 +236,14 @@ pub mod tests {
                        text_field => "d d d d a"
                     ),
                 };
-                segment_writer.add_document(op, &schema)?;
+                segment_writer.add_document(op)?;
             }
             {
                 let op = AddOperation {
                     opstamp: 1u64,
                     document: doc!(text_field => "b a"),
                 };
-                segment_writer.add_document(op, &schema).unwrap();
+                segment_writer.add_document(op).unwrap();
             }
             for i in 2..1000 {
                 let mut text: String = "e ".repeat(i);
@@ -248,7 +252,7 @@ pub mod tests {
                     opstamp: 2u64,
                     document: doc!(text_field => text),
                 };
-                segment_writer.add_document(op, &schema).unwrap();
+                segment_writer.add_document(op).unwrap();
             }
             segment_writer.finalize()?;
         }

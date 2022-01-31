@@ -26,7 +26,6 @@ impl From<Vec<FieldValue>> for Document {
         Document { field_values }
     }
 }
-
 impl PartialEq for Document {
     fn eq(&self, other: &Document) -> bool {
         // super slow, but only here for tests
@@ -51,6 +50,16 @@ impl PartialEq for Document {
 
 impl Eq for Document {}
 
+impl IntoIterator for Document {
+    type Item = FieldValue;
+
+    type IntoIter = std::vec::IntoIter<FieldValue>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.field_values.into_iter()
+    }
+}
+
 impl Document {
     /// Creates a new, empty document object
     pub fn new() -> Document {
@@ -67,63 +76,54 @@ impl Document {
         self.field_values.is_empty()
     }
 
-    /// Retain only the field that are matching the
-    /// predicate given in argument.
-    pub fn filter_fields<P: Fn(Field) -> bool>(&mut self, predicate: P) {
-        self.field_values
-            .retain(|field_value| predicate(field_value.field()));
-    }
-
     /// Adding a facet to the document.
     pub fn add_facet<F>(&mut self, field: Field, path: F)
     where Facet: From<F> {
         let facet = Facet::from(path);
         let value = Value::Facet(facet);
-        self.add(FieldValue::new(field, value));
+        self.add_field_value(field, value);
     }
 
     /// Add a text field.
     pub fn add_text<S: ToString>(&mut self, field: Field, text: S) {
-        self.add(FieldValue::new(field, Value::Str(text.to_string())));
+        let value = Value::Str(text.to_string());
+        self.add_field_value(field, value);
     }
 
     /// Add a pre-tokenized text field.
-    pub fn add_pre_tokenized_text(
-        &mut self,
-        field: Field,
-        pre_tokenized_text: &PreTokenizedString,
-    ) {
-        let value = Value::PreTokStr(pre_tokenized_text.clone());
-        self.add(FieldValue::new(field, value));
+    pub fn add_pre_tokenized_text(&mut self, field: Field, pre_tokenized_text: PreTokenizedString) {
+        self.add_field_value(field, pre_tokenized_text);
     }
 
     /// Add a u64 field
     pub fn add_u64(&mut self, field: Field, value: u64) {
-        self.add(FieldValue::new(field, Value::U64(value)));
+        self.add_field_value(field, value);
     }
 
     /// Add a i64 field
     pub fn add_i64(&mut self, field: Field, value: i64) {
-        self.add(FieldValue::new(field, Value::I64(value)));
+        self.add_field_value(field, value);
     }
 
     /// Add a f64 field
     pub fn add_f64(&mut self, field: Field, value: f64) {
-        self.add(FieldValue::new(field, Value::F64(value)));
+        self.add_field_value(field, value);
     }
 
     /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: &DateTime) {
-        self.add(FieldValue::new(field, Value::Date(*value)));
+    pub fn add_date(&mut self, field: Field, value: DateTime) {
+        self.add_field_value(field, value);
     }
 
     /// Add a bytes field
     pub fn add_bytes<T: Into<Vec<u8>>>(&mut self, field: Field, value: T) {
-        self.add(FieldValue::new(field, Value::Bytes(value.into())))
+        self.add_field_value(field, value.into())
     }
 
-    /// Add a field value
-    pub fn add(&mut self, field_value: FieldValue) {
+    /// Add a (field, value) to the document.
+    pub fn add_field_value<T: Into<Value>>(&mut self, field: Field, typed_val: T) {
+        let value = typed_val.into();
+        let field_value = FieldValue { field, value };
         self.field_values.push(field_value);
     }
 
@@ -180,21 +180,6 @@ impl Document {
     pub fn get_first(&self, field: Field) -> Option<&Value> {
         self.get_all(field).next()
     }
-
-    /// Prepares Document for being stored in the document store
-    ///
-    /// Method transforms PreTokenizedString values into String
-    /// values.
-    pub fn prepare_for_store(&mut self) {
-        for field_value in &mut self.field_values {
-            if let Value::PreTokStr(pre_tokenized_text) = field_value.value() {
-                *field_value = FieldValue::new(
-                    field_value.field(),
-                    Value::Str(pre_tokenized_text.text.clone()), //< TODO somehow remove .clone()
-                );
-            }
-        }
-    }
 }
 
 impl BinarySerializable for Document {
@@ -220,7 +205,6 @@ impl BinarySerializable for Document {
 mod tests {
 
     use crate::schema::*;
-    use crate::tokenizer::{PreTokenizedString, Token};
 
     #[test]
     fn test_doc() {
@@ -229,39 +213,5 @@ mod tests {
         let mut doc = Document::default();
         doc.add_text(text_field, "My title");
         assert_eq!(doc.field_values().len(), 1);
-    }
-
-    #[test]
-    fn test_prepare_for_store() {
-        let mut schema_builder = Schema::builder();
-        let text_field = schema_builder.add_text_field("title", TEXT);
-        let mut doc = Document::default();
-
-        let pre_tokenized_text = PreTokenizedString {
-            text: String::from("A"),
-            tokens: vec![Token {
-                offset_from: 0,
-                offset_to: 1,
-                position: 0,
-                text: String::from("A"),
-                position_length: 1,
-            }],
-        };
-
-        doc.add_pre_tokenized_text(text_field, &pre_tokenized_text);
-        doc.add_text(text_field, "title");
-        doc.prepare_for_store();
-
-        assert_eq!(doc.field_values().len(), 2);
-
-        match doc.field_values()[0].value() {
-            Value::Str(ref text) => assert_eq!(text, "A"),
-            _ => panic!("Incorrect variant of Value"),
-        }
-
-        match doc.field_values()[1].value() {
-            Value::Str(ref text) => assert_eq!(text, "title"),
-            _ => panic!("Incorrect variant of Value"),
-        }
     }
 }

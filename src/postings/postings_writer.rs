@@ -1,53 +1,22 @@
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
-use std::ops::{DerefMut, Range};
+use std::ops::Range;
 
 use fnv::FnvHashMap;
 
-use super::stacker::{Addr, MemoryArena, TermHashMap};
+use super::stacker::Addr;
 use crate::fieldnorm::FieldNormReaders;
 use crate::indexer::doc_id_mapping::DocIdMapping;
-use crate::postings::recorder::{
-    BufferLender, NothingRecorder, Recorder, TermFrequencyRecorder, TfAndPositionRecorder,
+use crate::postings::recorder::{BufferLender, Recorder};
+use crate::postings::{
+    FieldSerializer, IndexingContext, InvertedIndexSerializer, PerFieldPostingsWriter,
+    UnorderedTermId,
 };
-use crate::postings::{FieldSerializer, InvertedIndexSerializer, UnorderedTermId};
-use crate::schema::{Field, FieldEntry, FieldType, IndexRecordOption, Schema, Term, Type};
+use crate::schema::{Field, FieldType, Schema, Term, Type};
 use crate::termdict::TermOrdinal;
 use crate::tokenizer::{Token, TokenStream, MAX_TOKEN_LEN};
 use crate::DocId;
-
-fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<dyn PostingsWriter> {
-    match *field_entry.field_type() {
-        FieldType::Str(ref text_options) => text_options
-            .get_indexing_options()
-            .map(|indexing_options| match indexing_options.index_option() {
-                IndexRecordOption::Basic => {
-                    SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
-                }
-                IndexRecordOption::WithFreqs => {
-                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
-                }
-                IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TfAndPositionRecorder>::new_boxed()
-                }
-            })
-            .unwrap_or_else(SpecializedPostingsWriter::<NothingRecorder>::new_boxed),
-        FieldType::U64(_)
-        | FieldType::I64(_)
-        | FieldType::F64(_)
-        | FieldType::Date(_)
-        | FieldType::Bytes(_)
-        | FieldType::Facet(_) => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
-    }
-}
-
-pub struct MultiFieldPostingsWriter {
-    heap: MemoryArena,
-    schema: Schema,
-    term_index: TermHashMap,
-    per_field_postings_writers: Vec<Box<dyn PostingsWriter>>,
-}
 
 fn make_field_partition(
     term_offsets: &[(Term<&[u8]>, Addr, UnorderedTermId)],
@@ -74,133 +43,81 @@ fn make_field_partition(
     field_offsets
 }
 
-impl MultiFieldPostingsWriter {
-    /// Create a new `MultiFieldPostingsWriter` given
-    /// a schema and a heap.
-    pub fn new(schema: &Schema, table_bits: usize) -> MultiFieldPostingsWriter {
-        let term_index = TermHashMap::new(table_bits);
-        let per_field_postings_writers: Vec<_> = schema
-            .fields()
-            .map(|(_, field_entry)| posting_from_field_entry(field_entry))
-            .collect();
-        MultiFieldPostingsWriter {
-            heap: MemoryArena::new(),
-            schema: schema.clone(),
-            term_index,
-            per_field_postings_writers,
-        }
-    }
+/// Serialize the inverted index.
+/// It pushes all term, one field at a time, towards the
+/// postings serializer.
+pub(crate) fn serialize_postings(
+    indexing_context: IndexingContext,
+    per_field_postings_writers: &PerFieldPostingsWriter,
+    fieldnorm_readers: FieldNormReaders,
+    doc_id_map: Option<&DocIdMapping>,
+    schema: &Schema,
+    serializer: &mut InvertedIndexSerializer,
+) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
+    let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
+        Vec::with_capacity(indexing_context.term_index.len());
+    term_offsets.extend(indexing_context.term_index.iter());
+    term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
 
-    pub fn mem_usage(&self) -> usize {
-        self.term_index.mem_usage() + self.heap.mem_usage()
-    }
+    let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
+        HashMap::new();
 
-    pub fn index_text(
-        &mut self,
-        doc: DocId,
-        field: Field,
-        token_stream: &mut dyn TokenStream,
-        term_buffer: &mut Term,
-    ) -> u32 {
-        let postings_writer =
-            self.per_field_postings_writers[field.field_id() as usize].deref_mut();
-        postings_writer.index_text(
-            &mut self.term_index,
-            doc,
-            field,
-            token_stream,
-            &mut self.heap,
-            term_buffer,
-        )
-    }
+    let field_offsets = make_field_partition(&term_offsets);
 
-    pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
-        let postings_writer =
-            self.per_field_postings_writers[term.field().field_id() as usize].deref_mut();
-        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &mut self.heap)
-    }
-
-    /// Serialize the inverted index.
-    /// It pushes all term, one field at a time, towards the
-    /// postings serializer.
-    pub fn serialize(
-        &self,
-        serializer: &mut InvertedIndexSerializer,
-        fieldnorm_readers: FieldNormReaders,
-        doc_id_map: Option<&DocIdMapping>,
-    ) -> crate::Result<HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(Term<&[u8]>, Addr, UnorderedTermId)> =
-            Vec::with_capacity(self.term_index.len());
-        term_offsets.extend(self.term_index.iter());
-        term_offsets.sort_unstable_by_key(|(k, _, _)| k.clone());
-
-        let mut unordered_term_mappings: HashMap<Field, FnvHashMap<UnorderedTermId, TermOrdinal>> =
-            HashMap::new();
-
-        let field_offsets = make_field_partition(&term_offsets);
-
-        for (field, byte_offsets) in field_offsets {
-            let field_entry = self.schema.get_field_entry(field);
-
-            match *field_entry.field_type() {
-                FieldType::Str(_) | FieldType::Facet(_) => {
-                    // populating the (unordered term ord) -> (ordered term ord) mapping
-                    // for the field.
-                    let unordered_term_ids = term_offsets[byte_offsets.clone()]
-                        .iter()
-                        .map(|&(_, _, bucket)| bucket);
-                    let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
-                        .enumerate()
-                        .map(|(term_ord, unord_term_id)| {
-                            (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
-                        })
-                        .collect();
-                    unordered_term_mappings.insert(field, mapping);
-                }
-                FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
-                FieldType::Bytes(_) => {}
+    for (field, byte_offsets) in field_offsets {
+        let field_entry = schema.get_field_entry(field);
+        match *field_entry.field_type() {
+            FieldType::Str(_) | FieldType::Facet(_) => {
+                // populating the (unordered term ord) -> (ordered term ord) mapping
+                // for the field.
+                let unordered_term_ids = term_offsets[byte_offsets.clone()]
+                    .iter()
+                    .map(|&(_, _, bucket)| bucket);
+                let mapping: FnvHashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
+                    .enumerate()
+                    .map(|(term_ord, unord_term_id)| {
+                        (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
+                    })
+                    .collect();
+                unordered_term_mappings.insert(field, mapping);
             }
-
-            let postings_writer =
-                self.per_field_postings_writers[field.field_id() as usize].as_ref();
-            let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
-            let mut field_serializer = serializer.new_field(
-                field,
-                postings_writer.total_num_tokens(),
-                fieldnorm_reader,
-            )?;
-            postings_writer.serialize(
-                &term_offsets[byte_offsets],
-                &mut field_serializer,
-                &self.term_index.heap,
-                &self.heap,
-                doc_id_map,
-            )?;
-            field_serializer.close()?;
+            FieldType::U64(_) | FieldType::I64(_) | FieldType::F64(_) | FieldType::Date(_) => {}
+            FieldType::Bytes(_) => {}
         }
-        Ok(unordered_term_mappings)
+
+        let postings_writer = per_field_postings_writers.get_for_field(field);
+        let fieldnorm_reader = fieldnorm_readers.get_field(field)?;
+        let mut field_serializer =
+            serializer.new_field(field, postings_writer.total_num_tokens(), fieldnorm_reader)?;
+        postings_writer.serialize(
+            &term_offsets[byte_offsets],
+            doc_id_map,
+            &indexing_context,
+            &mut field_serializer,
+        )?;
+        field_serializer.close()?;
     }
+    Ok(unordered_term_mappings)
 }
 
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
 ///
 /// `PostingsWriter` writes in a `MemoryArena`.
-pub trait PostingsWriter {
+pub(crate) trait PostingsWriter {
     /// Record that a document contains a term at a given position.
     ///
     /// * doc  - the document id
     /// * pos  - the term position (expressed in tokens)
     /// * term - the term
-    /// * heap - heap used to store the postings informations as well as the terms
-    /// in the hashmap.
+    /// * indexing_context - Contains a term hashmap and a memory arena to store all necessary
+    ///   posting list information.
     fn subscribe(
         &mut self,
-        term_index: &mut TermHashMap,
         doc: DocId,
         pos: u32,
         term: &Term,
-        heap: &mut MemoryArena,
+        indexing_context: &mut IndexingContext,
     ) -> UnorderedTermId;
 
     /// Serializes the postings on disk.
@@ -208,28 +125,26 @@ pub trait PostingsWriter {
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer<'_>,
-        term_heap: &MemoryArena,
-        heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        indexing_context: &IndexingContext,
+        serializer: &mut FieldSerializer,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
     fn index_text(
         &mut self,
-        term_index: &mut TermHashMap,
         doc_id: DocId,
         field: Field,
         token_stream: &mut dyn TokenStream,
-        heap: &mut MemoryArena,
         term_buffer: &mut Term,
+        indexing_context: &mut IndexingContext,
     ) -> u32 {
         term_buffer.set_field(Type::Str, field);
         let mut sink = |token: &Token| {
             // We skip all tokens with a len greater than u16.
             if token.text.len() <= MAX_TOKEN_LEN {
                 term_buffer.set_text(token.text.as_str());
-                self.subscribe(term_index, doc_id, token.position as u32, term_buffer, heap);
+                self.subscribe(doc_id, token.position as u32, term_buffer, indexing_context);
             } else {
                 warn!(
                     "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
@@ -261,7 +176,7 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
         }
     }
 
-    /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
+    /// Builds a `SpecializedPostingsWriter` storing its data in a memory arena.
     pub fn new_boxed() -> Box<dyn PostingsWriter> {
         Box::new(SpecializedPostingsWriter::<Rec>::new())
     }
@@ -270,27 +185,30 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
 impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
-        term_index: &mut TermHashMap,
         doc: DocId,
         position: u32,
         term: &Term,
-        heap: &mut MemoryArena,
+        indexing_context: &mut IndexingContext,
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
+        let (term_index, arena) = (
+            &mut indexing_context.term_index,
+            &mut indexing_context.arena,
+        );
         term_index.mutate_or_create(term.as_slice(), |opt_recorder: Option<Rec>| {
             if let Some(mut recorder) = opt_recorder {
                 let current_doc = recorder.current_doc();
                 if current_doc != doc {
-                    recorder.close_doc(heap);
-                    recorder.new_doc(doc, heap);
+                    recorder.close_doc(arena);
+                    recorder.new_doc(doc, arena);
                 }
-                recorder.record_position(position, heap);
+                recorder.record_position(position, arena);
                 recorder
             } else {
                 let mut recorder = Rec::new();
-                recorder.new_doc(doc, heap);
-                recorder.record_position(position, heap);
+                recorder.new_doc(doc, arena);
+                recorder.record_position(position, arena);
                 recorder
             }
         }) as UnorderedTermId
@@ -299,17 +217,21 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     fn serialize(
         &self,
         term_addrs: &[(Term<&[u8]>, Addr, UnorderedTermId)],
-        serializer: &mut FieldSerializer<'_>,
-        termdict_heap: &MemoryArena,
-        heap: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        indexing_context: &IndexingContext,
+        serializer: &mut FieldSerializer,
     ) -> io::Result<()> {
         let mut buffer_lender = BufferLender::default();
         for (term, addr, _) in term_addrs {
-            let recorder: Rec = termdict_heap.read(*addr);
+            let recorder: Rec = indexing_context.term_index.read(*addr);
             let term_doc_freq = recorder.term_doc_freq().unwrap_or(0u32);
             serializer.new_term(term.value_bytes(), term_doc_freq)?;
-            recorder.serialize(&mut buffer_lender, serializer, heap, doc_id_map);
+            recorder.serialize(
+                &indexing_context.arena,
+                doc_id_map,
+                serializer,
+                &mut buffer_lender,
+            );
             serializer.close_term()?;
         }
         Ok(())

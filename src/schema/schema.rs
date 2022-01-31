@@ -271,8 +271,7 @@ impl Schema {
         for (field_name, values) in named_doc.0 {
             if let Some(field) = self.get_field(&field_name) {
                 for value in values {
-                    let field_value = FieldValue::new(field, value);
-                    document.add(field_value);
+                    document.add_field_value(field, value);
                 }
             }
         }
@@ -320,14 +319,14 @@ impl Schema {
                             let value = field_type
                                 .value_from_json(json_item)
                                 .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add(FieldValue::new(field, value));
+                            doc.add_field_value(field, value);
                         }
                     }
                     _ => {
                         let value = field_type
                             .value_from_json(json_value)
                             .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                        doc.add(FieldValue::new(field, value));
+                        doc.add_field_value(field, value);
                     }
                 }
             }

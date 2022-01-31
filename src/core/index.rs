@@ -15,7 +15,7 @@ use crate::directory::error::OpenReadError;
 use crate::directory::MmapDirectory;
 use crate::directory::{Directory, ManagedDirectory, RamDirectory, INDEX_WRITER_LOCK};
 use crate::error::{DataCorruption, TantivyError};
-use crate::indexer::index_writer::{HEAP_SIZE_MIN, MAX_NUM_THREAD};
+use crate::indexer::index_writer::{MAX_NUM_THREAD, MEMORY_ARENA_NUM_BYTES_MIN};
 use crate::indexer::segment_updater::save_new_metas;
 use crate::reader::{IndexReader, IndexReaderBuilder};
 use crate::schema::{Field, FieldType, Schema};
@@ -397,17 +397,18 @@ impl Index {
     /// - `num_threads` defines the number of indexing workers that
     /// should work at the same time.
     ///
-    /// - `overall_heap_size_in_bytes` sets the amount of memory
+    /// - `overall_memory_arena_in_bytes` sets the amount of memory
     /// allocated for all indexing thread.
-    /// Each thread will receive a budget of  `overall_heap_size_in_bytes / num_threads`.
+    /// Each thread will receive a budget of  `overall_memory_arena_in_bytes / num_threads`.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IoError`.
-    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
+    /// If the memory arena per thread is too small or too big, returns
+    /// `TantivyError::InvalidArgument`
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
-        overall_heap_size_in_bytes: usize,
+        overall_memory_arena_in_bytes: usize,
     ) -> crate::Result<IndexWriter> {
         let directory_lock = self
             .directory
@@ -423,18 +424,18 @@ impl Index {
                     ),
                 )
             })?;
-        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
+        let memory_arena_in_bytes_per_thread = overall_memory_arena_in_bytes / num_threads;
         IndexWriter::new(
             self,
             num_threads,
-            heap_size_in_bytes_per_thread,
+            memory_arena_in_bytes_per_thread,
             directory_lock,
         )
     }
 
     /// Helper to create an index writer for tests.
     ///
-    /// That index writer only simply has a single thread and a heap of 10 MB.
+    /// That index writer only simply has a single thread and a memory arena of 10 MB.
     /// Using a single thread gives us a deterministic allocation of DocId.
     #[cfg(test)]
     pub fn writer_for_tests(&self) -> crate::Result<IndexWriter> {
@@ -445,19 +446,20 @@ impl Index {
     ///
     /// Tantivy will automatically define the number of threads to use, but
     /// no more than 8 threads.
-    /// `overall_heap_size_in_bytes` is the total target memory usage that will be split
+    /// `overall_memory_arena_in_bytes` is the total target memory usage that will be split
     /// between a given number of threads.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
-    /// If the heap size per thread is too small or too big, returns `TantivyError::InvalidArgument`
-    pub fn writer(&self, overall_heap_size_in_bytes: usize) -> crate::Result<IndexWriter> {
+    /// If the memory arena per thread is too small or too big, returns
+    /// `TantivyError::InvalidArgument`
+    pub fn writer(&self, memory_arena_num_bytes: usize) -> crate::Result<IndexWriter> {
         let mut num_threads = std::cmp::min(num_cpus::get(), MAX_NUM_THREAD);
-        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
-            num_threads = (overall_heap_size_in_bytes / HEAP_SIZE_MIN).max(1);
+        let memory_arena_num_bytes_per_thread = memory_arena_num_bytes / num_threads;
+        if memory_arena_num_bytes_per_thread < MEMORY_ARENA_NUM_BYTES_MIN {
+            num_threads = (memory_arena_num_bytes / MEMORY_ARENA_NUM_BYTES_MIN).max(1);
         }
-        self.writer_with_num_threads(num_threads, overall_heap_size_in_bytes)
+        self.writer_with_num_threads(num_threads, memory_arena_num_bytes)
     }
 
     /// Accessor to the index settings
