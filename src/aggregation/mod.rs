@@ -2,11 +2,12 @@ mod agg_result;
 mod agg_tree;
 mod bucket;
 mod executor;
+mod intermediate_agg_result;
 mod metric;
 mod segment_agg_result;
 
 pub use agg_tree::Aggregation;
-pub use agg_tree::BucketAggregation;
+pub use agg_tree::BucketAggregationType;
 pub use agg_tree::MetricAggregation;
 
 use crate::collector::Fruit;

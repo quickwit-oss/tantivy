@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     aggregation::{agg_result::BucketAggregationResult, SubAggregationCollector},
     collector::{Collector, SegmentCollector},
@@ -50,7 +52,6 @@ impl Collector for AverageAggregator {
 }
 
 // SegmentCollector
-
 pub(crate) struct AverageSegmentAggregator {
     stats: AverageData,
     fast_field: DynamicFastFieldReader<u64>,
@@ -62,6 +63,44 @@ impl AverageSegmentAggregator {
             fast_field,
             stats: Default::default(),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct AverageCollector {
+    field: DynamicFastFieldReader<u64>,
+    pub data: AverageData,
+}
+
+impl Debug for AverageCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AverageCollector")
+            .field("data", &self.data)
+            .finish()
+    }
+}
+
+impl AverageCollector {
+    pub fn merge_fruits(&mut self, other: &AverageCollector) {
+        self.data.merge_fruits(&other.data);
+    }
+    fn finalize(&self) -> f64 {
+        self.data.finalize()
+    }
+    pub(crate) fn collect(&mut self, doc: u32) {
+        let val = self.field.get(doc);
+        self.data.collect(val);
+    }
+}
+
+impl PartialEq for AverageCollector {
+    fn ne(&self, other: &Self) -> bool {
+        // equality only on the data
+        self.data != other.data
+    }
+    fn eq(&self, other: &Self) -> bool {
+        // equality only on the data
+        self.data == other.data
     }
 }
 
@@ -78,6 +117,10 @@ impl AverageData {
     }
     fn finalize(&self) -> f64 {
         self.sum as f64 / self.num_vals as f64
+    }
+    fn collect(&mut self, val: u64) {
+        self.num_vals += 1;
+        self.sum += val;
     }
 }
 

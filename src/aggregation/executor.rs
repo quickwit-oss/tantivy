@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     aggregation::{
+        agg_tree::BucketAggregation,
         metric::{AverageAggregator, AverageSegmentAggregator},
         MetricAggregation,
     },
@@ -10,7 +11,13 @@ use crate::{
     Index,
 };
 
-use super::{agg_tree::Aggregations, segment_agg_result::AggregationResultTree, Aggregation};
+use super::{
+    agg_result::AggregationResult,
+    agg_tree::Aggregations,
+    intermediate_agg_result::IntermediateAggregationResultTree,
+    segment_agg_result::{SegmentAggregationResultCollector, SegmentAggregationResultTree},
+    Aggregation,
+};
 
 //fn get_segment_collector(
 //agg: Aggregation,
@@ -32,17 +39,17 @@ use super::{agg_tree::Aggregations, segment_agg_result::AggregationResultTree, A
 fn root_level_aggs(aggs: Aggregations, schema: Schema, index: Index) {
     let reader = index.reader().unwrap();
     let searcher = reader.searcher();
-    let tree = AggregationResultTree::default();
+    let tree = SegmentAggregationResultTree::default();
     for (name, agg) in aggs {
         match agg {
             Aggregation::MetricAggregation(MetricAggregation::Average { field_name }) => {
                 let fast_field = schema.get_field(&field_name).unwrap();
                 let agg = AverageAggregator::new(fast_field);
             }
-            Aggregation::BucketAggregation {
+            Aggregation::BucketAggregation(BucketAggregation {
                 bucket_agg,
                 sub_aggregation,
-            } => todo!(),
+            }) => todo!(),
         }
     }
 }
@@ -58,17 +65,11 @@ fn sub_aggregation(aggs: Aggregations) {
 struct AggregationCollector {
     agg: Aggregations,
     schema: Schema,
-    result: AggregationResultTree,
-}
-
-struct AggregationSegmentCollector {
-    agg: Aggregations,
-    schema: Schema,
-    result: AggregationResultTree,
+    result: SegmentAggregationResultTree,
 }
 
 impl DistributedCollector for AggregationCollector {
-    type Fruit = AggregationResultTree;
+    type Fruit = IntermediateAggregationResultTree;
 
     type Child = AggregationSegmentCollector;
 
@@ -90,7 +91,7 @@ impl DistributedCollector for AggregationCollector {
 }
 
 impl Collector for AggregationCollector {
-    type Fruit = AggregationResultTree;
+    type Fruit = IntermediateAggregationResultTree;
 
     type Child = AggregationSegmentCollector;
 
@@ -111,14 +112,41 @@ impl Collector for AggregationCollector {
     }
 }
 
+struct AggregationSegmentCollector {
+    aggs: Aggregations,
+    schema: Schema,
+    result: SegmentAggregationResultTree,
+    segment: crate::SegmentReader,
+}
+
 impl SegmentCollector for AggregationSegmentCollector {
-    type Fruit = AggregationResultTree;
+    type Fruit = IntermediateAggregationResultTree;
 
     fn collect(&mut self, doc: crate::DocId, score: crate::Score) {
+        for (key, agg) in &self.aggs {
+            // Todo prepopulate tree
+            let agg_res = self
+                .result
+                .0
+                .entry(key.to_string())
+                .or_insert_with(|| get_aggregator(agg));
+
+            agg_res.collect(doc, &self.segment);
+        }
         todo!()
     }
 
     fn harvest(self) -> Self::Fruit {
         todo!()
+    }
+}
+
+fn get_aggregator(agg: &Aggregation) -> SegmentAggregationResultCollector {
+    match agg {
+        Aggregation::BucketAggregation(BucketAggregation {
+            bucket_agg,
+            sub_aggregation,
+        }) => todo!(),
+        Aggregation::MetricAggregation(_) => todo!(),
     }
 }
