@@ -21,10 +21,22 @@ jobs:
     - name: Install latest nightly to test also against unstable feature flag
       uses: actions-rs/toolchain@v1
       with:
-            toolchain: stable
+            toolchain: nightly
             override: true
             components: rustfmt
+    - name: Install latest nightly to test also against unstable feature flag
+      uses: actions-rs/toolchain@v1
+      with:
+            toolchain: stable
+            override: true
+            components: rustfmt, clippy
     - name: Run tests
-      run: cargo test --features mmap,brotli-compression,lz4-compression,snappy-compression,failpoints --verbose --workspace
+      run: cargo +stable test --features mmap,brotli-compression,lz4-compression,snappy-compression,failpoints --verbose --workspace
     - name: Check Formatting
-      run: cargo fmt --all -- --check
+      run: cargo +nightly fmt --all -- --check
+    - uses: actions-rs/clippy-check@v1
+      with:
+        toolchain: stable
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --tests
+
