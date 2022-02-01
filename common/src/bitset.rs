@@ -440,7 +440,7 @@ mod tests {
         bitset.serialize(&mut out).unwrap();
 
         let bitset = ReadOnlyBitSet::open(OwnedBytes::new(out));
-        assert_eq!(bitset.len() as usize, 64 as usize);
+        assert_eq!(bitset.len() as usize, 64);
     }
 
     #[test]
