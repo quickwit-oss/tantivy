@@ -63,6 +63,7 @@ impl BytesOptions {
     ///
     /// Setting an integer as indexed will generate
     /// a posting list for each value taken by the integer.
+    #[must_use]
     pub fn set_indexed(mut self) -> BytesOptions {
         self.indexed = true;
         self
@@ -72,6 +73,7 @@ impl BytesOptions {
     ///
     /// Setting an integer as normed will generate
     /// the fieldnorm data for it.
+    #[must_use]
     pub fn set_fieldnorms(mut self) -> BytesOptions {
         self.fieldnorms = true;
         self
@@ -83,6 +85,7 @@ impl BytesOptions {
     /// Access time are similar to a random lookup in an array.
     /// If more than one value is associated to a fast field, only the last one is
     /// kept.
+    #[must_use]
     pub fn set_fast(mut self) -> BytesOptions {
         self.fast = true;
         self
@@ -92,6 +95,7 @@ impl BytesOptions {
     ///
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
+    #[must_use]
     pub fn set_stored(mut self) -> BytesOptions {
         self.stored = true;
         self

@@ -272,7 +272,7 @@ mod tests {
                 let text_field = index.schema().get_field("text").unwrap();
 
                 let do_search = |term: &str| {
-                    let query = QueryParser::for_index(&index, vec![text_field])
+                    let query = QueryParser::for_index(index, vec![text_field])
                         .parse_query(term)
                         .unwrap();
                     let top_docs: Vec<(f32, DocAddress)> =
@@ -301,7 +301,7 @@ mod tests {
                 let text_field = index.schema().get_field("text").unwrap();
 
                 let do_search = |term: &str| {
-                    let query = QueryParser::for_index(&index, vec![text_field])
+                    let query = QueryParser::for_index(index, vec![text_field])
                         .parse_query(term)
                         .unwrap();
                     let top_docs: Vec<(f32, DocAddress)> =

@@ -77,6 +77,7 @@ impl FileSlice {
     /// # Panics
     ///
     /// Panics if `byte_range.end` exceeds the filesize.
+    #[must_use]
     pub fn slice(&self, byte_range: Range<usize>) -> FileSlice {
         assert!(byte_range.end <= self.len());
         FileSlice {
@@ -136,6 +137,7 @@ impl FileSlice {
     /// boundary.
     ///
     /// Equivalent to `.slice(from_offset, self.len())`
+    #[must_use]
     pub fn slice_from(&self, from_offset: usize) -> FileSlice {
         self.slice(from_offset..self.len())
     }
@@ -143,6 +145,7 @@ impl FileSlice {
     /// Returns a slice from the end.
     ///
     /// Equivalent to `.slice(self.len() - from_offset, self.len())`
+    #[must_use]
     pub fn slice_from_end(&self, from_offset: usize) -> FileSlice {
         self.slice(self.len() - from_offset..self.len())
     }
@@ -151,6 +154,7 @@ impl FileSlice {
     /// boundary.
     ///
     /// Equivalent to `.slice(0, to_offset)`
+    #[must_use]
     pub fn slice_to(&self, to_offset: usize) -> FileSlice {
         self.slice(0..to_offset)
     }

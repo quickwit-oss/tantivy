@@ -22,6 +22,7 @@ impl FacetOptions {
     ///
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
+    #[must_use]
     pub fn set_stored(mut self) -> FacetOptions {
         self.stored = true;
         self

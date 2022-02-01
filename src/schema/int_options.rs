@@ -79,6 +79,7 @@ impl IntOptions {
     ///
     /// Only the fields that are set as *stored* are
     /// persisted into the Tantivy's store.
+    #[must_use]
     pub fn set_stored(mut self) -> IntOptions {
         self.stored = true;
         self
@@ -90,6 +91,7 @@ impl IntOptions {
     /// a posting list for each value taken by the integer.
     ///
     /// This is required for the field to be searchable.
+    #[must_use]
     pub fn set_indexed(mut self) -> IntOptions {
         self.indexed = true;
         self
@@ -99,6 +101,7 @@ impl IntOptions {
     ///
     /// Setting an integer as fieldnorm will generate
     /// the fieldnorm data for it.
+    #[must_use]
     pub fn set_fieldnorm(mut self) -> IntOptions {
         self.fieldnorms = true;
         self
@@ -110,6 +113,7 @@ impl IntOptions {
     /// Access time are similar to a random lookup in an array.
     /// If more than one value is associated to a fast field, only the last one is
     /// kept.
+    #[must_use]
     pub fn set_fast(mut self, cardinality: Cardinality) -> IntOptions {
         self.fast = Some(cardinality);
         self

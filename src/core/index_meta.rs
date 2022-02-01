@@ -192,6 +192,7 @@ impl SegmentMeta {
     }
 
     #[doc(hidden)]
+    #[must_use]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
         assert!(
             num_deleted_docs <= self.max_doc(),

@@ -251,7 +251,7 @@ mod tests {
         let schema = schema_builder.build();
 
         let directory = RamDirectory::create();
-        let index = Index::create(directory.clone(), schema, IndexSettings::default())?;
+        let index = Index::create(directory, schema, IndexSettings::default())?;
 
         let num_writer_threads = 4;
         let mut writer = index

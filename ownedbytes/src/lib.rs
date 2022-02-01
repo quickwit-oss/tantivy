@@ -1,5 +1,3 @@
-#![allow(clippy::return_self_not_must_use)]
-
 use std::convert::TryInto;
 use std::ops::{Deref, Range};
 use std::sync::Arc;
@@ -85,6 +83,7 @@ impl OwnedBytes {
     /// Splits the right part of the `OwnedBytes` at the given offset.
     ///
     /// `self` is truncated to `split_len`, left with the remaining bytes.
+    #[allow(clippy::return_self_not_must_use)]
     pub fn split_off(&mut self, split_len: usize) -> OwnedBytes {
         let right_box_stable_deref = self.box_stable_deref.clone();
         let right_piece = OwnedBytes {

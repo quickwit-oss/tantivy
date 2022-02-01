@@ -88,16 +88,21 @@ impl IndexBuilder {
             index_settings: IndexSettings::default(),
         }
     }
+
     /// Set the settings
+    #[must_use]
     pub fn settings(mut self, settings: IndexSettings) -> Self {
         self.index_settings = settings;
         self
     }
+
     /// Set the schema
+    #[must_use]
     pub fn schema(mut self, schema: Schema) -> Self {
         self.schema = Some(schema);
         self
     }
+
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
@@ -108,6 +113,7 @@ impl IndexBuilder {
             .create(ram_directory)
             .expect("Creating a RAMDirectory should never fail"))
     }
+
     /// Creates a new index in a given filepath.
     /// The index will use the `MMapDirectory`.
     ///
@@ -120,6 +126,7 @@ impl IndexBuilder {
         }
         self.create(mmap_directory)
     }
+
     /// Creates a new index in a temp directory.
     ///
     /// The index will use the `MMapDirectory` in a newly created directory.
@@ -133,12 +140,14 @@ impl IndexBuilder {
         let mmap_directory: Box<dyn Directory> = Box::new(MmapDirectory::create_from_tempdir()?);
         self.create(mmap_directory)
     }
+
     fn get_expect_schema(&self) -> crate::Result<Schema> {
         self.schema
             .as_ref()
             .cloned()
             .ok_or(TantivyError::IndexBuilderMissingArgument("schema"))
     }
+
     /// Opens or creates a new index in the provided directory
     pub fn open_or_create<T: Into<Box<dyn Directory>>>(self, dir: T) -> crate::Result<Index> {
         let dir = dir.into();

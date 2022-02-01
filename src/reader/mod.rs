@@ -50,6 +50,7 @@ pub struct IndexReaderBuilder {
 }
 
 impl IndexReaderBuilder {
+    #[must_use]
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
             num_searchers: num_cpus::get(),
@@ -65,7 +66,6 @@ impl IndexReaderBuilder {
     /// Building the reader is a non-trivial operation that requires
     /// to open different segment readers. It may take hundreds of milliseconds
     /// of time and it may return an error.
-    #[allow(clippy::needless_late_init)]
     pub fn try_into(self) -> crate::Result<IndexReader> {
         let searcher_generation_inventory = Inventory::default();
         let warming_state = WarmingState::new(
@@ -83,11 +83,10 @@ impl IndexReaderBuilder {
         };
         inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
-        let watch_handle_opt: Option<WatchHandle>;
-        match self.reload_policy {
+        let watch_handle_opt: Option<WatchHandle> = match self.reload_policy {
             ReloadPolicy::Manual => {
                 // No need to set anything...
-                watch_handle_opt = None;
+                None
             }
             ReloadPolicy::OnCommit => {
                 let inner_reader_arc_clone = inner_reader_arc.clone();
@@ -103,9 +102,9 @@ impl IndexReaderBuilder {
                     .index
                     .directory()
                     .watch(WatchCallback::new(callback))?;
-                watch_handle_opt = Some(watch_handle);
+                Some(watch_handle)
             }
-        }
+        };
         Ok(IndexReader {
             inner: inner_reader_arc,
             _watch_handle_opt: watch_handle_opt,
@@ -115,6 +114,7 @@ impl IndexReaderBuilder {
     /// Sets the reload_policy.
     ///
     /// See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
+    #[must_use]
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
         self
@@ -123,12 +123,14 @@ impl IndexReaderBuilder {
     /// Sets the number of [Searcher] to pool.
     ///
     /// See [Self::searcher()].
+    #[must_use]
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
     }
 
     /// Set the [Warmer]s that are invoked when reloading searchable segments.
+    #[must_use]
     pub fn warmers(mut self, warmers: Vec<Weak<dyn Warmer>>) -> IndexReaderBuilder {
         self.warmers = warmers;
         self
@@ -138,6 +140,7 @@ impl IndexReaderBuilder {
     ///
     /// This allows parallelizing warming work when there are multiple [Warmer] registered with the
     /// [IndexReader].
+    #[must_use]
     pub fn num_warming_threads(mut self, num_warming_threads: usize) -> IndexReaderBuilder {
         self.num_warming_threads = num_warming_threads;
         self

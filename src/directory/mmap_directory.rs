@@ -514,7 +514,7 @@ mod tests {
         {
             for path in &paths {
                 let mut w = mmap_directory.open_write(path).unwrap();
-                w.write(content).unwrap();
+                w.write_all(content).unwrap();
                 w.flush().unwrap();
             }
         }

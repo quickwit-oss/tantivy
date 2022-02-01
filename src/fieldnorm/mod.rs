@@ -79,7 +79,7 @@ mod tests {
             fieldnorm_writers.record(3u32, *TXT_FIELD, 3);
             fieldnorm_writers.serialize(serializer, None)?;
         }
-        let file = directory.open_read(&path)?;
+        let file = directory.open_read(path)?;
         {
             let fields_composite = CompositeFile::open(&file)?;
             assert!(fields_composite.open_read(*FIELD).is_none());

@@ -39,7 +39,6 @@ fn main() {
             } else {
                 (est.to_string(), comp.to_string())
             };
-            #[allow(clippy::all)]
             let style = if comp == best_compression_ratio_codec.1 {
                 "Fb"
             } else {
@@ -47,7 +46,7 @@ fn main() {
             };
 
             table.add_row(Row::new(vec![
-                Cell::new(&name.to_string()).style_spec("bFg"),
+                Cell::new(name).style_spec("bFg"),
                 Cell::new(&ratio_cell).style_spec(style),
                 Cell::new(&est_cell).style_spec(""),
             ]));

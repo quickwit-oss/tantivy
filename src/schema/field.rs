@@ -17,8 +17,7 @@ impl Field {
     }
 
     /// Returns a u32 identifying uniquely a field within a schema.
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub const fn field_id(&self) -> u32 {
+    pub const fn field_id(self) -> u32 {
         self.0
     }
 }

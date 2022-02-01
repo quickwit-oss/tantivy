@@ -25,12 +25,14 @@ impl TextOptions {
     }
 
     /// Sets the field as stored
+    #[must_use]
     pub fn set_stored(mut self) -> TextOptions {
         self.stored = true;
         self
     }
 
     /// Sets the field as indexed, with the specific indexing options.
+    #[must_use]
     pub fn set_indexing_options(mut self, indexing: TextFieldIndexing) -> TextOptions {
         self.indexing = Some(indexing);
         self
@@ -63,6 +65,7 @@ impl Default for TextFieldIndexing {
 
 impl TextFieldIndexing {
     /// Sets the tokenizer to be used for a given field.
+    #[must_use]
     pub fn set_tokenizer(mut self, tokenizer_name: &str) -> TextFieldIndexing {
         self.tokenizer = Cow::Owned(tokenizer_name.to_string());
         self
@@ -74,6 +77,7 @@ impl TextFieldIndexing {
     }
 
     /// Sets fieldnorms
+    #[must_use]
     pub fn set_fieldnorms(mut self, fieldnorms: bool) -> TextFieldIndexing {
         self.fieldnorms = fieldnorms;
         self
@@ -87,6 +91,7 @@ impl TextFieldIndexing {
     /// Sets which information should be indexed with the tokens.
     ///
     /// See [IndexRecordOption](./enum.IndexRecordOption.html) for more detail.
+    #[must_use]
     pub fn set_index_option(mut self, index_option: IndexRecordOption) -> TextFieldIndexing {
         self.record = index_option;
         self

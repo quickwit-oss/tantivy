@@ -195,7 +195,7 @@ mod tests {
         let searcher = index.reader()?.searcher();
         {
             let explanation = term_query.explain(&searcher, DocAddress::new(0u32, 1u32))?;
-            assert_nearly_equals!(explanation.value(), 0.6931472);
+            assert_nearly_equals!(explanation.value(), std::f32::consts::LN_2);
         }
         {
             let explanation_err = term_query.explain(&searcher, DocAddress::new(0u32, 0u32));

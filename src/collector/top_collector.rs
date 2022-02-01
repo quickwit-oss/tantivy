@@ -250,7 +250,7 @@ mod tests {
         // when harvesting we have to guarantee stable sorting in case of a tie
         // on the score
         let doc_ids_collection = [4, 5, 6];
-        let score = 3.14;
+        let score = 3.3f32;
 
         let mut top_collector_limit_2 = TopSegmentCollector::new(0, 2);
         for id in &doc_ids_collection {

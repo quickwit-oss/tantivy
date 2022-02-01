@@ -1081,7 +1081,7 @@ mod tests {
             let target_schema = segments[0].schema();
             let merged_index = Index::create(
                 RamDirectory::default(),
-                target_schema.clone(),
+                target_schema,
                 target_settings.clone(),
             )?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
@@ -1098,11 +1098,8 @@ mod tests {
         {
             let filter_segments = vec![None];
             let target_schema = segments[0].schema();
-            let merged_index = Index::create(
-                RamDirectory::default(),
-                target_schema.clone(),
-                target_settings.clone(),
-            )?;
+            let merged_index =
+                Index::create(RamDirectory::default(), target_schema, target_settings)?;
             let merger: IndexMerger = IndexMerger::open_with_custom_alive_set(
                 merged_index.schema(),
                 merged_index.settings().clone(),

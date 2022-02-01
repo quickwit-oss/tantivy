@@ -67,6 +67,7 @@ impl MoreLikeThisQueryBuilder {
     ///
     /// The resulting query will ignore words which do not occur
     /// in at least this many docs.
+    #[must_use]
     pub fn with_min_doc_frequency(mut self, value: u64) -> Self {
         self.mlt.min_doc_frequency = Some(value);
         self
@@ -76,6 +77,7 @@ impl MoreLikeThisQueryBuilder {
     ///
     /// The resulting query will ignore words which occur
     /// in more than this many docs.
+    #[must_use]
     pub fn with_max_doc_frequency(mut self, value: u64) -> Self {
         self.mlt.max_doc_frequency = Some(value);
         self
@@ -85,6 +87,7 @@ impl MoreLikeThisQueryBuilder {
     ///
     /// The resulting query will ignore words less
     /// frequent that this number.
+    #[must_use]
     pub fn with_min_term_frequency(mut self, value: usize) -> Self {
         self.mlt.min_term_frequency = Some(value);
         self
@@ -93,6 +96,7 @@ impl MoreLikeThisQueryBuilder {
     /// Sets the maximum query terms.
     ///
     /// The resulting query will not return a query with more clause than this.
+    #[must_use]
     pub fn with_max_query_terms(mut self, value: usize) -> Self {
         self.mlt.max_query_terms = Some(value);
         self
@@ -101,6 +105,7 @@ impl MoreLikeThisQueryBuilder {
     /// Sets the minimum word length.
     ///
     /// The resulting query will ignore words shorter than this length.
+    #[must_use]
     pub fn with_min_word_length(mut self, value: usize) -> Self {
         self.mlt.min_word_length = Some(value);
         self
@@ -109,6 +114,7 @@ impl MoreLikeThisQueryBuilder {
     /// Sets the maximum word length.
     ///
     /// The resulting query will ignore words longer than this length.
+    #[must_use]
     pub fn with_max_word_length(mut self, value: usize) -> Self {
         self.mlt.max_word_length = Some(value);
         self
@@ -117,6 +123,7 @@ impl MoreLikeThisQueryBuilder {
     /// Sets the boost factor
     ///
     /// The boost factor used by the resulting query for boosting terms.
+    #[must_use]
     pub fn with_boost_factor(mut self, value: f32) -> Self {
         self.mlt.boost_factor = Some(value);
         self
@@ -125,6 +132,7 @@ impl MoreLikeThisQueryBuilder {
     /// Sets the set of stop words
     ///
     /// The resulting query will ignore these set of words.
+    #[must_use]
     pub fn with_stop_words(mut self, value: Vec<String>) -> Self {
         self.mlt.stop_words = value;
         self
