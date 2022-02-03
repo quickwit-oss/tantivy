@@ -66,9 +66,8 @@ impl AverageSegmentAggregator {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AverageCollector {
-    field: DynamicFastFieldReader<u64>,
     pub data: AverageData,
 }
 
@@ -87,8 +86,8 @@ impl AverageCollector {
     fn finalize(&self) -> f64 {
         self.data.finalize()
     }
-    pub(crate) fn collect(&mut self, doc: u32) {
-        let val = self.field.get(doc);
+    pub(crate) fn collect(&mut self, doc: u32, field: &DynamicFastFieldReader<u64>) {
+        let val = field.get(doc);
         self.data.collect(val);
     }
 }

@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+//! Contains the final aggregation tree.
+//! This tree will be used to merge results between segments and between indices.
 
+use super::Key;
 use crate::DocId;
+use std::collections::HashMap;
 
 pub type AggregationResultTree = HashMap<String, AggregationResult>;
 
@@ -14,13 +17,7 @@ pub enum MetricResult {
 }
 
 pub struct BucketAggregationResult {
-    buckets: Vec<Box<BucketDataEntry>>,
-}
-
-pub enum Key {
-    String(String),
-    ValueF64(f64),
-    Valuei64(i64),
+    buckets: Vec<BucketDataEntry>,
 }
 
 pub enum BucketDataEntry {
@@ -31,7 +28,3 @@ pub enum BucketDataEntry {
         sub_aggregation: Option<HashMap<String, AggregationResult>>,
     },
 }
-
-//trait BucketEntry: Send {
-//fn get_bucket_data(&self) -> BucketDataEntry;
-//}

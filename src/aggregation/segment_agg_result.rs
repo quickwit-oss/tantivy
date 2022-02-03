@@ -1,69 +1,39 @@
+//! Contains aggregation trees which is used during collection in a segment.
+//! This tree contains datastructrues optimized for fast collection.
+//! The tree can be converted to an intermediate tree, which contains datastructrues optimized for
+//! merging.
+
 use super::{
-    metric::{AverageCollector, AverageData},
-    BucketAggregationType,
+    agg_req_with_accessor::{
+        AggregationWithAccessor, BucketAggregationWithAccessor, MetricAggregationWithAccessor,
+    },
+    bucket::SegmentRangeCollector,
+    metric::AverageCollector,
+    Key,
 };
-use crate::{collector::MergeableFruit, DocId};
 use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct SegmentAggregationResultTree(pub HashMap<String, SegmentAggregationResultCollector>);
 
-impl MergeableFruit for SegmentAggregationResultTree {
-    fn merge_fruit(&mut self, other: &Self) {
-        self.merge_fruits(other);
-    }
-}
-
-impl SegmentAggregationResultTree {
-    fn merge_fruits(&mut self, other: &SegmentAggregationResultTree) {
-        for (name, tree_left) in self.0.iter_mut() {
-            if let Some(tree_right) = other.0.get(name) {
-                tree_left.merge_fruits(tree_right);
-            }
-        }
-
-        for (key, res) in other.0.iter() {
-            if !other.0.contains_key(key) {
-                self.0.insert(key.to_string(), res.clone());
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum SegmentAggregationResultCollector {
-    BucketResult(SegmentBucketAggregationResultCollector),
+    BucketResult(SegmentBucketAggregationResultCollectors),
     MetricResult(MetricResultCollector),
 }
 
 impl SegmentAggregationResultCollector {
-    fn merge_fruits(&mut self, other: &SegmentAggregationResultCollector) {
-        match (self, other) {
-            (
-                SegmentAggregationResultCollector::BucketResult(res_left),
-                SegmentAggregationResultCollector::BucketResult(res_right),
-            ) => {
-                res_left.merge_fruits(res_right);
-            }
-            (
-                SegmentAggregationResultCollector::MetricResult(res_left),
-                SegmentAggregationResultCollector::MetricResult(res_right),
-            ) => {
-                res_left.merge_fruits(res_right);
-            }
-            _ => {
-                panic!("incompatible types in aggregation tree on merge fruits");
-            }
-        }
-    }
-
-    pub(crate) fn collect(&mut self, doc: crate::DocId, reader: &crate::SegmentReader) {
+    pub(crate) fn collect(
+        &mut self,
+        doc: crate::DocId,
+        agg_with_accessor: &AggregationWithAccessor,
+    ) {
         match self {
             SegmentAggregationResultCollector::BucketResult(res) => {
-                res.collect(doc, reader);
+                res.collect(doc, agg_with_accessor.as_bucket());
             }
             SegmentAggregationResultCollector::MetricResult(res) => {
-                res.collect(doc, reader);
+                res.collect(doc, agg_with_accessor.as_metric());
             }
             _ => {
                 panic!("incompatible types in aggregation tree on merge fruits");
@@ -78,62 +48,36 @@ pub enum MetricResultCollector {
 }
 
 impl MetricResultCollector {
-    fn merge_fruits(&mut self, other: &MetricResultCollector) {
-        match (self, other) {
-            (
-                MetricResultCollector::Average(avg_data_left),
-                MetricResultCollector::Average(avg_data_right),
-            ) => {
-                avg_data_left.merge_fruits(avg_data_right);
-            }
-        }
-    }
-
-    pub(crate) fn collect(&mut self, doc: crate::DocId, reader: &crate::SegmentReader) {
+    pub(crate) fn collect(&mut self, doc: crate::DocId, metric: &MetricAggregationWithAccessor) {
         match self {
             MetricResultCollector::Average(avg_collector) => {
-                avg_collector.collect(doc);
+                avg_collector.collect(doc, &metric.accessor);
             }
         }
     }
 }
 
+/// SegmentBucketAggregationResultCollectors will have specialized buckets for collection inside
+/// segments.
+/// The typical structure of Map<Key, Bucket> is not suitable during collection for performance
+/// reasons.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SegmentBucketAggregationResultCollector {
-    bucket_agg: BucketAggregationType,
-    buckets: HashMap<Key, BucketDataEntry>,
+pub enum SegmentBucketAggregationResultCollectors {
+    Range(SegmentRangeCollector),
 }
 
-impl SegmentBucketAggregationResultCollector {
-    fn merge_fruits(&mut self, other: &SegmentBucketAggregationResultCollector) {
-        for (name, entry_left) in self.buckets.iter_mut() {
-            if let Some(entry_right) = other.buckets.get(name) {
-                match (entry_left, entry_right) {
-                    (
-                        BucketDataEntry::KeyCount(key_count_left),
-                        BucketDataEntry::KeyCount(key_count_right),
-                    ) => key_count_left.merge_fruits(&key_count_right),
-                }
-            }
-        }
-
-        for (key, res) in other.buckets.iter() {
-            if !self.buckets.contains_key(key) {
-                self.buckets.insert(key.clone(), res.clone());
+impl SegmentBucketAggregationResultCollectors {
+    pub(crate) fn collect(
+        &mut self,
+        doc: crate::DocId,
+        bucket_with_accessor: &BucketAggregationWithAccessor,
+    ) {
+        match self {
+            SegmentBucketAggregationResultCollectors::Range(range) => {
+                range.collect(doc, &bucket_with_accessor.accessor);
             }
         }
     }
-
-    pub(crate) fn collect(&mut self, doc: crate::DocId, reader: &crate::SegmentReader) {
-        todo!()
-    }
-}
-
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub enum Key {
-    Str(String),
-    U64(u64),
-    I64(i64),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -141,30 +85,34 @@ pub enum BucketDataEntry {
     KeyCount(BucketDataEntryKeyCount),
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct BucketDataEntryKeyCount {
-    key: Key,
-    doc_count: u64,
-    values: Option<Vec<u64>>,
-    sub_aggregation: Option<SegmentAggregationResultTree>,
-}
-
-impl BucketDataEntryKeyCount {
-    fn merge_fruits(&mut self, other: &BucketDataEntryKeyCount) {
-        self.doc_count += other.doc_count;
-        if let (Some(sub_aggregation_left), Some(sub_aggregation_right)) = (
-            self.sub_aggregation.as_mut(),
-            other.sub_aggregation.as_ref(),
-        ) {
-            sub_aggregation_left.merge_fruits(&sub_aggregation_right);
+impl BucketDataEntry {
+    pub fn doc_count(&self) -> u64 {
+        match self {
+            BucketDataEntry::KeyCount(bucket) => bucket.doc_count,
         }
     }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct BucketDataEntryKeyCount {
+    pub key: Key,
+    pub doc_count: u64,
+    /// Collect and then compute the values on that bucket.
+    /// This is required in cases where we have sub_aggregations.
+    ///
+    /// For example if we want to calculate the median metric on a bucket, we need to carry all the
+    /// values from the SegmentAggregationResultTree to the IntermediateAggregationResultTree, so
+    /// that the computation can be done after merging all the segments.
+    ///
+    /// TODO Handle different data types here?
+    /// Collect on Metric level?
+    pub values: Option<Vec<u64>>,
+    pub sub_aggregation: Option<SegmentAggregationResultTree>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> SegmentAggregationResultTree {
         let mut map = HashMap::new();
@@ -180,17 +128,17 @@ mod tests {
                 }),
             );
         }
-        map.insert(
-            "my_agg_level2".to_string(),
-            SegmentAggregationResultCollector::BucketResult(
-                SegmentBucketAggregationResultCollector {
-                    bucket_agg: BucketAggregationType::TermAggregation {
-                        field: "field2".to_string(),
-                    },
-                    buckets,
-                },
-            ),
-        );
+        //map.insert(
+        //"my_agg_level2".to_string(),
+        //SegmentAggregationResultCollector::BucketResult(
+        //SegmentBucketAggregationResultCollector {
+        //bucket_agg: BucketAggregationType::TermAggregation {
+        //field_name: "field2".to_string(),
+        //},
+        //buckets,
+        //},
+        //),
+        //);
         SegmentAggregationResultTree(map)
     }
 
@@ -211,60 +159,17 @@ mod tests {
                 }),
             );
         }
-        map.insert(
-            "my_agg_level1".to_string(),
-            SegmentAggregationResultCollector::BucketResult(
-                SegmentBucketAggregationResultCollector {
-                    bucket_agg: BucketAggregationType::TermAggregation {
-                        field: "field1".to_string(),
-                    },
-                    buckets,
-                },
-            ),
-        );
+        //map.insert(
+        //"my_agg_level1".to_string(),
+        //SegmentAggregationResultCollector::BucketResult(
+        //SegmentBucketAggregationResultCollector {
+        //bucket_agg: BucketAggregationType::TermAggregation {
+        //field_name: "field1".to_string(),
+        //},
+        //buckets,
+        //},
+        //),
+        //);
         SegmentAggregationResultTree(map)
-    }
-
-    #[test]
-    fn test_merge_fruits_tree_1() {
-        let mut tree_left = get_test_tree(&[
-            ("red".to_string(), 50, "1900".to_string(), 25),
-            ("blue".to_string(), 30, "1900".to_string(), 30),
-        ]);
-        let tree_right = get_test_tree(&[
-            ("red".to_string(), 60, "1900".to_string(), 30),
-            ("blue".to_string(), 25, "1900".to_string(), 50),
-        ]);
-
-        tree_left.merge_fruits(&tree_right);
-
-        let tree_expected = get_test_tree(&[
-            ("red".to_string(), 110, "1900".to_string(), 55),
-            ("blue".to_string(), 55, "1900".to_string(), 80),
-        ]);
-
-        assert_eq!(tree_left, tree_expected);
-    }
-
-    #[test]
-    fn test_merge_fruits_tree_2() {
-        let mut tree_left = get_test_tree(&[
-            ("red".to_string(), 50, "1900".to_string(), 25),
-            ("blue".to_string(), 30, "1900".to_string(), 30),
-        ]);
-        let tree_right = get_test_tree(&[
-            ("red".to_string(), 60, "1900".to_string(), 30),
-            ("green".to_string(), 25, "1900".to_string(), 50),
-        ]);
-
-        tree_left.merge_fruits(&tree_right);
-
-        let tree_expected = get_test_tree(&[
-            ("red".to_string(), 110, "1900".to_string(), 55),
-            ("blue".to_string(), 30, "1900".to_string(), 30),
-            ("green".to_string(), 25, "1900".to_string(), 50),
-        ]);
-
-        assert_eq!(tree_left, tree_expected);
     }
 }
