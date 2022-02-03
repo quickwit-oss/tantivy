@@ -1,6 +1,8 @@
-use super::metric::AverageCollector;
-use super::metric::AverageData;
-use crate::{collector::MergeableFruit, DocId};
+//! Contains Intermediate aggregation trees, that can be merged.
+//! This tree will be used to merge results between segments and between indices.
+
+use super::{metric::AverageData, Key};
+use crate::collector::MergeableFruit;
 use std::collections::HashMap;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
@@ -84,7 +86,7 @@ impl BucketAggregationResult {
                     (
                         BucketDataEntry::KeyCount(key_count_left),
                         BucketDataEntry::KeyCount(key_count_right),
-                    ) => key_count_left.merge_fruits(&key_count_right),
+                    ) => key_count_left.merge_fruits(key_count_right),
                 }
             }
         }
@@ -95,13 +97,6 @@ impl BucketAggregationResult {
             }
         }
     }
-}
-
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub enum Key {
-    Str(String),
-    U64(u64),
-    I64(i64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -124,7 +119,7 @@ impl BucketDataEntryKeyCount {
             self.sub_aggregation.as_mut(),
             other.sub_aggregation.as_ref(),
         ) {
-            sub_aggregation_left.merge_fruits(&sub_aggregation_right);
+            sub_aggregation_left.merge_fruits(sub_aggregation_right);
         }
     }
 }
@@ -132,7 +127,7 @@ impl BucketDataEntryKeyCount {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     fn get_sub_test_tree(data: &[(String, u64)]) -> IntermediateAggregationResultTree {
         let mut map = HashMap::new();

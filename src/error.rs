@@ -74,6 +74,9 @@ pub enum TantivyError {
     /// A thread holding the locked panicked and poisoned the lock.
     #[error("A thread holding the locked panicked and poisoned the lock")]
     Poisoned,
+    /// The provided field name does not exist.
+    #[error("The field does not exist: '{0}'")]
+    FieldNotFound(String),
     /// Invalid argument was passed by the user.
     #[error("An invalid argument was passed: '{0}'")]
     InvalidArgument(String),

@@ -1,8 +1,6 @@
 use std::{collections::HashMap, ops::Range};
 
-use crate::collector::SegmentCollector;
-
-use super::segment_agg_result::SegmentAggregationResultCollector;
+use super::bucket::RangeAggregationReq;
 
 pub type Aggregations = HashMap<String, Aggregation>;
 
@@ -32,16 +30,17 @@ pub struct BucketAggregation {
 pub enum BucketAggregationType {
     TermAggregation {
         /// The field to aggregate on.
-        field: String, // Produces as leaf doc_counts, but as intermediate additionally doc id list for the sub steps
+        field_name: String, // Produces as leaf doc_counts, but as intermediate additionally doc id list for the sub steps
     },
     /// Put data into predefined buckets.
-    RangeAggregation {
-        /// The field to aggregate on.
-        field: String,
-        /// Note that this aggregation includes the from value and excludes the to value for each range.
-        /// Extra buckets will be created until the first to, and last from.
-        buckets: Vec<Range<i64>>,
-    },
+    RangeAggregation(RangeAggregationReq),
+    //   /// Put data into predefined buckets.
+    //Histogram {
+    ///// The field to aggregate on.
+    //field_name: String,
+    ///// Interval of a bucket.
+    //interval: u64,
+    //}
 }
 
 /// The aggregations in this family compute metrics based on values extracted in one way or another from the documents that are being aggregated.
@@ -61,33 +60,6 @@ pub enum MetricAggregation {
     },
 }
 
-//pub struct NamedBucketAggregationResult {
-///// [Bucket Index] -> BucketAggregationResultVariant
-////buckets: BucketAggregationResultVariant,
-//buckets: Vec<Box<dyn BucketEntry>>,
-///// [Bucket Index] -> Bucket Name
-//bucket_metadata: Vec<String>,
-//}
-
-//pub enum BucketAggregationResultVariant {
-//SubBucket(Vec<Box<NamedBucketAggregationResult>>),
-//DocidBucket(Vec<Vec<DocId>>),
-//Counts(Vec<usize>),
-//Global(Vec<DocId>),
-//}
-
-//#[derive(Default)]
-//pub struct BucketAggregationResult {
-///// [Bucket Index] -> BucketAggregationResult
-//sub_buckets: Vec<Box<BucketAggregationResult>>,
-///// [Bucket Index] -> List of DocIds
-//buckets: Vec<Vec<DocId>>,
-///// [Bucket Index] -> Counts
-//counts: Vec<usize>,
-///// [Bucket Index] -> Bucket Name
-//bucket_metadata: Vec<String>,
-//}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,52 +74,12 @@ mod tests {
             }),
         );
 
-        Aggregation::BucketAggregation(BucketAggregation {
-            bucket_agg: BucketAggregationType::RangeAggregation {
-                field: "test".to_string(),
+        BucketAggregation {
+            bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                field_name: "test".to_string(),
                 buckets: vec![0..60, 60..90, 90..110],
-            },
+            }),
             sub_aggregation,
-        });
+        };
     }
-    //#[test]
-    //fn bucketbucket_result_variant() {
-    //let sub_bucket1 = NamedBucketAggregationResult {
-    //buckets: BucketAggregationResultVariant::Counts(vec![10, 30]),
-    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
-    //};
-
-    //let sub_bucket2 = NamedBucketAggregationResult {
-    //buckets: BucketAggregationResultVariant::Counts(vec![40, 20]),
-    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
-    //};
-
-    //let _asdf = NamedBucketAggregationResult {
-    //buckets: BucketAggregationResultVariant::SubBucket(vec![
-    //Box::new(sub_bucket1),
-    //Box::new(sub_bucket2),
-    //]),
-    //bucket_metadata: vec!["green".to_string(), "blue".to_string()],
-    //};
-    //}
-
-    //#[test]
-    //fn bucketbucket_result_test() {
-    //let _geht = BucketAggregationResult {
-    //sub_buckets: vec![
-    //Box::new(BucketAggregationResult {
-    //counts: vec![10, 30],
-    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
-    //..Default::default()
-    //}),
-    //Box::new(BucketAggregationResult {
-    //counts: vec![40, 20],
-    //bucket_metadata: vec!["2018".to_string(), "2019".to_string()],
-    //..Default::default()
-    //}),
-    //],
-    //bucket_metadata: vec!["green".to_string(), "blue".to_string()],
-    //..Default::default()
-    //};
-    //}
 }

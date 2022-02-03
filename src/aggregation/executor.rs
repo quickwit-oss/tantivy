@@ -1,66 +1,21 @@
-use std::collections::HashMap;
-
 use crate::{
     aggregation::{
-        agg_tree::BucketAggregation,
-        metric::{AverageAggregator, AverageSegmentAggregator},
-        MetricAggregation,
+        agg_req_with_accessor::get_aggregations_with_accessor,
+        bucket::{RangeAggregationReq, SegmentRangeCollector},
+        metric::AverageCollector,
+        segment_agg_result::{MetricResultCollector, SegmentBucketAggregationResultCollectors},
+        BucketAggregationType,
     },
     collector::{Collector, DistributedCollector, SegmentCollector},
     schema::Schema,
-    Index,
 };
 
 use super::{
-    agg_result::AggregationResult,
-    agg_tree::Aggregations,
+    agg_req::Aggregations,
+    agg_req_with_accessor::{AggregationWithAccessor, AggregationsWithAccessor},
     intermediate_agg_result::IntermediateAggregationResultTree,
     segment_agg_result::{SegmentAggregationResultCollector, SegmentAggregationResultTree},
-    Aggregation,
 };
-
-//fn get_segment_collector(
-//agg: Aggregation,
-//index: Index,
-//) -> Box<dyn SegmentCollector<Fruit = AggregationResultTree>> {
-//let schema = index.schema();
-//match agg {
-//Aggregation::MetricAggregation(MetricAggregation::Average { field_name }) => {
-//let fast_field = schema.get_field(&field_name).unwrap();
-//AverageSegmentAggregator::new(fast_field);
-//}
-//Aggregation::BucketAggregation {
-//bucket_agg,
-//sub_aggregation,
-//} => todo!(),
-//}
-//}
-
-fn root_level_aggs(aggs: Aggregations, schema: Schema, index: Index) {
-    let reader = index.reader().unwrap();
-    let searcher = reader.searcher();
-    let tree = SegmentAggregationResultTree::default();
-    for (name, agg) in aggs {
-        match agg {
-            Aggregation::MetricAggregation(MetricAggregation::Average { field_name }) => {
-                let fast_field = schema.get_field(&field_name).unwrap();
-                let agg = AverageAggregator::new(fast_field);
-            }
-            Aggregation::BucketAggregation(BucketAggregation {
-                bucket_agg,
-                sub_aggregation,
-            }) => todo!(),
-        }
-    }
-}
-
-fn sub_aggregation(aggs: Aggregations) {
-    for (name, agg) in aggs {}
-}
-
-//struct AggregatorExecutionTree {
-//tree: HashMap<String, Box<dyn SegmentCollector<Fruit = >>>,
-//}
 
 struct AggregationCollector {
     agg: Aggregations,
@@ -75,9 +30,10 @@ impl DistributedCollector for AggregationCollector {
 
     fn for_segment(
         &self,
-        segment_local_id: crate::SegmentOrdinal,
-        segment: &crate::SegmentReader,
+        _segment_local_id: crate::SegmentOrdinal,
+        reader: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
+        let aggs_with_accessor = get_aggregations_with_accessor(&self.agg, reader);
         todo!()
     }
 
@@ -85,7 +41,7 @@ impl DistributedCollector for AggregationCollector {
         todo!()
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+    fn merge_fruits(&self, _segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
         todo!()
     }
 }
@@ -97,8 +53,8 @@ impl Collector for AggregationCollector {
 
     fn for_segment(
         &self,
-        segment_local_id: crate::SegmentOrdinal,
-        segment: &crate::SegmentReader,
+        _segment_local_id: crate::SegmentOrdinal,
+        _segment: &crate::SegmentReader,
     ) -> crate::Result<Self::Child> {
         todo!()
     }
@@ -107,13 +63,13 @@ impl Collector for AggregationCollector {
         todo!()
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
+    fn merge_fruits(&self, _segment_fruits: Vec<Self::Fruit>) -> crate::Result<Self::Fruit> {
         todo!()
     }
 }
 
 struct AggregationSegmentCollector {
-    aggs: Aggregations,
+    aggs: AggregationsWithAccessor,
     schema: Schema,
     result: SegmentAggregationResultTree,
     segment: crate::SegmentReader,
@@ -122,18 +78,17 @@ struct AggregationSegmentCollector {
 impl SegmentCollector for AggregationSegmentCollector {
     type Fruit = IntermediateAggregationResultTree;
 
-    fn collect(&mut self, doc: crate::DocId, score: crate::Score) {
-        for (key, agg) in &self.aggs {
+    fn collect(&mut self, doc: crate::DocId, _score: crate::Score) {
+        for (key, agg_with_accessor) in &self.aggs {
             // Todo prepopulate tree
             let agg_res = self
                 .result
                 .0
                 .entry(key.to_string())
-                .or_insert_with(|| get_aggregator(agg));
+                .or_insert_with(|| get_aggregator(agg_with_accessor));
 
-            agg_res.collect(doc, &self.segment);
+            agg_res.collect(doc, agg_with_accessor);
         }
-        todo!()
     }
 
     fn harvest(self) -> Self::Fruit {
@@ -141,12 +96,23 @@ impl SegmentCollector for AggregationSegmentCollector {
     }
 }
 
-fn get_aggregator(agg: &Aggregation) -> SegmentAggregationResultCollector {
+fn get_aggregator(agg: &AggregationWithAccessor) -> SegmentAggregationResultCollector {
     match agg {
-        Aggregation::BucketAggregation(BucketAggregation {
-            bucket_agg,
-            sub_aggregation,
-        }) => todo!(),
-        Aggregation::MetricAggregation(_) => todo!(),
+        AggregationWithAccessor::BucketAggregation(bucket) => match &bucket.bucket_agg {
+            BucketAggregationType::TermAggregation { field_name: _ } => todo!(),
+            BucketAggregationType::RangeAggregation(req) => {
+                let collector = SegmentRangeCollector::from_req(&req);
+                SegmentAggregationResultCollector::BucketResult(
+                    SegmentBucketAggregationResultCollectors::Range(collector),
+                )
+            }
+        },
+        AggregationWithAccessor::MetricAggregation(metric) => match &metric.metric {
+            crate::aggregation::MetricAggregation::Average { field_name: _ } => {
+                SegmentAggregationResultCollector::MetricResult(MetricResultCollector::Average(
+                    AverageCollector::default(),
+                ))
+            }
+        },
     }
 }
