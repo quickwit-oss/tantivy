@@ -13,21 +13,21 @@ pub type AggregationsWithAccessor = HashMap<String, AggregationWithAccessor>;
 ///
 #[derive(Clone)]
 pub enum AggregationWithAccessor {
-    BucketAggregation(BucketAggregationWithAccessor),
-    MetricAggregation(MetricAggregationWithAccessor),
+    Bucket(BucketAggregationWithAccessor),
+    Metric(MetricAggregationWithAccessor),
 }
 
 impl AggregationWithAccessor {
     pub fn as_bucket(&self) -> &BucketAggregationWithAccessor {
         match self {
-            AggregationWithAccessor::BucketAggregation(bucket) => bucket,
-            AggregationWithAccessor::MetricAggregation(_) => panic!("wrong aggregation type"),
+            AggregationWithAccessor::Bucket(bucket) => bucket,
+            AggregationWithAccessor::Metric(_) => panic!("wrong aggregation type"),
         }
     }
     pub fn as_metric(&self) -> &MetricAggregationWithAccessor {
         match self {
-            AggregationWithAccessor::BucketAggregation(_) => panic!("wrong aggregation type"),
-            AggregationWithAccessor::MetricAggregation(metric) => metric,
+            AggregationWithAccessor::Bucket(_) => panic!("wrong aggregation type"),
+            AggregationWithAccessor::Metric(metric) => metric,
         }
     }
 }
@@ -101,14 +101,12 @@ fn get_aggregation_with_accessor(
     reader: &SegmentReader,
 ) -> crate::Result<AggregationWithAccessor> {
     match agg {
-        Aggregation::BucketAggregation(b) => {
+        Aggregation::Bucket(b) => {
             BucketAggregationWithAccessor::from_bucket(&b.bucket_agg, &b.sub_aggregation, reader)
-                .map(|metric_with_acc| AggregationWithAccessor::BucketAggregation(metric_with_acc))
+                .map(|metric_with_acc| AggregationWithAccessor::Bucket(metric_with_acc))
         }
-        Aggregation::MetricAggregation(metric) => {
-            MetricAggregationWithAccessor::from_metric(metric, reader)
-                .map(|metric_with_acc| AggregationWithAccessor::MetricAggregation(metric_with_acc))
-        }
+        Aggregation::Metric(metric) => MetricAggregationWithAccessor::from_metric(metric, reader)
+            .map(|metric_with_acc| AggregationWithAccessor::Metric(metric_with_acc)),
     }
 }
 
