@@ -1,4 +1,4 @@
-name: Rust
+name: Long running tests
 
 on:
   push:
