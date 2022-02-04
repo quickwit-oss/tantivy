@@ -8,8 +8,8 @@ pub type Aggregations = HashMap<String, Aggregation>;
 ///
 #[derive(Clone, Debug, PartialEq)]
 pub enum Aggregation {
-    BucketAggregation(BucketAggregation),
-    MetricAggregation(MetricAggregation),
+    Bucket(BucketAggregation),
+    Metric(MetricAggregation),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,7 +69,7 @@ mod tests {
         let mut sub_aggregation = HashMap::new();
         sub_aggregation.insert(
             "the_average".to_string(),
-            Aggregation::MetricAggregation(MetricAggregation::Average {
+            Aggregation::Metric(MetricAggregation::Average {
                 field_name: "my_field".to_string(),
             }),
         );

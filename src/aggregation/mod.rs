@@ -1,3 +1,13 @@
+//! This module contains code for aggregation.
+//!
+//! agg_req contains the aggregation request.
+//! agg_req_with_accessor contains the aggregation request plus fast field accessors etc, which are
+//! used during collection.
+//!
+//! segment_agg_result is the aggregation result tree during collection.
+//! intermediate_agg_result is the aggregation tree for merging with other trees.
+//! agg_result is the final aggregation tree.
+
 mod agg_req;
 mod agg_req_with_accessor;
 mod agg_result;
@@ -11,29 +21,10 @@ pub use agg_req::Aggregation;
 pub use agg_req::BucketAggregationType;
 pub use agg_req::MetricAggregation;
 
-use crate::collector::Fruit;
-
-use self::agg_result::BucketAggregationResult;
-use self::intermediate_agg_result::IntermediateAggregationResultTree;
-
-/// The `SubAggregationCollector` is the trait in charge of defining the
-/// collect operation for sub aggreagations at the scale of the segment.
-///
-/// A `SubAggregationCollector` handles the result of a bucket collector.
-///
-pub trait SubAggregationCollector: 'static {
-    /// `Fruit` is the type for the result of our collection.
-    /// e.g. `usize` for the `Count` collector.
-    type Fruit: Fruit;
-
-    /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, result: BucketAggregationResult);
-
-    /// Extract the fruit of the collection from the `SubAggregationCollector`.
-    fn harvest(self) -> Self::Fruit;
-}
+use self::intermediate_agg_result::IntermediateAggregationResults;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
+/// The key to identify a bucket.
 pub enum Key {
     Str(String),
     U64(u64),
@@ -50,5 +41,114 @@ pub struct BucketDataEntryKeyCount {
     key: Key,
     doc_count: u64,
     values: Option<Vec<u64>>,
-    sub_aggregation: Option<Box<IntermediateAggregationResultTree>>,
+    sub_aggregation: Option<Box<IntermediateAggregationResults>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::iter;
+
+    use futures::executor::block_on;
+
+    use crate::{
+        query::TermQuery,
+        schema::{Cardinality, IndexRecordOption, Schema, TextFieldIndexing, FAST, INDEXED},
+        Index, Term,
+    };
+
+    use super::{
+        agg_req::Aggregation,
+        agg_req::{Aggregations, BucketAggregation},
+        bucket::RangeAggregationReq,
+        executor::AggregationCollector,
+        BucketAggregationType, MetricAggregation,
+    };
+
+    #[test]
+    fn test_aggregation() -> crate::Result<()> {
+        let mut schema_builder = Schema::builder();
+        let text_fieldtype = crate::schema::TextOptions::default()
+            .set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::WithFreqs),
+            )
+            .set_stored();
+        let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let score_fieldtype =
+            crate::schema::IntOptions::default().set_fast(Cardinality::SingleValue);
+        let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index.reader()?;
+        {
+            let mut index_writer = index.writer_for_tests()?;
+            // writing the segment
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 3u64,
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 5u64,
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 7u64,
+            ))?;
+            index_writer.commit()?;
+            // writing the segment
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 11u64,
+            ))?;
+            index_writer.add_document(doc!(
+                text_field => "cool",
+                score_field => 13u64,
+            ))?;
+            index_writer.commit()?;
+        }
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_for_tests()?;
+            block_on(index_writer.merge(&segment_ids))?;
+            index_writer.wait_merging_threads()?;
+        }
+
+        let term_query = TermQuery::new(
+            Term::from_field_text(text_field, "cool"),
+            IndexRecordOption::Basic,
+        );
+
+        let agg_req_1: Aggregations = vec![
+            (
+                "average".to_string(),
+                Aggregation::Metric(MetricAggregation::Average {
+                    field_name: "score".to_string(),
+                }),
+            ),
+            (
+                "range".to_string(),
+                Aggregation::Bucket(BucketAggregation {
+                    bucket_agg: BucketAggregationType::RangeAggregation(RangeAggregationReq {
+                        field_name: "score".to_string(),
+                        buckets: vec![(3..7), (7..20)],
+                    }),
+                    sub_aggregation: Default::default(),
+                }),
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let collector = AggregationCollector::from_aggs(agg_req_1);
+
+        let searcher = reader.searcher();
+        let agg_res = searcher.search(&term_query, &collector).unwrap();
+        dbg!(&agg_res);
+        //
+
+        Ok(())
+    }
 }

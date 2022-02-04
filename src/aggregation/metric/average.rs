@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    aggregation::{agg_result::BucketAggregationResult, SubAggregationCollector},
+    aggregation::agg_result::BucketAggregationResult,
     collector::{Collector, SegmentCollector},
     fastfield::{DynamicFastFieldReader, FastFieldReader},
     schema::Field,
@@ -110,6 +110,10 @@ pub struct AverageData {
 }
 
 impl AverageData {
+    pub fn from_collector(collector: AverageCollector) -> Self {
+        collector.data
+    }
+
     pub fn merge_fruits(&mut self, other: &AverageData) {
         self.sum += other.sum;
         self.num_vals += other.num_vals;
@@ -134,17 +138,5 @@ impl SegmentCollector for AverageSegmentAggregator {
 
     fn harvest(self) -> Self::Fruit {
         self.stats
-    }
-}
-
-impl SubAggregationCollector for AverageSegmentAggregator {
-    type Fruit = AverageData;
-
-    fn collect(&mut self, _result: BucketAggregationResult) {
-        todo!()
-    }
-
-    fn harvest(self) -> Self::Fruit {
-        todo!()
     }
 }

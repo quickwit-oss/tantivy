@@ -1,6 +1,10 @@
 use crate::{
     aggregation::{
-        segment_agg_result::{BucketDataEntry, BucketDataEntryKeyCount},
+        agg_req_with_accessor::AggregationsWithAccessor,
+        intermediate_agg_result::IntermediateBucketAggregationResult,
+        segment_agg_result::{
+            SegmentAggregationResults, SegmentBucketDataEntry, SegmentBucketDataEntryKeyCount,
+        },
         Key,
     },
     fastfield::{DynamicFastFieldReader, FastFieldReader},
@@ -18,46 +22,52 @@ pub struct RangeAggregationReq {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RangeBucketEntry {
+pub struct SegmentRangeBucketEntry {
     key: Key,
     range: Range<i64>,
-    bucket: BucketDataEntry,
-}
-
-impl RangeBucketEntry {
-    //fn merge_fruits(&mut self, other: &RangeBucketEntry) {
-    //self.bucket.merge_fruits(&other.bucket);
-    //}
+    bucket: SegmentBucketDataEntry,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SegmentRangeCollector {
-    pub buckets: Vec<RangeBucketEntry>,
+    pub buckets: Vec<SegmentRangeBucketEntry>,
 }
 
 fn range_to_key(range: &Range<i64>) -> Key {
-    Key::Str(format!("{}-{}", range.start, range.end))
+    let to_str = |val: i64| {
+        if val == i64::MIN || val == i64::MAX {
+            "*".to_string()
+        } else {
+            val.to_string()
+        }
+    };
+
+    Key::Str(format!("{}-{}", to_str(range.start), to_str(range.end)))
 }
 impl SegmentRangeCollector {
-    //pub fn merge_fruits(&mut self, other: &SegmentRangeCollector) {
-    //for (left, right) in self.buckets.iter_mut().zip(other.buckets.iter()) {
-    //left.merge_fruits(right);
-    //}
-    //}
+    pub fn into_bucket_agg_result(self) -> IntermediateBucketAggregationResult {
+        let buckets = self
+            .buckets
+            .into_iter()
+            .map(|range_bucket| (range_bucket.key, range_bucket.bucket.into()))
+            .collect();
 
-    pub fn from_req(req: &RangeAggregationReq) -> Self {
+        IntermediateBucketAggregationResult { buckets }
+    }
+
+    pub fn from_req(req: &RangeAggregationReq, sub_aggregation: &AggregationsWithAccessor) -> Self {
         let buckets = iter::once(i64::MIN..req.buckets[0].start)
             .chain(req.buckets.iter().cloned())
             .chain(iter::once(req.buckets[req.buckets.len() - 1].end..i64::MAX))
-            .map(|range| RangeBucketEntry {
+            .map(|range| SegmentRangeBucketEntry {
                 key: range_to_key(&range),
                 range: range.clone(),
-                bucket: BucketDataEntry::KeyCount(BucketDataEntryKeyCount {
+                bucket: SegmentBucketDataEntry::KeyCount(SegmentBucketDataEntryKeyCount {
                     key: range_to_key(&range),
                     doc_count: 0,
                     values: None,
-                    //todo
-                    sub_aggregation: None,
+                    // TODO none on empty hashmap or remove option
+                    sub_aggregation: Some(SegmentAggregationResults::from_req(&sub_aggregation)),
                 }),
             })
             .collect();
@@ -77,7 +87,7 @@ impl SegmentRangeCollector {
             .find(|bucket| bucket.range.contains(&val))
             .unwrap();
         match &mut bucket.bucket {
-            BucketDataEntry::KeyCount(key_count) => {
+            SegmentBucketDataEntry::KeyCount(key_count) => {
                 key_count.doc_count += 1;
             }
         }
@@ -94,7 +104,7 @@ mod tests {
             field_name: "cool".to_string(),
             buckets: vec![10..20, 20..30],
         };
-        let mut collector = SegmentRangeCollector::from_req(&req);
+        let mut collector = SegmentRangeCollector::from_req(&req, &Default::default());
         collector.collect_val(1);
         collector.collect_val(11);
         collector.collect_val(12);
