@@ -9,14 +9,15 @@ use crate::postings::UnorderedTermId;
 use crate::Term;
 
 /// Returns the actual memory size in bytes
-/// required to create a table of size $2^num_bits$.
-pub fn compute_table_size(num_bits: usize) -> usize {
-    (1 << num_bits) * mem::size_of::<KeyValue>()
+/// required to create a table with a given capacity.
+/// required to create a table of size
+pub(crate) fn compute_table_size(capacity: usize) -> usize {
+    capacity * mem::size_of::<KeyValue>()
 }
 
 /// `KeyValue` is the item stored in the hash table.
-/// The key is actually a `BytesRef` object stored in an external heap.
-/// The `value_addr` also points to an address in the heap.
+/// The key is actually a `BytesRef` object stored in an external memory arena.
+/// The `value_addr` also points to an address in the memory arena.
 #[derive(Copy, Clone)]
 struct KeyValue {
     key_value_addr: Addr,
@@ -43,14 +44,14 @@ impl KeyValue {
 /// Customized `HashMap` with string keys
 ///
 /// This `HashMap` takes String as keys. Keys are
-/// stored in a user defined heap.
+/// stored in a user defined memory arena.
 ///
 /// The quirky API has the benefit of avoiding
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 pub struct TermHashMap {
     table: Box<[KeyValue]>,
-    pub heap: MemoryArena,
+    memory_arena: MemoryArena,
     mask: usize,
     occupied: Vec<usize>,
     len: usize,
@@ -91,18 +92,35 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+/// Returns the greatest power of two lower or equal to `n`.
+/// Except if n == 0, in that case, return 1.
+///
+/// # Panics if n == 0
+fn compute_previous_power_of_two(n: usize) -> usize {
+    assert!(n > 0);
+    let msb = (63u32 - n.leading_zeros()) as u8;
+    1 << msb
+}
+
 impl TermHashMap {
-    pub fn new(num_bucket_power_of_2: usize) -> TermHashMap {
-        let heap = MemoryArena::new();
-        let table_size = 1 << num_bucket_power_of_2;
-        let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
+    pub(crate) fn new(table_size: usize) -> TermHashMap {
+        assert!(table_size > 0);
+        let table_size_power_of_2 = compute_previous_power_of_two(table_size);
+        let memory_arena = MemoryArena::new();
+        let table: Vec<KeyValue> = iter::repeat(KeyValue::default())
+            .take(table_size_power_of_2)
+            .collect();
         TermHashMap {
             table: table.into_boxed_slice(),
-            heap,
-            mask: table_size - 1,
-            occupied: Vec::with_capacity(table_size / 2),
+            memory_arena,
+            mask: table_size_power_of_2 - 1,
+            occupied: Vec::with_capacity(table_size_power_of_2 / 2),
             len: 0,
         }
+    }
+
+    pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
+        self.memory_arena.read(addr)
     }
 
     fn probe(&self, hash: u32) -> QuadraticProbing {
@@ -119,7 +137,7 @@ impl TermHashMap {
 
     #[inline]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
-        let data = self.heap.slice_from(addr);
+        let data = self.memory_arena.slice_from(addr);
         let key_bytes_len = NativeEndian::read_u16(data) as usize;
         let key_bytes: &[u8] = &data[2..][..key_bytes_len];
         (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
@@ -209,9 +227,9 @@ impl TermHashMap {
                 // The key does not exists yet.
                 let val = updater(None);
                 let num_bytes = std::mem::size_of::<u16>() + key.len() + std::mem::size_of::<V>();
-                let key_addr = self.heap.allocate_space(num_bytes);
+                let key_addr = self.memory_arena.allocate_space(num_bytes);
                 {
-                    let data = self.heap.slice_mut(key_addr, num_bytes);
+                    let data = self.memory_arena.slice_mut(key_addr, num_bytes);
                     NativeEndian::write_u16(data, key.len() as u16);
                     let stop = 2 + key.len();
                     data[2..stop].copy_from_slice(key);
@@ -220,9 +238,9 @@ impl TermHashMap {
                 return self.set_bucket(hash, key_addr, bucket);
             } else if kv.hash == hash {
                 if let Some(val_addr) = self.get_value_addr_if_key_match(key, kv.key_value_addr) {
-                    let v = self.heap.read(val_addr);
+                    let v = self.memory_arena.read(val_addr);
                     let new_v = updater(Some(v));
-                    self.heap.write_at(val_addr, new_v);
+                    self.memory_arena.write_at(val_addr, new_v);
                     return kv.unordered_term_id;
                 }
             }
@@ -235,11 +253,11 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use super::TermHashMap;
+    use super::{compute_previous_power_of_two, TermHashMap};
 
     #[test]
     fn test_hash_map() {
-        let mut hash_map: TermHashMap = TermHashMap::new(18);
+        let mut hash_map: TermHashMap = TermHashMap::new(1 << 18);
         hash_map.mutate_or_create(b"abc", |opt_val: Option<u32>| {
             assert_eq!(opt_val, None);
             3u32
@@ -255,9 +273,17 @@ mod tests {
         let mut vanilla_hash_map = HashMap::new();
         let iter_values = hash_map.iter();
         for (key, addr, _) in iter_values {
-            let val: u32 = hash_map.heap.read(addr);
+            let val: u32 = hash_map.memory_arena.read(addr);
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);
+    }
+
+    #[test]
+    fn test_compute_previous_power_of_two() {
+        assert_eq!(compute_previous_power_of_two(8), 8);
+        assert_eq!(compute_previous_power_of_two(9), 8);
+        assert_eq!(compute_previous_power_of_two(7), 4);
+        assert_eq!(compute_previous_power_of_two(u64::MAX as usize), 1 << 63);
     }
 }

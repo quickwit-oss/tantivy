@@ -303,7 +303,7 @@ mod tests {
         let naive_date = NaiveDate::from_ymd(1982, 9, 17);
         let naive_time = NaiveTime::from_hms(13, 20, 00);
         let date_time = DateTime::from_utc(NaiveDateTime::new(naive_date, naive_time), Utc);
-        doc.add_date(date_field, &date_time);
+        doc.add_date(date_field, date_time);
         let doc_json = schema.to_json(&doc);
         assert_eq!(doc_json, r#"{"date":["1982-09-17T13:20:00+00:00"]}"#);
     }

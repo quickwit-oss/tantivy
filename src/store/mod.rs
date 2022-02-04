@@ -60,9 +60,7 @@ pub mod tests {
     use super::*;
     use crate::directory::{Directory, RamDirectory, WritePtr};
     use crate::fastfield::AliveBitSet;
-    use crate::schema::{
-        self, Document, FieldValue, Schema, TextFieldIndexing, TextOptions, STORED, TEXT,
-    };
+    use crate::schema::{self, Document, Schema, TextFieldIndexing, TextOptions, STORED, TEXT};
     use crate::{Index, Term};
 
     const LOREM: &str = "Doc Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -86,18 +84,9 @@ pub mod tests {
         {
             let mut store_writer = StoreWriter::new(writer, compressor);
             for i in 0..num_docs {
-                let mut fields: Vec<FieldValue> = Vec::new();
-                {
-                    let field_value = FieldValue::new(field_body, From::from(LOREM.to_string()));
-                    fields.push(field_value);
-                }
-                {
-                    let title_text = format!("Doc {}", i);
-                    let field_value = FieldValue::new(field_title, From::from(title_text));
-                    fields.push(field_value);
-                }
-                // let fields_refs: Vec<&FieldValue> = fields.iter().collect();
-                let doc = Document::from(fields);
+                let mut doc = Document::default();
+                doc.add_field_value(field_body, LOREM.to_string());
+                doc.add_field_value(field_title, format!("Doc {i}"));
                 store_writer.store(&doc).unwrap();
             }
             store_writer.close().unwrap();

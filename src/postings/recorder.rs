@@ -63,19 +63,19 @@ pub(crate) trait Recorder: Copy + 'static {
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
     /// This method shall only be called if the term is within the document.
-    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena);
+    fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena);
     /// Record the position of a term. For each document,
     /// this method will be called `term_freq` times.
-    fn record_position(&mut self, position: u32, heap: &mut MemoryArena);
+    fn record_position(&mut self, position: u32, arena: &mut MemoryArena);
     /// Close the document. It will help record the term frequency.
-    fn close_doc(&mut self, heap: &mut MemoryArena);
+    fn close_doc(&mut self, arena: &mut MemoryArena);
     /// Pushes the postings information to the serializer.
     fn serialize(
         &self,
-        buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
-        heap: &MemoryArena,
+        arena: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer<'_>,
+        buffer_lender: &mut BufferLender,
     );
     /// Returns the number of document containing this term.
     ///
@@ -102,24 +102,24 @@ impl Recorder for NothingRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
+    fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(heap));
+        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {}
+    fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {}
 
-    fn close_doc(&mut self, _heap: &mut MemoryArena) {}
+    fn close_doc(&mut self, _arena: &mut MemoryArena) {}
 
     fn serialize(
         &self,
-        buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
-        heap: &MemoryArena,
+        arena: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer<'_>,
+        buffer_lender: &mut BufferLender,
     ) {
         let (buffer, doc_ids) = buffer_lender.lend_all();
-        self.stack.read_to_end(heap, buffer);
+        self.stack.read_to_end(arena, buffer);
         // TODO avoid reading twice.
         if let Some(doc_id_map) = doc_id_map {
             doc_ids.extend(
@@ -166,31 +166,31 @@ impl Recorder for TermFrequencyRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
+    fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.term_doc_freq += 1;
         self.current_doc = doc;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(heap));
+        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {
+    fn record_position(&mut self, _position: u32, _arena: &mut MemoryArena) {
         self.current_tf += 1;
     }
 
-    fn close_doc(&mut self, heap: &mut MemoryArena) {
+    fn close_doc(&mut self, arena: &mut MemoryArena) {
         debug_assert!(self.current_tf > 0);
-        let _ = write_u32_vint(self.current_tf, &mut self.stack.writer(heap));
+        let _ = write_u32_vint(self.current_tf, &mut self.stack.writer(arena));
         self.current_tf = 0;
     }
 
     fn serialize(
         &self,
-        buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
-        heap: &MemoryArena,
+        arena: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer<'_>,
+        buffer_lender: &mut BufferLender,
     ) {
         let buffer = buffer_lender.lend_u8();
-        self.stack.read_to_end(heap, buffer);
+        self.stack.read_to_end(arena, buffer);
         let mut u32_it = VInt32Reader::new(&buffer[..]);
         if let Some(doc_id_map) = doc_id_map {
             let mut doc_id_and_tf = vec![];
@@ -236,29 +236,29 @@ impl Recorder for TfAndPositionRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
+    fn new_doc(&mut self, doc: DocId, arena: &mut MemoryArena) {
         self.current_doc = doc;
         self.term_doc_freq += 1u32;
-        let _ = write_u32_vint(doc, &mut self.stack.writer(heap));
+        let _ = write_u32_vint(doc, &mut self.stack.writer(arena));
     }
 
-    fn record_position(&mut self, position: u32, heap: &mut MemoryArena) {
-        let _ = write_u32_vint(position + 1u32, &mut self.stack.writer(heap));
+    fn record_position(&mut self, position: u32, arena: &mut MemoryArena) {
+        let _ = write_u32_vint(position + 1u32, &mut self.stack.writer(arena));
     }
 
-    fn close_doc(&mut self, heap: &mut MemoryArena) {
-        let _ = write_u32_vint(POSITION_END, &mut self.stack.writer(heap));
+    fn close_doc(&mut self, arena: &mut MemoryArena) {
+        let _ = write_u32_vint(POSITION_END, &mut self.stack.writer(arena));
     }
 
     fn serialize(
         &self,
-        buffer_lender: &mut BufferLender,
-        serializer: &mut FieldSerializer<'_>,
-        heap: &MemoryArena,
+        arena: &MemoryArena,
         doc_id_map: Option<&DocIdMapping>,
+        serializer: &mut FieldSerializer<'_>,
+        buffer_lender: &mut BufferLender,
     ) {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
-        self.stack.read_to_end(heap, buffer_u8);
+        self.stack.read_to_end(arena, buffer_u8);
         let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
         let mut doc_id_and_positions = vec![];
         while let Some(doc) = u32_it.next() {

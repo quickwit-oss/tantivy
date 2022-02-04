@@ -5,10 +5,11 @@ use common::BinarySerializable;
 use crate::schema::{Field, Value};
 
 /// `FieldValue` holds together a `Field` and its `Value`.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FieldValue {
-    field: Field,
-    value: Value,
+    pub field: Field,
+    pub value: Value,
 }
 
 impl FieldValue {
@@ -28,6 +29,12 @@ impl FieldValue {
     }
 }
 
+impl From<FieldValue> for Value {
+    fn from(field_value: FieldValue) -> Self {
+        field_value.value
+    }
+}
+
 impl BinarySerializable for FieldValue {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.field.serialize(writer)?;
@@ -37,6 +44,6 @@ impl BinarySerializable for FieldValue {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let field = Field::deserialize(reader)?;
         let value = Value::deserialize(reader)?;
-        Ok(FieldValue::new(field, value))
+        Ok(FieldValue { field, value })
     }
 }

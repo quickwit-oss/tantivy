@@ -73,7 +73,7 @@ fn main() -> tantivy::Result<()> {
     // multithreaded.
     //
     // Here we give tantivy a budget of `50MB`.
-    // Using a bigger heap for the indexer may increase
+    // Using a bigger memory_arena for the indexer may increase
     // throughput, but 50 MB is already plenty.
     let mut index_writer = index.writer(50_000_000)?;
 

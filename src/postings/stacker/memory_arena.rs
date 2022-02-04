@@ -81,6 +81,7 @@ pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {
 }
 
 /// The `MemoryArena`
+#[allow(clippy::new_without_default)]
 pub struct MemoryArena {
     pages: Vec<Page>,
 }
@@ -114,7 +115,7 @@ impl MemoryArena {
         store(dest, val);
     }
 
-    /// Read an item in the heap at the given `address`.
+    /// Read an item in the memory arena at the given `address`.
     ///
     /// # Panics
     ///

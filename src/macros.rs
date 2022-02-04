@@ -52,7 +52,7 @@ macro_rules! doc(
         {
             let mut document = $crate::Document::default();
             $(
-                document.add($crate::schema::FieldValue::new($field, $value.into()));
+                document.add_field_value($field, $value);
             )*
             document
         }
